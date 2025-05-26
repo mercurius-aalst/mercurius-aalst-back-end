@@ -12,6 +12,7 @@
         public GameFormat FinalsFormat { get; set; }
         public ParticipantType ParticipantType { get; set; }
 
+        //Placings are not being tracked yet
 
         public IList<Match> Matches { get; set; } = new List<Match>();
         public IList<Participant> Participants { get; set; } = [];

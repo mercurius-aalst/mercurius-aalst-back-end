@@ -18,7 +18,7 @@ namespace MercuriusAPI.Controllers.LAN
         [HttpGet]
         public IEnumerable<GetPlayerDTO> GetPlayers()
         {
-            return _playerService.GetAllPlayers().Select(p => new GetPlayerDTO(p));
+            return _playerService.GetAllPlayers();
         }
         [HttpGet("{id}")]
         public async Task<GetPlayerDTO> GetPlayerAsync(int id)
@@ -26,14 +26,14 @@ namespace MercuriusAPI.Controllers.LAN
             return new GetPlayerDTO(await _playerService.GetPlayerByIdAsync(id));
         }
         [HttpPost]
-        public async Task<GetPlayerDTO> CreatePlayerAsync(CreatePlayerDTO createPlayerDTO)
+        public Task<GetPlayerDTO> CreatePlayerAsync(CreatePlayerDTO createPlayerDTO)
         {
-            return new GetPlayerDTO(await _playerService.CreatePlayerAsync(createPlayerDTO));
+            return _playerService.CreatePlayerAsync(createPlayerDTO);
         }
         [HttpPut("{id}")]
-        public async Task<GetPlayerDTO> UpdatePlayerAsync(int id, UpdatePlayerDTO updatePlayerDTO)
+        public Task<GetPlayerDTO> UpdatePlayerAsync(int id, UpdatePlayerDTO updatePlayerDTO)
         {
-            return new GetPlayerDTO(await _playerService.UpdatePlayerAsync(id, updatePlayerDTO));
+            return _playerService.UpdatePlayerAsync(id, updatePlayerDTO);
         }
         [HttpDelete("{id}")]
         public Task DeletePlayerAsync(int id)

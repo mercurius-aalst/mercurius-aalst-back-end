@@ -20,12 +20,12 @@ namespace MercuriusAPI.Services.LAN.PlayerServices
             return player;
         }
 
-        public IEnumerable<Player> GetAllPlayers()
+        public IEnumerable<GetPlayerDTO> GetAllPlayers()
         {
-            return _dbContext.Players;
+            return _dbContext.Players.Select(p => new GetPlayerDTO(p));
         }
 
-        public async Task<Player> CreatePlayerAsync(CreatePlayerDTO playerDTO)
+        public async Task<GetPlayerDTO> CreatePlayerAsync(CreatePlayerDTO playerDTO)
         {
             if(await CheckUsernameExists(playerDTO.Username) || await CheckEmailExistsAsync(playerDTO.Email))
                 throw new BadHttpRequestException("Username or email already exists");
@@ -33,9 +33,9 @@ namespace MercuriusAPI.Services.LAN.PlayerServices
             var player = new Player(playerDTO.Username, playerDTO.Firstname, playerDTO.Lastname, playerDTO.Email, playerDTO.DiscordId, playerDTO.SteamId, playerDTO.RiotId);
             _dbContext.Players.Add(player);
             await _dbContext.SaveChangesAsync();
-            return player;
+            return new GetPlayerDTO(player);
         }
-        public async Task<Player> UpdatePlayerAsync(int id, UpdatePlayerDTO playerDTO)
+        public async Task<GetPlayerDTO> UpdatePlayerAsync(int id, UpdatePlayerDTO playerDTO)
         {
             var player = await _dbContext.Players.FindAsync(id);
             if(player is null)
@@ -44,7 +44,7 @@ namespace MercuriusAPI.Services.LAN.PlayerServices
             player.Update(playerDTO.Firstname, playerDTO.Lastname, playerDTO.DiscordId, playerDTO.SteamId, playerDTO.RiotId);
             _dbContext.Players.Update(player);
             await _dbContext.SaveChangesAsync();
-            return player;
+            return new GetPlayerDTO(player);
         }
         public async Task DeletePlayerAsync(int playerId)
         {

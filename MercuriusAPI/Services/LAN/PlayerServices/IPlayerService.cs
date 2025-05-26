@@ -5,10 +5,10 @@ namespace MercuriusAPI.Services.LAN.PlayerServices
 {
     public interface IPlayerService
     {
-        Task<Player> CreatePlayerAsync(CreatePlayerDTO playerDTO);
+        Task<GetPlayerDTO> CreatePlayerAsync(CreatePlayerDTO playerDTO);
         Task DeletePlayerAsync(int playerId);
-        IEnumerable<Player> GetAllPlayers();
+        IEnumerable<GetPlayerDTO> GetAllPlayers();
         Task<Player> GetPlayerByIdAsync(int playerId);
-        Task<Player> UpdatePlayerAsync(int id, UpdatePlayerDTO player);
+        Task<GetPlayerDTO> UpdatePlayerAsync(int id, UpdatePlayerDTO player);
     }
 }

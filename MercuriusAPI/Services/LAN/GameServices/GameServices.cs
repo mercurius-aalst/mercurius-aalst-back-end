@@ -9,9 +9,9 @@ namespace MercuriusAPI.Services.LAN.GameServices
     public class GameService : IGameService
     {
         private readonly MercuriusDBContext _dbContext;
-        private readonly IMatchGeneratorFactory _matchGeneratorFactory;
+        private readonly IMatchModeratorFactory _matchGeneratorFactory;
 
-        public GameService(MercuriusDBContext dbContext, IMatchGeneratorFactory matchGeneratorFactory)
+        public GameService(MercuriusDBContext dbContext, IMatchModeratorFactory matchGeneratorFactory)
         {
             _dbContext = dbContext;
             _matchGeneratorFactory = matchGeneratorFactory;
@@ -69,7 +69,7 @@ namespace MercuriusAPI.Services.LAN.GameServices
         {
             var game = await GetGameByIdAsync(id);
             game.Start();
-            var matchGenerator = _matchGeneratorFactory.GetMatchGenerator(game.BracketType);
+            var matchGenerator = _matchGeneratorFactory.GetMatchModerator(game.BracketType);
             game.Matches = matchGenerator.GenerateMatchesForGame(game).ToList();
 
             _dbContext.Games.Update(game);           
@@ -114,6 +114,11 @@ namespace MercuriusAPI.Services.LAN.GameServices
             _dbContext.Games.Update(game);
             await _dbContext.SaveChangesAsync();
             return new GetGameDTO(game);
+        }
+
+        public void AssignParticipantsToNextMatch(Match match, Game game)
+        {
+
         }
         private async Task<bool> CheckIfGameNameExistsAsync(string name)
         {

@@ -26,11 +26,11 @@ namespace MercuriusAPI
             builder.Services.AddTransient<IGameService, GameService>();
             builder.Services.AddTransient<IParticipantService, ParticipantService>();
 
-            builder.Services.AddTransient<IMatchGeneratorFactory, MatchGeneratorFactory>();
-            builder.Services.AddTransient<SingleEliminationMatchGenerator>();
-            builder.Services.AddTransient<DoubleEliminationMatchGenerator>();
-            builder.Services.AddTransient<SwissStageMatchGenerator>();
-            builder.Services.AddTransient<RoundRobinMatchGenerator>();
+            builder.Services.AddTransient<IMatchModeratorFactory, MatchModeratorFactory>();
+            builder.Services.AddTransient<SingleEliminationMatchModerator>();
+            builder.Services.AddTransient<DoubleEliminationMatchModerator>();
+            builder.Services.AddTransient<SwissStageMatchModerator>();
+            builder.Services.AddTransient<RoundRobinMatchModerator>();
 
 
             var app = builder.Build();

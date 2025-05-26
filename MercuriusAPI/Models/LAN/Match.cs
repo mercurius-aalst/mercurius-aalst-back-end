@@ -29,21 +29,27 @@
             if(Participant1 == null && Participant2 != null)
             {
                 Winner = Participant2;
-                Participant2 = null;
             }
             else if(Participant2 == null && Participant1 != null)
             {
                 Winner = Participant1;
-                Participant1 = null;
             }
+        }
+
+        public void Start()
+        {
+            StartTime = DateTime.UtcNow;
+        }
+
+        public void Finish()
+        {
+            EndTime = DateTime.UtcNow;
         }
 
         public void SetScoresAndWinner(int participant1Score, int participant2Score)
         {
             if(participant1Score < 0 || participant2Score < 0)
                 throw new Exception("Scores cannot be negative");
-            if(participant1Score == participant2Score)
-                throw new Exception("Scores cannot be equal");
             int winsNeeded = Format switch
             {
                 GameFormat.BestOf1 => 1,
@@ -53,6 +59,8 @@
             };
             if(participant1Score > winsNeeded || participant2Score > winsNeeded)
                 throw new ArgumentException("Scores cannot exceed the required number of wins for the match format.");
+            if(participant1Score == participant2Score && participant1Score+participant2Score != 0 && winsNeeded == 1)
+                throw new Exception("Scores cannot be equal in Bo1 format");
 
             Participant1Score = participant1Score;
             Participant2Score = participant2Score;
@@ -60,10 +68,12 @@
             if(participant1Score == winsNeeded && participant1Score > participant2Score)
             {
                 Winner = Participant1;
+                Finish();
             }
-            else if(participant2Score >= winsNeeded && participant2Score > participant1Score)
+            else if(participant2Score == winsNeeded && participant2Score > participant1Score)
             {
                 Winner = Participant2;
+                Finish();
             }
         }
     }

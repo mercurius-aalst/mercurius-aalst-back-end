@@ -16,9 +16,8 @@ namespace MercuriusAPI.Services.LAN.MatchServices
             {
                 BracketType.SingleElimination => _serviceProvider.GetRequiredService<SingleEliminationMatchGenerator>(),
                 BracketType.DoubleElimination => _serviceProvider.GetRequiredService<DoubleEliminationMatchGenerator>(),
-                BracketType.Swiss => _serviceProvider.GetRequiredService<SwissStageMatchGenerator>(),
                 BracketType.RoundRobin => _serviceProvider.GetRequiredService<RoundRobinMatchGenerator>(),
-                _ => throw new NotSupportedException($"Bracket type {bracketType} is not supported.")
+                _ => throw new NotSupportedException($"Bracket type {bracketType} is not (yet) supported.")
             };
         }
     }

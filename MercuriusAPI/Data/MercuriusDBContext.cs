@@ -1,0 +1,79 @@
+﻿using MercuriusAPI.Models.LAN;
+using Microsoft.EntityFrameworkCore;
+
+namespace MercuriusAPI.Data
+{
+    public partial class MercuriusDBContext : DbContext
+    {
+        public MercuriusDBContext()
+        {
+        }
+
+        public MercuriusDBContext(DbContextOptions<MercuriusDBContext> options) : base(options)
+        {
+        }
+
+        public DbSet<Player> Players { get; set; }
+        public DbSet<Team> Teams { get; set; }
+        public DbSet<Match> Matches { get; set; }
+        public DbSet<Game> Games { get; set; }
+        public DbSet<Participant> Participants { get; set; }
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<Player>(entity =>
+            {
+                entity.Property(e => e.Username).IsRequired();
+                entity.Property(e => e.Firstname).IsRequired();
+                entity.Property(e => e.Lastname).IsRequired();
+                entity.Property(e => e.Email).IsRequired();
+
+            });
+
+            modelBuilder.Entity<Participant>().UseTptMappingStrategy();
+            ;
+            modelBuilder.Entity<Team>(entity =>
+            {
+                entity.Property(e => e.Name).IsRequired();
+                entity.HasMany(e => e.Players)
+                      .WithMany(e => e.Teams);
+                entity.HasOne(e => e.Captain)
+                       .WithMany()
+                       .HasForeignKey(e => e.CaptainId)
+                       .IsRequired();
+
+            });
+
+            modelBuilder.Entity<Match>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasOne(e => e.Participant1)
+                      .WithMany()
+                      .HasForeignKey(e => e.Pariticipant1Id).IsRequired(false);
+                entity.HasOne(e => e.Participant2)
+                      .WithMany()
+                      .HasForeignKey(e => e.Participant2Id).IsRequired(false);
+                entity.HasOne(e => e.Winner)
+                        .WithMany()
+                        .HasForeignKey(e => e.WinnerId).IsRequired(false);
+                entity.HasOne(e => e.Game)
+                        .WithMany(e => e.Matches)
+                        .HasForeignKey(e => e.GameId).OnDelete(DeleteBehavior.Cascade);              
+            });
+
+            modelBuilder.Entity<Game>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Name).IsRequired();
+                entity.Property(e => e.StartTime).IsRequired();
+                entity.Property(e => e.EndTime).IsRequired();
+                entity.HasMany(e => e.Participants)
+                      .WithMany(e => e.Games);
+            });
+
+            OnModelCreatingPartial(modelBuilder);
+        }
+        partial void OnModelCreatingPartial(ModelBuilder modelBuilder);
+
+    }
+}

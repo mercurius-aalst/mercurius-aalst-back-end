@@ -6,16 +6,16 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
     {
         public IEnumerable<Match> GenerateMatchesForGame(Game game)
         {
-            var matches = new List<Match>();
-
-            int totalParticipants = game.Participants.Count;
-            bool isOdd = totalParticipants % 2 != 0;
-            int totalRounds = isOdd ? totalParticipants : totalParticipants - 1;
-            int matchesPerRound = totalParticipants / 2;
+            var matches = new List<Match>();                    
 
             var rotation = new List<Participant>(game.Participants);
+            bool isOdd = rotation.Count % 2 != 0;
             if(isOdd)
                 rotation.Add(null);
+
+            int totalParticipants = rotation.Count;
+            int totalRounds = totalParticipants - 1;
+            int matchesPerRound = totalParticipants / 2;
 
             int matchNumber = 0;
 

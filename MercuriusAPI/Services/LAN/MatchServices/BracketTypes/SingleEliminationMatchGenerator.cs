@@ -1,4 +1,5 @@
-﻿using MercuriusAPI.Models.LAN;
+﻿using MercuriusAPI.Extensions.LAN;
+using MercuriusAPI.Models.LAN;
 using System.Linq;
 
 namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
@@ -56,6 +57,7 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
 
                 matches.Add(match);                
             }
+            matches.AssignByeWinnersNextMatch();
             return matches;
         }
     }

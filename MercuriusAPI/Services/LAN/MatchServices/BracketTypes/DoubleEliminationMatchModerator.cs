@@ -4,7 +4,7 @@ using System.Linq;
 
 namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
 {
-    public class DoubleEliminationMatchGenerator : IMatchGenerator
+    public class DoubleEliminationMatchModerator : IMatchModerator
     {
         public IEnumerable<Match> GenerateMatchesForGame(Game game)
         {
@@ -87,7 +87,7 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
                     {
                         GameId = game.Id,
                         RoundNumber = round,
-                        MatchNumber = i+1,
+                        MatchNumber = i + 1,
                         Format = game.Format,
                         BracketType = game.BracketType,
                         ParticipantType = game.ParticipantType,
@@ -110,14 +110,67 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
             var grandFinalMatch = new Match
             {
                 GameId = game.Id,
-                RoundNumber = -1,
-                MatchNumber = matches.Max(m => m.MatchNumber) + 1,
+                RoundNumber = matches.Max(m => m.RoundNumber) + 1,
+                MatchNumber = 1,
                 Format = game.FinalsFormat,
                 BracketType = game.BracketType,
                 ParticipantType = game.ParticipantType,
                 IsLowerBracketMatch = false
             };
             matches.Add(grandFinalMatch);
+        }
+
+        public IEnumerable<Match> AssignParticipantsToNextMatch(Match previousMatch, Game game)
+        {
+            var returnList = new List<Match>();
+
+            /*
+             *Upper bracket: 
+             *  Winner gets next match in upper bracket
+             *    GF is last match in upper bracket
+             *  Loser goes to lower bracket match with same round number
+             *    For UB final: roundnumber + 1
+             *Lower Bracket:
+             *  Loser eliminated
+             *  Winner goes next round in lower bracket
+             *    For LB Final: same round number but upper bracket
+            */
+
+            if(previousMatch.IsLowerBracketMatch)
+            {
+                var targetLowerRoundMatch = AssignLoserParticipantNextMatch(previousMatch, game);
+                if(targetLowerRoundMatch != null)
+                    returnList.Add(targetLowerRoundMatch);
+            }
+            var targetUpperRoundMatch = AssignSingleElimParticipantNextMatch(previousMatch, game);
+            if(targetUpperRoundMatch != null)
+                returnList.Add(targetUpperRoundMatch);
+
+            return returnList;
+        }
+
+        private Match AssignSingleElimParticipantNextMatch(Match previousMatch, Game game)
+        {
+            if(game.Matches.Any(m => m.RoundNumber > previousMatch.RoundNumber))
+            {
+                var nextUpperRoundMatches = game.Matches.Where(m => m.RoundNumber == previousMatch.RoundNumber + 1).OrderBy(m => m.MatchNumber).ToList();
+                var targetUpperRoundMatch = nextUpperRoundMatches[previousMatch.MatchNumber / 2];
+
+                if(previousMatch.MatchNumber % 2 != 0)
+                    targetUpperRoundMatch.Participant1 = previousMatch.Winner;
+                else
+                    targetUpperRoundMatch.Participant2 = previousMatch.Winner;
+
+                return targetUpperRoundMatch;
+            }
+            else
+                return null;
+        }
+
+        private Match AssignLoserParticipantNextMatch(Match previousMatch, Game game)
+        {
+            var loser = previousMatch.WinnerId == previousMatch.Pariticipant1Id ? previousMatch.Participant1 : previousMatch.Participant2;
+            throw new NotImplementedException();
         }
     }
 }

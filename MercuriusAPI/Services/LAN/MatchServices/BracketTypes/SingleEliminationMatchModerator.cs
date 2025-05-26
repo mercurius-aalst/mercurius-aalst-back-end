@@ -4,8 +4,27 @@ using System.Linq;
 
 namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
 {
-    public class SingleEliminationMatchGenerator : IMatchGenerator
+    public class SingleEliminationMatchModerator : IMatchModerator
     {
+        public IEnumerable<Match> AssignParticipantsToNextMatch(Match match, Game game)
+        {
+
+            if(game.Matches.Any(m => m.RoundNumber > match.RoundNumber))
+            {
+                var nextRoundMatches = game.Matches.Where(m => m.RoundNumber == match.RoundNumber + 1).OrderBy(m => m.MatchNumber).ToList();
+                var targetMatch = nextRoundMatches[match.MatchNumber / 2];
+
+                if(match.MatchNumber % 2 != 0)
+                    targetMatch.Participant1 = match.Winner;
+                else
+                    targetMatch.Participant2 = match.Winner;
+
+                return [targetMatch];
+            }
+            // If no next round present, then it was final so no next match to assign to.
+            return [];
+        }
+
         public IEnumerable<Match> GenerateMatchesForGame(Game game)
         {
             var matches = new List<Match>();
@@ -55,7 +74,7 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
                     matchNumber++;
                 previousRound = round;
 
-                matches.Add(match);                
+                matches.Add(match);
             }
             matches.AssignByeWinnersNextMatch();
             return matches;

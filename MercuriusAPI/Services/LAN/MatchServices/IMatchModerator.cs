@@ -2,8 +2,10 @@
 
 namespace MercuriusAPI.Services.LAN.MatchServices
 {
-    public interface IMatchGenerator
+    public interface IMatchModerator
     {
         IEnumerable<Match> GenerateMatchesForGame(Game game);
+        IEnumerable<Match> AssignParticipantsToNextMatch(Match match, Game game);
+
     }
 }

@@ -2,7 +2,7 @@
 
 namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
 {
-    public class SwissStageMatchGenerator : IMatchGenerator
+    public class SwissStageMatchModerator : IMatchModerator
     {
 
         private const int _maxRounds = 5;

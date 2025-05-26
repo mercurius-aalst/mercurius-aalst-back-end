@@ -108,5 +108,7 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
 
             return padded;
         }
+
+        public IEnumerable<Match> AssignParticipantsToNextMatch(Match match, Game game) => throw new NotImplementedException();
     }
 }

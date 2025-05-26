@@ -9,6 +9,7 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
         {
             var matches = new List<Match>();
             GenerateUpperBracketMatches(game, game.Participants, matches);
+            AssignByeWinnersNextMatch(matches);
             GenerateLowerBracketMatches(game, game.Participants, matches);
             GenerateGrandFinalMatch(game, matches);
             return matches;
@@ -16,8 +17,7 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
 
         private void GenerateUpperBracketMatches(Game game, IEnumerable<Participant> participants, List<Match> matches)
         {
-            int participantCount = participants.Count();
-            participants = participants.OrderBy(_ => Guid.NewGuid()).ToList();
+            int participantCount = game.Participants.Count();
             int nextPowerOfTwo = (int)Math.Pow(2, Math.Ceiling(Math.Log2(participantCount)));
             int totalMatches = nextPowerOfTwo - 1;
 
@@ -25,22 +25,30 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
             int firstRoundMatchCount = nextPowerOfTwo / 2;
 
             var shuffled = participants.OrderBy(_ => Guid.NewGuid()).ToList();
-            int matchIndex = 0;
+            int matchNumber = 1;
+            int previousRound = totalRounds + 1; //We're working top down in match generation
 
             for(int i = 0; i < totalMatches; i++)
             {
                 // Determine round number
-                int round = (int)Math.Floor(Math.Log2(totalMatches + 1)) - (int)Math.Floor(Math.Log2(i + 1)) + 1;
+                int round = (int)Math.Floor(Math.Log2(nextPowerOfTwo)) - (int)Math.Floor(Math.Log2(i + 1));
+                int matchesInThisRound = nextPowerOfTwo / (1 << (round - 1));
+                int firstMatchIndex = totalMatches - matchesInThisRound;
+
+                //If calculation a new round reset matchNumber, otherwise increase
+                if(round < previousRound)
+                    matchNumber = 1;
+                else
+                    matchNumber++;
 
                 var match = new Match
                 {
                     GameId = game.Id,
                     RoundNumber = round,
                     BracketType = game.BracketType,
-                    Format = game.Format,
-                    MatchNumber = matchIndex++,
-                    ParticipantType = game.ParticipantType,
-                    IsLowerBracketMatch = false
+                    Format = i == 0 ? game.FinalsFormat : game.Format,
+                    MatchNumber = matchNumber,
+                    ParticipantType = game.ParticipantType
                 };
 
                 // Assign participants only to first-round matches (the leaves)
@@ -52,6 +60,8 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
                     match.Participant2 = leafIndex * 2 + 1 < shuffled.Count ? shuffled[leafIndex * 2 + 1] : null;
                     match.TryAssignByeWin();
                 }
+
+                previousRound = round;
 
                 matches.Add(match);
             }
@@ -65,8 +75,6 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
 
             int totalLBRounds = (upperBracketRounds - 1) * 2;
 
-            int matchNumber = matches.Max(m => m.MatchNumber) + 1;
-
             int matchesThisRound = matches
                 .Count(m => !m.IsLowerBracketMatch && m.RoundNumber == 1) / 2;
 
@@ -78,7 +86,7 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
                     {
                         GameId = game.Id,
                         RoundNumber = round,
-                        MatchNumber = matchNumber++,
+                        MatchNumber = i+1,
                         Format = game.Format,
                         BracketType = game.BracketType,
                         ParticipantType = game.ParticipantType,
@@ -109,6 +117,36 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
                 IsLowerBracketMatch = false
             };
             matches.Add(grandFinalMatch);
+        }
+
+        private void AssignByeWinnersNextMatch(IEnumerable<Match> matches)
+        {
+            var matchesByRound = matches
+        .Where(m => !m.IsLowerBracketMatch)
+        .GroupBy(m => m.RoundNumber)
+        .OrderBy(g => g.Key)
+        .ToList();
+
+            if(matchesByRound.Count < 2)
+                return; // No second round to assign to
+
+            var round1 = matchesByRound[0].OrderBy(m => m.MatchNumber).ToList();
+            var round2 = matchesByRound[1].OrderBy(m => m.MatchNumber).ToList();
+
+            for(int i = 0; i < round1.Count; i ++)
+            {
+                var match1 = round1[i];
+
+                var targetMatch = round2[i / 2];
+
+                if(match1.Winner != null)
+                {
+                    if(match1.MatchNumber % 2 != 0)
+                        targetMatch.Participant1 = match1.Winner;
+                    else
+                        targetMatch.Participant2 = match1.Winner;
+                }
+            }
         }
     }
 }

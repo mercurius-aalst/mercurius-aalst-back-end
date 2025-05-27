@@ -79,11 +79,13 @@
             if(participant1Score == winsNeeded && participant1Score > participant2Score)
             {
                 Winner = Participant1;
+                Loser = Participant2;
                 Finish();
             }
             else if(participant2Score == winsNeeded && participant2Score > participant1Score)
             {
                 Winner = Participant2;
+                Loser = Participant1;
                 Finish();
             }
         }

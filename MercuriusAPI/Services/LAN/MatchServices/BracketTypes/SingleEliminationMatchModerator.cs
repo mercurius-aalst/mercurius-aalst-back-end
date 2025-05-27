@@ -6,23 +6,24 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
 {
     public class SingleEliminationMatchModerator : IMatchModerator
     {
-        public IEnumerable<Match> AssignParticipantsToNextMatch(Match match, Game game)
+
+        public IEnumerable<Match> AssignParticipantsToNextMatch(Match finishedMatch, Game game)
         {
 
-            if(game.Matches.Any(m => m.RoundNumber > match.RoundNumber))
+            if(game.Matches.Any(m => m.RoundNumber > finishedMatch.RoundNumber))
             {
-                var nextRoundMatches = game.Matches.Where(m => m.RoundNumber == match.RoundNumber + 1).OrderBy(m => m.MatchNumber).ToList();
-                var targetMatch = nextRoundMatches[match.MatchNumber / 2];
+                var nextRoundMatches = game.Matches.Where(m => m.RoundNumber == finishedMatch.RoundNumber + 1).OrderBy(m => m.MatchNumber).ToList();
+                var targetMatch = nextRoundMatches[finishedMatch.MatchNumber / 2];
 
-                if(match.MatchNumber % 2 != 0)
-                    targetMatch.Participant1 = match.Winner;
+                if(finishedMatch.MatchNumber % 2 != 0)
+                    targetMatch.Participant1 = finishedMatch.Winner;
                 else
-                    targetMatch.Participant2 = match.Winner;
+                    targetMatch.Participant2 = finishedMatch.Winner;
 
-                return [targetMatch];
+                return [finishedMatch, targetMatch];
             }
-            // If no next round present, then it was final so no next match to assign to.
-            return [];
+            // If no next round present, then it was final so no next match to assign to, just return finished match
+            return [finishedMatch];
         }
 
         public IEnumerable<Match> GenerateMatchesForGame(Game game)
@@ -76,6 +77,21 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
 
                 matches.Add(match);
             }
+
+            for(int i = 0; i < matches.Count; i++)
+            {
+                var current = matches[i];
+
+                if(current.RoundNumber == 1)
+                    continue;
+
+                int childMatchIndex1 = (i * 2) + 1;
+                int childMatchIndex2 = (i * 2) + 2;
+
+                matches[childMatchIndex1].WinnerNextMatch = current;
+                matches[childMatchIndex2].WinnerNextMatch = current;
+            }
+
             matches.AssignByeWinnersNextMatch();
             return matches;
         }

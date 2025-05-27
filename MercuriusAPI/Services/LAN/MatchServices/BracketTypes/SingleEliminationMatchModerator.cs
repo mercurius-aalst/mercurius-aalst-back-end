@@ -9,18 +9,14 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
 
         public IEnumerable<Match> AssignParticipantsToNextMatch(Match finishedMatch, Game game)
         {
-
-            if(game.Matches.Any(m => m.RoundNumber > finishedMatch.RoundNumber))
+            if(finishedMatch.WinnerNextMatch is not null)
             {
-                var nextRoundMatches = game.Matches.Where(m => m.RoundNumber == finishedMatch.RoundNumber + 1).OrderBy(m => m.MatchNumber).ToList();
-                var targetMatch = nextRoundMatches[finishedMatch.MatchNumber / 2];
-
                 if(finishedMatch.MatchNumber % 2 != 0)
-                    targetMatch.Participant1 = finishedMatch.Winner;
+                    finishedMatch.WinnerNextMatch.Participant1 = finishedMatch.Winner;
                 else
-                    targetMatch.Participant2 = finishedMatch.Winner;
+                    finishedMatch.WinnerNextMatch.Participant2 = finishedMatch.Winner;
 
-                return [finishedMatch, targetMatch];
+                return [finishedMatch, finishedMatch.WinnerNextMatch];
             }
             // If no next round present, then it was final so no next match to assign to, just return finished match
             return [finishedMatch];

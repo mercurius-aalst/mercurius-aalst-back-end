@@ -4,7 +4,7 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
 {
     public class RoundRobinMatchModerator : IMatchModerator
     {
-        public IEnumerable<Match> AssignParticipantsToNextMatch(Match match, Game game) => throw new NotImplementedException(); // RR has already all participants assigned to a the games
+        public IEnumerable<Match> AssignParticipantsToNextMatch(Match match) => throw new NotImplementedException(); // RR has already all participants assigned to a the games
 
         public IEnumerable<Match> GenerateMatchesForGame(Game game)
         {
@@ -48,6 +48,8 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
                 rotation.RemoveAt(rotation.Count - 1);
                 rotation.Insert(1, last);
             }
+
+            //Winner and Loser next matches don't need to be linked, no binary tree here.
             return matches;
         }
     }

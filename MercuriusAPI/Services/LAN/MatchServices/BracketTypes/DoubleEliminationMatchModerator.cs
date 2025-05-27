@@ -10,9 +10,10 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
         {
             var matches = new List<Match>();
             GenerateUpperBracketMatches(game, game.Participants, matches);
-            matches.AssignByeWinnersNextMatch();
             GenerateLowerBracketMatches(game, game.Participants, matches);
             GenerateGrandFinalMatch(game, matches);
+            matches = AssignNextMatchesForDoubleElimination(matches).ToList();
+            matches.AssignByeWinnersNextMatch();
             return matches;
         }
 
@@ -119,58 +120,110 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
             };
             matches.Add(grandFinalMatch);
         }
-
-        public IEnumerable<Match> AssignParticipantsToNextMatch(Match previousMatch, Game game)
+        private IEnumerable<Match> AssignNextMatchesForDoubleElimination(List<Match> matches)
         {
-            var returnList = new List<Match>();
+            var updatedMatches = new List<Match>();
+            // Separate upper and lower bracket matches and grand final for convenience
+            var uBMatches = matches.Where(m => !m.IsLowerBracketMatch && m.RoundNumber < matches.Max(x => x.RoundNumber)).OrderBy(m => m.RoundNumber).ThenBy(m => m.MatchNumber).ToList();
+            var lBMatches = matches.Where(m => m.IsLowerBracketMatch).OrderBy(m => m.RoundNumber).ThenBy(m => m.MatchNumber).ToList();
+            var grandFinal = matches.Single(m => !m.IsLowerBracketMatch && m.RoundNumber == matches.Max(x => x.RoundNumber));
 
-            /*
-             *Upper bracket: 
-             *  Winner gets next match in upper bracket
-             *    GF is last match in upper bracket
-             *  Loser goes to lower bracket match with same round number
-             *    For UB final: roundnumber + 1
-             *Lower Bracket:
-             *  Loser eliminated
-             *  Winner goes next round in lower bracket
-             *    For LB Final: same round number but upper bracket
-            */
-
-            if(previousMatch.IsLowerBracketMatch)
+            //Set navigation properties for Upper bracket matches
+            for(int i = 0; i < uBMatches.Count; i++)
             {
-                var targetLowerRoundMatch = AssignLoserParticipantNextMatch(previousMatch, game);
-                if(targetLowerRoundMatch != null)
-                    returnList.Add(targetLowerRoundMatch);
-            }
-            var targetUpperRoundMatch = AssignSingleElimParticipantNextMatch(previousMatch, game);
-            if(targetUpperRoundMatch != null)
-                returnList.Add(targetUpperRoundMatch);
+                var current = uBMatches[i];
 
-            return returnList;
-        }
-
-        private Match AssignSingleElimParticipantNextMatch(Match previousMatch, Game game)
-        {
-            if(game.Matches.Any(m => m.RoundNumber > previousMatch.RoundNumber))
-            {
-                var nextUpperRoundMatches = game.Matches.Where(m => m.RoundNumber == previousMatch.RoundNumber + 1).OrderBy(m => m.MatchNumber).ToList();
-                var targetUpperRoundMatch = nextUpperRoundMatches[previousMatch.MatchNumber / 2];
-
-                if(previousMatch.MatchNumber % 2 != 0)
-                    targetUpperRoundMatch.Participant1 = previousMatch.Winner;
+                //UB Final
+                if(current == uBMatches.LastOrDefault())
+                {
+                    current.LoserNextMatch = lBMatches.LastOrDefault();
+                }                
                 else
-                    targetUpperRoundMatch.Participant2 = previousMatch.Winner;
+                {
+                    int targetLBRoundNumber = (current.RoundNumber - 1) * 2 + 1;
+                    int targetLBMatchNumber;
+                    //UB Round 1
+                    if(current.RoundNumber == 1)
+                        targetLBMatchNumber = (int)Math.Ceiling((double)current.MatchNumber / 2);
+                    //All other UB Rounds
+                    else
+                    {
+                        int numMatchesInCurrentUBRound = (int)Math.Pow(2, uBMatches.Where(m => m.RoundNumber == current.RoundNumber).Count() - current.RoundNumber);
 
-                return targetUpperRoundMatch;
+                        targetLBMatchNumber = numMatchesInCurrentUBRound - current.MatchNumber + 1;
+                    }
+
+                    current.LoserNextMatch = lBMatches.FirstOrDefault(m => m.RoundNumber == targetLBRoundNumber && m.MatchNumber == targetLBMatchNumber);
+                }
+
+                //Already first round, so can't go deeper to set parents
+                if(current.RoundNumber == 1)
+                    continue;
+
+                int childMatchIndex1 = (i * 2) + 1;
+                int childMatchIndex2 = (i * 2) + 2;
+
+                uBMatches[childMatchIndex1].WinnerNextMatch = current;
+                uBMatches[childMatchIndex2].WinnerNextMatch = current;
+              
             }
-            else
-                return null;
-        }
 
-        private Match AssignLoserParticipantNextMatch(Match previousMatch, Game game)
+            foreach(var currentLBMatch in lBMatches)
+            {
+                // LB Final winner goes to Grand Final
+                if(currentLBMatch == lBMatches.LastOrDefault())
+                {
+                    currentLBMatch.WinnerNextMatch = grandFinal;
+                    continue;
+                }
+
+                int nextLBRoundNumber = currentLBMatch.RoundNumber + 1;
+                int nextLBMatchNumber;
+
+
+                //Consolidation round winner (lb winner vs lb winner)
+                if(currentLBMatch.RoundNumber % 2 != 0)
+                    nextLBMatchNumber = currentLBMatch.MatchNumber;
+                //Entry round winner (lb winner vs ub loser)
+                else
+                    nextLBMatchNumber = (int)Math.Ceiling((double)currentLBMatch.MatchNumber / 2);
+
+                currentLBMatch.WinnerNextMatch = lBMatches.FirstOrDefault(m => m.RoundNumber == nextLBRoundNumber && m.MatchNumber == nextLBMatchNumber);
+
+            }
+
+
+            // 3) Grand final: no next matches
+            grandFinal.WinnerNextMatch = null;
+            grandFinal.LoserNextMatch = null;
+
+            updatedMatches.AddRange(uBMatches);
+            updatedMatches.AddRange(lBMatches);
+            updatedMatches.Add(grandFinal);
+
+            return updatedMatches;
+        }
+        public IEnumerable<Match> AssignParticipantsToNextMatch(Match finishedMatch)
         {
-            var loser = previousMatch.WinnerId == previousMatch.Pariticipant1Id ? previousMatch.Participant1 : previousMatch.Participant2;
-            throw new NotImplementedException();
+            var updatedMatches = new List<Match>() { finishedMatch };
+            if(finishedMatch.WinnerNextMatch is not null)
+            {
+                if(finishedMatch.MatchNumber % 2 != 0)
+                    finishedMatch.WinnerNextMatch.Participant1 = finishedMatch.Winner;
+                else
+                    finishedMatch.WinnerNextMatch.Participant2 = finishedMatch.Winner;
+
+                updatedMatches.Add(finishedMatch.WinnerNextMatch);
+            }
+            if(finishedMatch.LoserNextMatch is not null)
+            {
+                if(finishedMatch.MatchNumber % 2 != 0)
+                    finishedMatch.LoserNextMatch.Participant1 = finishedMatch.Loser;
+                else
+                    finishedMatch.LoserNextMatch.Participant2 = finishedMatch.Loser;
+                updatedMatches.Add(finishedMatch.LoserNextMatch);
+            }
+            return updatedMatches;
         }
     }
 }

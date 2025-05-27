@@ -6,7 +6,6 @@ namespace MercuriusAPI.Services.LAN.GameServices
     public interface IGameService
     {
         Task<GetGameDTO> AddParticipantAsync(int id, Participant participant);
-        void AssignParticipantsToNextMatch(Match match, Game game);
         Task CancelGameAsync(int id);
         Task CompleteGameAsync(int id);
         Task<GetGameDTO> CreateGameAsync(CreateGameDTO createGameDTO);

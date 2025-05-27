@@ -1,6 +1,5 @@
 ﻿using MercuriusAPI.DTOs.LAN.MatchDTOs;
 using MercuriusAPI.Services.LAN.MatchServices;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace MercuriusAPI.Controllers.LAN
@@ -16,10 +15,9 @@ namespace MercuriusAPI.Controllers.LAN
             _matchService = matchService;
         }
         [HttpPut("{id}")]
-        public Task<GetMatchDTO> UpdateMatchAsync(int id, UpdateMatchDTO updateMatchDTO)
+        public  Task<IEnumerable<GetMatchDTO>> UpdateMatchAsync(int id, UpdateMatchDTO updateMatchDTO)
         {
-            return _matchService.UpdateMatchAsync(id, updateMatchDTO);
-
-        }      
+            return _matchService.UpdateMatchAsync(id, updateMatchDTO);          
+        }
     }
 }

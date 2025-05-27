@@ -7,18 +7,22 @@ namespace MercuriusAPI.Services.LAN.MatchServices
     public class MatchService : IMatchService
     {
         private readonly MercuriusDBContext _dbContext;
+        private readonly IMatchModeratorFactory _matchModeratorFactory;
 
-        public MatchService(MercuriusDBContext dbContext)
+        public MatchService(MercuriusDBContext dbContext, IMatchModeratorFactory matchModeratorFactory)
         {
             _dbContext = dbContext;
+            _matchModeratorFactory = matchModeratorFactory;
         }
-        public async Task<GetMatchDTO> UpdateMatchAsync(int id, UpdateMatchDTO updateMatchDTO)
+        public async Task<IEnumerable<GetMatchDTO>> UpdateMatchAsync(int id, UpdateMatchDTO updateMatchDTO)
         {
             var match = await GetMatchByIdAsync(id);
             match.SetScoresAndWinner(updateMatchDTO.Participant1Score, updateMatchDTO.Participant2Score);
-            _dbContext.Matches.Update(match);
+            var matchModerator = _matchModeratorFactory.GetMatchModerator(match.BracketType);
+            var updatedMatches = matchModerator.AssignParticipantsToNextMatch(match);
+            _dbContext.Matches.UpdateRange(updatedMatches);
             await _dbContext.SaveChangesAsync();
-            return new GetMatchDTO(match);
+            return updatedMatches.Select(m => new GetMatchDTO(m));
         }
 
         public async Task<Match> GetMatchByIdAsync(int id)

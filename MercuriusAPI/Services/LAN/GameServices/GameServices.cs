@@ -116,10 +116,6 @@ namespace MercuriusAPI.Services.LAN.GameServices
             return new GetGameDTO(game);
         }
 
-        public void AssignParticipantsToNextMatch(Match match, Game game)
-        {
-
-        }
         private async Task<bool> CheckIfGameNameExistsAsync(string name)
         {
             return await _dbContext.Games.AnyAsync(g => g.Name == name);

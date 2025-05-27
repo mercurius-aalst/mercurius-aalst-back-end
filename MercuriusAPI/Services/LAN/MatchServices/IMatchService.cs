@@ -6,6 +6,6 @@ namespace MercuriusAPI.Services.LAN.MatchServices
     public interface IMatchService
     {
         Task<Match> GetMatchByIdAsync(int id);
-        Task<GetMatchDTO> UpdateMatchAsync(int id, UpdateMatchDTO updateMatchDTO);
+        Task<IEnumerable<GetMatchDTO>> UpdateMatchAsync(int id, UpdateMatchDTO updateMatchDTO);
     }
 }

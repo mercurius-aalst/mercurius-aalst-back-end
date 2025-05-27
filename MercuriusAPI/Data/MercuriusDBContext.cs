@@ -58,7 +58,16 @@ namespace MercuriusAPI.Data
                         .HasForeignKey(e => e.WinnerId).IsRequired(false);
                 entity.HasOne(e => e.Game)
                         .WithMany(e => e.Matches)
-                        .HasForeignKey(e => e.GameId).OnDelete(DeleteBehavior.Cascade);              
+                        .HasForeignKey(e => e.GameId).OnDelete(DeleteBehavior.Cascade);      
+                entity.HasOne(e => e.Loser)
+                        .WithMany()
+                        .HasForeignKey(e => e.LoserId).IsRequired(false);
+                entity.HasOne(e => e.WinnerNextMatch)
+                        .WithMany()
+                        .HasForeignKey(e => e.WinnerNextMatchId).IsRequired(false);
+                entity.HasOne(e => e.LoserNextMatch)
+                        .WithMany()
+                        .HasForeignKey(e => e.LoserNextMatchId).IsRequired(false);
             });
 
             modelBuilder.Entity<Game>(entity =>

@@ -16,13 +16,24 @@
         public int? Pariticipant1Id { get; set; }
         public int? Participant2Id { get; set; }
         public int? WinnerId { get; set; }
+        public int? LoserId { get; set; }
+
         public int? Participant1Score { get; set; }
         public int? Participant2Score { get; set; }
+
+        //Bracket graph navigation
+
+        public int? WinnerNextMatchId { get; set; }
+        public int? LoserNextMatchId { get; set; }
 
         public Game Game { get; set; }
         public Participant? Participant1 { get; set; }
         public Participant? Participant2 { get; set; }
         public Participant? Winner { get; set; }
+        public Participant? Loser { get; set; }
+
+        public Match? WinnerNextMatch { get; set; }
+        public Match? LoserNextMatch { get; set; }
 
         public void TryAssignByeWin()
         {

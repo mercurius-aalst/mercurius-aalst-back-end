@@ -19,5 +19,11 @@ namespace MercuriusAPI.Controllers.LAN
         {
             return _matchService.UpdateMatchAsync(id, updateMatchDTO);          
         }
+
+        [HttpGet("{id}")]
+        public async Task<GetMatchDTO> GetMatchAsync(int id)
+        {
+            return new GetMatchDTO(await _matchService.GetMatchByIdAsync(id));
+        }
     }
 }

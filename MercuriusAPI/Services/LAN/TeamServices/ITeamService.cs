@@ -11,5 +11,6 @@ namespace MercuriusAPI.Services.LAN.TeamServices
         IEnumerable<GetTeamDTO> GetAllTeams();
         Task<Team> GetTeamByIdAsync(int teamId);
         Task<GetTeamDTO> RemovePlayerAsync(int id, int playerId);
+        Task<GetTeamDTO> UpdateTeamAsync(int id, UpdateTeamDTO teamDTO);
     }
 }

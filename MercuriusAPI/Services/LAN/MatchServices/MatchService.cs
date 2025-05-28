@@ -1,5 +1,6 @@
 ﻿using MercuriusAPI.Data;
 using MercuriusAPI.DTOs.LAN.MatchDTOs;
+using MercuriusAPI.Exceptions;
 using MercuriusAPI.Models.LAN;
 
 namespace MercuriusAPI.Services.LAN.MatchServices
@@ -27,7 +28,7 @@ namespace MercuriusAPI.Services.LAN.MatchServices
         {
             var match = await _dbContext.Matches.FindAsync(id);
             if(match is null)
-                throw new Exception("Match not found");
+                throw new NotFoundException($"{nameof(Match)} not found");
             return match;
         }
     }

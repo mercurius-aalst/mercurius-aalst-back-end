@@ -1,5 +1,6 @@
 ﻿using MercuriusAPI.Data;
 using MercuriusAPI.DTOs.LAN.TeamDTOs;
+using MercuriusAPI.Exceptions;
 using MercuriusAPI.Models.LAN;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,7 +17,7 @@ namespace MercuriusAPI.Services.LAN.TeamServices
         public async Task<GetTeamDTO> CreateTeamAsync(CreateTeamDTO teamDTO, Player captain)
         {
             if(await CheckIfTeamNameExistsAsync(teamDTO.Name))
-                throw new Exception("Teamname already in use");            
+                throw new ValidationException($"Teamname {teamDTO.Name} already in use");            
             var team = new Team(teamDTO.Name, captain);
             _dbContext.Teams.Add(team);
             await _dbContext.SaveChangesAsync();
@@ -26,7 +27,7 @@ namespace MercuriusAPI.Services.LAN.TeamServices
         {
             var team = await _dbContext.Teams.FindAsync(teamId);
             if(team is null)
-                throw new Exception("Team not found");
+                throw new NotFoundException($"{nameof(Team)} not found");
             _dbContext.Teams.Remove(team);
             await _dbContext.SaveChangesAsync();
         }
@@ -38,7 +39,7 @@ namespace MercuriusAPI.Services.LAN.TeamServices
         {
             var team = await _dbContext.Teams.FindAsync(teamId);
             if(team is null)
-                throw new Exception("Team not found");
+                throw new NotFoundException($"{nameof(Team)} not found");
             await _dbContext.Entry(team).Collection(p => p.Players).LoadAsync();
             return team;
         }
@@ -47,12 +48,12 @@ namespace MercuriusAPI.Services.LAN.TeamServices
         {
             var team = await _dbContext.Teams.Include(t => t.Players).FirstOrDefaultAsync(t => t.Id == id);
             if(team is null)
-                throw new Exception("Team not found");
+                throw new NotFoundException($"{nameof(Team)} not found");
             var player = team.Players.FirstOrDefault(m => m.Id == playerId);
             if(player is null)
-                throw new Exception("Player not found in team");
+                throw new NotFoundException($"{nameof(Player)} not found in {team.Name}");
             if(playerId == team.CaptainId)
-                throw new Exception("Captain cannot be removed from team");
+                throw new ValidationException("The captain cannot be removed from a team");
             team.Players.Remove(player);
             await _dbContext.SaveChangesAsync();
             return new GetTeamDTO(team);
@@ -62,7 +63,7 @@ namespace MercuriusAPI.Services.LAN.TeamServices
         {
             var team = await _dbContext.Teams.Include(t => t.Players).FirstOrDefaultAsync(t => t.Id == id);
             if(team is null)
-                throw new Exception("Team not found");
+                throw new NotFoundException($"{nameof(Team)} not found");
             team.Players.Add(player);
             await _dbContext.SaveChangesAsync();
             return new GetTeamDTO(team);
@@ -72,7 +73,7 @@ namespace MercuriusAPI.Services.LAN.TeamServices
         {
             var team = await GetTeamByIdAsync(id);
             if(teamDTO.Name != null && !team.Name.Equals(teamDTO.Name) && await CheckIfTeamNameExistsAsync(teamDTO.Name))
-                throw new Exception("Teamname already in use");
+                throw new ValidationException($"Teamname {teamDTO.Name} already in use");
             team.Update(teamDTO.Name, teamDTO.CaptainId);
             _dbContext.Teams.Update(team);
             await _dbContext.SaveChangesAsync();

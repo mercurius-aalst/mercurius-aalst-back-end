@@ -1,5 +1,6 @@
 ﻿using MercuriusAPI.Data;
 using MercuriusAPI.DTOs.LAN.PlayerDTOs;
+using MercuriusAPI.Exceptions;
 using MercuriusAPI.Models.LAN;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,7 +17,7 @@ namespace MercuriusAPI.Services.LAN.PlayerServices
         {
             var player = await _dbContext.Players.FindAsync(playerId);
             if(player is null)
-                throw new Exception("Player not found");
+                throw new NotFoundException($"{nameof(Player)} not found");
             return player;
         }
 
@@ -28,7 +29,7 @@ namespace MercuriusAPI.Services.LAN.PlayerServices
         public async Task<GetPlayerDTO> CreatePlayerAsync(CreatePlayerDTO playerDTO)
         {
             if(await CheckUsernameExists(playerDTO.Username) || await CheckEmailExistsAsync(playerDTO.Email))
-                throw new BadHttpRequestException("Username or email already exists");
+                throw new ValidationException("Username or email already exists");
 
             var player = new Player(playerDTO.Username, playerDTO.Firstname, playerDTO.Lastname, playerDTO.Email, playerDTO.DiscordId, playerDTO.SteamId, playerDTO.RiotId);
             _dbContext.Players.Add(player);
@@ -39,7 +40,7 @@ namespace MercuriusAPI.Services.LAN.PlayerServices
         {
             var player = await _dbContext.Players.FindAsync(id);
             if(player is null)
-                throw new Exception("Player not found");
+                throw new NotFoundException($"{nameof(Player)} not found");
 
             player.Update(playerDTO.Firstname, playerDTO.Lastname, playerDTO.DiscordId, playerDTO.SteamId, playerDTO.RiotId);
             _dbContext.Players.Update(player);
@@ -50,7 +51,7 @@ namespace MercuriusAPI.Services.LAN.PlayerServices
         {
             var player = await _dbContext.Players.FindAsync(playerId);
             if(player is null)
-                throw new Exception("Player not found");
+                throw new NotFoundException($"{nameof(Player)} not found");
             _dbContext.Players.Remove(player);
             await _dbContext.SaveChangesAsync();
         }

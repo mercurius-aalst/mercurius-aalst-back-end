@@ -1,4 +1,5 @@
 ﻿using MercuriusAPI.Data;
+using MercuriusAPI.Exceptions;
 using MercuriusAPI.Models.LAN;
 using Microsoft.EntityFrameworkCore;
 
@@ -17,7 +18,7 @@ namespace MercuriusAPI.Services.LAN.ParticipantServices
                 .FirstOrDefaultAsync(p => p.Id == id);
             if(participant == null)
             {
-                throw new Exception("Participant not found");
+                throw new NotFoundException($"{nameof(Participant)} not found");
             }
             return participant;
         }

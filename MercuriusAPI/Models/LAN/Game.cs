@@ -11,8 +11,8 @@
         public GameFormat Format { get; set; }
         public GameFormat FinalsFormat { get; set; }
         public ParticipantType ParticipantType { get; set; }
-        
-        public IList<Placement> Placements { get; set; }
+
+        public IList<Placement> Placements { get; set; } = [];
 
         public IList<Match> Matches { get; set; } = new List<Match>();
         public IList<Participant> Participants { get; set; } = [];
@@ -25,6 +25,7 @@
             FinalsFormat = finalsFormat;
             Status = GameStatus.Scheduled;
             ParticipantType = participantType;
+            Placements = new List<Placement>();
         }
         public Game()
         {

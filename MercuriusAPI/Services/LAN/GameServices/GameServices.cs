@@ -1,6 +1,7 @@
 ﻿using MercuriusAPI.Data;
 using MercuriusAPI.DTOs.LAN.GameDTOs;
 using MercuriusAPI.DTOs.LAN.PlacementDTOs;
+using MercuriusAPI.Exceptions;
 using MercuriusAPI.Models.LAN;
 using MercuriusAPI.Services.LAN.MatchServices;
 using Microsoft.EntityFrameworkCore;
@@ -21,7 +22,7 @@ namespace MercuriusAPI.Services.LAN.GameServices
         public async Task<GetGameDTO> CreateGameAsync(CreateGameDTO createGameDTO)
         {
             if(await CheckIfGameNameExistsAsync(createGameDTO.Name))
-                throw new Exception("Game already created");
+                throw new ValidationException($"Game {createGameDTO.Name} already created");
             var game = new Game(createGameDTO.Name, createGameDTO.BracketType, createGameDTO.Format, createGameDTO.FinalsFormat, createGameDTO.ParticipantType);
             _dbContext.Games.Add(game);
             await _dbContext.SaveChangesAsync();
@@ -31,7 +32,7 @@ namespace MercuriusAPI.Services.LAN.GameServices
         {
             var game = await _dbContext.Games.Include(g => g.Participants).Include(g => g.Matches).FirstOrDefaultAsync(g => g.Id == gameId);
             if(game is null)
-                throw new Exception("Game not found");
+                throw new NotFoundException($"{nameof(Game)} not found");
             return game;
         }
 
@@ -53,7 +54,7 @@ namespace MercuriusAPI.Services.LAN.GameServices
         {
             var game = await GetGameByIdAsync(id);
             if(game.Status == GameStatus.InProgress)
-                throw new Exception("Game cannot be deleted anymore");
+                throw new ValidationException("Game cannot be deleted when already in progress.");
             _dbContext.Games.Remove(game);
             await _dbContext.SaveChangesAsync();
         }
@@ -108,9 +109,9 @@ namespace MercuriusAPI.Services.LAN.GameServices
                 _ => typeof(Participant)
             };
             if(participant.GetType() != expectedType)
-                throw new Exception($"Wrong Participant type, expected {expectedType}");
+                throw new ValidationException($"This game only accepts {nameof(expectedType)}s as participants.");
             if(game.Status != GameStatus.Scheduled)
-                throw new Exception("Game is not in the correct state for registrations");
+                throw new ValidationException("Game must be scheduled for registrations.");
             game.Participants.Add(participant);
             _dbContext.Games.Update(game);
             await _dbContext.SaveChangesAsync();
@@ -121,9 +122,9 @@ namespace MercuriusAPI.Services.LAN.GameServices
         {
             var game = await GetGameByIdAsync(id);
             if(game.Status != GameStatus.Scheduled)
-                throw new Exception("Game is not in the correct state for participant changes");
+                throw new ValidationException("Game must be scheduled for participant changes");
             if(!game.Participants.Any(p => p.Id == participant.Id))
-                throw new Exception("Participant not found in game");
+                throw new NotFoundException($"{nameof(Participant)} not found for game {game.Name}");
             game.Participants.Remove(participant);
             _dbContext.Games.Update(game);
             await _dbContext.SaveChangesAsync();

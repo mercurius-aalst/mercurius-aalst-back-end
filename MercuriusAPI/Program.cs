@@ -1,4 +1,5 @@
 using MercuriusAPI.Data;
+using MercuriusAPI.Exceptions;
 using MercuriusAPI.Extensions;
 using MercuriusAPI.Services.LAN.GameServices;
 using MercuriusAPI.Services.LAN.MatchServices;
@@ -29,7 +30,11 @@ namespace MercuriusAPI
             builder.Services.ConfigureVersionedSwagger();
             builder.Services.AddServiceDependencies();
 
-
+            builder.Services.AddControllers(options =>
+            {
+                options.EnableEndpointRouting = false;
+                options.Filters.Add<ExceptionFilter>();
+            });
             var app = builder.Build();
 
             if (app.Environment.IsDevelopment())

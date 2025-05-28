@@ -95,6 +95,14 @@ namespace MercuriusAPI.Services.LAN.GameServices
         public async Task<GetGameDTO> AddParticipantAsync(int id, Participant participant)
         {
             var game = await GetGameByIdAsync(id);
+            var expectedType = game.ParticipantType switch
+            {
+                ParticipantType.Player => typeof(Player),
+                ParticipantType.Team => typeof(Team),
+                _ => typeof(Participant)
+            };
+            if(participant.GetType() != expectedType)
+                throw new Exception($"Wrong Participant type, expected {expectedType}");
             if(game.Status != GameStatus.Scheduled)
                 throw new Exception("Game is not in the correct state for registrations");
             game.Participants.Add(participant);

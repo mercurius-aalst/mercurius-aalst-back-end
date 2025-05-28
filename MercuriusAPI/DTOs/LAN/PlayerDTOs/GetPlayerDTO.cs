@@ -1,4 +1,5 @@
 ﻿using MercuriusAPI.DTOs.LAN.ParticipantDTOs;
+using MercuriusAPI.DTOs.LAN.TeamDTOs;
 using MercuriusAPI.Models.LAN;
 
 namespace MercuriusAPI.DTOs.LAN.PlayerDTOs
@@ -14,7 +15,7 @@ namespace MercuriusAPI.DTOs.LAN.PlayerDTOs
         public string? RiotId { get; set; } = string.Empty;
 
         public string Email { get; set; }
-        public IEnumerable<Team> Teams { get; set; } = [];
+        public IEnumerable<GetTeamDTO> Teams { get; set; } = [];
 
 
 
@@ -28,7 +29,7 @@ namespace MercuriusAPI.DTOs.LAN.PlayerDTOs
             SteamId = player.SteamId;
             RiotId = player.RiotId;
             Email = player.Email;
-            Teams = player.Teams;
+            Teams = player.Teams.Select(t => new GetTeamDTO(t));
         }       
     }
 }

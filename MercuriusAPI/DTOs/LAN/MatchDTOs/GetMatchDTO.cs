@@ -24,10 +24,8 @@ namespace MercuriusAPI.DTOs.LAN.MatchDTOs
         public int? WinnerId { get; set; }
         public int? Participant1Score { get; set; }
         public int? Participant2Score { get; set; }
-
-        public GetParticipantDTO? Participant1 { get; set; }
-        public GetParticipantDTO? Participant2 { get; set; }
-        public GetParticipantDTO? Winner { get; set; }
+        public int? WinnerNextMatchId { get; set; }
+        public int? LoserNextMatchId { get; set; }
 
         public GetMatchDTO()
         {
@@ -50,20 +48,7 @@ namespace MercuriusAPI.DTOs.LAN.MatchDTOs
             Participant2Id = match.Participant2Id;
             WinnerId = match.WinnerId;
             Participant1Score = match.Participant1Score;
-            Participant2Score = match.Participant2Score;
-            switch(ParticipantType)
-            {
-                case ParticipantType.Player:
-                    Participant1 = match.Participant1 is not null ? new GetPlayerDTO((Player)match.Participant1): null;
-                    Participant2 = match.Participant2 is not null ? new GetPlayerDTO((Player)match.Participant2): null;
-                    Winner = match.Winner is not null ? new GetPlayerDTO((Player)match.Winner) : null;
-                    break;
-                case ParticipantType.Team:
-                    Participant1 = match.Participant1 is not null ? new GetTeamDTO((Team)match.Participant1) : null;
-                    Participant2 = match.Participant2 is not null ? new GetTeamDTO((Team)match.Participant2) : null;
-                    Winner = match.Winner is not null ? new GetTeamDTO((Team)match.Winner): null;
-                    break;
-            }
+            Participant2Score = match.Participant2Score;            
         }
     }
 }

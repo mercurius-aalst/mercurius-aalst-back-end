@@ -75,33 +75,4 @@
             Participants.Clear();
         }
     }
-
-    public enum GameStatus
-    {
-        Scheduled,
-        InProgress,
-        Completed,
-        Canceled
-    }
-
-    public enum BracketType
-    {
-        SingleElimination,
-        DoubleElimination,
-        RoundRobin,
-        Swiss
-    }
-
-    public enum GameFormat
-    {
-        BestOf1,
-        BestOf3,
-        BestOf5
-    }
-
-    public enum ParticipantType
-    {
-        Team,
-        Player
-    }
 }

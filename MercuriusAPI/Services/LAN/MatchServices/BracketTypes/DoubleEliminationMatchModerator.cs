@@ -123,7 +123,7 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
         {
             var updatedMatches = new List<Match>();
             // Separate upper and lower bracket matches and grand final for convenience
-            var uBMatches = matches.Where(m => !m.IsLowerBracketMatch && m.RoundNumber < matches.Max(x => x.RoundNumber)).OrderBy(m => m.RoundNumber).ThenBy(m => m.MatchNumber).ToList();
+            var uBMatches = matches.Where(m => !m.IsLowerBracketMatch && m.RoundNumber < matches.Max(x => x.RoundNumber)).OrderByDescending(m => m.RoundNumber).ThenBy(m => m.MatchNumber).ToList();
             var lBMatches = matches.Where(m => m.IsLowerBracketMatch).OrderBy(m => m.RoundNumber).ThenBy(m => m.MatchNumber).ToList();
             var grandFinal = matches.Single(m => !m.IsLowerBracketMatch && m.RoundNumber == matches.Max(x => x.RoundNumber));
 

@@ -1,5 +1,6 @@
 ﻿using MercuriusAPI.Extensions.LAN;
 using MercuriusAPI.Models.LAN;
+using MercuriusAPI.Services.LAN.MatchServices.Helpers;
 using System.Linq;
 
 namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
@@ -26,6 +27,10 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
             int firstRoundMatchCount = nextPowerOfTwo / 2;
 
             var shuffled = participants.OrderBy(_ => Guid.NewGuid()).ToList();
+            int[] slotOrder = SeedingHelper.GenerateBracketSlotOrder(nextPowerOfTwo);
+            var slots = new Participant[firstRoundMatchCount * 2];
+            for(int i = 0; i < shuffled.Count; i++)
+                slots[slotOrder[i]] = shuffled[i];
             int matchNumber = 1;
             int previousRound = totalRounds + 1; //We're working top down in match generation
 
@@ -57,8 +62,8 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
                 if(i >= firstRoundStart)
                 {
                     int leafIndex = i - firstRoundStart;
-                    match.Participant1 = leafIndex * 2 < shuffled.Count ? shuffled[leafIndex * 2] : null;
-                    match.Participant2 = leafIndex * 2 + 1 < shuffled.Count ? shuffled[leafIndex * 2 + 1] : null;
+                    match.Participant1 = slots[leafIndex * 2];
+                    match.Participant2 = slots[leafIndex * 2 + 1];
                     match.TryAssignByeWin();
                 }
 

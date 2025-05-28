@@ -1,5 +1,6 @@
 ﻿using MercuriusAPI.Extensions.LAN;
 using MercuriusAPI.Models.LAN;
+using MercuriusAPI.Services.LAN.MatchServices.Helpers;
 using System.Linq;
 
 namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
@@ -20,7 +21,7 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
 
             var shuffled = participants.OrderBy(_ => Guid.NewGuid()).ToList();
 
-            int[] slotOrder = GenerateBracketSlotOrder(nextPowerOfTwo);
+            int[] slotOrder = SeedingHelper.GenerateBracketSlotOrder(nextPowerOfTwo);
             var slots = new Participant[firstRoundMatchCount * 2];
             for(int i = 0; i < shuffled.Count; i++)
                 slots[slotOrder[i]] = shuffled[i];
@@ -80,35 +81,6 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
 
             matches.AssignByeWinnersNextMatch();
             return matches;
-        }
-
-        // For 8 slots: [0, 7, 3, 4, 2, 5, 1, 6]
-        private int[] GenerateBracketSlotOrder(int slotCount)
-        {
-            int[] result = new int[slotCount];
-            int half = slotCount / 2;
-
-            int middleLeft = half - 1;
-            int middleRight = half;
-
-            result[0] = 0;
-            result[1] = slotCount - 1;
-
-            for(int i = 2; i < slotCount; i++)
-            {
-                if(i % 2 == 0)
-                {
-                    result[i] = middleLeft;
-                    middleLeft--;
-                }
-                else
-                {
-                    result[i] = middleRight;
-                    middleRight++;
-                }
-            }
-
-            return result;
-        }
+        }        
     }
 }

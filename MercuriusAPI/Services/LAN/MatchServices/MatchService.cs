@@ -14,15 +14,13 @@ namespace MercuriusAPI.Services.LAN.MatchServices
             _dbContext = dbContext;
             _matchModeratorFactory = matchModeratorFactory;
         }
-        public async Task<IEnumerable<GetMatchDTO>> UpdateMatchAsync(int id, UpdateMatchDTO updateMatchDTO)
+        public async Task<GetMatchDTO> UpdateMatchAsync(int id, UpdateMatchDTO updateMatchDTO)
         {
             var match = await GetMatchByIdAsync(id);
-            match.SetScoresAndWinner(updateMatchDTO.Participant1Score, updateMatchDTO.Participant2Score);
-            var matchModerator = _matchModeratorFactory.GetMatchModerator(match.BracketType);
-            var updatedMatches = matchModerator.AssignParticipantsToNextMatch(match);
-            _dbContext.Matches.UpdateRange(updatedMatches);
+            match.SetScoresAndWinner(updateMatchDTO.Participant1Score, updateMatchDTO.Participant2Score);         
+            _dbContext.Matches.Update(match);
             await _dbContext.SaveChangesAsync();
-            return updatedMatches.Select(m => new GetMatchDTO(m));
+            return new GetMatchDTO(match);
         }
 
         public async Task<Match> GetMatchByIdAsync(int id)

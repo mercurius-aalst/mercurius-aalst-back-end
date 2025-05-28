@@ -7,20 +7,7 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
     public class SingleEliminationMatchModerator : IMatchModerator
     {
 
-        public IEnumerable<Match> AssignParticipantsToNextMatch(Match finishedMatch, Game game)
-        {
-            if(finishedMatch.WinnerNextMatch is not null)
-            {
-                if(finishedMatch.MatchNumber % 2 != 0)
-                    finishedMatch.WinnerNextMatch.Participant1 = finishedMatch.Winner;
-                else
-                    finishedMatch.WinnerNextMatch.Participant2 = finishedMatch.Winner;
-
-                return [finishedMatch, finishedMatch.WinnerNextMatch];
-            }
-            // If no next round present, then it was final so no next match to assign to, just return finished match
-            return [finishedMatch];
-        }
+       
 
         public IEnumerable<Match> GenerateMatchesForGame(Game game)
         {

@@ -15,7 +15,7 @@ namespace MercuriusAPI.Controllers.LAN
             _matchService = matchService;
         }
         [HttpPut("{id}")]
-        public  Task<IEnumerable<GetMatchDTO>> UpdateMatchAsync(int id, UpdateMatchDTO updateMatchDTO)
+        public  Task<GetMatchDTO> UpdateMatchAsync(int id, UpdateMatchDTO updateMatchDTO)
         {
             return _matchService.UpdateMatchAsync(id, updateMatchDTO);          
         }

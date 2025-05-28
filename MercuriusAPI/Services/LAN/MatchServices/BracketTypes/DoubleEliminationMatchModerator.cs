@@ -13,7 +13,6 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
             GenerateLowerBracketMatches(game, game.Participants, matches);
             GenerateGrandFinalMatch(game, matches);
             matches = AssignNextMatchesForDoubleElimination(matches).ToList();
-            matches.AssignByeWinnersNextMatch();
             return matches;
         }
 
@@ -202,28 +201,6 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
             updatedMatches.Add(grandFinal);
 
             return updatedMatches;
-        }
-        public IEnumerable<Match> AssignParticipantsToNextMatch(Match finishedMatch)
-        {
-            var updatedMatches = new List<Match>() { finishedMatch };
-            if(finishedMatch.WinnerNextMatch is not null)
-            {
-                if(finishedMatch.MatchNumber % 2 != 0)
-                    finishedMatch.WinnerNextMatch.Participant1 = finishedMatch.Winner;
-                else
-                    finishedMatch.WinnerNextMatch.Participant2 = finishedMatch.Winner;
-
-                updatedMatches.Add(finishedMatch.WinnerNextMatch);
-            }
-            if(finishedMatch.LoserNextMatch is not null)
-            {
-                if(finishedMatch.MatchNumber % 2 != 0)
-                    finishedMatch.LoserNextMatch.Participant1 = finishedMatch.Loser;
-                else
-                    finishedMatch.LoserNextMatch.Participant2 = finishedMatch.Loser;
-                updatedMatches.Add(finishedMatch.LoserNextMatch);
-            }
-            return updatedMatches;
-        }
+        }   
     }
 }

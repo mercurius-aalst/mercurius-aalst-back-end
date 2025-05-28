@@ -4,8 +4,6 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
 {
     public class RoundRobinMatchModerator : IMatchModerator
     {
-        public IEnumerable<Match> AssignParticipantsToNextMatch(Match match) => throw new NotImplementedException(); // RR has already all participants assigned to a the games
-
         public IEnumerable<Match> GenerateMatchesForGame(Game game)
         {
             var matches = new List<Match>();                    

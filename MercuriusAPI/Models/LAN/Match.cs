@@ -40,10 +40,12 @@
             if(Participant1 == null && Participant2 != null)
             {
                 Winner = Participant2;
+                UpdateParticipantsNextMatch();
             }
             else if(Participant2 == null && Participant1 != null)
             {
                 Winner = Participant1;
+                UpdateParticipantsNextMatch();
             }
         }
 
@@ -55,6 +57,7 @@
         public void Finish()
         {
             EndTime = DateTime.UtcNow;
+            UpdateParticipantsNextMatch();
         }
 
         public void SetScoresAndWinner(int participant1Score, int participant2Score)
@@ -87,6 +90,27 @@
                 Winner = Participant2;
                 Loser = Participant1;
                 Finish();
+            }
+        }
+
+        public void UpdateParticipantsNextMatch()
+        {
+            if(Winner != null)
+            {
+                if(WinnerNextMatch is not null)
+                {
+                    if(MatchNumber % 2 != 0)
+                        WinnerNextMatch.Participant1 = Winner;
+                    else
+                        WinnerNextMatch.Participant2 = Winner;
+                }
+                if(LoserNextMatch is not null)
+                {
+                    if(MatchNumber % 2 != 0)
+                        LoserNextMatch.Participant1 = Loser;
+                    else
+                        LoserNextMatch.Participant2 = Loser;
+                }
             }
         }
     }

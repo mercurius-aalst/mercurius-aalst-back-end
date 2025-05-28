@@ -68,6 +68,17 @@ namespace MercuriusAPI.Services.LAN.TeamServices
             return new GetTeamDTO(team);
         }
 
+        public async Task<GetTeamDTO> UpdateTeamAsync(int id, UpdateTeamDTO teamDTO)
+        {
+            var team = await GetTeamByIdAsync(id);
+            if(teamDTO.Name != null && !team.Name.Equals(teamDTO.Name) && await CheckIfTeamNameExistsAsync(teamDTO.Name))
+                throw new Exception("Teamname already in use");
+            team.Update(teamDTO.Name, teamDTO.CaptainId);
+            _dbContext.Teams.Update(team);
+            await _dbContext.SaveChangesAsync();
+            return new GetTeamDTO(team);
+        }
+
         private Task<bool> CheckIfTeamNameExistsAsync(string name)
         {
             return _dbContext.Teams.AnyAsync(t => t.Name.Equals(name));

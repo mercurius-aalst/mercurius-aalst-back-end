@@ -18,5 +18,13 @@
             Captain = captain;
 
         }
+
+        public void Update(string? name, int? captainId)
+        {
+            if(name is not null)
+                Name = name;
+            if(captainId is not null)
+            CaptainId = (int)captainId;
+        }
     }
 }

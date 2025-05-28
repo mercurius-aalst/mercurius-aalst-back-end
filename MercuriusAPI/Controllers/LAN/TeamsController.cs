@@ -67,9 +67,15 @@ namespace MercuriusAPI.Controllers.LAN
         /// <param name="playerId">The player ID.</param>
         /// <returns>The updated team without the player.</returns>
         [HttpDelete("{id}/players/{playerId}")]
-        public Task<GetTeamDTO> RemoveMemberAsync(int id, int playerId)
+        public Task<GetTeamDTO> RemovePlayerAsync(int id, int playerId)
         {
             return _teamService.RemovePlayerAsync(id, playerId);
+        }
+
+        [HttpPut("{id}")]
+        public Task<GetTeamDTO> UpdateTeamAsync(int id, UpdateTeamDTO updateTeamDTO)
+        {
+            return _teamService.UpdateTeamAsync(id, updateTeamDTO);
         }
 
         /// <summary>

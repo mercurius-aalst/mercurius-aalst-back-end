@@ -109,5 +109,6 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
             return padded;
         }
 
+        public void DeterminePlacements(Game game) => throw new NotImplementedException();
     }
 }

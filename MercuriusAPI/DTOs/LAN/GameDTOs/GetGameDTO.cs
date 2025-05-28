@@ -1,5 +1,6 @@
 ﻿using MercuriusAPI.DTOs.LAN.MatchDTOs;
 using MercuriusAPI.DTOs.LAN.ParticipantDTOs;
+using MercuriusAPI.DTOs.LAN.PlacementDTOs;
 using MercuriusAPI.DTOs.LAN.PlayerDTOs;
 using MercuriusAPI.DTOs.LAN.TeamDTOs;
 using MercuriusAPI.Models.LAN;
@@ -18,6 +19,7 @@ namespace MercuriusAPI.DTOs.LAN.GameDTOs
         public GameFormat FinalsFormat { get; set; }
         public ParticipantType ParticipantType { get; set; }
 
+        public IEnumerable<GetPlacementDTO> Placements { get; set; } = [];
 
         public IEnumerable<GetMatchDTO> Matches { get; set; } = [];
         public IEnumerable<GetParticipantDTO> Participants { get; set; } = [];
@@ -33,6 +35,7 @@ namespace MercuriusAPI.DTOs.LAN.GameDTOs
             Format = game.Format;
             FinalsFormat = game.FinalsFormat;
             ParticipantType = game.ParticipantType;
+            Placements = game.Placements.Select(p => new GetPlacementDTO(p, game.ParticipantType));
             Matches = game.Matches.Select(m => new GetMatchDTO(m));
             switch(ParticipantType)
             {

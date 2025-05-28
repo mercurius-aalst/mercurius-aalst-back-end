@@ -21,8 +21,6 @@
         public int? Participant1Score { get; set; }
         public int? Participant2Score { get; set; }
 
-        //Bracket graph navigation
-
         public int? WinnerNextMatchId { get; set; }
         public int? LoserNextMatchId { get; set; }
 

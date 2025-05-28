@@ -1,5 +1,6 @@
 ﻿using MercuriusAPI.Data;
 using MercuriusAPI.DTOs.LAN.GameDTOs;
+using MercuriusAPI.DTOs.LAN.PlacementDTOs;
 using MercuriusAPI.Models.LAN;
 using MercuriusAPI.Services.LAN.MatchServices;
 using Microsoft.EntityFrameworkCore;
@@ -76,12 +77,17 @@ namespace MercuriusAPI.Services.LAN.GameServices
             await _dbContext.SaveChangesAsync();
         }
 
-        public async Task CompleteGameAsync(int id)
+        public async Task<IEnumerable<GetPlacementDTO>> CompleteGameAsync(int id)
         {
             var game = await GetGameByIdAsync(id);
             game.Complete();
+
+            var matchModerator = _matchGeneratorFactory.GetMatchModerator(game.BracketType);
+            matchModerator.DeterminePlacements(game);
+
             _dbContext.Games.Update(game);
             await _dbContext.SaveChangesAsync();
+            return game.Placements.Select(p => new GetPlacementDTO(p, game.ParticipantType));
         }
 
         public async Task ResetGameAsync(int id)

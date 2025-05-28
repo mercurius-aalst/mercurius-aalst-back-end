@@ -7,6 +7,47 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
 {
     public class SingleEliminationMatchModerator : IMatchModerator
     {
+        public void DeterminePlacements(Game game)
+        {
+            if(game.Matches.Count == 0)
+                return;
+
+            // 1. Final match: assign 1st
+            var finalMatch = game.Matches
+                .OrderByDescending(m => m.RoundNumber)
+                .ThenByDescending(m => m.MatchNumber)
+                .FirstOrDefault();
+
+            game.Placements.Add(new Placement
+            {
+                GameId = game.Id,
+                Place = 1,
+                Participants = [finalMatch.Winner]
+            });
+
+            var matchesOrderedAndGroupedByRound = game.Matches
+                .OrderByDescending(m => m.RoundNumber)
+                .ThenByDescending(m => m.MatchNumber)
+                .GroupBy(m => m.RoundNumber);
+            // 2. All other losers, by round (descending)
+            int place = 2;
+
+            foreach(var roundGrouping in matchesOrderedAndGroupedByRound)
+            {
+                var losersThisRound = roundGrouping.Where(m => m.LoserId != null).Select(m => m.Loser).ToList();
+                if(losersThisRound.Any())
+                {
+                    game.Placements.Add(new Placement
+                    {
+                        GameId = game.Id,
+                        Place = place,
+                        Participants = losersThisRound
+                    });
+                    place += losersThisRound.Count;
+                }
+            }
+        }
+
         public IEnumerable<Match> GenerateMatchesForGame(Game game)
         {
             var matches = new List<Match>();
@@ -81,6 +122,6 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
 
             matches.AssignByeWinnersNextMatch();
             return matches;
-        }        
+        }
     }
 }

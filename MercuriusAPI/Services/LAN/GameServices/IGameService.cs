@@ -1,4 +1,5 @@
 ﻿using MercuriusAPI.DTOs.LAN.GameDTOs;
+using MercuriusAPI.DTOs.LAN.PlacementDTOs;
 using MercuriusAPI.Models.LAN;
 
 namespace MercuriusAPI.Services.LAN.GameServices
@@ -7,7 +8,7 @@ namespace MercuriusAPI.Services.LAN.GameServices
     {
         Task<GetGameDTO> AddParticipantAsync(int id, Participant participant);
         Task CancelGameAsync(int id);
-        Task CompleteGameAsync(int id);
+        Task<IEnumerable<GetPlacementDTO>> CompleteGameAsync(int id);
         Task<GetGameDTO> CreateGameAsync(CreateGameDTO createGameDTO);
         Task DeleteGameAsync(int id);
         IEnumerable<GetGameDTO> GetAllGames();

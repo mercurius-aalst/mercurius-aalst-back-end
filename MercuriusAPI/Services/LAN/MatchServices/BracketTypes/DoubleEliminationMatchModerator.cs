@@ -16,7 +16,6 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
             matches = AssignNextMatchesForDoubleElimination(matches).ToList();
             return matches;
         }
-
         private void GenerateUpperBracketMatches(Game game, IEnumerable<Participant> participants, List<Match> matches)
         {
             int participantCount = game.Participants.Count();
@@ -141,7 +140,7 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
                 if(current == uBMatches.LastOrDefault())
                 {
                     current.LoserNextMatch = lBMatches.LastOrDefault();
-                }                
+                }
                 else
                 {
                     int targetLBRoundNumber = (current.RoundNumber - 1) * 2 + 1;
@@ -169,7 +168,7 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
 
                 uBMatches[childMatchIndex1].WinnerNextMatch = current;
                 uBMatches[childMatchIndex2].WinnerNextMatch = current;
-              
+
             }
 
             foreach(var currentLBMatch in lBMatches)
@@ -206,6 +205,53 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
             updatedMatches.Add(grandFinal);
 
             return updatedMatches;
-        }   
+        }
+
+        public void DeterminePlacements(Game game)
+        {
+
+            // 1. Grand final (last upper bracket match)
+            var grandFinal = game.Matches
+                .Where(m => !m.IsLowerBracketMatch)
+                .OrderByDescending(m => m.RoundNumber)
+                .ThenByDescending(m => m.MatchNumber)
+                .FirstOrDefault();
+
+            game.Placements.Add(new Placement
+            {
+                GameId = game.Id,
+                Participants = [grandFinal.Winner],
+                Place = 1
+            });
+            game.Placements.Add(new Placement
+            {
+                GameId = game.Id,
+                Participants = [grandFinal.Loser],
+                Place = 2
+            });
+
+            // 2. Lower bracket (after gf, it's simply ranking by elimination (after third place, placings can be grouped in front end: 4-5, 6-7,)
+            var lowerBracket = game.Matches
+                .Where(m => m.IsLowerBracketMatch)
+                .OrderByDescending(m => m.RoundNumber)
+                .ThenByDescending(m => m.MatchNumber)
+                .GroupBy(m => m.RoundNumber);
+
+            int place = 3;
+            foreach(var roundGrouping in lowerBracket)
+            {
+                var losersThisRound = roundGrouping.Where(m => m.LoserId != null).Select(m => m.Loser).ToList();
+                if(losersThisRound.Any())
+                {
+                    game.Placements.Add(new Placement
+                    {
+                        Place = place,
+                        GameId = game.Id,
+                        Participants = losersThisRound
+                    });
+                    place += losersThisRound.Count;
+                }
+            }
+        }
     }
 }

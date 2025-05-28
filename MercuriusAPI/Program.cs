@@ -1,4 +1,5 @@
 using MercuriusAPI.Data;
+using MercuriusAPI.Extensions;
 using MercuriusAPI.Services.LAN.GameServices;
 using MercuriusAPI.Services.LAN.MatchServices;
 using MercuriusAPI.Services.LAN.MatchServices.BracketTypes;
@@ -24,18 +25,9 @@ namespace MercuriusAPI
             {
                 options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
             });
-            builder.Services.AddEndpointsApiExplorer();
-            builder.Services.AddSwaggerGen();
-            builder.Services.AddTransient<IPlayerService, PlayerService>();
-            builder.Services.AddTransient<ITeamService, TeamService>();
-            builder.Services.AddTransient<IGameService, GameService>();
-            builder.Services.AddTransient<IParticipantService, ParticipantService>();
 
-            builder.Services.AddTransient<IMatchModeratorFactory, MatchModeratorFactory>();
-            builder.Services.AddTransient<SingleEliminationMatchModerator>();
-            builder.Services.AddTransient<DoubleEliminationMatchModerator>();
-            builder.Services.AddTransient<SwissStageMatchModerator>();
-            builder.Services.AddTransient<RoundRobinMatchModerator>();
+            builder.Services.ConfigureVersionedSwagger();
+            builder.Services.AddServiceDependencies();
 
 
             var app = builder.Build();

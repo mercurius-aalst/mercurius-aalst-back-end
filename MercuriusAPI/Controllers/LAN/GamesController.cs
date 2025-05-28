@@ -1,4 +1,5 @@
-﻿using MercuriusAPI.DTOs.LAN.GameDTOs;
+﻿using Asp.Versioning;
+using MercuriusAPI.DTOs.LAN.GameDTOs;
 using MercuriusAPI.DTOs.LAN.PlacementDTOs;
 using MercuriusAPI.Services.LAN.GameServices;
 using MercuriusAPI.Services.LAN.ParticipantServices;
@@ -9,7 +10,8 @@ namespace MercuriusAPI.Controllers.LAN
     /// <summary>
     /// API endpoints for managing games, including creation, updates, participant registration, and game state transitions.
     /// </summary>
-    [Route("[controller]")]
+    [Route("lan/[controller]")]
+    [ApiVersion("1.0")]
     [ApiController]
     public class GamesController(IGameService _gameService, IParticipantService _participantService) : ControllerBase
     {

@@ -29,10 +29,11 @@
 
         }
 
-        public void Update(string firstname, string lastname, string? discordId, string? steamId, string? riotId)
+        public void Update(string firstname, string lastname, string username, string? discordId, string? steamId, string? riotId)
         {
             Firstname = firstname;
             Lastname = lastname;
+            Username = username;
             DiscordId = discordId;
             SteamId = steamId;
             RiotId = riotId;

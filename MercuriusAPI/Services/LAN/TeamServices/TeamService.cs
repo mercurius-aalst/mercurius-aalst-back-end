@@ -49,12 +49,7 @@ namespace MercuriusAPI.Services.LAN.TeamServices
             var team = await _dbContext.Teams.Include(t => t.Players).FirstOrDefaultAsync(t => t.Id == id);
             if(team is null)
                 throw new NotFoundException($"{nameof(Team)} not found");
-            var player = team.Players.FirstOrDefault(m => m.Id == playerId);
-            if(player is null)
-                throw new NotFoundException($"{nameof(Player)} not found in {team.Name}");
-            if(playerId == team.CaptainId)
-                throw new ValidationException("The captain cannot be removed from a team");
-            team.Players.Remove(player);
+            team.RemovePlayer(playerId);
             await _dbContext.SaveChangesAsync();
             return new GetTeamDTO(team);
         }

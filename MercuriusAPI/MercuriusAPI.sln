@@ -1,9 +1,13 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
-VisualStudioVersion = 17.13.35919.96 d17.13
+VisualStudioVersion = 17.13.35919.96
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MercuriusAPI", "MercuriusAPI.csproj", "{1AF9C216-8015-49BC-8EAE-56130497562F}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{02EA681E-C7D8-13C7-8484-4AC65E1B71E8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MercuriusAPI.Tests", "..\MercuriusAPI.Tests\MercuriusAPI.Tests.csproj", "{69D1D3D8-4D11-4E6B-AA24-910DF4C3CCA3}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,9 +19,16 @@ Global
 		{1AF9C216-8015-49BC-8EAE-56130497562F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{1AF9C216-8015-49BC-8EAE-56130497562F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{1AF9C216-8015-49BC-8EAE-56130497562F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{69D1D3D8-4D11-4E6B-AA24-910DF4C3CCA3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{69D1D3D8-4D11-4E6B-AA24-910DF4C3CCA3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{69D1D3D8-4D11-4E6B-AA24-910DF4C3CCA3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{69D1D3D8-4D11-4E6B-AA24-910DF4C3CCA3}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{69D1D3D8-4D11-4E6B-AA24-910DF4C3CCA3} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {9CAFAFB8-94AF-4004-862A-97BE9589957B}

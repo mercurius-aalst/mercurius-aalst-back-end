@@ -1,7 +1,9 @@
 ﻿using Asp.Versioning;
 using MercuriusAPI.DTOs.LAN.MatchDTOs;
 using MercuriusAPI.Services.LAN.MatchServices;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Identity.Web;
 
 namespace MercuriusAPI.Controllers.LAN
 {
@@ -29,6 +31,8 @@ namespace MercuriusAPI.Controllers.LAN
         /// <param name="updateMatchDTO">The updated match data.</param>
         /// <returns>The updated match DTO.</returns>
         [HttpPut("{id}")]
+        [AuthorizeForScopes(Scopes = ["Matches.Manage"])]
+        [Authorize(Policy = "RequireLANAdmin")]
         public Task<GetMatchDTO> UpdateMatchAsync(int id, UpdateMatchDTO updateMatchDTO)
         {
             return _matchService.UpdateMatchAsync(id, updateMatchDTO);
@@ -40,6 +44,7 @@ namespace MercuriusAPI.Controllers.LAN
         /// <param name="id">The match ID.</param>
         /// <returns>The match DTO.</returns>
         [HttpGet("{id}")]
+        [AuthorizeForScopes(Scopes = ["Matches.Read"])]
         public async Task<GetMatchDTO> GetMatchAsync(int id)
         {
             return new GetMatchDTO(await _matchService.GetMatchByIdAsync(id));

@@ -2,7 +2,9 @@
 using MercuriusAPI.DTOs.LAN.PlayerDTOs;
 using MercuriusAPI.Models.LAN;
 using MercuriusAPI.Services.LAN.PlayerServices;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Identity.Web;
 
 namespace MercuriusAPI.Controllers.LAN
 {
@@ -30,6 +32,8 @@ namespace MercuriusAPI.Controllers.LAN
         /// </summary>
         /// <returns>A list of all players.</returns>
         [HttpGet]
+        [AuthorizeForScopes(Scopes = ["Players.Read"])]
+        [Authorize(Policy = "RequireLANAdmin")]
         public IEnumerable<GetPlayerDTO> GetPlayers()
         {
             return _playerService.GetAllPlayers();
@@ -41,6 +45,7 @@ namespace MercuriusAPI.Controllers.LAN
         /// <param name="id">The player ID.</param>
         /// <returns>The player details.</returns>
         [HttpGet("{id}")]
+        [AuthorizeForScopes(Scopes = ["Players.Read"])]
         public async Task<GetPlayerDTO> GetPlayerAsync(int id)
         {
             return new GetPlayerDTO(await _playerService.GetPlayerByIdAsync(id));
@@ -52,6 +57,7 @@ namespace MercuriusAPI.Controllers.LAN
         /// <param name="createPlayerDTO">The player creation data.</param>
         /// <returns>The created player.</returns>
         [HttpPost]
+        [AuthorizeForScopes(Scopes = ["Players.Manage"])]
         public Task<GetPlayerDTO> CreatePlayerAsync(CreatePlayerDTO createPlayerDTO)
         {
             return _playerService.CreatePlayerAsync(createPlayerDTO);
@@ -64,8 +70,11 @@ namespace MercuriusAPI.Controllers.LAN
         /// <param name="updatePlayerDTO">The updated player data.</param>
         /// <returns>The updated player.</returns>
         [HttpPut("{id}")]
+        [AuthorizeForScopes(Scopes = ["Players.Manage"])]
         public Task<GetPlayerDTO> UpdatePlayerAsync(int id, UpdatePlayerDTO updatePlayerDTO)
         {
+            //TO-DO: Check if authenticated user is the player being modified before continueing
+
             return _playerService.UpdatePlayerAsync(id, updatePlayerDTO);
         }
 
@@ -74,8 +83,11 @@ namespace MercuriusAPI.Controllers.LAN
         /// </summary>
         /// <param name="id">The player ID.</param>
         [HttpDelete("{id}")]
+        [AuthorizeForScopes(Scopes = ["Players.Manage"])]
         public Task DeletePlayerAsync(int id)
         {
+            //TO-DO: Check if authenticated user is the the player being removed before continueing
+
             return _playerService.DeletePlayerAsync(id);
         }
     }

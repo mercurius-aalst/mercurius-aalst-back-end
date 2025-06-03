@@ -26,6 +26,15 @@ namespace MercuriusAPI.Exceptions
 
                 context.ExceptionHandled = true;
             }
+            if(context.Exception is UnauthorizedException unauthorizedException)
+            {
+                context.Result = new ObjectResult(unauthorizedException.Message)
+                {
+                    StatusCode = (int)HttpStatusCode.Unauthorized
+                };
+
+                context.ExceptionHandled = true;
+            }
         }
 
         public void OnActionExecuting(ActionExecutingContext context)

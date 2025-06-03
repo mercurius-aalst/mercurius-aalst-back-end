@@ -1,9 +1,14 @@
 ﻿using Asp.Versioning;
 using MercuriusAPI.DTOs.LAN.GameDTOs;
 using MercuriusAPI.DTOs.LAN.PlacementDTOs;
+using MercuriusAPI.Exceptions;
+using MercuriusAPI.Models.LAN;
 using MercuriusAPI.Services.LAN.GameServices;
 using MercuriusAPI.Services.LAN.ParticipantServices;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Identity.Web;
+using Microsoft.Identity.Web.Resource;
 
 namespace MercuriusAPI.Controllers.LAN
 {
@@ -20,6 +25,7 @@ namespace MercuriusAPI.Controllers.LAN
         /// </summary>
         /// <returns>A list of all games.</returns>
         [HttpGet]
+        [AuthorizeForScopes(Scopes = ["Games.Read"])]
         public IEnumerable<GetGameDTO> GetGames()
         {
             return _gameService.GetAllGames();
@@ -31,6 +37,7 @@ namespace MercuriusAPI.Controllers.LAN
         /// <param name="id">The game ID.</param>
         /// <returns>The game details.</returns>
         [HttpGet("{id}")]
+        [AuthorizeForScopes(Scopes = ["Games.Read"])]
         public async Task<GetGameDTO> GetGameAsync(int id)
         {
             return new GetGameDTO(await _gameService.GetGameByIdAsync(id));
@@ -42,6 +49,8 @@ namespace MercuriusAPI.Controllers.LAN
         /// <param name="createGameDTO">The game creation data.</param>
         /// <returns>The created game.</returns>
         [HttpPost]
+        [AuthorizeForScopes(Scopes = ["Games.Manage"])]  
+        [Authorize(Policy = "RequireLANAdmin")]
         public Task<GetGameDTO> CreateGameAsync(CreateGameDTO createGameDTO)
         {
             return _gameService.CreateGameAsync(createGameDTO);
@@ -54,6 +63,8 @@ namespace MercuriusAPI.Controllers.LAN
         /// <param name="updateGameDTO">The updated game data.</param>
         /// <returns>The updated game.</returns>
         [HttpPut("{id}")]
+        [AuthorizeForScopes(Scopes = ["Games.Manage"])]
+        [Authorize(Policy = "RequireLANAdmin")]
         public Task<GetGameDTO> UpdateGameAsync(int id, UpdateGameDTO updateGameDTO)
         {
             return _gameService.UpdateGameAsync(id, updateGameDTO);
@@ -64,6 +75,8 @@ namespace MercuriusAPI.Controllers.LAN
         /// </summary>
         /// <param name="id">The game ID.</param>
         [HttpDelete("{id}")]
+        [AuthorizeForScopes(Scopes = ["Games.Manage"])]
+        [Authorize(Policy = "RequireLANAdmin")]
         public Task DeleteGameAsync(int id)
         {
             return _gameService.DeleteGameAsync(id);
@@ -76,8 +89,11 @@ namespace MercuriusAPI.Controllers.LAN
         /// <param name="participantId">The participant ID.</param>
         /// <returns>The updated game with the new participant.</returns>
         [HttpPost("{id}/participants/{participantId}")]
+        [AuthorizeForScopes(Scopes = ["Games.Manage"])]
         public async Task<GetGameDTO> RegisterForGameAsync(int id, int participantId)
         {
+            //TO-DO: Check if authenticated user is the player or the teamcaptain of the matching participant
+
             var participant = await _participantService.GetParticipantByIdAsync(participantId);
             return await _gameService.AddParticipantAsync(id, participant);
         }
@@ -89,8 +105,11 @@ namespace MercuriusAPI.Controllers.LAN
         /// <param name="participantId">The participant ID.</param>
         /// <returns>The updated game without the participant.</returns>
         [HttpDelete("{id}/participants/{participantId}")]
+        [AuthorizeForScopes(Scopes = ["Games.Manage"])]
         public async Task<GetGameDTO> UnregisterFromGameAsync(int id, int participantId)
         {
+            //TO-DO: Check if authenticated user is the player or the teamcaptain of the matching participant
+
             var participant = await _participantService.GetParticipantByIdAsync(participantId);
             return await _gameService.RemoveParticipantAsync(id, participant);
         }
@@ -100,6 +119,8 @@ namespace MercuriusAPI.Controllers.LAN
         /// </summary>
         /// <param name="id">The game ID.</param>
         [HttpPost("{id}/start")]
+        [AuthorizeForScopes(Scopes = ["Games.Manage"])]
+        [Authorize(Policy = "RequireLANAdmin")]
         public Task StartGameAsync(int id)
         {
             return _gameService.StartGameAsync(id);
@@ -110,6 +131,8 @@ namespace MercuriusAPI.Controllers.LAN
         /// </summary>
         /// <param name="id">The game ID.</param>
         [HttpPost("{id}/reset")]
+        [AuthorizeForScopes(Scopes = ["Games.Manage"])]
+        [Authorize(Policy = "RequireLANAdmin")]
         public Task ResetGameAsync(int id)
         {
             return _gameService.ResetGameAsync(id);
@@ -121,6 +144,8 @@ namespace MercuriusAPI.Controllers.LAN
         /// <param name="id">The game ID.</param>
         /// <returns>Final placements of the game.</returns>
         [HttpPost("{id}/complete")]
+        [AuthorizeForScopes(Scopes = ["Games.Manage"])]
+        [Authorize(Policy = "RequireLANAdmin")]
         public Task<IEnumerable<GetPlacementDTO>> CompleteGameAsync(int id)
         {
             return _gameService.CompleteGameAsync(id);
@@ -131,6 +156,8 @@ namespace MercuriusAPI.Controllers.LAN
         /// </summary>
         /// <param name="id">The game ID.</param>
         [HttpPost("{id}/cancel")]
+        [AuthorizeForScopes(Scopes = ["Games.Manage"])]
+        [Authorize(Policy = "RequireLANAdmin")]
         public Task CancelGameAsync(int id)
         {
             return _gameService.CancelGameAsync(id);

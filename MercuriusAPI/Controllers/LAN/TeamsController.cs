@@ -2,7 +2,9 @@
 using MercuriusAPI.DTOs.LAN.TeamDTOs;
 using MercuriusAPI.Services.LAN.PlayerServices;
 using MercuriusAPI.Services.LAN.TeamServices;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Identity.Web;
 
 namespace MercuriusAPI.Controllers.LAN
 {
@@ -19,6 +21,7 @@ namespace MercuriusAPI.Controllers.LAN
         /// </summary>
         /// <returns>A list of all teams.</returns>
         [HttpGet]
+        [AuthorizeForScopes(Scopes = ["Teams.Read"])]
         public IEnumerable<GetTeamDTO> GetTeams()
         {
             return _teamService.GetAllTeams();
@@ -30,6 +33,7 @@ namespace MercuriusAPI.Controllers.LAN
         /// <param name="id">The team ID.</param>
         /// <returns>The team details.</returns>
         [HttpGet("{id}")]
+        [AuthorizeForScopes(Scopes = ["Teams.Read"])]
         public async Task<GetTeamDTO> GetTeamAsync(int id)
         {
             return new GetTeamDTO(await _teamService.GetTeamByIdAsync(id));
@@ -41,6 +45,7 @@ namespace MercuriusAPI.Controllers.LAN
         /// <param name="createTeamDTO">The team creation data.</param>
         /// <returns>The created team.</returns>
         [HttpPost]
+        [AuthorizeForScopes(Scopes = ["Teams.Manage"])]
         public async Task<GetTeamDTO> CreateTeamAsync(CreateTeamDTO createTeamDTO)
         {
             var captain = await _playerService.GetPlayerByIdAsync(createTeamDTO.CaptainId);
@@ -54,8 +59,11 @@ namespace MercuriusAPI.Controllers.LAN
         /// <param name="playerId">The player ID.</param>
         /// <returns>The updated team with the new player.</returns>
         [HttpPut("{id}/players/{playerId}")]
+        [AuthorizeForScopes(Scopes = ["Teams.Manage"])]
         public async Task<GetTeamDTO> AddPlayerAsync(int id, int playerId)
         {
+            //TO-DO: Check if authenticated user is the team captain of the team or the player being added before continueing
+
             var player = await _playerService.GetPlayerByIdAsync(playerId);
             return await _teamService.AddPlayerAsync(id, player);
         }
@@ -67,12 +75,16 @@ namespace MercuriusAPI.Controllers.LAN
         /// <param name="playerId">The player ID.</param>
         /// <returns>The updated team without the player.</returns>
         [HttpDelete("{id}/players/{playerId}")]
+        [AuthorizeForScopes(Scopes = ["Teams.Manage"])]
         public Task<GetTeamDTO> RemovePlayerAsync(int id, int playerId)
         {
+            //TO-DO: Check if authenticated user is the team captain of the team or the player being removed before continueing
+
             return _teamService.RemovePlayerAsync(id, playerId);
         }
 
         [HttpPut("{id}")]
+        [AuthorizeForScopes(Scopes = ["Teams.Manage"])]
         public Task<GetTeamDTO> UpdateTeamAsync(int id, UpdateTeamDTO updateTeamDTO)
         {
             return _teamService.UpdateTeamAsync(id, updateTeamDTO);
@@ -83,8 +95,11 @@ namespace MercuriusAPI.Controllers.LAN
         /// </summary>
         /// <param name="id">The team ID.</param>
         [HttpDelete("{id}")]
+        [AuthorizeForScopes(Scopes = ["Teams.Manage"])]
         public Task DeleteTeamAsync(int id)
         {
+            //TO-DO: Check if authenticated user is the team captain of the team
+
             return _teamService.DeleteTeamAsync(id);
         }
     }

@@ -20,24 +20,25 @@ namespace MercuriusAPI
             builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
 
             builder.Services.AddDbContext<MercuriusDBContext>(options =>
-                options.UseNpgsql(builder.Configuration.GetConnectionString("MercuriusDB")));
-            builder.Services.AddControllers()
-                .AddJsonOptions(options =>
-            {
-                options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
-            });
+                                                                options.UseNpgsql(builder.Configuration.GetConnectionString("MercuriusDB")))
+                            .ConfigureVersionedSwagger()
+                            .AddServiceDependencies()
+                            .ConfigureAuthentication(builder.Configuration)
+                            .ConfigureAuthorizationWithDynamicPolicies(builder.Configuration);
 
-            builder.Services.ConfigureVersionedSwagger();
-            builder.Services.AddServiceDependencies();
 
             builder.Services.AddControllers(options =>
             {
                 options.EnableEndpointRouting = false;
                 options.Filters.Add<ExceptionFilter>();
+            }).AddJsonOptions(options =>
+            {
+                options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
             });
+
             var app = builder.Build();
 
-            if (app.Environment.IsDevelopment())
+            if(app.Environment.IsDevelopment())
             {
                 app.UseSwagger();
                 app.UseSwaggerUI();
@@ -45,6 +46,7 @@ namespace MercuriusAPI
 
             app.UseHttpsRedirection();
 
+            app.UseAuthentication();
             app.UseAuthorization();
 
 

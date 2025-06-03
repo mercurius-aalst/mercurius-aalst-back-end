@@ -5,6 +5,7 @@ using MercuriusAPI.Exceptions;
 using MercuriusAPI.Models.LAN;
 using MercuriusAPI.Services.LAN.GameServices;
 using MercuriusAPI.Services.LAN.ParticipantServices;
+using MercuriusAPI.Services.LAN.PlayerServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Identity.Web;
@@ -18,7 +19,7 @@ namespace MercuriusAPI.Controllers.LAN
     [Route("lan/[controller]")]
     [ApiVersion("1.0")]
     [ApiController]
-    public class GamesController(IGameService _gameService, IParticipantService _participantService) : ControllerBase
+    public class GamesController(IGameService _gameService, IParticipantService _participantService, IPlayerService _playerService) : ControllerBase
     {
         /// <summary>
         /// Gets all games.
@@ -49,7 +50,7 @@ namespace MercuriusAPI.Controllers.LAN
         /// <param name="createGameDTO">The game creation data.</param>
         /// <returns>The created game.</returns>
         [HttpPost]
-        [AuthorizeForScopes(Scopes = ["Games.Manage"])]  
+        [AuthorizeForScopes(Scopes = ["Games.Manage"])]
         [Authorize(Policy = "RequireLANAdmin")]
         public Task<GetGameDTO> CreateGameAsync(CreateGameDTO createGameDTO)
         {
@@ -92,9 +93,13 @@ namespace MercuriusAPI.Controllers.LAN
         [AuthorizeForScopes(Scopes = ["Games.Manage"])]
         public async Task<GetGameDTO> RegisterForGameAsync(int id, int participantId)
         {
-            //TO-DO: Check if authenticated user is the player or the teamcaptain of the matching participant
-
+            var userEntraId = User.GetObjectId();
+            var userId = await _playerService.GetPlayerIdByEntraObjectIdAsync(userEntraId);
             var participant = await _participantService.GetParticipantByIdAsync(participantId);
+
+            if(userId != participantId && userId != ((Team)participant).CaptainId)
+                throw new UnauthorizedException();
+
             return await _gameService.AddParticipantAsync(id, participant);
         }
 
@@ -108,9 +113,13 @@ namespace MercuriusAPI.Controllers.LAN
         [AuthorizeForScopes(Scopes = ["Games.Manage"])]
         public async Task<GetGameDTO> UnregisterFromGameAsync(int id, int participantId)
         {
-            //TO-DO: Check if authenticated user is the player or the teamcaptain of the matching participant
-
+            var userEntraId = User.GetObjectId();
+            var userId = await _playerService.GetPlayerIdByEntraObjectIdAsync(userEntraId);
             var participant = await _participantService.GetParticipantByIdAsync(participantId);
+
+            if(userId != participantId && userId != ((Team)participant).CaptainId)
+                    throw new UnauthorizedException();
+
             return await _gameService.RemoveParticipantAsync(id, participant);
         }
 

@@ -9,6 +9,7 @@ namespace MercuriusAPI.Services.LAN.PlayerServices
         Task DeletePlayerAsync(int playerId);
         IEnumerable<GetPlayerDTO> GetAllPlayers();
         Task<Player> GetPlayerByIdAsync(int playerId);
+        Task<Player> GetPlayerByEntraObjectId(string entraObjectId);
         Task<GetPlayerDTO> UpdatePlayerAsync(int id, UpdatePlayerDTO player);
     }
 }

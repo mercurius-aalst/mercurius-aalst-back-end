@@ -71,11 +71,14 @@ namespace MercuriusAPI.Controllers.LAN
         /// <returns>The updated player.</returns>
         [HttpPut("{id}")]
         [AuthorizeForScopes(Scopes = ["Players.Manage"])]
-        public Task<GetPlayerDTO> UpdatePlayerAsync(int id, UpdatePlayerDTO updatePlayerDTO)
+        public async Task<GetPlayerDTO> UpdatePlayerAsync(int id, UpdatePlayerDTO updatePlayerDTO)
         {
-            //TO-DO: Check if authenticated user is the player being modified before continueing
+            var userEntraObjectId = User.GetObjectId();
+            var player = await _playerService.GetPlayerByIdAsync(id);
 
-            return _playerService.UpdatePlayerAsync(id, updatePlayerDTO);
+            if(player.Id != id)
+                throw new UnauthorizedAccessException();
+            return await _playerService.UpdatePlayerAsync(id, updatePlayerDTO);
         }
 
         /// <summary>
@@ -84,11 +87,14 @@ namespace MercuriusAPI.Controllers.LAN
         /// <param name="id">The player ID.</param>
         [HttpDelete("{id}")]
         [AuthorizeForScopes(Scopes = ["Players.Manage"])]
-        public Task DeletePlayerAsync(int id)
+        public async Task DeletePlayerAsync(int id)
         {
-            //TO-DO: Check if authenticated user is the the player being removed before continueing
+            var userEntraObjectId = User.GetObjectId();
+            var player = await _playerService.GetPlayerByIdAsync(id);
 
-            return _playerService.DeletePlayerAsync(id);
+            if(player.Id != id)
+                throw new UnauthorizedAccessException();
+            await _playerService.DeletePlayerAsync(id);
         }
     }
 }

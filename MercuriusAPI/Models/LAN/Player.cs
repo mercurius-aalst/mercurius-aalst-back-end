@@ -5,7 +5,7 @@
         public string Firstname { get; set; }
         public string Lastname { get; set; }
         public string Email { get; set; }
-
+        public string EntraObjectID { get; set; }
         public string? DiscordId { get; set; }
         public string? SteamId { get; set; }
         public string? RiotId { get; set; }
@@ -17,8 +17,9 @@
             
         }
 
-        public Player(string username, string firstname, string lastname, string email, string? discordId, string? steamId, string? riotId)
+        public Player(string entraObjectId, string username, string firstname, string lastname, string email, string? discordId, string? steamId, string? riotId)
         {
+            EntraObjectID = entraObjectId;
             Username = username;
             Firstname = firstname;
             Lastname = lastname;

@@ -8,7 +8,7 @@ public class PlayerTests
     public void Update_UpdatesPlayerProperties()
     {
         // Arrange
-        var player = new Player("user", "OldFirst", "OldLast", "email@test.com", null, null, null);
+        var player = new Player("entraId","user", "OldFirst", "OldLast", "email@test.com", null, null, null);
 
         // Act
         player.Update("NewFirst", "NewLast", "NewUser", "discord", "steam", "riot");
@@ -25,7 +25,7 @@ public class PlayerTests
     [Fact]
     public void Update_EmptyIds_UpdatesProperties()
     {
-        var player = new Player("user", "OldFirst", "OldLast", "email@test.com", null, null, null);
+        var player = new Player("entraId", "user", "OldFirst", "OldLast", "email@test.com", null, null, null);
 
         player.Update(player.Firstname, player.Lastname,player.Username, string.Empty, string.Empty, string.Empty);
 

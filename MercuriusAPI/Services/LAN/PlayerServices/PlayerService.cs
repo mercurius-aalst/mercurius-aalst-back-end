@@ -31,7 +31,7 @@ namespace MercuriusAPI.Services.LAN.PlayerServices
             if(await CheckUsernameExists(playerDTO.Username) || await CheckEmailExistsAsync(playerDTO.Email))
                 throw new ValidationException("Username or email already exists");
 
-            var player = new Player(playerDTO.Username, playerDTO.Firstname, playerDTO.Lastname, playerDTO.Email, playerDTO.DiscordId, playerDTO.SteamId, playerDTO.RiotId);
+            var player = new Player(playerDTO.EntraObjectId, playerDTO.Username, playerDTO.Firstname, playerDTO.Lastname, playerDTO.Email, playerDTO.DiscordId, playerDTO.SteamId, playerDTO.RiotId);
             _dbContext.Players.Add(player);
             await _dbContext.SaveChangesAsync();
             return new GetPlayerDTO(player);
@@ -65,6 +65,14 @@ namespace MercuriusAPI.Services.LAN.PlayerServices
         private Task<bool> CheckEmailExistsAsync(string email)
         {
             return _dbContext.Players.AnyAsync(p => p.Email.Equals(email));
+        }
+
+        public Task<Player> GetPlayerByEntraObjectId(string entraObjectId)
+        {
+            var player = _dbContext.Players.FirstOrDefaultAsync(p => p.EntraObjectID.Equals(entraObjectId));
+            if(player is null)
+                throw new NotFoundException($"{nameof(Player)} not found");
+            return player;
         }
     }
 }

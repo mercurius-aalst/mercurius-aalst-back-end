@@ -67,7 +67,7 @@ namespace MercuriusAPI.Services.LAN.PlayerServices
             return _dbContext.Players.AnyAsync(p => p.Email.Equals(email));
         }
 
-        public async Task<int> GetPlayerIdByEntraObjectId(string entraObjectId)
+        public async Task<int> GetPlayerIdByEntraObjectIdAsync(string entraObjectId)
         {
             var player = await _dbContext.Players.FirstOrDefaultAsync(p => p.EntraObjectID.Equals(entraObjectId));
             if(player is null)

@@ -90,7 +90,7 @@ namespace MercuriusAPI.Controllers.LAN
         public async Task DeletePlayerAsync(int id)
         {
             var userEntraObjectId = User.GetObjectId();
-            var playerId = await _playerService.GetPlayerIdByEntraObjectId(userEntraObjectId);
+            var playerId = await _playerService.GetPlayerIdByEntraObjectIdAsync(userEntraObjectId);
 
             if(playerId != id)
                 throw new UnauthorizedAccessException();

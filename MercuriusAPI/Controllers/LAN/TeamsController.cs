@@ -1,5 +1,6 @@
 ﻿using Asp.Versioning;
 using MercuriusAPI.DTOs.LAN.TeamDTOs;
+using MercuriusAPI.Models.LAN;
 using MercuriusAPI.Services.LAN.PlayerServices;
 using MercuriusAPI.Services.LAN.TeamServices;
 using Microsoft.AspNetCore.Authorization;
@@ -62,8 +63,15 @@ namespace MercuriusAPI.Controllers.LAN
         [AuthorizeForScopes(Scopes = ["Teams.Manage"])]
         public async Task<GetTeamDTO> AddPlayerAsync(int id, int playerId)
         {
-            //TO-DO: Check if authenticated user is the team captain of the team or the player being added before continueing
+            var userEntraId = User.GetObjectId();
+            var userId = await _playerService.GetPlayerIdByEntraObjectIdAsync(userEntraId);
 
+            if(userId != playerId)
+            {
+                var team = await _teamService.GetTeamByIdAsync(id);
+                if(team.CaptainId != userId)
+                    throw new UnauthorizedAccessException();
+            }
             var player = await _playerService.GetPlayerByIdAsync(playerId);
             return await _teamService.AddPlayerAsync(id, player);
         }
@@ -76,11 +84,19 @@ namespace MercuriusAPI.Controllers.LAN
         /// <returns>The updated team without the player.</returns>
         [HttpDelete("{id}/players/{playerId}")]
         [AuthorizeForScopes(Scopes = ["Teams.Manage"])]
-        public Task<GetTeamDTO> RemovePlayerAsync(int id, int playerId)
+        public async Task<GetTeamDTO> RemovePlayerAsync(int id, int playerId)
         {
-            //TO-DO: Check if authenticated user is the team captain of the team or the player being removed before continueing
+            var userEntraId = User.GetObjectId();
+            var userId = await _playerService.GetPlayerIdByEntraObjectIdAsync(userEntraId);
 
-            return _teamService.RemovePlayerAsync(id, playerId);
+            if(userId != playerId)
+            {
+                var team = await _teamService.GetTeamByIdAsync(id);
+                if(team.CaptainId != userId)
+                    throw new UnauthorizedAccessException();
+            }
+
+            return await _teamService.RemovePlayerAsync(id, playerId);
         }
 
         [HttpPut("{id}")]
@@ -96,11 +112,16 @@ namespace MercuriusAPI.Controllers.LAN
         /// <param name="id">The team ID.</param>
         [HttpDelete("{id}")]
         [AuthorizeForScopes(Scopes = ["Teams.Manage"])]
-        public Task DeleteTeamAsync(int id)
+        public async Task DeleteTeamAsync(int id)
         {
-            //TO-DO: Check if authenticated user is the team captain of the team
+            var userEntraId = User.GetObjectId();
+            var userId = await _playerService.GetPlayerIdByEntraObjectIdAsync(userEntraId);
 
-            return _teamService.DeleteTeamAsync(id);
+            var team = await _teamService.GetTeamByIdAsync(id);
+            if(team.CaptainId != userId)
+                throw new UnauthorizedAccessException();
+
+            await _teamService.DeleteTeamAsync(id);
         }
     }
 }

@@ -1,7 +1,6 @@
 using AutoFixture;
 using AutoFixture.Kernel;
 using MercuriusAPI.Models.LAN;
-using System;
 using System.Reflection;
 
 namespace MercuriusAPI.Tests.Customizations;

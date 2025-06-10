@@ -1,4 +1,5 @@
-﻿using MercuriusAPI.Extensions.LAN;
+﻿using MercuriusAPI.Exceptions;
+using MercuriusAPI.Extensions.LAN;
 using MercuriusAPI.Models.LAN;
 using MercuriusAPI.Services.LAN.MatchServices.Helpers;
 using System.Linq;
@@ -216,6 +217,11 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
                 .OrderByDescending(m => m.RoundNumber)
                 .ThenByDescending(m => m.MatchNumber)
                 .FirstOrDefault();
+
+            if(grandFinal.Winner is null)
+                throw new ValidationException("Grand final match has no winner assigned. Cannot determine placements.");
+            if(grandFinal.Loser is null)
+                throw new ValidationException("Grand final match has no loser assigned. Cannot determine placements.");
 
             game.Placements.Add(new Placement
             {

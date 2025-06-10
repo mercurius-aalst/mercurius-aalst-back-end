@@ -91,7 +91,7 @@ namespace MercuriusAPI.Services.LAN.TeamServices
 
         public async Task<TeamInviteDTO> RespondToInviteAsync(int teamId, int playerId, bool accept)
         {
-            var invite = await _dbContext.TeamInvites.FirstOrDefaultAsync(i => i.TeamId == teamId && i.PlayerId == playerId && i.Status == TeamInviteStatus.Pending);
+            var invite = await _dbContext.TeamInvites.Include(ti => ti.Player).Include(ti => ti.Team).FirstOrDefaultAsync(i => i.TeamId == teamId && i.PlayerId == playerId && i.Status == TeamInviteStatus.Pending);
             if(invite == null)
                 throw new NotFoundException("No pending invite not found");
             invite.Respond(accept);

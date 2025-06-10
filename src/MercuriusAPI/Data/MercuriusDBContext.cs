@@ -85,7 +85,7 @@ namespace MercuriusAPI.Data
             {
                 entity.HasKey(e => e.Id);
                 entity.HasOne(e => e.Team)
-                      .WithMany()
+                      .WithMany(t => t.TeamInvites)
                       .HasForeignKey(e => e.TeamId)
                       .OnDelete(DeleteBehavior.Cascade);
                 entity.HasOne(e => e.Player)

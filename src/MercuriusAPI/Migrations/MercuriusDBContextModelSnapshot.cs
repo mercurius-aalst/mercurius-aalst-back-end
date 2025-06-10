@@ -194,6 +194,38 @@ namespace MercuriusAPI.Migrations
                     b.ToTable("Placement");
                 });
 
+            modelBuilder.Entity("MercuriusAPI.Models.LAN.TeamInvite", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("PlayerId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("RespondedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TeamId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PlayerId");
+
+                    b.HasIndex("TeamId");
+
+                    b.ToTable("TeamInvites");
+                });
+
             modelBuilder.Entity("PlayerTeam", b =>
                 {
                     b.Property<int>("PlayersId")
@@ -335,6 +367,25 @@ namespace MercuriusAPI.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("MercuriusAPI.Models.LAN.TeamInvite", b =>
+                {
+                    b.HasOne("MercuriusAPI.Models.LAN.Player", "Player")
+                        .WithMany()
+                        .HasForeignKey("PlayerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MercuriusAPI.Models.LAN.Team", "Team")
+                        .WithMany("TeamInvites")
+                        .HasForeignKey("TeamId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Player");
+
+                    b.Navigation("Team");
+                });
+
             modelBuilder.Entity("PlayerTeam", b =>
                 {
                     b.HasOne("MercuriusAPI.Models.LAN.Player", null)
@@ -386,6 +437,11 @@ namespace MercuriusAPI.Migrations
             modelBuilder.Entity("MercuriusAPI.Models.LAN.Placement", b =>
                 {
                     b.Navigation("Participants");
+                });
+
+            modelBuilder.Entity("MercuriusAPI.Models.LAN.Team", b =>
+                {
+                    b.Navigation("TeamInvites");
                 });
 #pragma warning restore 612, 618
         }

@@ -18,6 +18,7 @@ namespace MercuriusAPI.Data
         public DbSet<Match> Matches { get; set; }
         public DbSet<Game> Games { get; set; }
         public DbSet<Participant> Participants { get; set; }
+        public DbSet<TeamInvite> TeamInvites { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -78,6 +79,21 @@ namespace MercuriusAPI.Data
                 entity.Property(e => e.EndTime).IsRequired();
                 entity.HasMany(e => e.Participants)
                       .WithMany(e => e.Games);
+            });
+
+            modelBuilder.Entity<TeamInvite>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasOne(e => e.Team)
+                      .WithMany()
+                      .HasForeignKey(e => e.TeamId)
+                      .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(e => e.Player)
+                      .WithMany()
+                      .HasForeignKey(e => e.PlayerId)
+                      .OnDelete(DeleteBehavior.Cascade);
+                entity.Property(e => e.Status).IsRequired();
+                entity.Property(e => e.CreatedAt).IsRequired();
             });
 
             OnModelCreatingPartial(modelBuilder);

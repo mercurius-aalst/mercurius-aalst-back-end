@@ -1,4 +1,5 @@
 ﻿using System;
+using MercuriusAPI.Exceptions;
 using MercuriusAPI.Models.LAN;
 
 namespace MercuriusAPI.Models.LAN
@@ -24,7 +25,7 @@ namespace MercuriusAPI.Models.LAN
         public void Respond(bool accept)
         {
             if(Status != TeamInviteStatus.Pending)
-                throw new InvalidOperationException("Cannot respond to an invite that is not pending.");
+                throw new ValidationException("Cannot respond to an invite that is not pending.");
 
             Status = accept ? TeamInviteStatus.Accepted : TeamInviteStatus.Declined;
             if(accept)

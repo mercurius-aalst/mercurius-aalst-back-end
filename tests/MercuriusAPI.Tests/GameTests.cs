@@ -12,7 +12,7 @@ namespace MercuriusAPI.Tests
             GameFormat finalsFormat = GameFormat.BestOf1,
             ParticipantType participantType = ParticipantType.Player)
         {
-            return new Game(name, bracketType, format, finalsFormat, participantType);
+            return new Game(name, "testimage", bracketType, format, finalsFormat, participantType);
         }
 
         [Fact]
@@ -35,9 +35,10 @@ namespace MercuriusAPI.Tests
         public void Update_UpdatesProperties_WhenStatusIsScheduled()
         {
             var game = CreateGame();
-            game.Update("Updated", BracketType.DoubleElimination, GameFormat.BestOf3, GameFormat.BestOf5);
+            game.Update("Updated", "updatedImage", BracketType.DoubleElimination, GameFormat.BestOf3, GameFormat.BestOf5);
 
             Assert.Equal("Updated", game.Name);
+            Assert.Equal("updatedImage", game.PictureUrl);
             Assert.Equal(BracketType.DoubleElimination, game.BracketType);
             Assert.Equal(GameFormat.BestOf3, game.Format);
             Assert.Equal(GameFormat.BestOf5, game.FinalsFormat);
@@ -52,7 +53,7 @@ namespace MercuriusAPI.Tests
             game.Status = status;
 
             Assert.Throws<ValidationException>(() =>
-                game.Update("New", BracketType.Swiss, GameFormat.BestOf1, GameFormat.BestOf3));
+                game.Update("New", "newimage", BracketType.Swiss, GameFormat.BestOf1, GameFormat.BestOf3));
         }
 
         [Fact]

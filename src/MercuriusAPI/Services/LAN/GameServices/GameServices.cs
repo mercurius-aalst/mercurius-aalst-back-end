@@ -29,9 +29,7 @@ namespace MercuriusAPI.Services.LAN.GameServices
                 throw new ValidationException($"Game {createGameDTO.Name} already created");
 
             string pictureUrl = string.Empty;
-            if(createGameDTO.Picture is null)
-                pictureUrl = "default game-picture url"; // Placeholder for default picture URL
-            else
+            if(createGameDTO.Picture is not null)
                 pictureUrl = await _imageService.UploadFileAsync(createGameDTO.Picture);
             var game = new Game(createGameDTO.Name, pictureUrl, createGameDTO.BracketType, createGameDTO.Format, createGameDTO.FinalsFormat, createGameDTO.ParticipantType);
             _dbContext.Games.Add(game);

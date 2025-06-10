@@ -1,5 +1,6 @@
 ﻿using Asp.Versioning;
 using MercuriusAPI.DTOs.LAN.PlayerDTOs;
+using MercuriusAPI.Exceptions;
 using MercuriusAPI.Models.LAN;
 using MercuriusAPI.Services.LAN.PlayerServices;
 using Microsoft.AspNetCore.Mvc;
@@ -52,8 +53,11 @@ namespace MercuriusAPI.Controllers.LAN
         /// <param name="createPlayerDTO">The player creation data.</param>
         /// <returns>The created player.</returns>
         [HttpPost]
-        public Task<GetPlayerDTO> CreatePlayerAsync(CreatePlayerDTO createPlayerDTO)
+        [Consumes("multipart/form-data")]
+        public Task<GetPlayerDTO> CreatePlayerAsync([FromForm] CreatePlayerDTO createPlayerDTO)
         {
+            if(!ModelState.IsValid)
+                throw new ValidationException("Invalid player data provided.");
             return _playerService.CreatePlayerAsync(createPlayerDTO);
         }
 
@@ -64,8 +68,11 @@ namespace MercuriusAPI.Controllers.LAN
         /// <param name="updatePlayerDTO">The updated player data.</param>
         /// <returns>The updated player.</returns>
         [HttpPut("{id}")]
+        [Consumes("multipart/form-data")]
         public Task<GetPlayerDTO> UpdatePlayerAsync(int id, UpdatePlayerDTO updatePlayerDTO)
         {
+            if(!ModelState.IsValid)
+                throw new ValidationException("Invalid player data provided.");
             return _playerService.UpdatePlayerAsync(id, updatePlayerDTO);
         }
 

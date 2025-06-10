@@ -1,6 +1,7 @@
 ﻿namespace MercuriusAPI.Models.LAN
 {
-    public class Player: Participant{
+    public class Player : Participant
+    {
         public string Username { get; set; }
         public string Firstname { get; set; }
         public string Lastname { get; set; }
@@ -14,10 +15,10 @@
 
         public Player()
         {
-            
+
         }
 
-        public Player(string username, string firstname, string lastname, string email, string? discordId, string? steamId, string? riotId)
+        public Player(string username, string firstname, string lastname, string email, string pictureUrl, string? discordId, string? steamId, string? riotId)
         {
             Username = username;
             Firstname = firstname;
@@ -26,14 +27,16 @@
             DiscordId = discordId;
             SteamId = steamId;
             RiotId = riotId;
+            PictureUrl = pictureUrl;
 
         }
 
-        public void Update(string firstname, string lastname, string username, string? discordId, string? steamId, string? riotId)
+        public void Update(string firstname, string lastname, string username, string pictureUrl, string? discordId, string? steamId, string? riotId)
         {
             Firstname = firstname;
             Lastname = lastname;
             Username = username;
+            PictureUrl = pictureUrl;
             DiscordId = discordId;
             SteamId = steamId;
             RiotId = riotId;

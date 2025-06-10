@@ -3,7 +3,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MercuriusAPI.Models.LAN
 {
-    public class Team: Participant{
+    public class Team : Participant
+    {
         public string Name { get; set; }
         public int CaptainId { get; set; }
         public Player Captain { get; set; }
@@ -13,27 +14,27 @@ namespace MercuriusAPI.Models.LAN
 
         public Team()
         {
-            
+
         }
 
-        public Team(string name, Player captain)
+        public Team(string name, Player captain, string pictureUrl)
         {
             Name = name;
             Captain = captain;
             CaptainId = captain.Id;
+
+            if(string.IsNullOrEmpty(pictureUrl))
+                PictureUrl = "default picture url";
+            else
+                PictureUrl = pictureUrl;
             Players.Add(captain);
         }
 
-        public void Update(string? name, int? captainId)
+        public void Update(string name, int captainId, string pictureUrl)
         {
-            if(name is not null)
-                Name = name;
-            if(captainId is not null)
-            {
-                if(!Players.Any(m => m.Id == captainId))
-                    throw new ValidationException($"New captain must be part of the team.");
-                CaptainId = (int)captainId;
-            }
+            Name = name;
+            CaptainId = captainId;
+            PictureUrl = pictureUrl;
         }
 
         public void RemovePlayer(int playerId)

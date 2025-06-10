@@ -8,10 +8,10 @@ public class PlayerTests
     public void Update_UpdatesPlayerProperties()
     {
         // Arrange
-        var player = new Player("user", "OldFirst", "OldLast", "email@test.com", null, null, null);
+        var player = new Player("user", "OldFirst", "OldLast", "email@test.com", "testurl", null, null, null);
 
         // Act
-        player.Update("NewFirst", "NewLast", "NewUser", "discord", "steam", "riot");
+        player.Update("NewFirst", "NewLast", "NewUser", "newurl", "discord", "steam", "riot");
 
         // Assert
         Assert.Equal("NewFirst", player.Firstname);
@@ -25,9 +25,9 @@ public class PlayerTests
     [Fact]
     public void Update_EmptyIds_UpdatesProperties()
     {
-        var player = new Player("user", "OldFirst", "OldLast", "email@test.com", null, null, null);
+        var player = new Player("user", "OldFirst", "OldLast", "email@test.com", "testurl", null, null, null);
 
-        player.Update(player.Firstname, player.Lastname,player.Username, string.Empty, string.Empty, string.Empty);
+        player.Update(player.Firstname, player.Lastname,player.Username, player.PictureUrl, string.Empty, string.Empty, string.Empty);
 
         Assert.Equal(string.Empty, player.DiscordId);
         Assert.Equal(string.Empty, player.SteamId);

@@ -2,6 +2,7 @@
 using MercuriusAPI.DTOs.LAN.TeamDTOs;
 using MercuriusAPI.Exceptions;
 using MercuriusAPI.Models.LAN;
+using MercuriusAPI.Services.Images;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -10,18 +11,24 @@ namespace MercuriusAPI.Services.LAN.TeamServices
     public class TeamService : ITeamService
     {
         private readonly MercuriusDBContext _dbContext;
-        private readonly int _inviteResendCooldownDays;
-        public TeamService(MercuriusDBContext dbContext, IConfiguration configuration)
+        private readonly IImageService _imageService;
+
+        public TeamService(MercuriusDBContext dbContext, IImageService imageService)
         {
             _dbContext = dbContext;
-            _inviteResendCooldownDays = configuration.GetSection("TeamInvite:ResendCooldownDays").Get<int>();
+            _imageService = imageService;
         }
 
         public async Task<GetTeamDTO> CreateTeamAsync(CreateTeamDTO teamDTO, Player captain)
         {
             if(await CheckIfTeamNameExistsAsync(teamDTO.Name))
                 throw new ValidationException($"Teamname {teamDTO.Name} already in use");
-            var team = new Team(teamDTO.Name, captain);
+            string pictureUrl = string.Empty;
+            if(teamDTO.Picture is null)
+                pictureUrl = "default team-picture url";
+            else
+                pictureUrl = await _imageService.UploadFileAsync(teamDTO.Picture);
+            var team = new Team(teamDTO.Name, captain, pictureUrl);
             _dbContext.Teams.Add(team);
             await _dbContext.SaveChangesAsync();
             return new GetTeamDTO(team);
@@ -60,11 +67,17 @@ namespace MercuriusAPI.Services.LAN.TeamServices
         public async Task<GetTeamDTO> UpdateTeamAsync(int id, UpdateTeamDTO teamDTO)
         {
             var team = await GetTeamByIdAsync(id);
-            if(teamDTO.Name != null && !team.Name.Equals(teamDTO.Name) && await CheckIfTeamNameExistsAsync(teamDTO.Name))
+            if(!team.Name.Equals(teamDTO.Name) && await CheckIfTeamNameExistsAsync(teamDTO.Name))
                 throw new ValidationException($"Teamname {teamDTO.Name} already in use");
-            team.Update(teamDTO.Name, teamDTO.CaptainId);
+
+            string oldPictureUrl = team.PictureUrl;
+            string pictureUrl = oldPictureUrl;
+            if(teamDTO.Picture is not null)
+                pictureUrl = await _imageService.UploadFileAsync(teamDTO.Picture);
+            team.Update(teamDTO.Name, teamDTO.CaptainId, pictureUrl);
             _dbContext.Teams.Update(team);
             await _dbContext.SaveChangesAsync();
+            await _imageService.DeleteFileAsync(oldPictureUrl);
             return new GetTeamDTO(team);
         }
 

@@ -13,7 +13,7 @@ namespace MercuriusAPI.Tests
             // Arrange
             var teamName = "Test Team";
             var captain = CreatePlayer();
-            var team = new Team(teamName, captain);
+            var team = new Team(teamName, captain, "testimageurl");
             // Act & Assert
             Assert.Equal(teamName, team.Name);
             Assert.Equal(captain.Id, team.CaptainId);
@@ -29,51 +29,12 @@ namespace MercuriusAPI.Tests
             var newCaptain = CreatePlayer();
             team.Players.Add(newCaptain);
             // Act
-            team.Update(newName, newCaptain.Id);
+            team.Update(newName, newCaptain.Id, team.PictureUrl);
             // Assert
             Assert.Equal(newName, team.Name);
             Assert.Equal(newCaptain.Id, team.CaptainId);
-        }
-
-        [Fact]
-        public void Update_Team_Should_Not_Update_When_New_Name_Is_Null()
-        {
-            // Arrange
-            var team = CreateTeam();
-            var originalName = team.Name;
-            var originalCaptainId = team.CaptainId;
-            var newCaptain = CreatePlayer();
-            // Act
-            team.Update(null, null);
-            // Assert
-            Assert.Equal(originalName, team.Name);
-            Assert.Equal(originalCaptainId, team.CaptainId);
-        }
-
-        [Fact]
-        public void Update_Team_Should_Not_Update_CaptainId_When_New_CaptainId_Is_Null()
-        {
-            // Arrange
-            var team = CreateTeam();
-            var newName = "Updated Team Name";
-            // Act
-            team.Update(newName, null);
-            // Assert
-            Assert.Equal(newName, team.Name);
-            Assert.Equal(team.CaptainId, team.CaptainId);
-        }
-
-        [Fact]
-        public void Update_Team_Should_Not_Update_When_Both_Properties_Are_Null()
-        {
-            // Arrange
-            var team = CreateTeam();
-            // Act
-            team.Update(null, null);
-            // Assert
-            Assert.Equal(team.Name, team.Name);
-            Assert.Equal(team.CaptainId, team.CaptainId);
-        }
+        }       
+              
 
         [Fact]
         public void RemovePlayer_Should_Remove_Player_From_Team()

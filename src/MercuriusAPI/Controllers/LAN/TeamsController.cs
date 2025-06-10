@@ -1,5 +1,6 @@
 ﻿using Asp.Versioning;
 using MercuriusAPI.DTOs.LAN.TeamDTOs;
+using MercuriusAPI.Exceptions;
 using MercuriusAPI.Services.LAN.PlayerServices;
 using MercuriusAPI.Services.LAN.TeamServices;
 using Microsoft.AspNetCore.Mvc;
@@ -41,8 +42,11 @@ namespace MercuriusAPI.Controllers.LAN
         /// <param name="createTeamDTO">The team creation data.</param>
         /// <returns>The created team.</returns>
         [HttpPost]
+        [Consumes("multipart/form-data")]
         public async Task<GetTeamDTO> CreateTeamAsync(CreateTeamDTO createTeamDTO)
         {
+            if (!ModelState.IsValid)
+                throw new ValidationException("Invalid team data provided.");
             var captain = await _playerService.GetPlayerByIdAsync(createTeamDTO.CaptainId);
             return await _teamService.CreateTeamAsync(createTeamDTO, captain);
         }
@@ -60,8 +64,11 @@ namespace MercuriusAPI.Controllers.LAN
         }
 
         [HttpPut("{id}")]
+        [Consumes("multipart/form-data")]
         public Task<GetTeamDTO> UpdateTeamAsync(int id, UpdateTeamDTO updateTeamDTO)
         {
+            if (!ModelState.IsValid)
+                throw new ValidationException("Invalid team data provided.");
             return _teamService.UpdateTeamAsync(id, updateTeamDTO);
         }
 

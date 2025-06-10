@@ -8,12 +8,14 @@ namespace MercuriusAPI.DTOs.LAN.TeamDTOs
     {
         public string Name { get; set; }
         public int CaptainId { get; set; }
+        public string PictureUrl { get; set; } = string.Empty;
         public IEnumerable<GetTeamPlayerDTO> Players { get; set; } = [];
         public IEnumerable<TeamInviteDTO> TeamInvites { get; set; } = [];
         public GetTeamDTO(Team team)
         {
             Id = team.Id;
             Name = team.Name;
+            PictureUrl = team.PictureUrl;
             Players = team.Players.Select(p => new GetTeamPlayerDTO(p));
             TeamInvites = team.TeamInvites.Where(i => i.Status == TeamInviteStatus.Pending).Select(i => new TeamInviteDTO(i));
             CaptainId = team.CaptainId;

@@ -4,6 +4,7 @@ using MercuriusAPI.Exceptions;
 using MercuriusAPI.Models.LAN;
 using MercuriusAPI.Services.Images;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 
 namespace MercuriusAPI.Services.LAN.TeamServices
@@ -12,11 +13,13 @@ namespace MercuriusAPI.Services.LAN.TeamServices
     {
         private readonly MercuriusDBContext _dbContext;
         private readonly IImageService _imageService;
+        private readonly int _inviteResendCooldownDays;
 
-        public TeamService(MercuriusDBContext dbContext, IImageService imageService)
+        public TeamService(MercuriusDBContext dbContext, IConfiguration configuration,  IImageService imageService)
         {
             _dbContext = dbContext;
             _imageService = imageService;
+            _inviteResendCooldownDays = configuration.GetSection("TeamInvite:ResendCooldownDays").Get<int>();
         }
 
         public async Task<GetTeamDTO> CreateTeamAsync(CreateTeamDTO teamDTO, Player captain)

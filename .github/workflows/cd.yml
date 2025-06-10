@@ -11,6 +11,9 @@ env:
   DOCKERFILE_PATH: Dockerfile
   CONTEXT_PATH: .
 
+permissions:
+  id-token: write
+
 jobs:      
   release-please:
     runs-on: ubuntu-24.04

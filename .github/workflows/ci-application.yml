@@ -7,14 +7,23 @@ on:
     - main
     paths: 
     - src/**
+    - Dockerfile
     types: 
     - opened
     - synchronize
     - reopened
     - ready_for_review
 
+permissions:
+  pull-requests: write
+
+env:
+  IMAGE: backend
+  DOCKERFILE_PATH: Dockerfile
+  CONTEXT_PATH: .
+
 jobs:
-  build:
+  build-application:
     runs-on: ubuntu-24.04
     name: "Build Application"
     steps:
@@ -34,3 +43,96 @@ jobs:
 
     - name: Test
       run: dotnet test
+
+  build-image:
+    runs-on: ubuntu-24.04
+    name: "Build Docker Image"
+    steps:
+    - name: Create image
+      run: |
+          docker build \
+            --tag ${{ env.IMAGE }} \
+            --file ${{ env.DOCKERFILE_PATH }} \
+            ${{ env.CONTEXT_PATH }}
+
+          docker image save \
+            ${{ env.IMAGE }} \
+            --output ${{ env.IMAGE }}.tar
+
+    - name: Vulnerability Scan
+      uses: aquasecurity/trivy-action@0.29.0
+      with:
+        input: ${{ env.IMAGE }}.tar
+        severity: 'CRITICAL,HIGH,MEDIUM'
+        limit-severities-for-sarif: 'CRITICAL,HIGH,MEDIUM'
+        format: json
+        output: trivy-results.json
+
+    - name: Comment Sarif content on PR
+      uses: actions/github-script@v7.0.1
+      env:
+        SARIF_FILE_PATH: trivy-results.json
+        GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
+      with:
+        github-token: ${{ env.GITHUB_TOKEN }}
+        script: |
+          const fs = require('fs');
+          const path = process.env.SARIF_FILE_PATH;
+          let markdown = '';
+
+          if (fs.existsSync(path)) {
+            const sarifResults = JSON.parse(fs.readFileSync(path, 'utf8'));
+
+            if (path.endsWith('.json') && sarifResults.Results) {
+              sarifResults.Results.forEach(result => {
+                markdown += `## ${result.Target}\n\n`;
+
+                if (result.Vulnerabilities && result.Vulnerabilities.length > 0) {
+                  markdown += '| Vulnerability ID | Package | Severity | Description |\n';
+                  markdown += '|------------------|---------|----------|-------------|\n';
+
+                  result.Vulnerabilities.forEach(vulnerability => {
+                    markdown += `| ${vulnerability.VulnerabilityID} | ${vulnerability.PkgName} | ${vulnerability.Severity} | ${vulnerability.Description} |\n`;
+                  });
+                } else {
+                  markdown += 'No vulnerabilities found by Trivy.\n\n';
+                }
+
+                markdown += '\n\n';
+              });
+            } else if (path.endsWith('.sarif') && sarifResults.runs[0].results.length > 0) {
+                const results = sarifResults.runs[0].results;
+                const rules = sarifResults.runs[0].tool.driver.rules.reduce((arr, rule) => {
+                  arr[rule.id] = rule;
+                  return arr;
+                }, {});
+
+                // Sort results by security-severity in descending order
+                results.sort((a, b) => {
+                  const severityA = rules[a.ruleId]?.properties['security-severity'] || 0;
+                  const severityB = rules[b.ruleId]?.properties['security-severity'] || 0;
+                  return severityB - severityA;
+                });
+
+                markdown += '| Rule ID | Level | Score | Message | Locations |\n';
+                markdown += '|---------|-------|-------|---------|-----------|\n';
+
+                results.forEach(result => {
+                  const locations = result.locations.map(location => location.physicalLocation.artifactLocation.uri).join(', ');
+                  const rule = rules[result.ruleId];
+                  const securitySeverity = rule ? rule.properties['security-severity'] : 'N/A';
+                  markdown += `| [${result.ruleId}](${rule.helpUri}) | ${result.level} | ${securitySeverity} | ${result.message.text} | ${locations} |\n`;
+                });
+              } else {
+              markdown = 'No vulnerabilities found by Checkov.\n\n';
+            }
+          } else {
+            markdown = 'SARIF file not found.\n\n';
+          }
+
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: markdown.substring(0, 65000)
+          });

@@ -23,7 +23,7 @@ namespace MercuriusAPI.Models.LAN
         public Game(string name, string pictureUrl, BracketType bracketType, GameFormat format, GameFormat finalsFormat, ParticipantType participantType)
         {
             Name = name;
-            PictureUrl = pictureUrl;
+            PictureUrl = string.IsNullOrEmpty(pictureUrl) ? "default game-picture url" : pictureUrl;
             BracketType = bracketType;
             Format = format;
             FinalsFormat = finalsFormat;

@@ -27,7 +27,7 @@
             DiscordId = discordId;
             SteamId = steamId;
             RiotId = riotId;
-            PictureUrl = pictureUrl;
+            PictureUrl = string.IsNullOrEmpty(pictureUrl) ? "default player-picture url" : pictureUrl;
 
         }
 

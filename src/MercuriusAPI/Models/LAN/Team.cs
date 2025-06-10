@@ -22,11 +22,7 @@ namespace MercuriusAPI.Models.LAN
             Name = name;
             Captain = captain;
             CaptainId = captain.Id;
-
-            if(string.IsNullOrEmpty(pictureUrl))
-                PictureUrl = "default picture url";
-            else
-                PictureUrl = pictureUrl;
+            PictureUrl = string.IsNullOrEmpty(pictureUrl) ? "default picture url": pictureUrl ;
             Players.Add(captain);
         }
 

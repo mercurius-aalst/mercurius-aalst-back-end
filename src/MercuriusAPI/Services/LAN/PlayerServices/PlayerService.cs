@@ -36,9 +36,7 @@ namespace MercuriusAPI.Services.LAN.PlayerServices
                 throw new ValidationException("Username or email already exists");
 
             string pictureUrl = string.Empty;
-            if(playerDTO.Picture is null)
-                pictureUrl = "default player-picture url"; // Placeholder for default picture URL
-            else
+            if(playerDTO.Picture is not null)
                 pictureUrl = await _imageService.UploadFileAsync(playerDTO.Picture);
 
             var player = new Player(playerDTO.Username, playerDTO.Firstname, playerDTO.Lastname, playerDTO.Email, pictureUrl, playerDTO.DiscordId, playerDTO.SteamId, playerDTO.RiotId);

@@ -69,7 +69,7 @@ namespace MercuriusAPI.Controllers.LAN
         /// <returns>The updated player.</returns>
         [HttpPut("{id}")]
         [Consumes("multipart/form-data")]
-        public Task<GetPlayerDTO> UpdatePlayerAsync(int id, UpdatePlayerDTO updatePlayerDTO)
+        public Task<GetPlayerDTO> UpdatePlayerAsync(int id, [FromForm] UpdatePlayerDTO updatePlayerDTO)
         {
             if(!ModelState.IsValid)
                 throw new ValidationException("Invalid player data provided.");

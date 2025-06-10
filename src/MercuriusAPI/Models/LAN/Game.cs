@@ -6,6 +6,7 @@ namespace MercuriusAPI.Models.LAN
     {
         public int Id { get; set; }
         public string Name { get; set; }
+        public string PictureUrl { get; set; }
         public DateTime StartTime { get; set; }
         public DateTime EndTime { get; set; }
         public GameStatus Status { get; set; }
@@ -19,9 +20,10 @@ namespace MercuriusAPI.Models.LAN
         public IList<Match> Matches { get; set; } = new List<Match>();
         public IList<Participant> Participants { get; set; } = [];
 
-        public Game(string name, BracketType bracketType, GameFormat format, GameFormat finalsFormat, ParticipantType participantType)
+        public Game(string name, string pictureUrl, BracketType bracketType, GameFormat format, GameFormat finalsFormat, ParticipantType participantType)
         {
             Name = name;
+            PictureUrl = pictureUrl;
             BracketType = bracketType;
             Format = format;
             FinalsFormat = finalsFormat;
@@ -33,11 +35,12 @@ namespace MercuriusAPI.Models.LAN
         {
         }
 
-        public void Update(string name, BracketType bracketType, GameFormat format, GameFormat finalsFormat)
+        public void Update(string name, string pictureUrl, BracketType bracketType, GameFormat format, GameFormat finalsFormat)
         {
             if(Status == GameStatus.InProgress || Status == GameStatus.Completed)
                 throw new ValidationException("Game cannot be updated when it's in progress or completed.");
             Name = name;
+            PictureUrl = pictureUrl;
             BracketType = bracketType;
             Format = format;
             FinalsFormat = finalsFormat;

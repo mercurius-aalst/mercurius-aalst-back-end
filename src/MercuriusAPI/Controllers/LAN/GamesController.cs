@@ -1,6 +1,7 @@
 ﻿using Asp.Versioning;
 using MercuriusAPI.DTOs.LAN.GameDTOs;
 using MercuriusAPI.DTOs.LAN.PlacementDTOs;
+using MercuriusAPI.Exceptions;
 using MercuriusAPI.Services.LAN.GameServices;
 using MercuriusAPI.Services.LAN.ParticipantServices;
 using Microsoft.AspNetCore.Mvc;
@@ -42,8 +43,12 @@ namespace MercuriusAPI.Controllers.LAN
         /// <param name="createGameDTO">The game creation data.</param>
         /// <returns>The created game.</returns>
         [HttpPost]
-        public Task<GetGameDTO> CreateGameAsync(CreateGameDTO createGameDTO)
+        [Consumes("multipart/form-data")]
+        public Task<GetGameDTO> CreateGameAsync([FromForm]CreateGameDTO createGameDTO)
         {
+            if(!ModelState.IsValid)
+                throw new ValidationException("Invalid game creation data.");
+
             return _gameService.CreateGameAsync(createGameDTO);
         }
 
@@ -54,8 +59,11 @@ namespace MercuriusAPI.Controllers.LAN
         /// <param name="updateGameDTO">The updated game data.</param>
         /// <returns>The updated game.</returns>
         [HttpPut("{id}")]
-        public Task<GetGameDTO> UpdateGameAsync(int id, UpdateGameDTO updateGameDTO)
+        [Consumes("multipart/form-data")]
+        public Task<GetGameDTO> UpdateGameAsync(int id, [FromForm] UpdateGameDTO updateGameDTO)
         {
+            if(!ModelState.IsValid)
+                throw new ValidationException("Invalid game update data.");
             return _gameService.UpdateGameAsync(id, updateGameDTO);
         }
 

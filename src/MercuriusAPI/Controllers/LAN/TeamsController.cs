@@ -43,7 +43,7 @@ namespace MercuriusAPI.Controllers.LAN
         /// <returns>The created team.</returns>
         [HttpPost]
         [Consumes("multipart/form-data")]
-        public async Task<GetTeamDTO> CreateTeamAsync(CreateTeamDTO createTeamDTO)
+        public async Task<GetTeamDTO> CreateTeamAsync([FromForm]CreateTeamDTO createTeamDTO)
         {
             if (!ModelState.IsValid)
                 throw new ValidationException("Invalid team data provided.");
@@ -65,7 +65,7 @@ namespace MercuriusAPI.Controllers.LAN
 
         [HttpPut("{id}")]
         [Consumes("multipart/form-data")]
-        public Task<GetTeamDTO> UpdateTeamAsync(int id, UpdateTeamDTO updateTeamDTO)
+        public Task<GetTeamDTO> UpdateTeamAsync(int id, [FromForm]UpdateTeamDTO updateTeamDTO)
         {
             if (!ModelState.IsValid)
                 throw new ValidationException("Invalid team data provided.");

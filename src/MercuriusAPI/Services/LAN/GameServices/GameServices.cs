@@ -3,8 +3,10 @@ using MercuriusAPI.DTOs.LAN.GameDTOs;
 using MercuriusAPI.DTOs.LAN.PlacementDTOs;
 using MercuriusAPI.Exceptions;
 using MercuriusAPI.Models.LAN;
+using MercuriusAPI.Services.Images;
 using MercuriusAPI.Services.LAN.MatchServices;
 using Microsoft.EntityFrameworkCore;
+using System.Numerics;
 
 namespace MercuriusAPI.Services.LAN.GameServices
 {
@@ -12,18 +14,26 @@ namespace MercuriusAPI.Services.LAN.GameServices
     {
         private readonly MercuriusDBContext _dbContext;
         private readonly IMatchModeratorFactory _matchGeneratorFactory;
+        private readonly IImageService _imageService;
 
-        public GameService(MercuriusDBContext dbContext, IMatchModeratorFactory matchGeneratorFactory)
+        public GameService(MercuriusDBContext dbContext, IMatchModeratorFactory matchGeneratorFactory, IImageService imageService)
         {
             _dbContext = dbContext;
             _matchGeneratorFactory = matchGeneratorFactory;
+            _imageService = imageService;
         }
 
         public async Task<GetGameDTO> CreateGameAsync(CreateGameDTO createGameDTO)
         {
             if(await CheckIfGameNameExistsAsync(createGameDTO.Name))
                 throw new ValidationException($"Game {createGameDTO.Name} already created");
-            var game = new Game(createGameDTO.Name, createGameDTO.BracketType, createGameDTO.Format, createGameDTO.FinalsFormat, createGameDTO.ParticipantType);
+
+            string pictureUrl = string.Empty;
+            if(createGameDTO.Picture is null)
+                pictureUrl = "default game-picture url"; // Placeholder for default picture URL
+            else
+                pictureUrl = await _imageService.UploadFileAsync(createGameDTO.Picture);
+            var game = new Game(createGameDTO.Name, pictureUrl, createGameDTO.BracketType, createGameDTO.Format, createGameDTO.FinalsFormat, createGameDTO.ParticipantType);
             _dbContext.Games.Add(game);
             await _dbContext.SaveChangesAsync();
             return new GetGameDTO(game);
@@ -44,9 +54,18 @@ namespace MercuriusAPI.Services.LAN.GameServices
         public async Task<GetGameDTO> UpdateGameAsync(int id, UpdateGameDTO gameDTO)
         {
             var game = await GetGameByIdAsync(id);
-            game.Update(gameDTO.Name, gameDTO.BracketType, gameDTO.Format, gameDTO.FinalsFormat);
+
+            string oldPictureUrl = game.PictureUrl;
+            string pictureUrl = oldPictureUrl;
+            if(gameDTO.Picture is not null)
+                pictureUrl = await _imageService.UploadFileAsync(gameDTO.Picture);
+            game.Update(gameDTO.Name, pictureUrl, gameDTO.BracketType, gameDTO.Format, gameDTO.FinalsFormat);
             _dbContext.Games.Update(game);
             await _dbContext.SaveChangesAsync();
+
+            if(pictureUrl != oldPictureUrl)
+                await _imageService.DeleteFileAsync(oldPictureUrl);
+
             return new GetGameDTO(game);
         }
 

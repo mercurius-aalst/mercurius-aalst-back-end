@@ -11,6 +11,7 @@ namespace MercuriusAPI.DTOs.LAN.GameDTOs
     {
         public int Id { get; set; }
         public string Name { get; set; }
+        public string PictureUrl { get; set; }
         public DateTime StartTime { get; set; }
         public DateTime EndTime { get; set; }
         public GameStatus Status { get; set; }
@@ -28,6 +29,7 @@ namespace MercuriusAPI.DTOs.LAN.GameDTOs
         {
             Id = game.Id;
             Name = game.Name;
+            PictureUrl = game.PictureUrl;
             StartTime = game.StartTime;
             EndTime = game.EndTime;
             Status = game.Status;

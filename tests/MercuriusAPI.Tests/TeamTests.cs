@@ -27,6 +27,7 @@ namespace MercuriusAPI.Tests
             var team = CreateTeam();
             var newName = "Updated Team Name";
             var newCaptain = CreatePlayer();
+            team.Players.Add(newCaptain);
             // Act
             team.Update(newName, newCaptain.Id);
             // Assert
@@ -39,12 +40,14 @@ namespace MercuriusAPI.Tests
         {
             // Arrange
             var team = CreateTeam();
+            var originalName = team.Name;
+            var originalCaptainId = team.CaptainId;
             var newCaptain = CreatePlayer();
             // Act
-            team.Update(null, newCaptain.Id);
+            team.Update(null, null);
             // Assert
-            Assert.Equal(team.Name, team.Name);
-            Assert.Equal(newCaptain.Id, team.CaptainId);
+            Assert.Equal(originalName, team.Name);
+            Assert.Equal(originalCaptainId, team.CaptainId);
         }
 
         [Fact]
@@ -106,6 +109,114 @@ namespace MercuriusAPI.Tests
             Assert.Throws<ValidationException>(() => team.RemovePlayer(team.CaptainId));
         }
 
+        [Fact]
+        public void InvitePlayer_Should_Throw_When_Player_Already_In_Team()
+        {
+            // Arrange
+            var team = CreateTeam();
+            var playerToInvite = CreatePlayer();
+            team.Players.Add(playerToInvite);
+            // Act & Assert
+            Assert.Throws<ValidationException>(() => team.InvitePlayer(playerToInvite.Id, 7));
+        }
+
+        [Fact]
+        public void InvitePlayer_Should_Throw_When_Pending_Invite_Exists()
+        {
+            // Arrange
+            var team = CreateTeam();
+            var playerToInvite = CreatePlayer();
+            team.TeamInvites.Add(new TeamInvite { PlayerId = playerToInvite.Id, TeamId = team.Id, Status = TeamInviteStatus.Pending });
+            // Act & Assert
+            Assert.Throws<ValidationException>(() => team.InvitePlayer(playerToInvite.Id, 7));
+        }
+
+        [Fact]
+        public void InvitePlayer_Should_Add_Invite_When_Valid()
+        {
+            // Arrange
+            var team = CreateTeam();
+            var playerToInvite = CreatePlayer();
+            team.TeamInvites.Clear(); // Ensure no existing invites
+            // Act
+            team.InvitePlayer(playerToInvite.Id, 7);
+            // Assert
+            Assert.Single(team.TeamInvites);
+            Assert.Equal(playerToInvite.Id, team.TeamInvites.First().PlayerId);
+            Assert.Equal(team.Id, team.TeamInvites.First().TeamId);
+            Assert.Equal(TeamInviteStatus.Pending, team.TeamInvites.First().Status);
+        }
+
+        [Fact]
+        public void InvitePlayer_Should_Throw_When_Last_Invite_Was_Declined_Too_Soon()
+        {
+            // Arrange
+            var team = CreateTeam();
+            var playerToInvite = CreatePlayer();
+            team.TeamInvites.Clear(); // Ensure no existing invites
+            team.TeamInvites.Add(new TeamInvite
+            {
+                PlayerId = playerToInvite.Id,
+                TeamId = team.Id,
+                Status = TeamInviteStatus.Declined,
+                RespondedAt = DateTime.UtcNow.AddDays(-5) // Declined 5 days ago
+            });
+            // Act & Assert
+            Assert.Throws<ValidationException>(() => team.InvitePlayer(playerToInvite.Id, 7));
+        }
+
+        [Fact]
+        public void TeamInvite_Respond_Accept_Should_Update_Invite_Accepted()
+        {
+            // Arrange
+            var team = CreateTeam();
+            var playerToInvite = CreatePlayer();
+            team.TeamInvites.Clear(); // Ensure no existing invites
+            var invite = team.InvitePlayer(playerToInvite.Id, 7);
+
+            //Have to do this manually because Actual references are handled by EF Core
+            invite.Team = team;
+            invite.Player = playerToInvite;
+
+            // Act
+            invite.Respond(true);
+
+            // Assert
+            Assert.Equal(TeamInviteStatus.Accepted, invite.Status);
+            Assert.Contains(playerToInvite, team.Players);
+            Assert.NotNull(invite.RespondedAt);
+        }
+
+        [Fact]
+        public void TeamInvite_Respond_Decline_Should_Update_Invite_Declined()
+        {
+            // Arrange
+            var team = CreateTeam();
+            var playerToInvite = CreatePlayer();
+            team.TeamInvites.Clear(); // Ensure no existing invites
+            var invite = team.InvitePlayer(playerToInvite.Id, 7);
+            // Act
+            invite.Respond(false);
+            // Assert
+            Assert.Equal(TeamInviteStatus.Declined, invite.Status);
+            Assert.DoesNotContain(playerToInvite, team.Players);
+            Assert.NotNull(invite.RespondedAt);
+        }
+
+        [Fact]
+        public void TeamInvite_Respond_Should_Throw_When_Invite_Is_Not_Pending()
+        {
+            // Arrange
+            var team = CreateTeam();
+            var playerToInvite = CreatePlayer();
+            team.TeamInvites.Clear(); // Ensure no existing invites
+            var invite = team.InvitePlayer(playerToInvite.Id, 7);
+            invite.Team = team;
+            invite.Player = playerToInvite;
+            invite.Status = TeamInviteStatus.Accepted; // Change status to Accepted
+            // Act & Assert
+            Assert.Throws<ValidationException>(() => invite.Respond(true));
+        }
 
 
         private Player CreatePlayer()

@@ -3,21 +3,24 @@ using MercuriusAPI.DTOs.LAN.TeamDTOs;
 using MercuriusAPI.Exceptions;
 using MercuriusAPI.Models.LAN;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace MercuriusAPI.Services.LAN.TeamServices
 {
     public class TeamService : ITeamService
     {
         private readonly MercuriusDBContext _dbContext;
-        public TeamService(MercuriusDBContext dbContext)
+        private readonly int _inviteResendCooldownDays;
+        public TeamService(MercuriusDBContext dbContext, IConfiguration configuration)
         {
             _dbContext = dbContext;
+            _inviteResendCooldownDays = configuration.GetSection("TeamInvite:ResendCooldownDays").Get<int>();
         }
 
         public async Task<GetTeamDTO> CreateTeamAsync(CreateTeamDTO teamDTO, Player captain)
         {
             if(await CheckIfTeamNameExistsAsync(teamDTO.Name))
-                throw new ValidationException($"Teamname {teamDTO.Name} already in use");            
+                throw new ValidationException($"Teamname {teamDTO.Name} already in use");
             var team = new Team(teamDTO.Name, captain);
             _dbContext.Teams.Add(team);
             await _dbContext.SaveChangesAsync();
@@ -54,16 +57,6 @@ namespace MercuriusAPI.Services.LAN.TeamServices
             return new GetTeamDTO(team);
         }
 
-        public async Task<GetTeamDTO> AddPlayerAsync(int id, Player player)
-        {
-            var team = await _dbContext.Teams.Include(t => t.Players).FirstOrDefaultAsync(t => t.Id == id);
-            if(team is null)
-                throw new NotFoundException($"{nameof(Team)} not found");
-            team.Players.Add(player);
-            await _dbContext.SaveChangesAsync();
-            return new GetTeamDTO(team);
-        }
-
         public async Task<GetTeamDTO> UpdateTeamAsync(int id, UpdateTeamDTO teamDTO)
         {
             var team = await GetTeamByIdAsync(id);
@@ -73,6 +66,40 @@ namespace MercuriusAPI.Services.LAN.TeamServices
             _dbContext.Teams.Update(team);
             await _dbContext.SaveChangesAsync();
             return new GetTeamDTO(team);
+        }
+
+        public async Task<TeamInviteDTO> InvitePlayerAsync(int teamId, int playerId)
+        {
+            var team = await GetTeamByIdAsync(teamId);
+            await _dbContext.Entry(team).Collection(t => t.TeamInvites).LoadAsync();
+            if(team == null)
+                throw new NotFoundException($"{nameof(Team)} not found");
+            var invite = team.InvitePlayer(playerId, _inviteResendCooldownDays);
+            await _dbContext.SaveChangesAsync();
+            return new TeamInviteDTO(invite);
+        }
+
+        public async Task<TeamInviteDTO> RespondToInviteAsync(int teamId, int playerId, bool accept)
+        {
+            var invite = await _dbContext.TeamInvites.Include(ti => ti.Player).Include(ti => ti.Team).FirstOrDefaultAsync(i => i.TeamId == teamId && i.PlayerId == playerId && i.Status == TeamInviteStatus.Pending);
+            if(invite == null)
+                throw new NotFoundException("No pending invite found");
+            invite.Respond(accept);
+            await _dbContext.SaveChangesAsync();
+            return new TeamInviteDTO(invite);
+        }
+
+        public async Task<IEnumerable<TeamInviteDTO>> GetPlayerInvitesAsync(int playerId)
+        {
+            var invites = await _dbContext.TeamInvites.Where(i => i.PlayerId == playerId && i.Status == TeamInviteStatus.Pending).ToListAsync();
+            return invites.Select(invite => new TeamInviteDTO
+            {
+                Id = invite.Id,
+                TeamId = invite.TeamId,
+                PlayerId = invite.PlayerId,
+                Status = invite.Status.ToString(),
+                CreatedAt = invite.CreatedAt
+            });
         }
 
         private Task<bool> CheckIfTeamNameExistsAsync(string name)

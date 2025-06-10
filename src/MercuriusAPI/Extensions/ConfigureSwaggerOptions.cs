@@ -38,7 +38,7 @@ namespace MercuriusAPI.Extensions
         /// </summary>
         /// <param name="name"></param>
         /// <param name="options"></param>
-        public void Configure(string name, SwaggerGenOptions options)
+        public void Configure(string? name, SwaggerGenOptions options)
         {
             Configure(options);
         }
@@ -46,7 +46,6 @@ namespace MercuriusAPI.Extensions
         /// <summary>
         /// Create information about the version of the API
         /// </summary>
-        /// <param name="description"></param>
         /// <returns>Information about the API</returns>
         private OpenApiInfo CreateVersionInfo(
                 ApiVersionDescription desc)

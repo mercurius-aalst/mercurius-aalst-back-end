@@ -66,7 +66,7 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
         {
             var matches = new List<Match>();
 
-            var rotation = new List<Participant>(game.Participants);
+            var rotation = new List<Participant?>(game.Participants);
             bool isOdd = rotation.Count % 2 != 0;
             if(isOdd)
                 rotation.Add(null);

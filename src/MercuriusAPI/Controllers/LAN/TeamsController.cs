@@ -48,19 +48,6 @@ namespace MercuriusAPI.Controllers.LAN
         }
 
         /// <summary>
-        /// Adds a player to a team.
-        /// </summary>
-        /// <param name="id">The team ID.</param>
-        /// <param name="playerId">The player ID.</param>
-        /// <returns>The updated team with the new player.</returns>
-        [HttpPut("{id}/players/{playerId}")]
-        public async Task<GetTeamDTO> AddPlayerAsync(int id, int playerId)
-        {
-            var player = await _playerService.GetPlayerByIdAsync(playerId);
-            return await _teamService.AddPlayerAsync(id, player);
-        }
-
-        /// <summary>
         /// Removes a player from a team.
         /// </summary>
         /// <param name="id">The team ID.</param>
@@ -86,6 +73,43 @@ namespace MercuriusAPI.Controllers.LAN
         public Task DeleteTeamAsync(int id)
         {
             return _teamService.DeleteTeamAsync(id);
+        }
+
+        /// <summary>
+        /// Invites a player to join a team. Only the team captain can send invites. If the player accepts, they will be added to the team.
+        /// </summary>
+        /// <param name="id">The ID of the team sending the invitation.</param>
+        /// <param name="playerId">The ID of the player to invite.</param>
+        /// <returns>The created team invitation details.</returns>
+        [HttpPost("{id}/players/invite/{playerId}")]
+        public async Task<TeamInviteDTO> InvitePlayerAsync(int id, int playerId)
+        {
+            return await _teamService.InvitePlayerAsync(id, playerId);
+        }
+
+        /// <summary>
+        /// Allows a player to respond to a team invitation. The player can accept or decline the invitation.
+        /// If accepted, the player is added to the team. If declined, the invitation is marked as declined.
+        /// </summary>
+        /// <param name="id">The ID of the team that sent the invitation.</param>
+        /// <param name="playerId">The ID of the player responding to the invitation.</param>
+        /// <param name="dto">The response indicating acceptance or decline.</param>
+        /// <returns>The updated team invitation details.</returns>
+        [HttpPut("{id}/players/invite/{playerId}")]
+        public async Task<TeamInviteDTO> RespondToInviteAsync(int id, int playerId, [FromBody] RespondTeamInviteDTO dto)
+        {
+            return await _teamService.RespondToInviteAsync(id, playerId, dto.Accept);
+        }
+
+        /// <summary>
+        /// Retrieves all pending team invitations for a specific player.
+        /// </summary>
+        /// <param name="playerId">The ID of the player whose invitations are being retrieved.</param>
+        /// <returns>A list of pending team invitations for the player.</returns>
+        [HttpGet("players/{playerId}/invites")]
+        public async Task<IEnumerable<TeamInviteDTO>> GetPlayerInvitesAsync(int playerId)
+        {
+            return await _teamService.GetPlayerInvitesAsync(playerId);
         }
     }
 }

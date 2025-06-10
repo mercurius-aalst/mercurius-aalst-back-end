@@ -1,0 +1,16 @@
+{
+  "packages": {
+    ".": {
+      "component": "backend",
+      "package-name": "backend",
+      "changelog-path": "CHANGELOG.md",
+      "include-component-in-tag": true,
+      "release-type": "node",
+      "bump-minor-pre-major": false,
+      "bump-patch-for-minor-pre-major": false,
+      "draft": false,
+      "prerelease": false
+    }
+  },
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json"
+}

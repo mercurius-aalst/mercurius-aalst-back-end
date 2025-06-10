@@ -1,0 +1,64 @@
+---
+name: Continuous Delivery
+
+on:
+  push:
+    branches:
+    - main
+
+env:
+  IMAGE_NAME: backend
+  DOCKERFILE_PATH: Dockerfile
+  CONTEXT_PATH: .
+
+jobs:      
+  release-please:
+    runs-on: ubuntu-24.04
+    name: Calculate SemVersion and Create Release
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Release Please
+        uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: images/github-runner
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+          include-component-in-tag: true
+
+    outputs:
+      VERSION: "${{ steps.release.outputs.major }}.${{ steps.release.outputs.minor }}.${{ steps.release.outputs.patch }}"
+      RELEASE_CREATED: ${{ steps.release.outputs.release_created}}
+
+  build-and-push-image:
+    runs-on: ubuntu-24.04
+    name: Build and Push Docker Image
+    needs: release-please
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log into Azure
+        uses: azure/login@v2
+        with:
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+
+      - name: Build and Push image
+        if: ${{ needs.release-please.outputs.RELEASE_CREATED }}
+        run: |
+          IMAGE="${{ vars.CONTAINER_REGISTRY }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ needs.release-please.outputs.VERSION }}"
+
+          az acr login \
+            --name ${{ vars.CONTAINER_REGISTRY }} \
+            --expose-token
+
+          az acr build \
+            --registry ${{ vars.CONTAINER_REGISTRY }} \
+            --image $IMAGE \
+            --file ${{ env.DOCKERFILE_PATH }} \
+            ${{ env.CONTEXT_PATH }}

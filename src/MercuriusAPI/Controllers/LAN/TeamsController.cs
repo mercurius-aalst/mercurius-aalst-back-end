@@ -48,19 +48,6 @@ namespace MercuriusAPI.Controllers.LAN
         }
 
         /// <summary>
-        /// Adds a player to a team.
-        /// </summary>
-        /// <param name="id">The team ID.</param>
-        /// <param name="playerId">The player ID.</param>
-        /// <returns>The updated team with the new player.</returns>
-        [HttpPut("{id}/players/{playerId}")]
-        public async Task<GetTeamDTO> AddPlayerAsync(int id, int playerId)
-        {
-            var player = await _playerService.GetPlayerByIdAsync(playerId);
-            return await _teamService.AddPlayerAsync(id, player);
-        }
-
-        /// <summary>
         /// Removes a player from a team.
         /// </summary>
         /// <param name="id">The team ID.</param>

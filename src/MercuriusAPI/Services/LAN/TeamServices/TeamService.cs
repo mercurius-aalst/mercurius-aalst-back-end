@@ -57,16 +57,6 @@ namespace MercuriusAPI.Services.LAN.TeamServices
             return new GetTeamDTO(team);
         }
 
-        public async Task<GetTeamDTO> AddPlayerAsync(int id, Player player)
-        {
-            var team = await _dbContext.Teams.Include(t => t.Players).FirstOrDefaultAsync(t => t.Id == id);
-            if(team is null)
-                throw new NotFoundException($"{nameof(Team)} not found");
-            team.Players.Add(player);
-            await _dbContext.SaveChangesAsync();
-            return new GetTeamDTO(team);
-        }
-
         public async Task<GetTeamDTO> UpdateTeamAsync(int id, UpdateTeamDTO teamDTO)
         {
             var team = await GetTeamByIdAsync(id);

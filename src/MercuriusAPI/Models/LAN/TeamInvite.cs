@@ -20,5 +20,16 @@ namespace MercuriusAPI.Models.LAN
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public TeamInviteStatus Status { get; set; } = TeamInviteStatus.Pending;
         public DateTime? RespondedAt { get; set; }
+
+        public void Respond(bool accept)
+        {
+            if(Status != TeamInviteStatus.Pending)
+                throw new InvalidOperationException("Cannot respond to an invite that is not pending.");
+
+            Status = accept ? TeamInviteStatus.Accepted : TeamInviteStatus.Declined;
+            if(accept)
+                Team.Players.Add(Player);
+            RespondedAt = DateTime.UtcNow;
+        }
     }
 }

@@ -20,7 +20,7 @@ namespace MercuriusAPI.Services.LAN.TeamServices
         public async Task<GetTeamDTO> CreateTeamAsync(CreateTeamDTO teamDTO, Player captain)
         {
             if(await CheckIfTeamNameExistsAsync(teamDTO.Name))
-                throw new ValidationException($"Teamname {teamDTO.Name} already in use");            
+                throw new ValidationException($"Teamname {teamDTO.Name} already in use");
             var team = new Team(teamDTO.Name, captain);
             _dbContext.Teams.Add(team);
             await _dbContext.SaveChangesAsync();
@@ -80,63 +80,23 @@ namespace MercuriusAPI.Services.LAN.TeamServices
 
         public async Task<TeamInviteDTO> InvitePlayerAsync(int teamId, int playerId)
         {
-            var team = await _dbContext.Teams.Include(t => t.Players).FirstOrDefaultAsync(t => t.Id == teamId);
-            if (team == null) throw new NotFoundException($"{nameof(Team)} not found");
-            if (team.Players.Any(p => p.Id == playerId)) throw new ValidationException("Player is already in the team");
-
-            // Check for pending invite
-            var existingPendingInvite = await _dbContext.TeamInvites.FirstOrDefaultAsync(i => i.TeamId == teamId && i.PlayerId == playerId && i.Status == TeamInviteStatus.Pending);
-            if (existingPendingInvite != null) throw new ValidationException("There is already a pending invite for this player");
-
-            // Check for last declined invite
-            var lastDeclinedInvite = await _dbContext.TeamInvites
-                .Where(i => i.TeamId == teamId && i.PlayerId == playerId && i.Status == TeamInviteStatus.Declined)
-                .OrderByDescending(i => i.RespondedAt)
-                .FirstOrDefaultAsync();
-            if (lastDeclinedInvite != null && lastDeclinedInvite.RespondedAt.HasValue)
-            {
-                var daysSinceDeclined = (DateTime.UtcNow - lastDeclinedInvite.RespondedAt.Value).TotalDays;
-                if (daysSinceDeclined < _inviteResendCooldownDays)
-                {
-                    throw new ValidationException($"Player declined the last invite less than {_inviteResendCooldownDays} days ago. Please wait {_inviteResendCooldownDays - (int)daysSinceDeclined} more day(s).");
-                }
-            }
-
-            var invite = new TeamInvite { TeamId = teamId, PlayerId = playerId };
-            _dbContext.TeamInvites.Add(invite);
+            var team = await GetTeamByIdAsync(teamId);
+            await _dbContext.Entry(team).Collection(t => t.TeamInvites).LoadAsync();
+            if(team == null)
+                throw new NotFoundException($"{nameof(Team)} not found");
+            var invite = team.InvitePlayer(playerId, _inviteResendCooldownDays);
             await _dbContext.SaveChangesAsync();
-            return new TeamInviteDTO
-            {
-                Id = invite.Id,
-                TeamId = invite.TeamId,
-                PlayerId = invite.PlayerId,
-                Status = invite.Status.ToString(),
-                CreatedAt = invite.CreatedAt
-            };
+            return new TeamInviteDTO(invite);
         }
 
-        public async Task<TeamInviteDTO> RespondToInviteAsync(int teamId, Player player, bool accept)
+        public async Task<TeamInviteDTO> RespondToInviteAsync(int teamId, int playerId, bool accept)
         {
-            var invite = await _dbContext.TeamInvites.FirstOrDefaultAsync(i => i.TeamId == teamId && i.PlayerId == player.Id && i.Status == TeamInviteStatus.Pending);
-            if (invite == null) throw new NotFoundException("Invite not found");
-            invite.Status = accept ? TeamInviteStatus.Accepted : TeamInviteStatus.Declined;
-            invite.RespondedAt = DateTime.UtcNow;
-            if (accept)
-            {
-                var team = await _dbContext.Teams.Include(t => t.Players).FirstOrDefaultAsync(t => t.Id == teamId);
-                if (team == null) throw new NotFoundException("Team not found");
-                team.Players.Add(player);
-            }
+            var invite = await _dbContext.TeamInvites.FirstOrDefaultAsync(i => i.TeamId == teamId && i.PlayerId == playerId && i.Status == TeamInviteStatus.Pending);
+            if(invite == null)
+                throw new NotFoundException("No pending invite not found");
+            invite.Respond(accept);
             await _dbContext.SaveChangesAsync();
-            return new TeamInviteDTO
-            {
-                Id = invite.Id,
-                TeamId = invite.TeamId,
-                PlayerId = invite.PlayerId,
-                Status = invite.Status.ToString(),
-                CreatedAt = invite.CreatedAt,
-                RespondedAt = invite.RespondedAt
-            };
+            return new TeamInviteDTO(invite);
         }
 
         public async Task<IEnumerable<TeamInviteDTO>> GetPlayerInvitesAsync(int playerId)

@@ -111,8 +111,7 @@ namespace MercuriusAPI.Controllers.LAN
         [HttpPut("{id}/players/invite/{playerId}")]
         public async Task<TeamInviteDTO> RespondToInviteAsync(int id, int playerId, [FromBody] RespondTeamInviteDTO dto)
         {
-            var player = await _playerService.GetPlayerByIdAsync(playerId);
-            return await _teamService.RespondToInviteAsync(id, player, dto.Accept);
+            return await _teamService.RespondToInviteAsync(id, playerId, dto.Accept);
         }
 
         /// <summary>

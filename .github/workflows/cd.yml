@@ -42,6 +42,7 @@ jobs:
     runs-on: ubuntu-24.04
     name: Build and Push Docker Image
     needs: release-please
+    if: ${{ needs.release-please.outputs.RELEASE_CREATED }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

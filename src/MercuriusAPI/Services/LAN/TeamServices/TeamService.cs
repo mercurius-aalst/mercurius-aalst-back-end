@@ -80,7 +80,8 @@ namespace MercuriusAPI.Services.LAN.TeamServices
             team.Update(teamDTO.Name, teamDTO.CaptainId, pictureUrl);
             _dbContext.Teams.Update(team);
             await _dbContext.SaveChangesAsync();
-            await _imageService.DeleteFileAsync(oldPictureUrl);
+            if(pictureUrl != oldPictureUrl)
+                await _imageService.DeleteFileAsync(oldPictureUrl);
             return new GetTeamDTO(team);
         }
 

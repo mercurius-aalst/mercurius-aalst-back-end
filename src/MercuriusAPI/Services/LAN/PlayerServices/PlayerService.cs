@@ -63,7 +63,8 @@ namespace MercuriusAPI.Services.LAN.PlayerServices
             _dbContext.Players.Update(player);
             await _dbContext.SaveChangesAsync();
 
-            await _imageService.DeleteFileAsync(oldPictureUrl);
+            if(pictureUrl != oldPictureUrl)
+                await _imageService.DeleteFileAsync(oldPictureUrl);
 
             return new GetPlayerDTO(player);
         }

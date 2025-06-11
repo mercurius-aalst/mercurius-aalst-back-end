@@ -12,12 +12,13 @@ namespace MercuriusAPI.Services.Images
         public FileService(IConfiguration configuration)
         {
             var connectionString = configuration.GetSection("ConnectionStrings")["AzureBlobStorage"];
-            _containers = configuration.GetSection("AzureBlobStorage:Containers").Get<Dictionary<string, string>>();
 
             if(string.IsNullOrEmpty(connectionString))
-            {
                 throw new ArgumentNullException("AzureBlobStorage:ConnectionString is not configured in appsettings.json.");
-            }
+
+            _containers = configuration.GetSection("AzureBlobStorage:Containers").Get<Dictionary<string, string>>();
+
+           
             _blobServiceClient = new BlobServiceClient(connectionString);
         }
 

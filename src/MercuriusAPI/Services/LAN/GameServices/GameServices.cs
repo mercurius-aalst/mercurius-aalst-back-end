@@ -14,9 +14,9 @@ namespace MercuriusAPI.Services.LAN.GameServices
     {
         private readonly MercuriusDBContext _dbContext;
         private readonly IMatchModeratorFactory _matchGeneratorFactory;
-        private readonly IImageService _imageService;
+        private readonly IFileService _imageService;
 
-        public GameService(MercuriusDBContext dbContext, IMatchModeratorFactory matchGeneratorFactory, IImageService imageService)
+        public GameService(MercuriusDBContext dbContext, IMatchModeratorFactory matchGeneratorFactory, IFileService imageService)
         {
             _dbContext = dbContext;
             _matchGeneratorFactory = matchGeneratorFactory;
@@ -30,7 +30,7 @@ namespace MercuriusAPI.Services.LAN.GameServices
 
             string pictureUrl = string.Empty;
             if(createGameDTO.Picture is not null)
-                pictureUrl = await _imageService.UploadFileAsync(createGameDTO.Picture);
+                pictureUrl = await _imageService.UploadFileAsync<Game>(createGameDTO.Picture);
             var game = new Game(createGameDTO.Name, pictureUrl, createGameDTO.BracketType, createGameDTO.Format, createGameDTO.FinalsFormat, createGameDTO.ParticipantType);
             _dbContext.Games.Add(game);
             await _dbContext.SaveChangesAsync();
@@ -56,13 +56,13 @@ namespace MercuriusAPI.Services.LAN.GameServices
             string oldPictureUrl = game.PictureUrl;
             string pictureUrl = oldPictureUrl;
             if(gameDTO.Picture is not null)
-                pictureUrl = await _imageService.UploadFileAsync(gameDTO.Picture);
+                pictureUrl = await _imageService.UploadFileAsync<Game>(gameDTO.Picture);
             game.Update(gameDTO.Name, pictureUrl, gameDTO.BracketType, gameDTO.Format, gameDTO.FinalsFormat);
             _dbContext.Games.Update(game);
             await _dbContext.SaveChangesAsync();
 
             if(pictureUrl != oldPictureUrl)
-                await _imageService.DeleteFileAsync(oldPictureUrl);
+                await _imageService.DeleteFileAsync<Game>(oldPictureUrl);
 
             return new GetGameDTO(game);
         }

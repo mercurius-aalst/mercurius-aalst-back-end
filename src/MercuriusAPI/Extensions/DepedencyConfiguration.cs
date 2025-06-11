@@ -7,6 +7,7 @@ using MercuriusAPI.Services.LAN.PlayerServices;
 using MercuriusAPI.Services.LAN.TeamServices;
 using System.Reflection;
 using MercuriusAPI.Services.Images;
+using MercuriusAPI.Services.Files.ImageDecorator;
 
 namespace MercuriusAPI.Extensions
 {
@@ -43,7 +44,9 @@ namespace MercuriusAPI.Extensions
             services.AddTransient<IGameService, GameService>();
             services.AddTransient<IParticipantService, ParticipantService>();
             services.AddTransient<IMatchService, MatchService>();
-            services.AddTransient<IImageService, ImageService>();
+
+            services.AddTransient<IFileService, FileService>();
+            services.Decorate<IFileService, ImageFileService>();
 
             services.AddTransient<IMatchModeratorFactory, MatchModeratorFactory>();
             services.AddTransient<SingleEliminationMatchModerator>();

@@ -44,7 +44,7 @@ namespace MercuriusAPI.Controllers.LAN
         /// <returns>The created game.</returns>
         [HttpPost]
         [Consumes("multipart/form-data")]
-        public Task<GetGameDTO> CreateGameAsync([FromForm]CreateGameDTO createGameDTO)
+        public Task<GetGameDTO> CreateGameAsync(CreateGameDTO createGameDTO)
         {
             if(!ModelState.IsValid)
                 throw new ValidationException("Invalid game creation data.");
@@ -60,7 +60,7 @@ namespace MercuriusAPI.Controllers.LAN
         /// <returns>The updated game.</returns>
         [HttpPut("{id}")]
         [Consumes("multipart/form-data")]
-        public Task<GetGameDTO> UpdateGameAsync(int id, [FromForm] UpdateGameDTO updateGameDTO)
+        public Task<GetGameDTO> UpdateGameAsync(int id, UpdateGameDTO updateGameDTO)
         {
             if(!ModelState.IsValid)
                 throw new ValidationException("Invalid game update data.");

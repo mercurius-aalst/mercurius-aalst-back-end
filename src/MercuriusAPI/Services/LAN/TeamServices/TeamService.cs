@@ -12,10 +12,10 @@ namespace MercuriusAPI.Services.LAN.TeamServices
     public class TeamService : ITeamService
     {
         private readonly MercuriusDBContext _dbContext;
-        private readonly IImageService _imageService;
+        private readonly IFileService _imageService;
         private readonly int _inviteResendCooldownDays;
 
-        public TeamService(MercuriusDBContext dbContext, IConfiguration configuration,  IImageService imageService)
+        public TeamService(MercuriusDBContext dbContext, IConfiguration configuration,  IFileService imageService)
         {
             _dbContext = dbContext;
             _imageService = imageService;
@@ -30,7 +30,7 @@ namespace MercuriusAPI.Services.LAN.TeamServices
             if(teamDTO.Picture is null)
                 pictureUrl = "default team-picture url";
             else
-                pictureUrl = await _imageService.UploadFileAsync(teamDTO.Picture);
+                pictureUrl = await _imageService.UploadFileAsync<Team>(teamDTO.Picture);
             var team = new Team(teamDTO.Name, captain, pictureUrl);
             _dbContext.Teams.Add(team);
             await _dbContext.SaveChangesAsync();
@@ -76,12 +76,12 @@ namespace MercuriusAPI.Services.LAN.TeamServices
             string oldPictureUrl = team.PictureUrl;
             string pictureUrl = oldPictureUrl;
             if(teamDTO.Picture is not null)
-                pictureUrl = await _imageService.UploadFileAsync(teamDTO.Picture);
+                pictureUrl = await _imageService.UploadFileAsync<Team>(teamDTO.Picture);
             team.Update(teamDTO.Name, teamDTO.CaptainId, pictureUrl);
             _dbContext.Teams.Update(team);
             await _dbContext.SaveChangesAsync();
             if(pictureUrl != oldPictureUrl)
-                await _imageService.DeleteFileAsync(oldPictureUrl);
+                await _imageService.DeleteFileAsync<Team>(oldPictureUrl);
             return new GetTeamDTO(team);
         }
 

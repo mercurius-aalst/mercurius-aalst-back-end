@@ -54,7 +54,7 @@ namespace MercuriusAPI.Controllers.LAN
         /// <returns>The created player.</returns>
         [HttpPost]
         [Consumes("multipart/form-data")]
-        public Task<GetPlayerDTO> CreatePlayerAsync([FromForm] CreatePlayerDTO createPlayerDTO)
+        public Task<GetPlayerDTO> CreatePlayerAsync(CreatePlayerDTO createPlayerDTO)
         {
             if(!ModelState.IsValid)
                 throw new ValidationException("Invalid player data provided.");
@@ -69,7 +69,7 @@ namespace MercuriusAPI.Controllers.LAN
         /// <returns>The updated player.</returns>
         [HttpPut("{id}")]
         [Consumes("multipart/form-data")]
-        public Task<GetPlayerDTO> UpdatePlayerAsync(int id, [FromForm] UpdatePlayerDTO updatePlayerDTO)
+        public Task<GetPlayerDTO> UpdatePlayerAsync(int id, UpdatePlayerDTO updatePlayerDTO)
         {
             if(!ModelState.IsValid)
                 throw new ValidationException("Invalid player data provided.");

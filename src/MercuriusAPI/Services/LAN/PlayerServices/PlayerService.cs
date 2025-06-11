@@ -10,9 +10,9 @@ namespace MercuriusAPI.Services.LAN.PlayerServices
     public class PlayerService : IPlayerService
     {
         private readonly MercuriusDBContext _dbContext;
-        private readonly IImageService _imageService;
+        private readonly IFileService _imageService;
 
-        public PlayerService(MercuriusDBContext dbContext, IImageService imageService)
+        public PlayerService(MercuriusDBContext dbContext, IFileService imageService)
         {
             _dbContext = dbContext;
             _imageService = imageService;
@@ -37,7 +37,7 @@ namespace MercuriusAPI.Services.LAN.PlayerServices
 
             string pictureUrl = string.Empty;
             if(playerDTO.Picture is not null)
-                pictureUrl = await _imageService.UploadFileAsync(playerDTO.Picture);
+                pictureUrl = await _imageService.UploadFileAsync<Player>(playerDTO.Picture);
 
             var player = new Player(playerDTO.Username, playerDTO.Firstname, playerDTO.Lastname, playerDTO.Email, pictureUrl, playerDTO.DiscordId, playerDTO.SteamId, playerDTO.RiotId);
             _dbContext.Players.Add(player);
@@ -55,14 +55,14 @@ namespace MercuriusAPI.Services.LAN.PlayerServices
             string oldPictureUrl = player.PictureUrl;
             string pictureUrl = oldPictureUrl;
             if(playerDTO.Picture is not null)
-                pictureUrl = await _imageService.UploadFileAsync(playerDTO.Picture);             
+                pictureUrl = await _imageService.UploadFileAsync<Player>(playerDTO.Picture);             
             
             player.Update(playerDTO.Firstname, playerDTO.Lastname, playerDTO.Username, pictureUrl, playerDTO.DiscordId, playerDTO.SteamId, playerDTO.RiotId);
             _dbContext.Players.Update(player);
             await _dbContext.SaveChangesAsync();
 
             if(pictureUrl != oldPictureUrl)
-                await _imageService.DeleteFileAsync(oldPictureUrl);
+                await _imageService.DeleteFileAsync<Player>(oldPictureUrl);
 
             return new GetPlayerDTO(player);
         }

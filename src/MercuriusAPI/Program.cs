@@ -35,6 +35,18 @@ namespace MercuriusAPI
                 options.EnableEndpointRouting = false;
                 options.Filters.Add<ExceptionFilter>();
             });
+
+            // Add CORS policy to allow all origins
+            builder.Services.AddCors(options =>
+            {
+                options.AddPolicy("AllowAll", builder =>
+                {
+                    builder.AllowAnyOrigin()
+                           .AllowAnyMethod()
+                           .AllowAnyHeader();
+                });
+            });
+
             var app = builder.Build();
 
             if (app.Environment.IsDevelopment())
@@ -45,8 +57,10 @@ namespace MercuriusAPI
 
             app.UseHttpsRedirection();
 
-            app.UseAuthorization();
+            // Use CORS middleware in the HTTP request pipeline
+            app.UseCors("AllowAll");
 
+            app.UseAuthorization();
 
             app.MapControllers();
 

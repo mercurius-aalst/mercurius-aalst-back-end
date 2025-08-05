@@ -12,7 +12,7 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
         {
             var matches = new List<Match>();
             GenerateUpperBracketMatches(game, game.Participants, matches);
-            GenerateLowerBracketMatches(game, game.Participants, matches);
+            GenerateLowerBracketMatches(game, matches);
             GenerateGrandFinalMatch(game, matches);
             matches = AssignNextMatchesForDoubleElimination(matches).ToList();
             return matches;
@@ -72,17 +72,18 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
                 matches.Add(match);
             }
         }
-        private void GenerateLowerBracketMatches(Game game, IEnumerable<Participant> participants, List<Match> matches)
+
+        private void GenerateLowerBracketMatches(Game game, List<Match> matches)
         {
+            var upperBracketMatches = matches.Where(m => !m.IsLowerBracketMatch).ToList();
+            if(!upperBracketMatches.Any())
+                return;
 
-            int upperBracketRounds = matches
-                                         .Where(m => !m.IsLowerBracketMatch)
-                                         .Max(m => m.RoundNumber);
-
+            int upperBracketRounds = upperBracketMatches.Max(m => m.RoundNumber);
             int totalLBRounds = (upperBracketRounds - 1) * 2;
 
-            int matchesThisRound = matches
-                .Count(m => !m.IsLowerBracketMatch && m.RoundNumber == 1) / 2;
+            // For a 16-slot bracket, the match counts per round are 4, 4, 2, 2, 1, 1.
+            int matchesThisRound = (int)Math.Pow(2, upperBracketRounds - 2);
 
             for(int round = 1; round <= totalLBRounds; round++)
             {
@@ -100,13 +101,16 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
                     });
                 }
 
-                if(round < totalLBRounds / 2)
+                // Adjust the match count for the next round.
+                // The number of matches halves every two rounds (one entry round and one consolidation round).
+                if(round % 2 != 0)
                 {
-                    matchesThisRound = (int)Math.Ceiling(matchesThisRound / 2.0) * 2;
+                    // For the next round (consolidation round), the number of matches stays the same.
                 }
                 else
                 {
-                    matchesThisRound = (int)Math.Ceiling(matchesThisRound / 2.0);
+                    // For the round after that (next entry round), the number of matches is halved.
+                    matchesThisRound /= 2;
                 }
             }
         }
@@ -126,86 +130,86 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
         }
         private IEnumerable<Match> AssignNextMatchesForDoubleElimination(List<Match> matches)
         {
-            var updatedMatches = new List<Match>();
-            // Separate upper and lower bracket matches and grand final for convenience
-            var uBMatches = matches.Where(m => !m.IsLowerBracketMatch && m.RoundNumber < matches.Max(x => x.RoundNumber)).OrderByDescending(m => m.RoundNumber).ThenBy(m => m.MatchNumber).ToList();
+            // Separate matches and sort them in an ascending order for easier linking
+            var uBMatches = matches.Where(m => !m.IsLowerBracketMatch && m.RoundNumber < matches.Max(x => x.RoundNumber)).OrderBy(m => m.RoundNumber).ThenBy(m => m.MatchNumber).ToList();
             var lBMatches = matches.Where(m => m.IsLowerBracketMatch).OrderBy(m => m.RoundNumber).ThenBy(m => m.MatchNumber).ToList();
             var grandFinal = matches.Single(m => !m.IsLowerBracketMatch && m.RoundNumber == matches.Max(x => x.RoundNumber));
 
-            //Set navigation properties for Upper bracket matches
+            // Link Upper Bracket matches
             for(int i = 0; i < uBMatches.Count; i++)
             {
-                var current = uBMatches[i];
+                var currentUBMatch = uBMatches[i];
 
-                //UB Final
-                if(current == uBMatches.LastOrDefault())
-                {
-                    current.LoserNextMatch = lBMatches.LastOrDefault();
-                }
-                else
-                {
-                    int targetLBRoundNumber = (current.RoundNumber - 1) * 2 + 1;
-                    int targetLBMatchNumber;
-                    //UB Round 1
-                    if(current.RoundNumber == 1)
-                        targetLBMatchNumber = (int)Math.Ceiling((double)current.MatchNumber / 2);
-                    //All other UB Rounds
-                    else
-                    {
-                        int numMatchesInCurrentUBRound = (int)Math.Pow(2, uBMatches.Where(m => m.RoundNumber == current.RoundNumber).Count() - current.RoundNumber);
+                // Find the match in the next UB round where the winner will go
+                var nextUBMatch = uBMatches.FirstOrDefault(m =>
+                    m.RoundNumber == currentUBMatch.RoundNumber + 1 &&
+                    m.MatchNumber == (int)Math.Ceiling((double)currentUBMatch.MatchNumber / 2));
 
-                        targetLBMatchNumber = numMatchesInCurrentUBRound - current.MatchNumber + 1;
-                    }
+                // Corrected line: Assign the navigation property, not the ID.
+                currentUBMatch.WinnerNextMatch = nextUBMatch;
 
-                    current.LoserNextMatch = lBMatches.FirstOrDefault(m => m.RoundNumber == targetLBRoundNumber && m.MatchNumber == targetLBMatchNumber);
-                }
 
-                //Already first round, so can't go deeper to set parents
-                if(current.RoundNumber == 1)
-                    continue;
+                // Link UB losers to the correct LB match
+                // The corrected logic for targetLBRoundNumber (from previous correction)
+                int targetLBRoundNumber = (currentUBMatch.RoundNumber <= 2)
+                    ? currentUBMatch.RoundNumber
+                    : (currentUBMatch.RoundNumber - 1) * 2;
 
-                int childMatchIndex1 = (i * 2) + 1;
-                int childMatchIndex2 = (i * 2) + 2;
-
-                uBMatches[childMatchIndex1].WinnerNextMatch = current;
-                uBMatches[childMatchIndex2].WinnerNextMatch = current;
-
-            }
-
-            foreach(var currentLBMatch in lBMatches)
-            {
-                // LB Final winner goes to Grand Final
-                if(currentLBMatch == lBMatches.LastOrDefault())
-                {
-                    currentLBMatch.WinnerNextMatch = grandFinal;
-                    continue;
-                }
-
-                int nextLBRoundNumber = currentLBMatch.RoundNumber + 1;
+                // The corrected logic for nextLBMatchNumber
                 int nextLBMatchNumber;
-
-
-                //Consolidation round winner (lb winner vs lb winner)
-                if(currentLBMatch.RoundNumber % 2 != 0)
-                    nextLBMatchNumber = currentLBMatch.MatchNumber;
-                //Entry round winner (lb winner vs ub loser)
+                if(currentUBMatch.RoundNumber == 1)
+                {
+                    // UB Round 1 losers are paired up to form LB Round 1
+                    nextLBMatchNumber = (int)Math.Ceiling((double)currentUBMatch.MatchNumber / 2);
+                }
                 else
-                    nextLBMatchNumber = (int)Math.Ceiling((double)currentLBMatch.MatchNumber / 2);
+                {
+                    // For all other UB rounds, each loser drops into a unique LB match
+                    // This is a direct one-to-one mapping
+                    nextLBMatchNumber = currentUBMatch.MatchNumber;
+                }
 
-                currentLBMatch.WinnerNextMatch = lBMatches.FirstOrDefault(m => m.RoundNumber == nextLBRoundNumber && m.MatchNumber == nextLBMatchNumber);
+                // Now find the target lower bracket match using the corrected numbers
+                var nextLBMatch = lBMatches.FirstOrDefault(m =>
+                    m.RoundNumber == targetLBRoundNumber &&
+                    m.MatchNumber == nextLBMatchNumber);
 
+                currentUBMatch.LoserNextMatch = nextLBMatch;
             }
 
+            // Link Lower Bracket matches
+            for(int i = 0; i < lBMatches.Count; i++)
+            {
+                var currentLBMatch = lBMatches[i];
 
-            // 3) Grand final: no next matches
+                int nextLBMatchNumber = (currentLBMatch.RoundNumber % 2 != 0) ? currentLBMatch.MatchNumber : (int)Math.Ceiling((double)currentLBMatch.MatchNumber / 2);
+
+                var nextLBMatch = lBMatches.FirstOrDefault(m =>
+                    m.RoundNumber == currentLBMatch.RoundNumber + 1 &&
+                    m.MatchNumber == nextLBMatchNumber);
+
+                currentLBMatch.WinnerNextMatch = nextLBMatch;
+            }
+
+            // Link the Final matches
+            var ubFinal = uBMatches.LastOrDefault(m => m.RoundNumber == 4);
+            var lbFinal = lBMatches.LastOrDefault();
+
+            if(ubFinal != null)
+            {
+                ubFinal.WinnerNextMatch = grandFinal;
+                ubFinal.LoserNextMatch = lbFinal;
+            }
+            if(lbFinal != null)
+            {
+                lbFinal.WinnerNextMatch = grandFinal;
+            }
+
+            // Grand final has no next matches
             grandFinal.WinnerNextMatch = null;
             grandFinal.LoserNextMatch = null;
 
-            updatedMatches.AddRange(uBMatches);
-            updatedMatches.AddRange(lBMatches);
-            updatedMatches.Add(grandFinal);
-
-            return updatedMatches;
+            return uBMatches.Concat(lBMatches).Append(grandFinal);
         }
 
         public void DeterminePlacements(Game game)

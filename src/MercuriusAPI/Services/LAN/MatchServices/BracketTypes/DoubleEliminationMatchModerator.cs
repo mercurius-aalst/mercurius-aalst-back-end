@@ -15,6 +15,7 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
             GenerateLowerBracketMatches(game, matches);
             GenerateGrandFinalMatch(game, matches);
             matches = AssignNextMatchesForDoubleElimination(matches).ToList();
+            matches.AssignByeWinnersNextMatch();
             return matches;
         }
         private void GenerateUpperBracketMatches(Game game, IEnumerable<Participant> participants, List<Match> matches)

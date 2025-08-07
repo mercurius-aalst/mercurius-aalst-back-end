@@ -11,5 +11,6 @@ namespace MercuriusAPI.Models
         public byte[] PasswordHash { get; set; }
         public byte[] Salt { get; set; }
         public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
+        public ICollection<Role> Roles { get; set; } = new List<Role>();
     }
 }

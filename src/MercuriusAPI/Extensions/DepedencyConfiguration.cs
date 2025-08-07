@@ -8,6 +8,10 @@ using MercuriusAPI.Services.LAN.PlayerServices;
 using MercuriusAPI.Services.LAN.TeamServices;
 using Microsoft.OpenApi.Models;
 using System.Reflection;
+using MercuriusAPI.Services.User;
+using MercuriusAPI.Services.Auth.Validation;
+using MercuriusAPI.Services.Auth.Token;
+using MercuriusAPI.Services.Auth.Login;
 
 namespace MercuriusAPI.Extensions
 {
@@ -68,6 +72,9 @@ namespace MercuriusAPI.Extensions
             services.AddTransient<IGameService, GameService>();
             services.AddTransient<IMatchService, MatchService>();
             services.AddTransient<IParticipantService, ParticipantService>();
+
+            services.AddTransient<IUserService, UserService>();
+            services.Decorate<IUserService, UserValidationService>();
 
             services.AddSingleton<ITokenService, TokenService>();
 

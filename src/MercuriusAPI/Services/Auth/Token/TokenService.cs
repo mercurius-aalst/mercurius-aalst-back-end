@@ -2,11 +2,13 @@ using System;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using System.Linq;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using MercuriusAPI.Models.Auth;
+using MercuriusAPI.Models;
 
-namespace MercuriusAPI.Services.Auth
+namespace MercuriusAPI.Services.Auth.Token
 {
     public class TokenService : ITokenService
     {
@@ -18,14 +20,18 @@ namespace MercuriusAPI.Services.Auth
             _configuration = configuration;
         }
 
-        public string GenerateJwtToken(string username)
+        public string GenerateJwtToken(User user)
         {
             var jwtSettings = _configuration.GetSection("Jwt");
             var jwtKey = jwtSettings["Key"];
-            var claims = new[]
+            var claims = new List<Claim>
             {
-                new Claim(ClaimTypes.Name, username)
+                new Claim(ClaimTypes.Name, user.Username)
             };
+            if (user.Roles != null)
+            {
+                claims.AddRange(user.Roles.Select(role => new Claim(ClaimTypes.Role, role.Name)));
+            }
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
             var expires = DateTime.UtcNow.AddMinutes(double.Parse(jwtSettings["ExpiresInMinutes"] ?? "15"));

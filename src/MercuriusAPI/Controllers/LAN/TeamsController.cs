@@ -10,7 +10,7 @@ namespace MercuriusAPI.Controllers.LAN
     /// <summary>
     /// API endpoints for managing teams, including creation, player management, and deletion.
     /// </summary>
-    [Authorize]
+    [Authorize(Roles = "Admin")]
     [Route("lan/[controller]")]
     [ApiVersion("1.0")]
     [ApiController]

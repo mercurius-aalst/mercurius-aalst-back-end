@@ -1,6 +1,6 @@
 using MercuriusAPI.DTOs.Auth;
-using Microsoft.AspNetCore.Mvc;
 using System.Threading.Tasks;
+using MercuriusAPI.Exceptions;
 
 namespace MercuriusAPI.Services.Auth
 {
@@ -16,49 +16,42 @@ namespace MercuriusAPI.Services.Auth
             _inner = inner;
         }
 
-        public async Task<IActionResult> RegisterAsync(LoginRequest request)
+        public Task RegisterAsync(LoginRequest request)
         {
             if (request == null)
-                return new BadRequestObjectResult("Request body is required.");
+                throw new ValidationException("Request body is required.");
             if (string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Password))
-                return new BadRequestObjectResult("Username and password are required.");
+                throw new ValidationException("Username and password are required.");
             if (!ValidationHelper.IsUsernameValid(request.Username))
-                return new BadRequestObjectResult("Username must be 3-32 alphanumeric characters.");
+                throw new ValidationException("Username must be 3-32 alphanumeric characters.");
             if (!ValidationHelper.IsPasswordStrong(request.Password))
-                return new BadRequestObjectResult("Password must be at least 8 characters and include upper, lower, digit, and special character.");
-            return await _inner.RegisterAsync(request);
+                throw new ValidationException("Password must be at least 8 characters and include upper, lower, digit, and special character.");
+            return _inner.RegisterAsync(request);
         }
 
-        public async Task<IActionResult> LoginAsync(LoginRequest request)
+        public Task<AuthTokenResponse> LoginAsync(LoginRequest request)
         {
             if (request == null)
-                return new BadRequestObjectResult("Request body is required.");
+                throw new ValidationException("Request body is required.");
             if (string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Password))
-                return new BadRequestObjectResult("Username and password are required.");
+                throw new ValidationException("Username and password are required.");
             if (!ValidationHelper.IsUsernameValid(request.Username))
-                return new BadRequestObjectResult("Username must be 3-32 alphanumeric characters.");
-            return await _inner.LoginAsync(request);
+                throw new ValidationException("Username must be 3-32 alphanumeric characters.");
+            return _inner.LoginAsync(request);
         }
 
-        public async Task<IActionResult> RefreshTokenAsync(RefreshTokenRequest request)
+        public Task<AuthTokenResponse> RefreshTokenAsync(RefreshTokenRequest request)
         {
             if (request == null || string.IsNullOrWhiteSpace(request.RefreshToken))
-                return new BadRequestObjectResult("Refresh token is required.");
-            return await _inner.RefreshTokenAsync(request);
+                throw new ValidationException("Refresh token is required.");
+            return _inner.RefreshTokenAsync(request);
         }
 
-        public async Task<IActionResult> RevokeRefreshTokenAsync(RevokeTokenRequest request)
+        public Task RevokeRefreshTokenAsync(RevokeTokenRequest request)
         {
             if (request == null || string.IsNullOrWhiteSpace(request.RefreshToken))
-                return new BadRequestObjectResult("Refresh token is required.");
-            return await _inner.RevokeRefreshTokenAsync(request);
-        }
-
-        public async Task<IActionResult> DeleteUserAsync(string username)
-        {
-            if (!ValidationHelper.IsUsernameValid(username))
-                return new BadRequestObjectResult("Invalid username.");
-            return await _inner.DeleteUserAsync(username);
+                throw new ValidationException("Refresh token is required.");
+            return _inner.RevokeRefreshTokenAsync(request);
         }
     }
 }

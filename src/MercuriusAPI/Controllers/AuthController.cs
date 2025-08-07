@@ -2,13 +2,14 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MercuriusAPI.DTOs.Auth;
 using MercuriusAPI.Services.Auth;
+using System.Threading.Tasks;
 
 namespace MercuriusAPI.Controllers
 {
     /// <summary>
     /// Handles authentication-related actions such as registration, login, token refresh, and user deletion.
     /// </summary>
-    [Authorize]
+    [Authorize(Roles = "Admin")]
     [ApiController]
     [Route("api/[controller]")]
     public class AuthController : ControllerBase
@@ -30,7 +31,7 @@ namespace MercuriusAPI.Controllers
         /// <returns>Result of the registration operation.</returns>
         [HttpPost("register")]
         [AllowAnonymous]
-        public Task<IActionResult> Register([FromBody] LoginRequest request)
+        public Task Register([FromBody] LoginRequest request)
             => _authService.RegisterAsync(request);
 
         /// <summary>
@@ -40,7 +41,7 @@ namespace MercuriusAPI.Controllers
         /// <returns>JWT and refresh token if authentication is successful.</returns>
         [HttpPost("login")]
         [AllowAnonymous]
-        public Task<IActionResult> Login([FromBody] LoginRequest request)
+        public Task<AuthTokenResponse> Login([FromBody] LoginRequest request)
             => _authService.LoginAsync(request);
 
         /// <summary>
@@ -50,7 +51,7 @@ namespace MercuriusAPI.Controllers
         /// <returns>New JWT and refresh token if the refresh token is valid.</returns>
         [HttpPost("refresh")]
         [AllowAnonymous]
-        public Task<IActionResult> Refresh([FromBody] RefreshTokenRequest request)
+        public Task<AuthTokenResponse> Refresh([FromBody] RefreshTokenRequest request)
             => _authService.RefreshTokenAsync(request);
 
         /// <summary>
@@ -59,16 +60,7 @@ namespace MercuriusAPI.Controllers
         /// <param name="request">The revoke token request.</param>
         /// <returns>Result of the revoke operation.</returns>
         [HttpPost("revoke")]
-        public Task<IActionResult> Revoke([FromBody] RevokeTokenRequest request)
+        public Task Revoke([FromBody] RevokeTokenRequest request)
             => _authService.RevokeRefreshTokenAsync(request);
-
-        /// <summary>
-        /// Deletes a user by username.
-        /// </summary>
-        /// <param name="username">The username of the user to delete.</param>
-        /// <returns>Result of the delete operation.</returns>
-        [HttpDelete("{username}")]
-        public Task<IActionResult> DeleteUser(string username)
-            => _authService.DeleteUserAsync(username);
     }
 }

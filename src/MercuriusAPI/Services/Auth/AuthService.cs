@@ -2,9 +2,10 @@ using MercuriusAPI.DTOs.Auth;
 using MercuriusAPI.Data;
 using MercuriusAPI.Models;
 using MercuriusAPI.Models.Auth;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using MercuriusAPI.Exceptions;
+using System.Threading.Tasks;
+using System.Linq;
 
 namespace MercuriusAPI.Services.Auth
 {
@@ -21,7 +22,7 @@ namespace MercuriusAPI.Services.Auth
             _tokenService = tokenService;
         }
 
-        public async Task<IActionResult> RegisterAsync(LoginRequest request)
+        public async Task RegisterAsync(LoginRequest request)
         {
             if (await _dbContext.Users.AnyAsync(u => u.Username == request.Username))
                 throw new ValidationException("Username already exists");
@@ -29,16 +30,18 @@ namespace MercuriusAPI.Services.Auth
             var user = new User { Username = request.Username, PasswordHash = hash, Salt = salt };
             _dbContext.Users.Add(user);
             await _dbContext.SaveChangesAsync();
-            return new OkResult();
         }
 
-        public async Task<IActionResult> LoginAsync(LoginRequest request)
+        public async Task<AuthTokenResponse> LoginAsync(LoginRequest request)
         {
-            var now = DateTime.UtcNow;
+            var now = System.DateTime.UtcNow;
             if (_loginAttemptService.IsLockedOut(request.Username, now))
                 throw new LockoutException();
 
-            var user = await _dbContext.Users.Include(u => u.RefreshTokens).FirstOrDefaultAsync(u => u.Username == request.Username);
+            var user = await _dbContext.Users
+                .Include(u => u.RefreshTokens)
+                .Include(u => u.Roles)
+                .FirstOrDefaultAsync(u => u.Username == request.Username);
             if (user == null || !PasswordHelper.VerifyPassword(request.Password, user.PasswordHash, user.Salt))
             {
                 var attemptsLeft = _loginAttemptService.RegisterFailedAttempt(request.Username, now);
@@ -48,10 +51,10 @@ namespace MercuriusAPI.Services.Auth
             }
             _loginAttemptService.Reset(request.Username);
 
-            var jwtToken = _tokenService.GenerateJwtToken(request.Username);
+            var jwtToken = _tokenService.GenerateJwtToken(user);
             var refreshTokenEntity = _tokenService.GenerateRefreshToken(user.Id);
             user.RefreshTokens.Add(refreshTokenEntity);
-            var tokensToRemove = user.RefreshTokens.Where(rt => rt.Expires < DateTime.UtcNow).ToList();
+            var tokensToRemove = user.RefreshTokens.Where(rt => rt.Expires < System.DateTime.UtcNow).ToList();
             foreach (var oldToken in tokensToRemove)
             {
                 user.RefreshTokens.Remove(oldToken);
@@ -59,42 +62,32 @@ namespace MercuriusAPI.Services.Auth
             }
             await _dbContext.SaveChangesAsync();
 
-            return new OkObjectResult(new { token = jwtToken, refreshToken = refreshTokenEntity.Token });
+            return new AuthTokenResponse { Token = jwtToken, RefreshToken = refreshTokenEntity.Token };
         }
 
-        public async Task<IActionResult> RefreshTokenAsync(RefreshTokenRequest request)
+        public async Task<AuthTokenResponse> RefreshTokenAsync(RefreshTokenRequest request)
         {
             var refreshToken = await _dbContext.RefreshTokens.Include(rt => rt.User)
+                .ThenInclude(u => u.Roles)
                 .FirstOrDefaultAsync(rt => rt.Token == request.RefreshToken);
-            if (refreshToken == null || refreshToken.Expires < DateTime.UtcNow)
+            if (refreshToken == null || refreshToken.Expires < System.DateTime.UtcNow)
                 throw new InvalidCredentialsException();
 
             _dbContext.RefreshTokens.Remove(refreshToken);
             var newRefreshTokenEntity = _tokenService.GenerateRefreshToken(refreshToken.UserId);
             refreshToken.User.RefreshTokens.Add(newRefreshTokenEntity);
-            var jwtToken = _tokenService.GenerateJwtToken(refreshToken.User.Username);
+            var jwtToken = _tokenService.GenerateJwtToken(refreshToken.User);
             await _dbContext.SaveChangesAsync();
-            return new OkObjectResult(new { token = jwtToken, refreshToken = newRefreshTokenEntity.Token });
+            return new AuthTokenResponse { Token = jwtToken, RefreshToken = newRefreshTokenEntity.Token };
         }
 
-        public async Task<IActionResult> DeleteUserAsync(string username)
-        {
-            var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Username == username);
-            if (user == null)
-                throw new NotFoundException($"User '{username}' not found.");
-            _dbContext.Users.Remove(user);
-            await _dbContext.SaveChangesAsync();
-            return new OkResult();
-        }
-
-        public async Task<IActionResult> RevokeRefreshTokenAsync(RevokeTokenRequest request)
+        public async Task RevokeRefreshTokenAsync(RevokeTokenRequest request)
         {
             var refreshToken = await _dbContext.RefreshTokens.FirstOrDefaultAsync(rt => rt.Token == request.RefreshToken);
             if (refreshToken == null)
                 throw new NotFoundException("Refresh token not found.");
             _dbContext.RefreshTokens.Remove(refreshToken);
             await _dbContext.SaveChangesAsync();
-            return new OkObjectResult(new { message = "Refresh token deleted." });
         }
     }
 }

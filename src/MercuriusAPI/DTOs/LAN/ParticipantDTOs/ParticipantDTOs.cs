@@ -13,7 +13,5 @@ namespace MercuriusAPI.DTOs.LAN.ParticipantDTOs
 
         public ParticipantType Type { get; set; }
         public int Id { get; set; }
-
-
     }
 }

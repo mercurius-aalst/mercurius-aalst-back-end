@@ -1,10 +1,12 @@
 ﻿using Asp.Versioning;
+using MercuriusAPI.Services.Auth;
 using MercuriusAPI.Services.LAN.GameServices;
 using MercuriusAPI.Services.LAN.MatchServices.BracketTypes;
 using MercuriusAPI.Services.LAN.MatchServices;
 using MercuriusAPI.Services.LAN.ParticipantServices;
 using MercuriusAPI.Services.LAN.PlayerServices;
 using MercuriusAPI.Services.LAN.TeamServices;
+using Microsoft.OpenApi.Models;
 using System.Reflection;
 
 namespace MercuriusAPI.Extensions
@@ -18,6 +20,30 @@ namespace MercuriusAPI.Extensions
             {
                 c.IncludeXmlComments(Path.Combine(AppContext.BaseDirectory,
                     $"{Assembly.GetExecutingAssembly().GetName().Name}.xml"));
+                
+                c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+                {
+                    Description = "JWT Authorization header using the Bearer scheme. Example: 'Bearer {token}'",
+                    Name = "Authorization",
+                    In = ParameterLocation.Header,
+                    Type = SecuritySchemeType.Http,
+                    Scheme = "bearer",
+                    BearerFormat = "JWT"
+                });
+                c.AddSecurityRequirement(new OpenApiSecurityRequirement
+                {
+                    {
+                        new OpenApiSecurityScheme
+                        {
+                            Reference = new OpenApiReference
+                            {
+                                Type = ReferenceType.SecurityScheme,
+                                Id = "Bearer"
+                            }
+                        },
+                        new string[] {}
+                    }
+                });
             });
             services.AddApiVersioning(opt =>
             {
@@ -40,8 +66,19 @@ namespace MercuriusAPI.Extensions
             services.AddTransient<IPlayerService, PlayerService>();
             services.AddTransient<ITeamService, TeamService>();
             services.AddTransient<IGameService, GameService>();
+            services.AddTransient<IMatchService, MatchService>();
             services.AddTransient<IParticipantService, ParticipantService>();
 
+            services.AddSingleton<ITokenService, TokenService>();
+
+            services.AddSingleton<ILoginAttemptService>(provider =>
+                new LoginAttemptService(5, TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(5)));
+            services.AddSingleton<TokenService>();
+
+            // Decorator: AuthValidationService wraps AuthService
+            services.AddTransient<IAuthService, AuthService>();
+            services.Decorate<IAuthService, AuthValidationService>();
+            
             services.AddTransient<IMatchModeratorFactory, MatchModeratorFactory>();
             services.AddTransient<SingleEliminationMatchModerator>();
             services.AddTransient<DoubleEliminationMatchModerator>();

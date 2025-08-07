@@ -3,12 +3,14 @@ using MercuriusAPI.DTOs.LAN.PlayerDTOs;
 using MercuriusAPI.Models.LAN;
 using MercuriusAPI.Services.LAN.PlayerServices;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 
 namespace MercuriusAPI.Controllers.LAN
 {
     /// <summary>
     /// API endpoints for managing players, including creation, retrieval, update, and deletion.
     /// </summary>
+    [Authorize]
     [Route("lan/[controller]")]
     [ApiVersion("1.0")]
     [ApiController]
@@ -30,6 +32,7 @@ namespace MercuriusAPI.Controllers.LAN
         /// </summary>
         /// <returns>A list of all players.</returns>
         [HttpGet]
+        [AllowAnonymous]
         public IEnumerable<GetPlayerDTO> GetPlayers()
         {
             return _playerService.GetAllPlayers();
@@ -41,6 +44,7 @@ namespace MercuriusAPI.Controllers.LAN
         /// <param name="id">The player ID.</param>
         /// <returns>The player details.</returns>
         [HttpGet("{id}")]
+        [AllowAnonymous]
         public async Task<GetPlayerDTO> GetPlayerAsync(int id)
         {
             return new GetPlayerDTO(await _playerService.GetPlayerByIdAsync(id));

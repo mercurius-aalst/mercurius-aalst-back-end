@@ -3,6 +3,7 @@ using System;
 using MercuriusAPI.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MercuriusAPI.Migrations
 {
     [DbContext(typeof(MercuriusDBContext))]
-    partial class MercuriusDBContextModelSnapshot : ModelSnapshot
+    [Migration("20250807071940_AddedUserLogin")]
+    partial class AddedUserLogin
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -34,32 +37,7 @@ namespace MercuriusAPI.Migrations
 
                     b.HasIndex("ParticipantsId");
 
-                    b.ToTable("GameParticipant", (string)null);
-                });
-
-            modelBuilder.Entity("MercuriusAPI.Models.Auth.RefreshToken", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("Expires")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Token")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("RefreshTokens", (string)null);
+                    b.ToTable("GameParticipant");
                 });
 
             modelBuilder.Entity("MercuriusAPI.Models.LAN.Game", b =>
@@ -97,7 +75,7 @@ namespace MercuriusAPI.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Games", (string)null);
+                    b.ToTable("Games");
                 });
 
             modelBuilder.Entity("MercuriusAPI.Models.LAN.Match", b =>
@@ -175,7 +153,7 @@ namespace MercuriusAPI.Migrations
 
                     b.HasIndex("WinnerNextMatchId");
 
-                    b.ToTable("Matches", (string)null);
+                    b.ToTable("Matches");
                 });
 
             modelBuilder.Entity("MercuriusAPI.Models.LAN.Participant", b =>
@@ -193,7 +171,7 @@ namespace MercuriusAPI.Migrations
 
                     b.HasIndex("PlacementId");
 
-                    b.ToTable("Participants", (string)null);
+                    b.ToTable("Participants");
 
                     b.UseTptMappingStrategy();
                 });
@@ -216,7 +194,7 @@ namespace MercuriusAPI.Migrations
 
                     b.HasIndex("GameId");
 
-                    b.ToTable("Placement", (string)null);
+                    b.ToTable("Placement");
                 });
 
             modelBuilder.Entity("MercuriusAPI.Models.LAN.TeamInvite", b =>
@@ -248,7 +226,7 @@ namespace MercuriusAPI.Migrations
 
                     b.HasIndex("TeamId");
 
-                    b.ToTable("TeamInvites", (string)null);
+                    b.ToTable("TeamInvites");
                 });
 
             modelBuilder.Entity("MercuriusAPI.Models.User", b =>
@@ -273,7 +251,7 @@ namespace MercuriusAPI.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Users", (string)null);
+                    b.ToTable("Users");
                 });
 
             modelBuilder.Entity("PlayerTeam", b =>
@@ -288,7 +266,7 @@ namespace MercuriusAPI.Migrations
 
                     b.HasIndex("TeamsId");
 
-                    b.ToTable("PlayerTeam", (string)null);
+                    b.ToTable("PlayerTeam");
                 });
 
             modelBuilder.Entity("MercuriusAPI.Models.LAN.Player", b =>
@@ -320,7 +298,7 @@ namespace MercuriusAPI.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.ToTable("Players", (string)null);
+                    b.ToTable("Players");
                 });
 
             modelBuilder.Entity("MercuriusAPI.Models.LAN.Team", b =>
@@ -336,7 +314,7 @@ namespace MercuriusAPI.Migrations
 
                     b.HasIndex("CaptainId");
 
-                    b.ToTable("Teams", (string)null);
+                    b.ToTable("Teams");
                 });
 
             modelBuilder.Entity("GameParticipant", b =>
@@ -352,17 +330,6 @@ namespace MercuriusAPI.Migrations
                         .HasForeignKey("ParticipantsId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-                });
-
-            modelBuilder.Entity("MercuriusAPI.Models.Auth.RefreshToken", b =>
-                {
-                    b.HasOne("MercuriusAPI.Models.User", "User")
-                        .WithMany("RefreshTokens")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("MercuriusAPI.Models.LAN.Match", b =>
@@ -498,11 +465,6 @@ namespace MercuriusAPI.Migrations
             modelBuilder.Entity("MercuriusAPI.Models.LAN.Placement", b =>
                 {
                     b.Navigation("Participants");
-                });
-
-            modelBuilder.Entity("MercuriusAPI.Models.User", b =>
-                {
-                    b.Navigation("RefreshTokens");
                 });
 
             modelBuilder.Entity("MercuriusAPI.Models.LAN.Team", b =>

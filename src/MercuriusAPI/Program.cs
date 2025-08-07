@@ -1,13 +1,10 @@
 using MercuriusAPI.Data;
 using MercuriusAPI.Exceptions;
 using MercuriusAPI.Extensions;
-using MercuriusAPI.Services.LAN.GameServices;
-using MercuriusAPI.Services.LAN.MatchServices;
-using MercuriusAPI.Services.LAN.MatchServices.BracketTypes;
-using MercuriusAPI.Services.LAN.ParticipantServices;
-using MercuriusAPI.Services.LAN.PlayerServices;
-using MercuriusAPI.Services.LAN.TeamServices;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 using System.Text.Json.Serialization;
 
 namespace MercuriusAPI
@@ -36,6 +33,27 @@ namespace MercuriusAPI
                 options.Filters.Add<ExceptionFilter>();
             });
 
+            // Add JWT authentication
+            var jwtSettings = builder.Configuration.GetSection("Jwt");
+            builder.Services.AddAuthentication(options =>
+            {
+                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+            })
+            .AddJwtBearer(options =>
+            {
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuer = true,
+                    ValidateAudience = true,
+                    ValidateLifetime = true,
+                    ValidateIssuerSigningKey = true,
+                    ValidIssuer = jwtSettings["Issuer"],
+                    ValidAudience = jwtSettings["Audience"],
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings["Key"]))
+                };
+            });
+
             // Add CORS policy to allow all origins
             builder.Services.AddCors(options =>
             {
@@ -49,17 +67,16 @@ namespace MercuriusAPI
 
             var app = builder.Build();
 
-            if (app.Environment.IsDevelopment())
-            {
-                app.UseSwagger();
-                app.UseSwaggerUI();
-            }
+
+            app.UseSwagger();
+            app.UseSwaggerUI();
+
 
             app.UseHttpsRedirection();
 
-            // Use CORS middleware in the HTTP request pipeline
             app.UseCors("AllowAll");
 
+            app.UseAuthentication();
             app.UseAuthorization();
 
             app.MapControllers();

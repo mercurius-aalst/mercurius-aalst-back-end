@@ -2,12 +2,14 @@
 using MercuriusAPI.DTOs.LAN.MatchDTOs;
 using MercuriusAPI.Services.LAN.MatchServices;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 
 namespace MercuriusAPI.Controllers.LAN
 {
     /// <summary>
     /// API endpoints for managing matches, including retrieval and updates.
     /// </summary>
+    [Authorize]
     [Route("lan/[controller]")]
     [ApiVersion("1.0")]
     [ApiController]
@@ -40,6 +42,7 @@ namespace MercuriusAPI.Controllers.LAN
         /// <param name="id">The match ID.</param>
         /// <returns>The match DTO.</returns>
         [HttpGet("{id}")]
+        [AllowAnonymous]
         public async Task<GetMatchDTO> GetMatchAsync(int id)
         {
             return new GetMatchDTO(await _matchService.GetMatchByIdAsync(id));

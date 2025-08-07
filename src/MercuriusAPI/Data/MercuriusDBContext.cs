@@ -1,5 +1,7 @@
 ﻿using MercuriusAPI.Models.LAN;
 using Microsoft.EntityFrameworkCore;
+using MercuriusAPI.Models;
+using MercuriusAPI.Models.Auth;
 
 namespace MercuriusAPI.Data
 {
@@ -19,6 +21,8 @@ namespace MercuriusAPI.Data
         public DbSet<Game> Games { get; set; }
         public DbSet<Participant> Participants { get; set; }
         public DbSet<TeamInvite> TeamInvites { get; set; }
+        public DbSet<User> Users { get; set; }
+        public DbSet<RefreshToken> RefreshTokens { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -94,6 +98,16 @@ namespace MercuriusAPI.Data
                       .OnDelete(DeleteBehavior.Cascade);
                 entity.Property(e => e.Status).IsRequired();
                 entity.Property(e => e.CreatedAt).IsRequired();
+            });
+
+            modelBuilder.Entity<RefreshToken>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Token).IsRequired();
+                entity.HasOne(e => e.User)
+                      .WithMany(u => u.RefreshTokens)
+                      .HasForeignKey(e => e.UserId)
+                      .OnDelete(DeleteBehavior.Cascade);
             });
 
             OnModelCreatingPartial(modelBuilder);

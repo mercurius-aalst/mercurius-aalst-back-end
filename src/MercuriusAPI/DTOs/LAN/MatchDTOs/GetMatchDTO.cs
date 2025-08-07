@@ -19,7 +19,7 @@ namespace MercuriusAPI.DTOs.LAN.MatchDTOs
         public bool IsLowerBracketMatch { get; set; }
 
         public int GameId { get; set; }
-        public int? Pariticipant1Id { get; set; }
+        public int? Participant1Id { get; set; }
         public int? Participant2Id { get; set; }
         public int? WinnerId { get; set; }
         public int? Participant1Score { get; set; }
@@ -44,11 +44,13 @@ namespace MercuriusAPI.DTOs.LAN.MatchDTOs
             MatchNumber = match.MatchNumber;
             IsLowerBracketMatch = match.IsLowerBracketMatch;
             GameId = match.GameId;
-            Pariticipant1Id = match.Pariticipant1Id;
+            Participant1Id = match.Participant1Id;
             Participant2Id = match.Participant2Id;
             WinnerId = match.WinnerId;
             Participant1Score = match.Participant1Score;
-            Participant2Score = match.Participant2Score;            
+            Participant2Score = match.Participant2Score;
+            WinnerNextMatchId = match.WinnerNextMatchId;
+            LoserNextMatchId = match.LoserNextMatchId;
         }
     }
 }

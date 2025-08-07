@@ -13,7 +13,7 @@
         public bool IsLowerBracketMatch { get; set; }
 
         public int GameId { get; set; }
-        public int? Pariticipant1Id { get; set; }
+        public int? Participant1Id { get; set; }
         public int? Participant2Id { get; set; }
         public int? WinnerId { get; set; }
         public int? LoserId { get; set; }

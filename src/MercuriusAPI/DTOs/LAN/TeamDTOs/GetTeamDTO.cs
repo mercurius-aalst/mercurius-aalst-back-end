@@ -17,6 +17,7 @@ namespace MercuriusAPI.DTOs.LAN.TeamDTOs
             Players = team.Players.Select(p => new GetTeamPlayerDTO(p));
             TeamInvites = team.TeamInvites.Where(i => i.Status == TeamInviteStatus.Pending).Select(i => new TeamInviteDTO(i));
             CaptainId = team.CaptainId;
+            Type = ParticipantType.Team;
         }
     }
 }

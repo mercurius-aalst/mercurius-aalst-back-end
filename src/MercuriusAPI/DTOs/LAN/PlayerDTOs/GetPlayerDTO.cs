@@ -30,6 +30,7 @@ namespace MercuriusAPI.DTOs.LAN.PlayerDTOs
             RiotId = player.RiotId;
             Email = player.Email;
             Teams = player.Teams.Select(t => new GetTeamDTO(t));
+            Type = ParticipantType.Player;
         }       
     }
 }

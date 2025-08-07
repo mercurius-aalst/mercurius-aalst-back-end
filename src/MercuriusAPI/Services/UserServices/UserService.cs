@@ -1,13 +1,10 @@
-using MercuriusAPI.DTOs.Auth;
 using MercuriusAPI.Data;
-using MercuriusAPI.Models;
+using MercuriusAPI.DTOs.Auth;
+using MercuriusAPI.Exceptions;
 using MercuriusAPI.Models.Auth;
 using Microsoft.EntityFrameworkCore;
-using MercuriusAPI.Exceptions;
-using System.Threading.Tasks;
-using System.Linq;
 
-namespace MercuriusAPI.Services.User
+namespace MercuriusAPI.Services.UserServices
 {
     public class UserService : IUserService
     {

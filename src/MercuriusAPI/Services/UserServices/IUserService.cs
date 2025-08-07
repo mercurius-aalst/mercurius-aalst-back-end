@@ -1,7 +1,6 @@
 using MercuriusAPI.DTOs.Auth;
-using System.Threading.Tasks;
 
-namespace MercuriusAPI.Services.User
+namespace MercuriusAPI.Services.UserServices
 {
     public interface IUserService
     {

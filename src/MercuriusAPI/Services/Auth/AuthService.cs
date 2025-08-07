@@ -1,21 +1,20 @@
-using MercuriusAPI.DTOs.Auth;
 using MercuriusAPI.Data;
-using MercuriusAPI.Models;
-using MercuriusAPI.Models.Auth;
-using Microsoft.EntityFrameworkCore;
+using MercuriusAPI.DTOs.Auth;
 using MercuriusAPI.Exceptions;
-using System.Threading.Tasks;
-using System.Linq;
+using MercuriusAPI.Models;
+using MercuriusAPI.Services.Auth.Login;
+using MercuriusAPI.Services.Auth.Token;
+using Microsoft.EntityFrameworkCore;
 
 namespace MercuriusAPI.Services.Auth
 {
     public class AuthService : IAuthService
     {
         private readonly MercuriusDBContext _dbContext;
-        private readonly TokenService _tokenService;
+        private readonly ITokenService _tokenService;
         private readonly ILoginAttemptService _loginAttemptService;
 
-        public AuthService(MercuriusDBContext dbContext, ILoginAttemptService loginAttemptService, TokenService tokenService)
+        public AuthService(MercuriusDBContext dbContext, ILoginAttemptService loginAttemptService, ITokenService tokenService)
         {
             _dbContext = dbContext;
             _loginAttemptService = loginAttemptService;

@@ -1,8 +1,7 @@
+using MercuriusAPI.DTOs.Auth;
+using MercuriusAPI.Services.UserServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using MercuriusAPI.DTOs.Auth;
-using MercuriusAPI.Services.User;
-using System.Threading.Tasks;
 
 namespace MercuriusAPI.Controllers
 {

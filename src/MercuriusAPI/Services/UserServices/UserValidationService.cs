@@ -1,9 +1,8 @@
 using MercuriusAPI.DTOs.Auth;
-using System.Threading.Tasks;
 using MercuriusAPI.Exceptions;
-using MercuriusAPI.Services.User;
+using MercuriusAPI.Services.Auth;
 
-namespace MercuriusAPI.Services.User
+namespace MercuriusAPI.Services.UserServices
 {
     /// <summary>
     /// Decorator for IUserService that performs input validation before delegating to the actual business logic.

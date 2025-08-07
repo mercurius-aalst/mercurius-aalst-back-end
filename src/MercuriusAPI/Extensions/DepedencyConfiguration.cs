@@ -1,17 +1,16 @@
 ﻿using Asp.Versioning;
 using MercuriusAPI.Services.Auth;
+using MercuriusAPI.Services.Auth.Login;
+using MercuriusAPI.Services.Auth.Token;
 using MercuriusAPI.Services.LAN.GameServices;
-using MercuriusAPI.Services.LAN.MatchServices.BracketTypes;
 using MercuriusAPI.Services.LAN.MatchServices;
+using MercuriusAPI.Services.LAN.MatchServices.BracketTypes;
 using MercuriusAPI.Services.LAN.ParticipantServices;
 using MercuriusAPI.Services.LAN.PlayerServices;
 using MercuriusAPI.Services.LAN.TeamServices;
+using MercuriusAPI.Services.UserServices;
 using Microsoft.OpenApi.Models;
 using System.Reflection;
-using MercuriusAPI.Services.User;
-using MercuriusAPI.Services.Auth.Validation;
-using MercuriusAPI.Services.Auth.Token;
-using MercuriusAPI.Services.Auth.Login;
 
 namespace MercuriusAPI.Extensions
 {

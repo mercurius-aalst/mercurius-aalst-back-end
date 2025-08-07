@@ -1,5 +1,4 @@
 using MercuriusAPI.DTOs.Auth;
-using System.Threading.Tasks;
 using MercuriusAPI.Exceptions;
 
 namespace MercuriusAPI.Services.Auth

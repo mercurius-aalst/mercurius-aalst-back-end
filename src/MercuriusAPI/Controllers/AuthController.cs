@@ -9,7 +9,7 @@ namespace MercuriusAPI.Controllers
     /// <summary>
     /// Handles authentication-related actions such as registration, login, token refresh, and user deletion.
     /// </summary>
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "admin")]
     [ApiController]
     [Route("api/[controller]")]
     public class AuthController : ControllerBase

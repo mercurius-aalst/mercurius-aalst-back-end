@@ -1,6 +1,6 @@
+using MercuriusAPI.Services.Auth;
 using MercuriusAPI.DTOs.Auth;
 using MercuriusAPI.Exceptions;
-using MercuriusAPI.Services.Auth;
 
 namespace MercuriusAPI.Services.UserServices
 {
@@ -20,16 +20,20 @@ namespace MercuriusAPI.Services.UserServices
         {
             if (string.IsNullOrWhiteSpace(username) || !ValidationHelper.IsUsernameValid(username))
                 throw new ValidationException("Invalid username.");
-            return _inner.DeleteUserAsync(username);
+
+            var normalizedUsername = username.Normalize();
+            return _inner.DeleteUserAsync(normalizedUsername);
         }
 
-        public Task AddRoleToUserAsync(AddUserRoleRequest request)
+        public Task AddRoleToUserAsync(string username, AddUserRoleRequest request)
         {
-            if (request == null || string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.RoleName))
+            if (request == null || string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(request.RoleName))
                 throw new ValidationException("Username and role name are required.");
-            if (!ValidationHelper.IsUsernameValid(request.Username))
+            if (!ValidationHelper.IsUsernameValid(username))
                 throw new ValidationException("Username must be 3-32 alphanumeric characters.");
-            return _inner.AddRoleToUserAsync(request);
+
+            var normalizedUsername = username.Normalize();
+            return _inner.AddRoleToUserAsync(normalizedUsername, request);
         }
     }
 }

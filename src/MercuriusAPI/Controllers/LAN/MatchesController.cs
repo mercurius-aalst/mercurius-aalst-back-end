@@ -9,7 +9,7 @@ namespace MercuriusAPI.Controllers.LAN
     /// <summary>
     /// API endpoints for managing matches, including retrieval and updates.
     /// </summary>
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "admin")]
     [Route("lan/[controller]")]
     [ApiVersion("1.0")]
     [ApiController]

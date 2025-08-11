@@ -8,7 +8,7 @@ namespace MercuriusAPI.Controllers
     /// <summary>
     /// Handles user management actions such as deleting users and assigning roles.
     /// </summary>
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "admin")]
     [ApiController]
     [Route("api/users")]
     public class UserController : ControllerBase
@@ -34,6 +34,6 @@ namespace MercuriusAPI.Controllers
         /// <param name="request">The request containing the role name.</param>
         [HttpPost("{username}/roles")]
         public Task AddRoleToUser([FromRoute] string username, [FromBody] AddUserRoleRequest request)
-            => _userService.AddRoleToUserAsync(new AddUserRoleRequest { Username = username, RoleName = request.RoleName });
+            => _userService.AddRoleToUserAsync(username, request);
     }
 }

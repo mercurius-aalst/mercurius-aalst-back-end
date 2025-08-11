@@ -11,7 +11,7 @@ namespace MercuriusAPI.Controllers.LAN
     /// <summary>
     /// API endpoints for managing games, including creation, updates, participant registration, and game state transitions.
     /// </summary>
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "admin")]
     [Route("lan/[controller]")]
     [ApiVersion("1.0")]
     [ApiController]

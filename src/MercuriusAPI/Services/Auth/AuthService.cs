@@ -5,6 +5,7 @@ using MercuriusAPI.Models;
 using MercuriusAPI.Services.Auth.Login;
 using MercuriusAPI.Services.Auth.Token;
 using Microsoft.EntityFrameworkCore;
+using MercuriusAPI.Services.Auth;
 
 namespace MercuriusAPI.Services.Auth
 {
@@ -23,42 +24,51 @@ namespace MercuriusAPI.Services.Auth
 
         public async Task RegisterAsync(LoginRequest request)
         {
-            if (await _dbContext.Users.AnyAsync(u => u.Username == request.Username))
+            var normalizedUsername = request.Username.Normalize();
+
+            if (await _dbContext.Users.AnyAsync(u => u.Username.Normalize() == normalizedUsername))
                 throw new ValidationException("Username already exists");
+
             PasswordHelper.CreatePasswordHash(request.Password, out var hash, out var salt);
-            var user = new User { Username = request.Username, PasswordHash = hash, Salt = salt };
+            var user = new User { Username = normalizedUsername, PasswordHash = hash, Salt = salt };
             _dbContext.Users.Add(user);
             await _dbContext.SaveChangesAsync();
         }
 
         public async Task<AuthTokenResponse> LoginAsync(LoginRequest request)
         {
+            var normalizedUsername = request.Username.Normalize();
             var now = System.DateTime.UtcNow;
-            if (_loginAttemptService.IsLockedOut(request.Username, now))
+
+            if (_loginAttemptService.IsLockedOut(normalizedUsername, now))
                 throw new LockoutException();
 
             var user = await _dbContext.Users
                 .Include(u => u.RefreshTokens)
                 .Include(u => u.Roles)
-                .FirstOrDefaultAsync(u => u.Username == request.Username);
+                .FirstOrDefaultAsync(u => u.Username.Normalize() == normalizedUsername);
+
             if (user == null || !PasswordHelper.VerifyPassword(request.Password, user.PasswordHash, user.Salt))
             {
-                var attemptsLeft = _loginAttemptService.RegisterFailedAttempt(request.Username, now);
+                var attemptsLeft = _loginAttemptService.RegisterFailedAttempt(normalizedUsername, now);
                 if (attemptsLeft == 0)
                     throw new LockoutException();
                 throw new InvalidCredentialsException($"Invalid username or password. {attemptsLeft} attempt(s) left before lockout.");
             }
-            _loginAttemptService.Reset(request.Username);
+
+            _loginAttemptService.Reset(normalizedUsername);
 
             var jwtToken = _tokenService.GenerateJwtToken(user);
             var refreshTokenEntity = _tokenService.GenerateRefreshToken(user.Id);
             user.RefreshTokens.Add(refreshTokenEntity);
+
             var tokensToRemove = user.RefreshTokens.Where(rt => rt.Expires < System.DateTime.UtcNow).ToList();
             foreach (var oldToken in tokensToRemove)
             {
                 user.RefreshTokens.Remove(oldToken);
                 _dbContext.RefreshTokens.Remove(oldToken);
             }
+
             await _dbContext.SaveChangesAsync();
 
             return new AuthTokenResponse { Token = jwtToken, RefreshToken = refreshTokenEntity.Token };

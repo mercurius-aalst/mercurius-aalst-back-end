@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/mercurius-aalst/mercurius-aalst-back-end/compare/backend-v0.2.0...backend-v0.3.0) (2025-08-07)
+
+
+### Features
+
+* Bugfix double elimination bracket generation ([#24](https://github.com/mercurius-aalst/mercurius-aalst-back-end/issues/24)) ([a300ab4](https://github.com/mercurius-aalst/mercurius-aalst-back-end/commit/a300ab495f3693dadfdc8fee7c5aa4d54a51aa5f))
+
 ## [0.2.0](https://github.com/mercurius-aalst/mercurius-aalst-back-end/compare/backend-v0.1.0...backend-v0.2.0) (2025-06-10)
 
 

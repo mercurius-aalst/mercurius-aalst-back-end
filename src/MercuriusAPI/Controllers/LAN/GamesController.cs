@@ -3,6 +3,7 @@ using MercuriusAPI.DTOs.LAN.GameDTOs;
 using MercuriusAPI.DTOs.LAN.PlacementDTOs;
 using MercuriusAPI.Services.LAN.GameServices;
 using MercuriusAPI.Services.LAN.ParticipantServices;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace MercuriusAPI.Controllers.LAN
@@ -10,6 +11,7 @@ namespace MercuriusAPI.Controllers.LAN
     /// <summary>
     /// API endpoints for managing games, including creation, updates, participant registration, and game state transitions.
     /// </summary>
+    [Authorize(Roles = "admin")]
     [Route("lan/[controller]")]
     [ApiVersion("1.0")]
     [ApiController]
@@ -20,6 +22,7 @@ namespace MercuriusAPI.Controllers.LAN
         /// </summary>
         /// <returns>A list of all games.</returns>
         [HttpGet]
+        [AllowAnonymous]
         public IEnumerable<GetGameDTO> GetGames()
         {
             return _gameService.GetAllGames();
@@ -31,6 +34,7 @@ namespace MercuriusAPI.Controllers.LAN
         /// <param name="id">The game ID.</param>
         /// <returns>The game details.</returns>
         [HttpGet("{id}")]
+        [AllowAnonymous]
         public async Task<GetGameDTO> GetGameAsync(int id)
         {
             return new GetGameDTO(await _gameService.GetGameByIdAsync(id));

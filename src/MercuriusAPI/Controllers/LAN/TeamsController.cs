@@ -3,12 +3,14 @@ using MercuriusAPI.DTOs.LAN.TeamDTOs;
 using MercuriusAPI.Services.LAN.PlayerServices;
 using MercuriusAPI.Services.LAN.TeamServices;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 
 namespace MercuriusAPI.Controllers.LAN
 {
     /// <summary>
     /// API endpoints for managing teams, including creation, player management, and deletion.
     /// </summary>
+    [Authorize(Roles = "admin")]
     [Route("lan/[controller]")]
     [ApiVersion("1.0")]
     [ApiController]
@@ -19,6 +21,7 @@ namespace MercuriusAPI.Controllers.LAN
         /// </summary>
         /// <returns>A list of all teams.</returns>
         [HttpGet]
+        [AllowAnonymous]
         public IEnumerable<GetTeamDTO> GetTeams()
         {
             return _teamService.GetAllTeams();
@@ -30,6 +33,7 @@ namespace MercuriusAPI.Controllers.LAN
         /// <param name="id">The team ID.</param>
         /// <returns>The team details.</returns>
         [HttpGet("{id}")]
+        [AllowAnonymous]
         public async Task<GetTeamDTO> GetTeamAsync(int id)
         {
             return new GetTeamDTO(await _teamService.GetTeamByIdAsync(id));

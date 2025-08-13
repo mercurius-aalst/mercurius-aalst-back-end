@@ -3,6 +3,7 @@ using System;
 using MercuriusAPI.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MercuriusAPI.Migrations
 {
     [DbContext(typeof(MercuriusDBContext))]
-    partial class MercuriusDBContextModelSnapshot : ModelSnapshot
+    [Migration("20250807080943_RemoveIsRevokedFromRefreshToken")]
+    partial class RemoveIsRevokedFromRefreshToken
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -60,23 +63,6 @@ namespace MercuriusAPI.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("RefreshTokens");
-                });
-
-            modelBuilder.Entity("MercuriusAPI.Models.Auth.Role", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("Roles");
                 });
 
             modelBuilder.Entity("MercuriusAPI.Models.LAN.Game", b =>
@@ -308,21 +294,6 @@ namespace MercuriusAPI.Migrations
                     b.ToTable("PlayerTeam");
                 });
 
-            modelBuilder.Entity("RoleUser", b =>
-                {
-                    b.Property<int>("RolesId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("UsersId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("RolesId", "UsersId");
-
-                    b.HasIndex("UsersId");
-
-                    b.ToTable("RoleUser");
-                });
-
             modelBuilder.Entity("MercuriusAPI.Models.LAN.Player", b =>
                 {
                     b.HasBaseType("MercuriusAPI.Models.LAN.Participant");
@@ -490,21 +461,6 @@ namespace MercuriusAPI.Migrations
                     b.HasOne("MercuriusAPI.Models.LAN.Team", null)
                         .WithMany()
                         .HasForeignKey("TeamsId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("RoleUser", b =>
-                {
-                    b.HasOne("MercuriusAPI.Models.Auth.Role", null)
-                        .WithMany()
-                        .HasForeignKey("RolesId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("MercuriusAPI.Models.User", null)
-                        .WithMany()
-                        .HasForeignKey("UsersId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

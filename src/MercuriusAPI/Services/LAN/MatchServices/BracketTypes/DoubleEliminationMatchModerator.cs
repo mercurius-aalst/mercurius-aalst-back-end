@@ -30,20 +30,41 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
             var shuffled = participants.OrderBy(_ => Guid.NewGuid()).ToList();
             int[] slotOrder = SeedingHelper.GenerateBracketSlotOrder(nextPowerOfTwo);
             var slots = new Participant[firstRoundMatchCount * 2];
-            for(int i = 0; i < shuffled.Count; i++)
-                slots[slotOrder[i]] = shuffled[i];
-            int matchNumber = 1;
-            int previousRound = totalRounds + 1; //We're working top down in match generation
 
-            for(int i = 0; i < totalMatches; i++)
+            // Assign participants to slots based on the shuffled list
+            for (int i = 0; i < shuffled.Count; i++)
+                slots[slotOrder[i]] = shuffled[i];
+
+            // Efficiently distribute BYEs to avoid BYE vs BYE matches
+            for (int i = 0; i < slots.Length; i += 2)
+            {
+                if (slots[i] == null && slots[i + 1] == null)
+                {
+                    // Find a participant from a later slot to avoid BYE vs BYE
+                    for (int j = i + 2; j < slots.Length; j++)
+                    {
+                        if (slots[j] != null)
+                        {
+                            slots[i] = slots[j]; // Move the participant to the current slot
+                            slots[j] = null; // Clear the original slot to avoid duplication
+                            break;
+                        }
+                    }
+                }
+            }
+
+            int matchNumber = 1;
+            int previousRound = totalRounds + 1; // We're working top down in match generation
+
+            for (int i = 0; i < totalMatches; i++)
             {
                 // Determine round number
                 int round = (int)Math.Floor(Math.Log2(nextPowerOfTwo)) - (int)Math.Floor(Math.Log2(i + 1));
                 int matchesInThisRound = nextPowerOfTwo / (1 << (round - 1));
                 int firstMatchIndex = totalMatches - matchesInThisRound;
 
-                //If calculation a new round reset matchNumber, otherwise increase
-                if(round < previousRound)
+                // If calculation a new round reset matchNumber, otherwise increase
+                if (round < previousRound)
                     matchNumber = 1;
                 else
                     matchNumber++;
@@ -60,11 +81,12 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
 
                 // Assign participants only to first-round matches (the leaves)
                 int firstRoundStart = totalMatches - firstRoundMatchCount;
-                if(i >= firstRoundStart)
+                if (i >= firstRoundStart)
                 {
                     int leafIndex = i - firstRoundStart;
                     match.Participant1 = slots[leafIndex * 2];
                     match.Participant2 = slots[leafIndex * 2 + 1];
+
                     match.TryAssignByeWin();
                 }
 

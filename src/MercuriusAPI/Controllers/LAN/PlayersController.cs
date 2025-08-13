@@ -3,12 +3,14 @@ using MercuriusAPI.DTOs.LAN.PlayerDTOs;
 using MercuriusAPI.Models.LAN;
 using MercuriusAPI.Services.LAN.PlayerServices;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 
 namespace MercuriusAPI.Controllers.LAN
 {
     /// <summary>
     /// API endpoints for managing players, including creation, retrieval, update, and deletion.
     /// </summary>
+    [Authorize(Roles = "admin")]
     [Route("lan/[controller]")]
     [ApiVersion("1.0")]
     [ApiController]

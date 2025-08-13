@@ -14,23 +14,44 @@ namespace MercuriusAPI.Exceptions
                 {
                     StatusCode = (int)HttpStatusCode.NotFound
                 };
-
                 context.ExceptionHandled = true;
             }
-            if(context.Exception is ValidationException validationException)
+            else if(context.Exception is ValidationException validationException)
             {
                 context.Result = new ObjectResult(validationException.Message)
                 {
                     StatusCode = (int)HttpStatusCode.BadRequest
                 };
-
+                context.ExceptionHandled = true;
+            }
+            else if(context.Exception is InvalidCredentialsException invalidCredentialsException)
+            {
+                context.Result = new ObjectResult(invalidCredentialsException.Message)
+                {
+                    StatusCode = (int)HttpStatusCode.Unauthorized
+                };
+                context.ExceptionHandled = true;
+            }
+            else if(context.Exception is LockoutException lockoutException)
+            {
+                context.Result = new ObjectResult(lockoutException.Message)
+                {
+                    StatusCode = 423 // Locked
+                };
+                context.ExceptionHandled = true;
+            }           
+            else if(context.Exception is UnauthorizedAccessException unauthorizedAccessException)
+            {
+                context.Result = new ObjectResult(unauthorizedAccessException.Message)
+                {
+                    StatusCode = (int)HttpStatusCode.Unauthorized
+                };
                 context.ExceptionHandled = true;
             }
         }
 
         public void OnActionExecuting(ActionExecutingContext context)
         {
-
         }
     }
 }

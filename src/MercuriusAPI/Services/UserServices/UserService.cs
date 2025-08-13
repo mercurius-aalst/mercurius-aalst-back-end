@@ -45,5 +45,18 @@ namespace MercuriusAPI.Services.UserServices
                 await _dbContext.SaveChangesAsync();
             }
         }
+
+        public Task ChangePasswordAsync(string username, string newPassword)
+        {
+            var normalizedUsername = username.Normalize();
+            var user = _dbContext.Users.FirstOrDefault(u => u.Username == normalizedUsername);
+            if (user == null)
+                throw new NotFoundException($"User '{username}' not found.");
+            PasswordHelper.CreatePasswordHash(newPassword, out var hash, out var salt);
+            user.PasswordHash = hash;
+            user.Salt = salt;
+            _dbContext.Users.Update(user);
+            return _dbContext.SaveChangesAsync();
+        }
     }
 }

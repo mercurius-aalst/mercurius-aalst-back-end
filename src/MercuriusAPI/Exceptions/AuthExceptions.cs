@@ -12,9 +12,4 @@ namespace MercuriusAPI.Exceptions
     {
         public LockoutException() : base("Account is temporarily locked due to too many failed login attempts.") { }
     }
-
-    public class ConfigurationException : Exception
-    {
-        public ConfigurationException(string message) : base(message) { }
-    }
 }

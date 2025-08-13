@@ -39,12 +39,12 @@ namespace MercuriusAPI.Exceptions
                     StatusCode = 423 // Locked
                 };
                 context.ExceptionHandled = true;
-            }
-            else if(context.Exception is ConfigurationException configurationException)
+            }           
+            else if(context.Exception is UnauthorizedAccessException unauthorizedAccessException)
             {
-                context.Result = new ObjectResult(configurationException.Message)
+                context.Result = new ObjectResult(unauthorizedAccessException.Message)
                 {
-                    StatusCode = (int)HttpStatusCode.InternalServerError
+                    StatusCode = (int)HttpStatusCode.Unauthorized
                 };
                 context.ExceptionHandled = true;
             }

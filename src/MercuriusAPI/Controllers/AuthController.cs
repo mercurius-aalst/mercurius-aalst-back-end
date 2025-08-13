@@ -11,7 +11,7 @@ namespace MercuriusAPI.Controllers
     /// </summary>
     [Authorize(Roles = "admin")]
     [ApiController]
-    [Route("api/[controller]")]
+    [Route("[controller]")]
     public class AuthController : ControllerBase
     {
         private readonly IAuthService _authService;

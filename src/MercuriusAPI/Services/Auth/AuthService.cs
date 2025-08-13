@@ -26,7 +26,7 @@ namespace MercuriusAPI.Services.Auth
         {
             var normalizedUsername = request.Username.Normalize();
 
-            if (await _dbContext.Users.AnyAsync(u => u.Username.Normalize() == normalizedUsername))
+            if (await _dbContext.Users.AnyAsync(u => u.Username == normalizedUsername))
                 throw new ValidationException("Username already exists");
 
             PasswordHelper.CreatePasswordHash(request.Password, out var hash, out var salt);
@@ -46,7 +46,7 @@ namespace MercuriusAPI.Services.Auth
             var user = await _dbContext.Users
                 .Include(u => u.RefreshTokens)
                 .Include(u => u.Roles)
-                .FirstOrDefaultAsync(u => u.Username.Normalize() == normalizedUsername);
+                .FirstOrDefaultAsync(u => u.Username == normalizedUsername);
 
             if (user == null || !PasswordHelper.VerifyPassword(request.Password, user.PasswordHash, user.Salt))
             {

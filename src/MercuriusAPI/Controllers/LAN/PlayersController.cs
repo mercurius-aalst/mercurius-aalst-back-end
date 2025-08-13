@@ -32,7 +32,6 @@ namespace MercuriusAPI.Controllers.LAN
         /// </summary>
         /// <returns>A list of all players.</returns>
         [HttpGet]
-        [AllowAnonymous]
         public IEnumerable<GetPlayerDTO> GetPlayers()
         {
             return _playerService.GetAllPlayers();
@@ -44,7 +43,6 @@ namespace MercuriusAPI.Controllers.LAN
         /// <param name="id">The player ID.</param>
         /// <returns>The player details.</returns>
         [HttpGet("{id}")]
-        [AllowAnonymous]
         public async Task<GetPlayerDTO> GetPlayerAsync(int id)
         {
             return new GetPlayerDTO(await _playerService.GetPlayerByIdAsync(id));

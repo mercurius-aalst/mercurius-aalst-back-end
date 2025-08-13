@@ -19,7 +19,7 @@ namespace MercuriusAPI.Services.UserServices
         public async Task DeleteUserAsync(string username)
         {
             var normalizedUsername = username.Normalize();
-            var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Username.Normalize() == normalizedUsername);
+            var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Username == normalizedUsername);
             if (user == null)
                 throw new NotFoundException($"User '{username}' not found.");
             _dbContext.Users.Remove(user);
@@ -29,7 +29,7 @@ namespace MercuriusAPI.Services.UserServices
         public async Task AddRoleToUserAsync(string username, AddUserRoleRequest request)
         {
             var normalizedUsername = username.Normalize();
-            var user = await _dbContext.Users.Include(u => u.Roles).FirstOrDefaultAsync(u => u.Username.Normalize() == normalizedUsername);
+            var user = await _dbContext.Users.Include(u => u.Roles).FirstOrDefaultAsync(u => u.Username == normalizedUsername);
             if (user == null)
                 throw new NotFoundException($"User '{username}' not found.");
             var role = await _dbContext.Roles.FirstOrDefaultAsync(r => r.Name == request.RoleName);

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/mercurius-aalst/mercurius-aalst-back-end/compare/backend-v0.3.0...backend-v0.4.0) (2025-08-13)
+
+
+### Features
+
+* authentication and authorization ([#26](https://github.com/mercurius-aalst/mercurius-aalst-back-end/issues/26)) ([e4702f3](https://github.com/mercurius-aalst/mercurius-aalst-back-end/commit/e4702f37698fe45e18aee9d26e0e492a1c22c408))
+
 ## [0.3.0](https://github.com/mercurius-aalst/mercurius-aalst-back-end/compare/backend-v0.2.0...backend-v0.3.0) (2025-08-07)
 
 

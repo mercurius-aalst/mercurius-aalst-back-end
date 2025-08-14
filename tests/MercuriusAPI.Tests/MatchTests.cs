@@ -1,5 +1,6 @@
 ﻿using AutoFixture;
 using AutoFixture.Kernel;
+using MercuriusAPI.Exceptions;
 using MercuriusAPI.Models.LAN;
 using MercuriusAPI.Tests.Customizations;
 
@@ -219,13 +220,13 @@ namespace MercuriusAPI.Tests
         [InlineData(-1, 0)]
         [InlineData(0, -1)]
         [InlineData(-5, -5)]
-        public void SetScoresAndWinner_ThrowsException_WhenScoreIsNegative(int p1Score, int p2Score)
+        public void SetScoresAndWinner_ThrowsValidationException_WhenScoreIsNegative(int p1Score, int p2Score)
         {
             // Arrange
             var match = CreateMatch();
 
             // Act & Assert
-            var ex = Assert.Throws<Exception>(() => match.SetScoresAndWinner(p1Score, p2Score));
+            var ex = Assert.Throws<ValidationException>(() => match.SetScoresAndWinner(p1Score, p2Score));
             Assert.Equal("Scores cannot be negative", ex.Message);
         }
 
@@ -235,23 +236,23 @@ namespace MercuriusAPI.Tests
         [InlineData(GameFormat.BestOf3, 0, 3)]
         [InlineData(GameFormat.BestOf5, 4, 0)]
         [InlineData(GameFormat.BestOf5, 0, 4)]
-        public void SetScoresAndWinner_ThrowsArgumentException_WhenScoreExceedsWinsNeeded(GameFormat format, int p1Score, int p2Score)
+        public void SetScoresAndWinner_ThrowsValidationException_WhenScoreExceedsWinsNeeded(GameFormat format, int p1Score, int p2Score)
         {
             // Arrange
             var match = CreateMatch(format);
 
             // Act & Assert
-            Assert.Throws<ArgumentException>(() => match.SetScoresAndWinner(p1Score, p2Score));
+            Assert.Throws<ValidationException>(() => match.SetScoresAndWinner(p1Score, p2Score));
         }
 
         [Fact]
-        public void SetScoresAndWinner_ThrowsException_WhenScoresAreEqualInBo1()
+        public void SetScoresAndWinner_ThrowsValidationException_WhenScoresAreEqualInBo1()
         {
             // Arrange
             var match = CreateMatch(GameFormat.BestOf1);
 
             // Act & Assert
-            var ex = Assert.Throws<Exception>(() => match.SetScoresAndWinner(1, 1));
+            var ex = Assert.Throws<ValidationException>(() => match.SetScoresAndWinner(1, 1));
             Assert.Equal("Scores cannot be equal in Bo1 format", ex.Message);
         }
 

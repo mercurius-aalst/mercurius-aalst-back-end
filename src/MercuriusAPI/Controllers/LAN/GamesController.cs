@@ -57,7 +57,7 @@ namespace MercuriusAPI.Controllers.LAN
         /// <param name="id">The game ID.</param>
         /// <param name="updateGameDTO">The updated game data.</param>
         /// <returns>The updated game.</returns>
-        [HttpPut("{id}")]
+        [HttpPatch("{id}")]
         public Task<GetGameDTO> UpdateGameAsync(int id, UpdateGameDTO updateGameDTO)
         {
             return _gameService.UpdateGameAsync(id, updateGameDTO);

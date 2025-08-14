@@ -30,7 +30,7 @@ namespace MercuriusAPI.Services.LAN.GameServices
         }
         public async Task<Game> GetGameByIdAsync(int gameId)
         {
-            var game = await _dbContext.Games.Include(g => g.Participants).Include(g => g.Matches).FirstOrDefaultAsync(g => g.Id == gameId);
+            var game = await _dbContext.Games.Include(g => g.Participants).Include(g => g.Matches).Include(g => g.Placements).FirstOrDefaultAsync(g => g.Id == gameId);
             if(game is null)
                 throw new NotFoundException($"{nameof(Game)} not found");
             return game;
@@ -42,8 +42,10 @@ namespace MercuriusAPI.Services.LAN.GameServices
         }
 
         public async Task<GetGameDTO> UpdateGameAsync(int id, UpdateGameDTO gameDTO)
-        {
+        {           
             var game = await GetGameByIdAsync(id);
+            if(await CheckIfGameNameExistsAsync(gameDTO.Name) && game.Name != gameDTO.Name)
+                throw new ValidationException($"Game {gameDTO.Name} already exists");
             game.Update(gameDTO.Name, gameDTO.BracketType, gameDTO.Format, gameDTO.FinalsFormat);
             _dbContext.Games.Update(game);
             await _dbContext.SaveChangesAsync();

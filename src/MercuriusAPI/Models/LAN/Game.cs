@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿
+using MercuriusAPI.Exceptions;
 
 namespace MercuriusAPI.Models.LAN
 {

@@ -30,7 +30,7 @@ namespace MercuriusAPI.Services.LAN.GameServices
         }
         public async Task<Game> GetGameByIdAsync(int gameId)
         {
-            var game = await _dbContext.Games.Include(g => g.Participants).Include(g => g.Matches).Include(g => g.Placements).FirstOrDefaultAsync(g => g.Id == gameId);
+            var game = await _dbContext.Games.Include(g => g.Participants).Include(g => g.Matches).Include(g => g.Placements).ThenInclude(p => p.Participants).FirstOrDefaultAsync(g => g.Id == gameId);
             if(game is null)
                 throw new NotFoundException($"{nameof(Game)} not found");
             return game;

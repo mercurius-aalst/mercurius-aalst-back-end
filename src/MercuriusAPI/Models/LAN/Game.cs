@@ -77,6 +77,7 @@ namespace MercuriusAPI.Models.LAN
             EndTime = DateTime.MinValue;
             Matches.Clear();
             Participants.Clear();
+            Placements.Clear();
         }
     }
 }

@@ -71,7 +71,7 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
                 slots[slotOrder[i]] = shuffled[i];
 
             int matchNumber = 1;
-            int previousRound = totalRounds + 1; //We're working top down in match generation
+            int previousRound = totalRounds + 1; // We're working top down in match generation
 
             for(int i = 0; i < totalMatches; i++)
             {
@@ -79,6 +79,11 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
                 int round = (int)Math.Floor(Math.Log2(nextPowerOfTwo)) - (int)Math.Floor(Math.Log2(i + 1));
                 int matchesInThisRound = nextPowerOfTwo / (1 << (round - 1));
                 int firstMatchIndex = totalMatches - matchesInThisRound;
+
+                // If calculation a new round reset matchNumber, otherwise increase
+                if (round < previousRound)
+                    matchNumber = 1;
+
                 var match = new Match
                 {
                     GameId = game.Id,
@@ -99,14 +104,10 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
                     match.TryAssignByeWin();
                 }
 
-                //If calculation a new round reset matchNumber, otherwise increase
-                if(round < previousRound)
-                    matchNumber = 1;
-                else
-                    matchNumber++;
-                previousRound = round;
-
                 matches.Add(match);
+
+                matchNumber++;
+                previousRound = round;
             }
 
             for(int i = 0; i < matches.Count; i++)

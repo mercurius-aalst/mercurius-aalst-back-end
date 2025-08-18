@@ -1,5 +1,5 @@
-﻿using MercuriusAPI.Models.LAN;
-using System.ComponentModel.DataAnnotations;
+﻿using MercuriusAPI.Exceptions;
+using MercuriusAPI.Models.LAN;
 
 namespace MercuriusAPI.Tests
 {
@@ -67,7 +67,7 @@ namespace MercuriusAPI.Tests
         }
 
         [Fact]
-        public void Cancel_ThrowsException_WhenStatusIsCompleted()
+        public void Cancel_ThrowsValidationException_WhenStatusIsCompleted()
         {
             var game = CreateGame();
             game.Status = GameStatus.Completed;

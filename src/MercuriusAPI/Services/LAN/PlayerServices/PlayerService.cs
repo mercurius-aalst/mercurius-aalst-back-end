@@ -42,7 +42,7 @@ namespace MercuriusAPI.Services.LAN.PlayerServices
             if(player is null)
                 throw new NotFoundException($"{nameof(Player)} not found");
 
-            if(player.Username != playerDTO.Username && await CheckUsernameExists(playerDTO.Username))
+            if(player.Username != playerDTO.Username && !await CheckUsernameExists(playerDTO.Username))
                 player.Update(playerDTO.Firstname, playerDTO.Lastname, playerDTO.Username, playerDTO.DiscordId, playerDTO.SteamId, playerDTO.RiotId);
             _dbContext.Players.Update(player);
             await _dbContext.SaveChangesAsync();

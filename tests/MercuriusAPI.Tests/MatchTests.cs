@@ -1,5 +1,6 @@
 ﻿using AutoFixture;
 using AutoFixture.Kernel;
+using MercuriusAPI.Exceptions;
 using MercuriusAPI.Models.LAN;
 using MercuriusAPI.Tests.Customizations;
 
@@ -76,6 +77,7 @@ namespace MercuriusAPI.Tests
             {
                 ParticipantType = ParticipantType.Player,
                 Winner = winner,
+                WinnerId = winner.Id,
                 MatchNumber = 1,
                 WinnerNextMatch = new Match()
             };
@@ -84,7 +86,7 @@ namespace MercuriusAPI.Tests
             match.UpdateParticipantsNextMatch();
 
             // Assert
-            Assert.Same(winner, match.WinnerNextMatch.Participant1);
+            Assert.Equal(winner.Id, match.WinnerNextMatch.Participant1Id);
         }
 
         [Fact]
@@ -96,6 +98,7 @@ namespace MercuriusAPI.Tests
             {
                 ParticipantType = ParticipantType.Player,
                 Winner = winner,
+                WinnerId = winner.Id,
                 MatchNumber = 2,
                 WinnerNextMatch = new Match()
             };
@@ -104,7 +107,7 @@ namespace MercuriusAPI.Tests
             match.UpdateParticipantsNextMatch();
 
             // Assert
-            Assert.Same(winner, match.WinnerNextMatch.Participant2);
+            Assert.Equal(winner.Id, match.WinnerNextMatch.Participant2Id);
         }
 
         [Fact]
@@ -117,6 +120,8 @@ namespace MercuriusAPI.Tests
             {
                 ParticipantType = ParticipantType.Player,
                 Winner = winner,
+                WinnerId = winner.Id,
+                LoserId = loser.Id,
                 Loser = loser,
                 MatchNumber = 1,
                 LoserNextMatch = new Match()
@@ -126,7 +131,7 @@ namespace MercuriusAPI.Tests
             match.UpdateParticipantsNextMatch();
 
             // Assert
-            Assert.Same(loser, match.LoserNextMatch.Participant1);
+            Assert.Equal(loser.Id, match.LoserNextMatch.Participant1Id);
         }
 
         [Fact]
@@ -140,6 +145,8 @@ namespace MercuriusAPI.Tests
                 ParticipantType = ParticipantType.Player,
                 Winner = winner,
                 Loser = loser,
+                WinnerId = winner.Id,
+                LoserId = loser.Id,
                 MatchNumber = 2,
                 LoserNextMatch = new Match()
             };
@@ -148,7 +155,7 @@ namespace MercuriusAPI.Tests
             match.UpdateParticipantsNextMatch();
 
             // Assert
-            Assert.Same(loser, match.LoserNextMatch.Participant2);
+            Assert.Equal(loser.Id, match.LoserNextMatch.Participant2Id);
         }
 
         [Fact]
@@ -192,8 +199,8 @@ namespace MercuriusAPI.Tests
             // Assert
             Assert.Equal(p1Score, match.Participant1Score);
             Assert.Equal(p2Score, match.Participant2Score);
-            Assert.Same(match.Participant1, match.Winner);
-            Assert.Same(match.Participant2, match.Loser);
+            Assert.Equal(match.Participant1Id, match.WinnerId);
+            Assert.Equal(match.Participant2Id, match.LoserId);
         }
 
         [Theory]
@@ -211,21 +218,21 @@ namespace MercuriusAPI.Tests
             // Assert
             Assert.Equal(p1Score, match.Participant1Score);
             Assert.Equal(p2Score, match.Participant2Score);
-            Assert.Same(match.Participant2, match.Winner);
-            Assert.Same(match.Participant1, match.Loser);
+            Assert.Equal(match.Participant2Id, match.WinnerId);
+            Assert.Equal(match.Participant1Id, match.LoserId);
         }
 
         [Theory]
         [InlineData(-1, 0)]
         [InlineData(0, -1)]
         [InlineData(-5, -5)]
-        public void SetScoresAndWinner_ThrowsException_WhenScoreIsNegative(int p1Score, int p2Score)
+        public void SetScoresAndWinner_ThrowsValidationException_WhenScoreIsNegative(int p1Score, int p2Score)
         {
             // Arrange
             var match = CreateMatch();
 
             // Act & Assert
-            var ex = Assert.Throws<Exception>(() => match.SetScoresAndWinner(p1Score, p2Score));
+            var ex = Assert.Throws<ValidationException>(() => match.SetScoresAndWinner(p1Score, p2Score));
             Assert.Equal("Scores cannot be negative", ex.Message);
         }
 
@@ -235,23 +242,23 @@ namespace MercuriusAPI.Tests
         [InlineData(GameFormat.BestOf3, 0, 3)]
         [InlineData(GameFormat.BestOf5, 4, 0)]
         [InlineData(GameFormat.BestOf5, 0, 4)]
-        public void SetScoresAndWinner_ThrowsArgumentException_WhenScoreExceedsWinsNeeded(GameFormat format, int p1Score, int p2Score)
+        public void SetScoresAndWinner_ThrowsValidationException_WhenScoreExceedsWinsNeeded(GameFormat format, int p1Score, int p2Score)
         {
             // Arrange
             var match = CreateMatch(format);
 
             // Act & Assert
-            Assert.Throws<ArgumentException>(() => match.SetScoresAndWinner(p1Score, p2Score));
+            Assert.Throws<ValidationException>(() => match.SetScoresAndWinner(p1Score, p2Score));
         }
 
         [Fact]
-        public void SetScoresAndWinner_ThrowsException_WhenScoresAreEqualInBo1()
+        public void SetScoresAndWinner_ThrowsValidationException_WhenScoresAreEqualInBo1()
         {
             // Arrange
             var match = CreateMatch(GameFormat.BestOf1);
 
             // Act & Assert
-            var ex = Assert.Throws<Exception>(() => match.SetScoresAndWinner(1, 1));
+            var ex = Assert.Throws<ValidationException>(() => match.SetScoresAndWinner(1, 1));
             Assert.Equal("Scores cannot be equal in Bo1 format", ex.Message);
         }
 
@@ -305,6 +312,8 @@ namespace MercuriusAPI.Tests
             var match = fixture.Build<Match>()
                 .Without(m => m.Winner)
                 .Without(m => m.Loser)
+                .Without(m => m.WinnerId)
+                .Without(m => m.LoserId)
                 .With(m => m.Format, format)
                 .Create();
 

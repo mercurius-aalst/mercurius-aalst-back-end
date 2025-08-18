@@ -1,4 +1,6 @@
-﻿namespace MercuriusAPI.Models.LAN
+﻿using MercuriusAPI.Exceptions;
+
+namespace MercuriusAPI.Models.LAN
 {
     public class Match{
         public int Id { get; set; }
@@ -61,7 +63,7 @@
         public void SetScoresAndWinner(int participant1Score, int participant2Score)
         {
             if(participant1Score < 0 || participant2Score < 0)
-                throw new Exception("Scores cannot be negative");
+                throw new ValidationException("Scores cannot be negative");
             int winsNeeded = Format switch
             {
                 GameFormat.BestOf1 => 1,
@@ -70,44 +72,44 @@
                 _ => 1
             };
             if(participant1Score > winsNeeded || participant2Score > winsNeeded)
-                throw new ArgumentException("Scores cannot exceed the required number of wins for the match format.");
+                throw new ValidationException("Scores cannot exceed the required number of wins for the match format.");
             if(participant1Score == participant2Score && participant1Score+participant2Score != 0 && winsNeeded == 1)
-                throw new Exception("Scores cannot be equal in Bo1 format");
+                throw new ValidationException("Scores cannot be equal in Bo1 format");
 
             Participant1Score = participant1Score;
             Participant2Score = participant2Score;
 
             if(participant1Score == winsNeeded && participant1Score > participant2Score)
             {
-                Winner = Participant1;
-                Loser = Participant2;
+                WinnerId = Participant1Id;
+                LoserId = Participant2Id;
                 Finish();
             }
             else if(participant2Score == winsNeeded && participant2Score > participant1Score)
             {
-                Winner = Participant2;
-                Loser = Participant1;
+                WinnerId = Participant2Id;
+                LoserId = Participant1Id;
                 Finish();
             }
         }
 
         public void UpdateParticipantsNextMatch()
         {
-            if(Winner != null)
+            if(WinnerId != null)
             {
                 if(WinnerNextMatch is not null)
                 {
                     if(MatchNumber % 2 != 0)
-                        WinnerNextMatch.Participant1 = Winner;
+                        WinnerNextMatch.Participant1Id = WinnerId;
                     else
-                        WinnerNextMatch.Participant2 = Winner;
+                        WinnerNextMatch.Participant2Id = WinnerId;
                 }
                 if(LoserNextMatch is not null)
                 {
                     if(MatchNumber % 2 != 0)
-                        LoserNextMatch.Participant1 = Loser;
+                        LoserNextMatch.Participant1Id = LoserId;
                     else
-                        LoserNextMatch.Participant2 = Loser;
+                        LoserNextMatch.Participant2Id = LoserId;
                 }
             }
         }

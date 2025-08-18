@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿
+using MercuriusAPI.Exceptions;
 
 namespace MercuriusAPI.Models.LAN
 {
@@ -76,6 +77,7 @@ namespace MercuriusAPI.Models.LAN
             EndTime = DateTime.MinValue;
             Matches.Clear();
             Participants.Clear();
+            Placements.Clear();
         }
     }
 }

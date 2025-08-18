@@ -67,6 +67,12 @@ namespace MercuriusAPI
 
             var app = builder.Build();
 
+            // Apply pending migrations on startup
+            using (var scope = app.Services.CreateScope())
+            {
+                var dbContext = scope.ServiceProvider.GetRequiredService<MercuriusDBContext>();
+                dbContext.Database.Migrate();
+            }
 
             app.UseSwagger();
             app.UseSwaggerUI();

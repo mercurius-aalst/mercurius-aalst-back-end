@@ -2,6 +2,7 @@
 using MercuriusAPI.DTOs.LAN.MatchDTOs;
 using MercuriusAPI.Exceptions;
 using MercuriusAPI.Models.LAN;
+using Microsoft.EntityFrameworkCore;
 
 namespace MercuriusAPI.Services.LAN.MatchServices
 {
@@ -15,6 +16,7 @@ namespace MercuriusAPI.Services.LAN.MatchServices
             _dbContext = dbContext;
             _matchModeratorFactory = matchModeratorFactory;
         }
+
         public async Task<GetMatchDTO> UpdateMatchAsync(int id, UpdateMatchDTO updateMatchDTO)
         {
             var match = await GetMatchByIdAsync(id);
@@ -26,9 +28,14 @@ namespace MercuriusAPI.Services.LAN.MatchServices
 
         public async Task<Match> GetMatchByIdAsync(int id)
         {
-            var match = await _dbContext.Matches.FindAsync(id);
-            if(match is null)
+            var match = await _dbContext.Matches
+                .Include(m => m.WinnerNextMatch)
+                .Include(m => m.LoserNextMatch)
+                .FirstOrDefaultAsync(m => m.Id == id);
+
+            if (match is null)
                 throw new NotFoundException($"{nameof(Match)} not found");
+
             return match;
         }
     }

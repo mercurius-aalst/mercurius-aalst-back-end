@@ -24,6 +24,7 @@ namespace MercuriusAPI.Data
         public DbSet<User> Users { get; set; }
         public DbSet<RefreshToken> RefreshTokens { get; set; }
         public DbSet<Role> Roles { get; set; }
+        public DbSet<Placement> Placements { get; set; } // Added DbSet for Placement
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -84,6 +85,7 @@ namespace MercuriusAPI.Data
                 entity.Property(e => e.EndTime).IsRequired();
                 entity.HasMany(e => e.Participants)
                       .WithMany(e => e.Games);
+
             });
 
             modelBuilder.Entity<TeamInvite>(entity =>
@@ -108,6 +110,17 @@ namespace MercuriusAPI.Data
                 entity.HasOne(e => e.User)
                       .WithMany(u => u.RefreshTokens)
                       .HasForeignKey(e => e.UserId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<Placement>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasMany(e => e.Participants)
+                      .WithMany(); // No reverse navigation property in Participant
+                entity.HasOne(e => e.Game)
+                      .WithMany(e => e.Placements)
+                      .HasForeignKey(e => e.GameId)
                       .OnDelete(DeleteBehavior.Cascade);
             });
 

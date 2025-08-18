@@ -23,10 +23,37 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
             int participantCount = game.Participants.Count();
             int nextPowerOfTwo = (int)Math.Pow(2, Math.Ceiling(Math.Log2(participantCount)));
             int totalMatches = nextPowerOfTwo - 1;
-
             int totalRounds = (int)Math.Ceiling(Math.Log2(participantCount));
             int firstRoundMatchCount = nextPowerOfTwo / 2;
 
+            var slots = AssignParticipantsToSlots(participants, firstRoundMatchCount, nextPowerOfTwo);
+
+            int matchNumber = 1;
+            int previousRound = totalRounds + 1;
+
+            for (int i = 0; i < totalMatches; i++)
+            {
+                int round = CalculateRoundNumber(nextPowerOfTwo, i);
+
+                if (round < previousRound)
+                    matchNumber = 1;
+                else
+                    matchNumber++;
+
+                var match = CreateMatch(game, round, matchNumber);
+
+                if (i >= totalMatches - firstRoundMatchCount)
+                {
+                    AssignParticipantsToMatch(slots, match, i, totalMatches, firstRoundMatchCount);
+                }
+
+                previousRound = round;
+                matches.Add(match);
+            }
+        }
+
+        private Participant[] AssignParticipantsToSlots(IEnumerable<Participant> participants, int firstRoundMatchCount, int nextPowerOfTwo)
+        {
             var shuffled = participants.OrderBy(_ => Guid.NewGuid()).ToList();
             int[] slotOrder = SeedingHelper.GenerateBracketSlotOrder(nextPowerOfTwo);
             var slots = new Participant[firstRoundMatchCount * 2];
@@ -53,48 +80,36 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
                 }
             }
 
-            int matchNumber = 1;
-            int previousRound = totalRounds + 1; // We're working top down in match generation
+            return slots;
+        }
 
-            for (int i = 0; i < totalMatches; i++)
+        private int CalculateRoundNumber(int nextPowerOfTwo, int matchIndex)
+        {
+            return (int)Math.Floor(Math.Log2(nextPowerOfTwo)) - (int)Math.Floor(Math.Log2(matchIndex + 1));
+        }
+
+        private Match CreateMatch(Game game, int round, int matchNumber)
+        {
+            return new Match
             {
-                // Determine round number
-                int round = (int)Math.Floor(Math.Log2(nextPowerOfTwo)) - (int)Math.Floor(Math.Log2(i + 1));
-                int matchesInThisRound = nextPowerOfTwo / (1 << (round - 1));
-                int firstMatchIndex = totalMatches - matchesInThisRound;
+                GameId = game.Id,
+                RoundNumber = round,
+                BracketType = game.BracketType,
+                Format = game.Format,
+                MatchNumber = matchNumber,
+                ParticipantType = game.ParticipantType
+            };
+        }
 
-                // If calculation a new round reset matchNumber, otherwise increase
-                if (round < previousRound)
-                    matchNumber = 1;
-                else
-                    matchNumber++;
+        private void AssignParticipantsToMatch(Participant[] slots, Match match, int matchIndex, int totalMatches, int firstRoundMatchCount)
+        {
+            int firstRoundStart = totalMatches - firstRoundMatchCount;
+            int leafIndex = matchIndex - firstRoundStart;
+            match.Participant1 = slots[leafIndex * 2];
+            match.Participant2 = slots[leafIndex * 2 + 1];
 
-                var match = new Match
-                {
-                    GameId = game.Id,
-                    RoundNumber = round,
-                    BracketType = game.BracketType,
-                    Format = game.Format,
-                    MatchNumber = matchNumber,
-                    ParticipantType = game.ParticipantType
-                };
-
-                // Assign participants only to first-round matches (the leaves)
-                int firstRoundStart = totalMatches - firstRoundMatchCount;
-                if (i >= firstRoundStart)
-                {
-                    int leafIndex = i - firstRoundStart;
-                    match.Participant1 = slots[leafIndex * 2];
-                    match.Participant2 = slots[leafIndex * 2 + 1];
-
-                    match.SetParticipantBYEs(match.Participant1 is null, match.Participant2 is null);
-                    match.TryAssignByeWin();
-                }
-
-                previousRound = round;
-
-                matches.Add(match);
-            }
+            match.SetParticipantBYEs(match.Participant1 is null, match.Participant2 is null);
+            match.TryAssignByeWin();
         }
 
         private void GenerateLowerBracketMatches(Game game, List<Match> matches)

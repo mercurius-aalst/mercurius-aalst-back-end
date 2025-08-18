@@ -129,6 +129,9 @@ namespace MercuriusAPI.Models.LAN
                         WinnerNextMatch.Participant2 = Winner;
                     else
                         WinnerNextMatch.Participant1 = Winner;
+
+                    if(WinnerNextMatch.Participant1IsBYE || WinnerNextMatch.Participant2IsBYE)
+                        WinnerNextMatch.TryAssignByeWin();
                 }
                 else
                 {
@@ -136,9 +139,7 @@ namespace MercuriusAPI.Models.LAN
                         WinnerNextMatch.Participant1 = Winner;
                     else
                         WinnerNextMatch.Participant2 = Winner;
-                }
-
-                
+                }          
             }
 
             // Assign Loser to the next match

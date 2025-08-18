@@ -1,5 +1,4 @@
-﻿
-using MercuriusAPI.Exceptions;
+﻿using MercuriusAPI.Exceptions;
 
 namespace MercuriusAPI.Models.LAN
 {
@@ -19,6 +18,8 @@ namespace MercuriusAPI.Models.LAN
 
         public IList<Match> Matches { get; set; } = new List<Match>();
         public IList<Participant> Participants { get; set; } = [];
+
+        public string? ImageUrl { get; set; }
 
         public Game(string name, BracketType bracketType, GameFormat format, GameFormat finalsFormat, ParticipantType participantType)
         {

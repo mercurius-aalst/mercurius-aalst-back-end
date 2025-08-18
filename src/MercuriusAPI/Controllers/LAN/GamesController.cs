@@ -5,6 +5,7 @@ using MercuriusAPI.Services.LAN.GameServices;
 using MercuriusAPI.Services.LAN.ParticipantServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Http; // For IFormFile
 
 namespace MercuriusAPI.Controllers.LAN
 {
@@ -49,7 +50,7 @@ namespace MercuriusAPI.Controllers.LAN
         /// <param name="createGameDTO">The game creation data.</param>
         /// <returns>The created game.</returns>
         [HttpPost]
-        public Task<GetGameDTO> CreateGameAsync(CreateGameDTO createGameDTO)
+        public Task<GetGameDTO> CreateGameAsync([FromForm] CreateGameDTO createGameDTO)
         {
             return _gameService.CreateGameAsync(createGameDTO);
         }
@@ -61,7 +62,7 @@ namespace MercuriusAPI.Controllers.LAN
         /// <param name="updateGameDTO">The updated game data.</param>
         /// <returns>The updated game.</returns>
         [HttpPatch("{id}")]
-        public Task<GetGameDTO> UpdateGameAsync(int id, UpdateGameDTO updateGameDTO)
+        public Task<GetGameDTO> UpdateGameAsync(int id, [FromForm] UpdateGameDTO updateGameDTO)
         {
             return _gameService.UpdateGameAsync(id, updateGameDTO);
         }

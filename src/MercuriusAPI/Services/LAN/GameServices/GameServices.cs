@@ -3,8 +3,11 @@ using MercuriusAPI.DTOs.LAN.GameDTOs;
 using MercuriusAPI.DTOs.LAN.PlacementDTOs;
 using MercuriusAPI.Exceptions;
 using MercuriusAPI.Models.LAN;
+using MercuriusAPI.Services.Files;
 using MercuriusAPI.Services.LAN.MatchServices;
+using Microsoft.AspNetCore.Http; // For IFormFile
 using Microsoft.EntityFrameworkCore;
+using System.IO; // For file handling
 
 namespace MercuriusAPI.Services.LAN.GameServices
 {
@@ -12,18 +15,28 @@ namespace MercuriusAPI.Services.LAN.GameServices
     {
         private readonly MercuriusDBContext _dbContext;
         private readonly IMatchModeratorFactory _matchGeneratorFactory;
+        private readonly IFileService _fileService;
 
-        public GameService(MercuriusDBContext dbContext, IMatchModeratorFactory matchGeneratorFactory)
+        public GameService(MercuriusDBContext dbContext, IMatchModeratorFactory matchGeneratorFactory, IFileService fileService)
         {
             _dbContext = dbContext;
             _matchGeneratorFactory = matchGeneratorFactory;
+            _fileService = fileService;
         }
 
         public async Task<GetGameDTO> CreateGameAsync(CreateGameDTO createGameDTO)
         {
-            if(await CheckIfGameNameExistsAsync(createGameDTO.Name))
+            if (await CheckIfGameNameExistsAsync(createGameDTO.Name))
                 throw new ValidationException($"Game {createGameDTO.Name} already created");
+
             var game = new Game(createGameDTO.Name, createGameDTO.BracketType, createGameDTO.Format, createGameDTO.FinalsFormat, createGameDTO.ParticipantType);
+
+            if (createGameDTO.Image != null)
+            {
+                var bannerPath = await _fileService.SaveImageAsync(createGameDTO.Image);
+                game.ImageUrl = bannerPath;
+            }
+
             _dbContext.Games.Add(game);
             await _dbContext.SaveChangesAsync();
             return new GetGameDTO(game);
@@ -42,11 +55,19 @@ namespace MercuriusAPI.Services.LAN.GameServices
         }
 
         public async Task<GetGameDTO> UpdateGameAsync(int id, UpdateGameDTO gameDTO)
-        {           
+        {
             var game = await GetGameByIdAsync(id);
-            if(await CheckIfGameNameExistsAsync(gameDTO.Name) && game.Name != gameDTO.Name)
+            if (await CheckIfGameNameExistsAsync(gameDTO.Name) && game.Name != gameDTO.Name)
                 throw new ValidationException($"Game {gameDTO.Name} already exists");
+
             game.Update(gameDTO.Name, gameDTO.BracketType, gameDTO.Format, gameDTO.FinalsFormat);
+
+            if (gameDTO.Image != null)
+            {
+                var bannerPath = await _fileService.SaveImageAsync(gameDTO.Image);
+                game.ImageUrl = bannerPath;
+            }
+
             _dbContext.Games.Update(game);
             await _dbContext.SaveChangesAsync();
             return new GetGameDTO(game);

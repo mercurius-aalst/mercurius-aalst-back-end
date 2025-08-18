@@ -6,6 +6,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using System.Text.Json.Serialization;
+using Imageflow.Server;
+using MercuriusAPI.Services.Files;
 
 namespace MercuriusAPI
 {
@@ -65,6 +67,9 @@ namespace MercuriusAPI
                 });
             });
 
+            // Register FileService
+            builder.Services.AddTransient<IFileService, FileService>();
+
             var app = builder.Build();
 
             // Apply pending migrations on startup
@@ -75,8 +80,7 @@ namespace MercuriusAPI
             }
 
             app.UseSwagger();
-            app.UseSwaggerUI();
-
+            app.UseSwaggerUI();          
 
             app.UseHttpsRedirection();
 
@@ -84,6 +88,16 @@ namespace MercuriusAPI
 
             app.UseAuthentication();
             app.UseAuthorization();
+
+            // Add ImageFlow middleware to serve and optimize images
+            app.UseImageflow(new ImageflowMiddlewareOptions
+            {
+                MapWebRoot = true, // Map the wwwroot folder
+                AllowDiskCaching = true, // Enable disk caching
+                AllowCaching = true, // Enable stream caching
+                DefaultCacheControlString = "public, max-age=31536000" // Cache images for 1 year
+            });
+            app.UseStaticFiles();
 
             app.MapControllers();
 

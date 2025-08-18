@@ -77,6 +77,7 @@ namespace MercuriusAPI.Tests
             {
                 ParticipantType = ParticipantType.Player,
                 Winner = winner,
+                WinnerId = winner.Id,
                 MatchNumber = 1,
                 WinnerNextMatch = new Match()
             };
@@ -85,7 +86,7 @@ namespace MercuriusAPI.Tests
             match.UpdateParticipantsNextMatch();
 
             // Assert
-            Assert.Same(winner, match.WinnerNextMatch.Participant1);
+            Assert.Equal(winner.Id, match.WinnerNextMatch.Participant1Id);
         }
 
         [Fact]
@@ -97,6 +98,7 @@ namespace MercuriusAPI.Tests
             {
                 ParticipantType = ParticipantType.Player,
                 Winner = winner,
+                WinnerId = winner.Id,
                 MatchNumber = 2,
                 WinnerNextMatch = new Match()
             };
@@ -105,7 +107,7 @@ namespace MercuriusAPI.Tests
             match.UpdateParticipantsNextMatch();
 
             // Assert
-            Assert.Same(winner, match.WinnerNextMatch.Participant2);
+            Assert.Equal(winner.Id, match.WinnerNextMatch.Participant2Id);
         }
 
         [Fact]
@@ -118,6 +120,8 @@ namespace MercuriusAPI.Tests
             {
                 ParticipantType = ParticipantType.Player,
                 Winner = winner,
+                WinnerId = winner.Id,
+                LoserId = loser.Id,
                 Loser = loser,
                 MatchNumber = 1,
                 LoserNextMatch = new Match()
@@ -127,7 +131,7 @@ namespace MercuriusAPI.Tests
             match.UpdateParticipantsNextMatch();
 
             // Assert
-            Assert.Same(loser, match.LoserNextMatch.Participant1);
+            Assert.Equal(loser.Id, match.LoserNextMatch.Participant1Id);
         }
 
         [Fact]
@@ -141,6 +145,8 @@ namespace MercuriusAPI.Tests
                 ParticipantType = ParticipantType.Player,
                 Winner = winner,
                 Loser = loser,
+                WinnerId = winner.Id,
+                LoserId = loser.Id,
                 MatchNumber = 2,
                 LoserNextMatch = new Match()
             };
@@ -149,7 +155,7 @@ namespace MercuriusAPI.Tests
             match.UpdateParticipantsNextMatch();
 
             // Assert
-            Assert.Same(loser, match.LoserNextMatch.Participant2);
+            Assert.Equal(loser.Id, match.LoserNextMatch.Participant2Id);
         }
 
         [Fact]
@@ -193,8 +199,8 @@ namespace MercuriusAPI.Tests
             // Assert
             Assert.Equal(p1Score, match.Participant1Score);
             Assert.Equal(p2Score, match.Participant2Score);
-            Assert.Same(match.Participant1, match.Winner);
-            Assert.Same(match.Participant2, match.Loser);
+            Assert.Equal(match.Participant1Id, match.WinnerId);
+            Assert.Equal(match.Participant2Id, match.LoserId);
         }
 
         [Theory]
@@ -212,8 +218,8 @@ namespace MercuriusAPI.Tests
             // Assert
             Assert.Equal(p1Score, match.Participant1Score);
             Assert.Equal(p2Score, match.Participant2Score);
-            Assert.Same(match.Participant2, match.Winner);
-            Assert.Same(match.Participant1, match.Loser);
+            Assert.Equal(match.Participant2Id, match.WinnerId);
+            Assert.Equal(match.Participant1Id, match.LoserId);
         }
 
         [Theory]
@@ -306,6 +312,8 @@ namespace MercuriusAPI.Tests
             var match = fixture.Build<Match>()
                 .Without(m => m.Winner)
                 .Without(m => m.Loser)
+                .Without(m => m.WinnerId)
+                .Without(m => m.LoserId)
                 .With(m => m.Format, format)
                 .Create();
 

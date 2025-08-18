@@ -30,7 +30,23 @@ namespace MercuriusAPI.Services.LAN.MatchServices
         {
             var match = await _dbContext.Matches
                 .Include(m => m.WinnerNextMatch)
+                    .ThenInclude(m => m.Participant1)
+                .Include(m => m.WinnerNextMatch)
+                    .ThenInclude(m => m.Participant2)
+                .Include(m => m.WinnerNextMatch)
+                    .ThenInclude(m => m.WinnerNextMatch)
+                .Include(m => m.WinnerNextMatch)
+                    .ThenInclude(m => m.LoserNextMatch)
                 .Include(m => m.LoserNextMatch)
+                    .ThenInclude(m => m.Participant1)
+                .Include(m => m.LoserNextMatch)
+                    .ThenInclude(m => m.Participant2)
+                .Include(m => m.LoserNextMatch)
+                    .ThenInclude(m => m.WinnerNextMatch)
+                .Include(m => m.LoserNextMatch)
+                    .ThenInclude(m => m.LoserNextMatch)
+                .Include(m => m.Participant1)
+                .Include(m => m.Participant2)
                 .FirstOrDefaultAsync(m => m.Id == id);
 
             if (match is null)

@@ -77,7 +77,6 @@ namespace MercuriusAPI.Tests
             {
                 ParticipantType = ParticipantType.Player,
                 Winner = winner,
-                WinnerId = winner.Id,
                 MatchNumber = 1,
                 WinnerNextMatch = new Match()
             };
@@ -86,7 +85,7 @@ namespace MercuriusAPI.Tests
             match.UpdateParticipantsNextMatch();
 
             // Assert
-            Assert.Equal(winner.Id, match.WinnerNextMatch.Participant1Id);
+            Assert.Equal(winner, match.WinnerNextMatch.Participant1);
         }
 
         [Fact]
@@ -98,7 +97,6 @@ namespace MercuriusAPI.Tests
             {
                 ParticipantType = ParticipantType.Player,
                 Winner = winner,
-                WinnerId = winner.Id,
                 MatchNumber = 2,
                 WinnerNextMatch = new Match()
             };
@@ -107,7 +105,7 @@ namespace MercuriusAPI.Tests
             match.UpdateParticipantsNextMatch();
 
             // Assert
-            Assert.Equal(winner.Id, match.WinnerNextMatch.Participant2Id);
+            Assert.Equal(winner, match.WinnerNextMatch.Participant2);
         }
 
         [Fact]
@@ -120,8 +118,6 @@ namespace MercuriusAPI.Tests
             {
                 ParticipantType = ParticipantType.Player,
                 Winner = winner,
-                WinnerId = winner.Id,
-                LoserId = loser.Id,
                 Loser = loser,
                 MatchNumber = 1,
                 LoserNextMatch = new Match()
@@ -131,31 +127,7 @@ namespace MercuriusAPI.Tests
             match.UpdateParticipantsNextMatch();
 
             // Assert
-            Assert.Equal(loser.Id, match.LoserNextMatch.Participant1Id);
-        }
-
-        [Fact]
-        public void UpdateParticipantsNextMatch_SetsLoserInLoserNextMatch_Participant2_WhenMatchNumberEven()
-        {
-            // Arrange
-            var winner = CreatePlayer();
-            var loser = CreatePlayer();
-            var match = new Match
-            {
-                ParticipantType = ParticipantType.Player,
-                Winner = winner,
-                Loser = loser,
-                WinnerId = winner.Id,
-                LoserId = loser.Id,
-                MatchNumber = 2,
-                LoserNextMatch = new Match()
-            };
-
-            // Act
-            match.UpdateParticipantsNextMatch();
-
-            // Assert
-            Assert.Equal(loser.Id, match.LoserNextMatch.Participant2Id);
+            Assert.Equal(loser, match.LoserNextMatch.Participant1);
         }
 
         [Fact]
@@ -182,7 +154,104 @@ namespace MercuriusAPI.Tests
             Assert.Null(match.LoserNextMatch.Participant1);
         }
 
-        
+        [Fact]
+        public void UpdateParticipantsNextMatch_SetsWinnerInLowerBracketMatch()
+        {
+            // Arrange
+            var winner = CreatePlayer();
+            var match = new Match
+            {
+                Winner = winner,
+                WinnerNextMatch = new Match { IsLowerBracketMatch = true }
+            };
+
+            // Act
+            match.UpdateParticipantsNextMatch();
+
+            // Assert
+            Assert.Equal(winner, match.WinnerNextMatch.Participant2);
+        }
+
+        [Fact]
+        public void UpdateParticipantsNextMatch_SetsWinnerInUpperBracketMatch_Participant1_WhenMatchNumberOdd()
+        {
+            // Arrange
+            var winner = CreatePlayer();
+            var match = new Match
+            {
+                Winner = winner,
+                MatchNumber = 1,
+                WinnerNextMatch = new Match { IsLowerBracketMatch = false }
+            };
+
+            // Act
+            match.UpdateParticipantsNextMatch();
+
+            // Assert
+            Assert.Equal(winner, match.WinnerNextMatch.Participant1);
+        }
+
+        [Fact]
+        public void UpdateParticipantsNextMatch_SetsWinnerInUpperBracketMatch_Participant2_WhenMatchNumberEven()
+        {
+            // Arrange
+            var winner = CreatePlayer();
+            var match = new Match
+            {
+                Winner = winner,
+                MatchNumber = 2,
+                WinnerNextMatch = new Match { IsLowerBracketMatch = false }
+            };
+
+            // Act
+            match.UpdateParticipantsNextMatch();
+
+            // Assert
+            Assert.Equal(winner, match.WinnerNextMatch.Participant2);
+        }
+
+        [Fact]
+        public void UpdateParticipantsNextMatch_AssignsLoserToParticipant1_WhenMatchNumberOdd()
+        {
+            // Arrange
+            var loser = CreatePlayer();
+            var winner = CreatePlayer();
+            var match = new Match
+            {
+                Loser = loser,
+                Winner = winner,
+                MatchNumber = 1,
+                LoserNextMatch = CreateMatch()
+            };
+
+            // Act
+            match.UpdateParticipantsNextMatch();
+
+            // Assert
+            Assert.Equal(loser, match.LoserNextMatch.Participant1);
+        }
+
+        [Fact]
+        public void UpdateParticipantsNextMatch_AssignsLoserToParticipant1_WhenNotFirstRound()
+        {
+            // Arrange
+            var loser = CreatePlayer();
+            var winner = CreatePlayer();
+
+            var match = new Match
+            {
+                Loser = loser,
+                Winner = winner,
+                MatchNumber = 2,
+                LoserNextMatch = CreateMatch()
+            };
+
+            // Act
+            match.UpdateParticipantsNextMatch();
+
+            // Assert
+            Assert.Equal(loser, match.LoserNextMatch.Participant1);
+        }
 
         [Theory]
         [InlineData(GameFormat.BestOf1, 1, 0)]

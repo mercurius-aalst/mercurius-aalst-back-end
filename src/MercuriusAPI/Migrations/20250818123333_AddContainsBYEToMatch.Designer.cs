@@ -3,6 +3,7 @@ using System;
 using MercuriusAPI.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MercuriusAPI.Migrations
 {
     [DbContext(typeof(MercuriusDBContext))]
-    partial class MercuriusDBContextModelSnapshot : ModelSnapshot
+    [Migration("20250818123333_AddContainsBYEToMatch")]
+    partial class AddContainsBYEToMatch
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -99,6 +102,9 @@ namespace MercuriusAPI.Migrations
                     b.Property<int>("Format")
                         .HasColumnType("integer");
 
+                    b.Property<string>("ImageUrl")
+                        .HasColumnType("text");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("text");
@@ -128,6 +134,9 @@ namespace MercuriusAPI.Migrations
                     b.Property<int>("BracketType")
                         .HasColumnType("integer");
 
+                    b.Property<bool>("ContainsBYE")
+                        .HasColumnType("boolean");
+
                     b.Property<DateTime>("EndTime")
                         .HasColumnType("timestamp with time zone");
 
@@ -152,17 +161,11 @@ namespace MercuriusAPI.Migrations
                     b.Property<int?>("Participant1Id")
                         .HasColumnType("integer");
 
-                    b.Property<bool>("Participant1IsBYE")
-                        .HasColumnType("boolean");
-
                     b.Property<int?>("Participant1Score")
                         .HasColumnType("integer");
 
                     b.Property<int?>("Participant2Id")
                         .HasColumnType("integer");
-
-                    b.Property<bool>("Participant2IsBYE")
-                        .HasColumnType("boolean");
 
                     b.Property<int?>("Participant2Score")
                         .HasColumnType("integer");

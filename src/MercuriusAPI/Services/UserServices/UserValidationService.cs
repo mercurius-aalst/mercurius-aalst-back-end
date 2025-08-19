@@ -10,10 +10,12 @@ namespace MercuriusAPI.Services.UserServices
     public class UserValidationService : IUserService
     {
         private readonly IUserService _inner;
+        private readonly IAuthService _authService;
 
-        public UserValidationService(IUserService inner)
+        public UserValidationService(IUserService inner, IAuthService authService)
         {
             _inner = inner;
+            _authService = authService;
         }
 
         public Task DeleteUserAsync(string username)
@@ -36,11 +38,14 @@ namespace MercuriusAPI.Services.UserServices
             return _inner.AddRoleToUserAsync(normalizedUsername, request);
         }
 
-        public Task ChangePasswordAsync(string username, string newPassword)
+        public async Task ChangePasswordAsync(string username, ChangePasswordRequest request)
         {
-            if(!ValidationHelper.IsPasswordStrong(newPassword))
+            await _authService.LoginAsync(new LoginRequest { Password = request.CurrentPassword, Username = username }); 
+            if(!ValidationHelper.IsPasswordStrong(request.NewPassword))
                 throw new ValidationException("Password must be at least 8 characters and include upper, lower, digit, and special character.");
-            return _inner.ChangePasswordAsync(username, newPassword);
+            if(ValidationHelper.IsPasswordSame(request.CurrentPassword, request.NewPassword))
+                throw new ValidationException("New password must be different from the old password.");
+            await _inner.ChangePasswordAsync(username, request);
         }
     }
 }

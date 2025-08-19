@@ -6,6 +6,6 @@ namespace MercuriusAPI.Services.UserServices
     {
         Task DeleteUserAsync(string username);
         Task AddRoleToUserAsync(string username, AddUserRoleRequest request);
-        Task ChangePasswordAsync(string username, string newPassword);
+        Task ChangePasswordAsync(string username, ChangePasswordRequest newPassword);
     }
 }

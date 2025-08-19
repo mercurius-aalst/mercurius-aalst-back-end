@@ -21,11 +21,9 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
         {
             var matches = new List<Match>();
 
-            // Generate upper and lower bracket matches in parallel
-            Parallel.Invoke(
-                () => GenerateUpperBracketMatches(game, game.Participants, matches),
-                () => GenerateLowerBracketMatches(game, matches)
-            );
+            // Generate upper and lower bracket matches
+            GenerateUpperBracketMatches(game, game.Participants, matches);
+            GenerateLowerBracketMatches(game, matches);
 
             // Generate the grand final match
             GenerateGrandFinalMatch(game, matches);

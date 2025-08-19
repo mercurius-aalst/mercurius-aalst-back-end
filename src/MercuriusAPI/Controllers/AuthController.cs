@@ -7,9 +7,8 @@ using System.Threading.Tasks;
 namespace MercuriusAPI.Controllers
 {
     /// <summary>
-    /// Handles authentication-related actions such as registration, login, token refresh, and user deletion.
+    /// Handles authentication-related operations such as login and token refresh.
     /// </summary>
-    [Authorize(Roles = "admin")]
     [ApiController]
     [Route("[controller]")]
     public class AuthController : ControllerBase

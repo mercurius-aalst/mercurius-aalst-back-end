@@ -268,8 +268,8 @@ namespace MercuriusAPI.Tests
             // Assert
             Assert.Equal(p1Score, match.Participant1Score);
             Assert.Equal(p2Score, match.Participant2Score);
-            Assert.Equal(match.Participant1Id, match.WinnerId);
-            Assert.Equal(match.Participant2Id, match.LoserId);
+            Assert.Equal(match.Participant1, match.Winner);
+            Assert.Equal(match.Participant2, match.Loser);
         }
 
         [Theory]
@@ -287,8 +287,8 @@ namespace MercuriusAPI.Tests
             // Assert
             Assert.Equal(p1Score, match.Participant1Score);
             Assert.Equal(p2Score, match.Participant2Score);
-            Assert.Equal(match.Participant2Id, match.WinnerId);
-            Assert.Equal(match.Participant1Id, match.LoserId);
+            Assert.Equal(match.Participant2, match.Winner);
+            Assert.Equal(match.Participant1, match.Loser);
         }
 
         [Theory]

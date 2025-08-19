@@ -3,21 +3,47 @@ using MercuriusAPI.Extensions.LAN;
 using MercuriusAPI.Models.LAN;
 using MercuriusAPI.Services.LAN.MatchServices.Helpers;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
 {
+    /// <summary>
+    /// Handles the generation and management of matches for a double-elimination tournament.
+    /// </summary>
     public class DoubleEliminationMatchModerator : IMatchModerator
     {
+        /// <summary>
+        /// Generates all matches for a given game in a double-elimination format.
+        /// </summary>
+        /// <param name="game">The game for which matches are to be generated.</param>
+        /// <returns>A collection of matches for the game.</returns>
         public IEnumerable<Match> GenerateMatchesForGame(Game game)
         {
             var matches = new List<Match>();
-            GenerateUpperBracketMatches(game, game.Participants, matches);
-            GenerateLowerBracketMatches(game, matches);
+
+            // Generate upper and lower bracket matches in parallel
+            Parallel.Invoke(
+                () => GenerateUpperBracketMatches(game, game.Participants, matches),
+                () => GenerateLowerBracketMatches(game, matches)
+            );
+
+            // Generate the grand final match
             GenerateGrandFinalMatch(game, matches);
-            matches = AssignNextMatchesForDoubleElimination(matches).ToList();
+
+            // Assign next matches for double elimination and handle BYE winners
+            int maxRoundNumber = matches.Max(x => x.RoundNumber);
+            matches = AssignNextMatchesForDoubleElimination(matches, maxRoundNumber).ToList();
             matches.AssignByeWinnersNextMatch();
+
             return matches;
         }
+
+        /// <summary>
+        /// Generates matches for the upper bracket of the tournament.
+        /// </summary>
+        /// <param name="game">The game for which matches are to be generated.</param>
+        /// <param name="participants">The participants in the tournament.</param>
+        /// <param name="matches">The list to which generated matches will be added.</param>
         private void GenerateUpperBracketMatches(Game game, IEnumerable<Participant> participants, List<Match> matches)
         {
             int participantCount = game.Participants.Count();
@@ -52,6 +78,13 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
             }
         }
 
+        /// <summary>
+        /// Assigns participants to slots for the first round of the tournament.
+        /// </summary>
+        /// <param name="participants">The participants in the tournament.</param>
+        /// <param name="firstRoundMatchCount">The number of matches in the first round.</param>
+        /// <param name="nextPowerOfTwo">The next power of two greater than or equal to the number of participants.</param>
+        /// <returns>An array of participants assigned to slots.</returns>
         private Participant[] AssignParticipantsToSlots(IEnumerable<Participant> participants, int firstRoundMatchCount, int nextPowerOfTwo)
         {
             var shuffled = participants.OrderBy(_ => Guid.NewGuid()).ToList();
@@ -83,11 +116,24 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
             return slots;
         }
 
+        /// <summary>
+        /// Calculates the round number for a given match index.
+        /// </summary>
+        /// <param name="nextPowerOfTwo">The next power of two greater than or equal to the number of participants.</param>
+        /// <param name="matchIndex">The index of the match.</param>
+        /// <returns>The round number for the match.</returns>
         private int CalculateRoundNumber(int nextPowerOfTwo, int matchIndex)
         {
             return (int)Math.Floor(Math.Log2(nextPowerOfTwo)) - (int)Math.Floor(Math.Log2(matchIndex + 1));
         }
 
+        /// <summary>
+        /// Creates a new match for the tournament.
+        /// </summary>
+        /// <param name="game">The game for which the match is being created.</param>
+        /// <param name="round">The round number of the match.</param>
+        /// <param name="matchNumber">The match number within the round.</param>
+        /// <returns>A new match object.</returns>
         private Match CreateMatch(Game game, int round, int matchNumber)
         {
             return new Match
@@ -101,6 +147,14 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
             };
         }
 
+        /// <summary>
+        /// Assigns participants to a match for the first round.
+        /// </summary>
+        /// <param name="slots">The array of participants assigned to slots.</param>
+        /// <param name="match">The match to which participants are being assigned.</param>
+        /// <param name="matchIndex">The index of the match.</param>
+        /// <param name="totalMatches">The total number of matches in the tournament.</param>
+        /// <param name="firstRoundMatchCount">The number of matches in the first round.</param>
         private void AssignParticipantsToMatch(Participant[] slots, Match match, int matchIndex, int totalMatches, int firstRoundMatchCount)
         {
             int firstRoundStart = totalMatches - firstRoundMatchCount;
@@ -112,6 +166,11 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
             match.TryAssignByeWin();
         }
 
+        /// <summary>
+        /// Generates matches for the lower bracket of the tournament.
+        /// </summary>
+        /// <param name="game">The game for which matches are to be generated.</param>
+        /// <param name="matches">The list to which generated matches will be added.</param>
         private void GenerateLowerBracketMatches(Game game, List<Match> matches)
         {
             var upperBracketMatches = matches.Where(m => !m.IsLowerBracketMatch).ToList();
@@ -151,6 +210,11 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
             }
         }
 
+        /// <summary>
+        /// Generates the grand final match for the tournament.
+        /// </summary>
+        /// <param name="game">The game for which the grand final match is being generated.</param>
+        /// <param name="matches">The list to which the grand final match will be added.</param>
         private void GenerateGrandFinalMatch(Game game, List<Match> matches)
         {
             var grandFinalMatch = new Match
@@ -165,12 +229,19 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
             };
             matches.Add(grandFinalMatch);
         }
-        private IEnumerable<Match> AssignNextMatchesForDoubleElimination(List<Match> matches)
+
+        /// <summary>
+        /// Links matches for a double-elimination tournament.
+        /// </summary>
+        /// <param name="matches">The list of matches in the tournament.</param>
+        /// <param name="maxRoundNumber">The maximum round number in the tournament.</param>
+        /// <returns>A collection of matches with linked next matches.</returns>
+        private IEnumerable<Match> AssignNextMatchesForDoubleElimination(List<Match> matches, int maxRoundNumber)
         {
             // Separate matches and sort them in an ascending order for easier linking
-            var uBMatches = matches.Where(m => !m.IsLowerBracketMatch && m.RoundNumber < matches.Max(x => x.RoundNumber)).OrderBy(m => m.RoundNumber).ThenBy(m => m.MatchNumber).ToList();
+            var uBMatches = matches.Where(m => !m.IsLowerBracketMatch && m.RoundNumber < maxRoundNumber).OrderBy(m => m.RoundNumber).ThenBy(m => m.MatchNumber).ToList();
             var lBMatches = matches.Where(m => m.IsLowerBracketMatch).OrderBy(m => m.RoundNumber).ThenBy(m => m.MatchNumber).ToList();
-            var grandFinal = matches.Single(m => !m.IsLowerBracketMatch && m.RoundNumber == matches.Max(x => x.RoundNumber));
+            var grandFinal = matches.Single(m => !m.IsLowerBracketMatch && m.RoundNumber == maxRoundNumber);
 
             // Link Upper Bracket matches
             foreach (var currentUBMatch in uBMatches)
@@ -226,6 +297,12 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
             return uBMatches.Concat(lBMatches).Append(grandFinal);
         }
 
+        /// <summary>
+        /// Propagates BYE status to the next matches in the tournament.
+        /// </summary>
+        /// <param name="currentUBMatch">The current upper bracket match.</param>
+        /// <param name="nextUBMatch">The next upper bracket match.</param>
+        /// <param name="nextLBMatch">The next lower bracket match.</param>
         private void PropagateBYEStatus(Match currentUBMatch, Match? nextUBMatch, Match? nextLBMatch)
         {
             if (currentUBMatch.Participant1IsBYE && currentUBMatch.Participant2IsBYE)
@@ -243,6 +320,12 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
             }
         }
 
+        /// <summary>
+        /// Links the final matches in the tournament.
+        /// </summary>
+        /// <param name="uBMatches">The list of upper bracket matches.</param>
+        /// <param name="lBMatches">The list of lower bracket matches.</param>
+        /// <param name="grandFinal">The grand final match.</param>
         private void LinkFinalMatches(List<Match> uBMatches, List<Match> lBMatches, Match grandFinal)
         {
             var ubFinal = uBMatches.LastOrDefault(m => m.RoundNumber == uBMatches.Max(ub => ub.RoundNumber));
@@ -263,6 +346,10 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
             grandFinal.LoserNextMatch = null;
         }
 
+        /// <summary>
+        /// Determines the placements of participants in the tournament.
+        /// </summary>
+        /// <param name="game">The game for which placements are to be determined.</param>
         public void DeterminePlacements(Game game)
         {
 

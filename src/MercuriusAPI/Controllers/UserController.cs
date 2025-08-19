@@ -9,9 +9,13 @@ namespace MercuriusAPI.Controllers
     /// <summary>
     /// Handles user management actions such as deleting users and assigning roles.
     /// </summary>
+    /// <remarks>
+    /// The UserController class is responsible for handling HTTP requests related to user management.
+    /// This includes actions such as deleting a user, adding roles to a user, and changing a user's password.
+    /// </remarks>
     [Authorize(Roles = "admin")]
     [ApiController]
-    [Route("api/users")]
+    [Route("[controller]")]
     public class UserController : ControllerBase
     {
         private readonly IUserService _userService;
@@ -37,6 +41,11 @@ namespace MercuriusAPI.Controllers
         public Task AddRoleToUser([FromRoute] string username, [FromBody] AddUserRoleRequest request)
             => _userService.AddRoleToUserAsync(username, request);
 
+        /// <summary>
+        /// Changes the password of a user.
+        /// </summary>
+        /// <param name="username">The username of the user whose password is to be changed.</param>
+        /// <param name="request">The request containing the new password.</param>
         [HttpPatch("{username}/password")]
         public Task ChangePasswordAsync([FromRoute] string username, [FromBody] ChangePasswordRequest request)
         {

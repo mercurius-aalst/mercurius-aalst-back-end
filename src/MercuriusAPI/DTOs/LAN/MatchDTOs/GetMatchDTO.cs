@@ -21,6 +21,8 @@ namespace MercuriusAPI.DTOs.LAN.MatchDTOs
         public int GameId { get; set; }
         public int? Participant1Id { get; set; }
         public int? Participant2Id { get; set; }
+        public bool Participant1IsBYE { get; set; }
+        public bool Participant2IsBYE { get; set; }
         public int? WinnerId { get; set; }
         public int? Participant1Score { get; set; }
         public int? Participant2Score { get; set; }
@@ -46,6 +48,8 @@ namespace MercuriusAPI.DTOs.LAN.MatchDTOs
             GameId = match.GameId;
             Participant1Id = match.Participant1Id;
             Participant2Id = match.Participant2Id;
+            Participant1IsBYE = match.Participant1IsBYE;
+            Participant2IsBYE = match.Participant2IsBYE;
             WinnerId = match.WinnerId;
             Participant1Score = match.Participant1Score;
             Participant2Score = match.Participant2Score;

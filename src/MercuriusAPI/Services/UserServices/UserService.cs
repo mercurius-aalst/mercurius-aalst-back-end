@@ -22,6 +22,7 @@ namespace MercuriusAPI.Services.UserServices
             var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Username == normalizedUsername);
             if (user == null)
                 throw new NotFoundException($"User '{username}' not found.");
+            
             _dbContext.Users.Remove(user);
             await _dbContext.SaveChangesAsync();
         }
@@ -46,13 +47,13 @@ namespace MercuriusAPI.Services.UserServices
             }
         }
 
-        public Task ChangePasswordAsync(string username, string newPassword)
+        public Task ChangePasswordAsync(string username, ChangePasswordRequest request)
         {
             var normalizedUsername = username.Normalize();
             var user = _dbContext.Users.FirstOrDefault(u => u.Username == normalizedUsername);
             if (user == null)
                 throw new NotFoundException($"User '{username}' not found.");
-            PasswordHelper.CreatePasswordHash(newPassword, out var hash, out var salt);
+            PasswordHelper.CreatePasswordHash(request.NewPassword, out var hash, out var salt);
             user.PasswordHash = hash;
             user.Salt = salt;
             _dbContext.Users.Update(user);

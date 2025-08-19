@@ -8,6 +8,6 @@ namespace MercuriusAPI.DTOs.LAN.GameDTOs
         public GameFormat Format { get; set; }
         public GameFormat FinalsFormat { get; set; }
         public BracketType BracketType { get; set; }
-        
+        public IFormFile? Image { get; set; }
     }
 }

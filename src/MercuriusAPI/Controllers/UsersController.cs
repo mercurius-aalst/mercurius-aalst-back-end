@@ -16,10 +16,10 @@ namespace MercuriusAPI.Controllers
     [Authorize(Roles = "admin")]
     [ApiController]
     [Route("[controller]")]
-    public class UserController : ControllerBase
+    public class UsersController : ControllerBase
     {
         private readonly IUserService _userService;
-        public UserController(IUserService userService)
+        public UsersController(IUserService userService)
         {
             _userService = userService;
         }
@@ -54,7 +54,7 @@ namespace MercuriusAPI.Controllers
             if (authenticatedUsername == null || !authenticatedUsername.Equals(username, StringComparison.OrdinalIgnoreCase))
                 throw new UnauthorizedAccessException("You are not authorized to change this user's password.");
 
-            return _userService.ChangePasswordAsync(username, request.NewPassword);
+            return _userService.ChangePasswordAsync(username, request);
         }
     }
 }

@@ -19,5 +19,11 @@ namespace MercuriusAPI.Services.Auth
             // Only allow alphanumeric usernames, 3-32 chars
             return Regex.IsMatch(username, @"^[a-zA-Z0-9]{3,32}$");
         }
+
+        public static bool IsPasswordSame(string oldPassword, string newPassword)
+        {
+            // Check if passwords match
+            return string.Equals(oldPassword, newPassword, StringComparison.Ordinal);
+        }
     }
 }

@@ -1,15 +1,19 @@
 using Imageflow.Fluent;
-using Microsoft.AspNetCore.Http;
-using System.IO;
-using System.Threading.Tasks;
 
 namespace MercuriusAPI.Services.Files
 {
+
     public class FileService : IFileService
     {
+        private readonly IConfiguration _configuration;
+
+        public FileService(IConfiguration configuration)
+        {
+            _configuration = configuration;
+        }
         public async Task<string> SaveImageAsync(IFormFile image)
         {
-            var folderPath = Path.Combine("wwwroot", "images");
+            var folderPath = _configuration["FileStorage:Location"];
             if (!Directory.Exists(folderPath))
             {
                 Directory.CreateDirectory(folderPath);

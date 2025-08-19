@@ -90,13 +90,15 @@ namespace MercuriusAPI
             app.UseAuthorization();
 
             // Add ImageFlow middleware to serve and optimize images
-            app.UseImageflow(new ImageflowMiddlewareOptions
+            var imgflowOptions = new ImageflowMiddlewareOptions
             {
                 MapWebRoot = true, // Map the wwwroot folder
                 AllowDiskCaching = true, // Enable disk caching
                 AllowCaching = true, // Enable stream caching
                 DefaultCacheControlString = "public, max-age=31536000" // Cache images for 1 year
-            });
+            }.MapPath("/images", app.Configuration["FileStorage:Location"]);
+
+            app.UseImageflow(imgflowOptions);
             app.UseStaticFiles();
 
             app.MapControllers();

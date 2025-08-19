@@ -230,21 +230,16 @@ namespace MercuriusAPI.Services.LAN.MatchServices.BracketTypes
         {
             if (currentUBMatch.Participant1IsBYE && currentUBMatch.Participant2IsBYE)
             {
-                nextLBMatch?.SetParticipantBYEs(true, false);
+                nextLBMatch?.SetParticipantBYEs(nextLBMatch.MatchNumber % 2 != 0, nextLBMatch.MatchNumber % 2 == 0);
                 if (nextUBMatch != null)
                 {
-                    if (currentUBMatch.MatchNumber % 2 != 0)
-                        nextUBMatch.Participant1IsBYE = true;
-                    else
-                        nextUBMatch.Participant2IsBYE = true;
+                    nextUBMatch.SetParticipantBYEs(currentUBMatch.MatchNumber % 2 != 0, currentUBMatch.MatchNumber % 2 == 0);
                 }
             }
             else if (currentUBMatch.Participant1IsBYE || currentUBMatch.Participant2IsBYE)
             {
-                if(currentUBMatch.RoundNumber == 1 && currentUBMatch.MatchNumber % 2 != 0)
-                    nextLBMatch.Participant1IsBYE = true;
-                else
-                    nextLBMatch.Participant2IsBYE = true;
+                nextLBMatch?.SetParticipantBYEs(currentUBMatch.RoundNumber != 1 || currentUBMatch.MatchNumber % 2 != 0,
+                                                currentUBMatch.RoundNumber == 1 && currentUBMatch.MatchNumber % 2 == 0);
             }
         }
 

@@ -45,12 +45,10 @@ namespace MercuriusAPI.Models.LAN
             {
                 if((Participant1 == null && Participant2 != null))
                 {
-                    // Participant 1 is BYE, so Participant 2 wins
                     AssignWinner(Participant2, isParticipant1Bye: true);
                 }
                 else if((Participant2 == null && Participant1 != null))
                 {
-                    // Participant 2 is BYE, so Participant 1 wins
                     AssignWinner(Participant1, isParticipant2Bye: true);
                 }
             }
@@ -58,11 +56,11 @@ namespace MercuriusAPI.Models.LAN
 
         public void SetParticipantBYEs(bool participant1BYE, bool participant2BYE)
         {
-            if(RoundNumber != 1 && participant1BYE && participant2BYE)
+            if (RoundNumber != 1 && participant1BYE && participant2BYE)
                 return;
 
-            Participant1IsBYE = participant1BYE;
-            Participant2IsBYE = participant2BYE;
+            Participant1IsBYE = Participant1IsBYE || participant1BYE;
+            Participant2IsBYE = Participant2IsBYE || participant2BYE;
         }
 
         private void AssignWinner(Participant? winner, bool isParticipant1Bye = false, bool isParticipant2Bye = false)

@@ -39,11 +39,18 @@ namespace MercuriusAPI.Services.LAN.PlayerServices
         public async Task<GetPlayerDTO> UpdatePlayerAsync(int id, UpdatePlayerDTO playerDTO)
         {
             var player = await _dbContext.Players.FindAsync(id);
-            if(player is null)
+            if (player is null)
                 throw new NotFoundException($"{nameof(Player)} not found");
 
-            if(player.Username != playerDTO.Username && !await CheckUsernameExists(playerDTO.Username))
-                player.Update(playerDTO.Firstname, playerDTO.Lastname, playerDTO.Username, playerDTO.DiscordId, playerDTO.SteamId, playerDTO.RiotId);
+            if (player.Username != playerDTO.Username)
+            {
+                if (await CheckUsernameExists(playerDTO.Username))
+                    throw new ValidationException("Username already exists");
+
+                player.Username = playerDTO.Username;
+            }
+
+            player.Update(playerDTO.Firstname, playerDTO.Lastname, player.Username, playerDTO.DiscordId, playerDTO.SteamId, playerDTO.RiotId);
             _dbContext.Players.Update(player);
             await _dbContext.SaveChangesAsync();
             return new GetPlayerDTO(player);

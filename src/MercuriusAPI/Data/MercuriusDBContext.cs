@@ -24,7 +24,8 @@ namespace MercuriusAPI.Data
         public DbSet<User> Users { get; set; }
         public DbSet<RefreshToken> RefreshTokens { get; set; }
         public DbSet<Role> Roles { get; set; }
-        public DbSet<Placement> Placements { get; set; } // Added DbSet for Placement
+        public DbSet<Placement> Placements { get; set; }
+        public DbSet<Sponsor> Sponsors { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -122,6 +123,15 @@ namespace MercuriusAPI.Data
                       .WithMany(e => e.Placements)
                       .HasForeignKey(e => e.GameId)
                       .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<Sponsor>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Name).IsRequired();
+                entity.Property(e => e.LogoUrl).IsRequired();
+                entity.Property(e => e.InfoUrl).IsRequired();
+                entity.Property(e => e.SponsorTier).IsRequired();
             });
 
             OnModelCreatingPartial(modelBuilder);

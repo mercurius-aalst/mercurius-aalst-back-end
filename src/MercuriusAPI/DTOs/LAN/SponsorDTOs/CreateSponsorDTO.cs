@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿
 
 namespace MercuriusAPI.DTOs.LAN.SponsorDTOs
 {

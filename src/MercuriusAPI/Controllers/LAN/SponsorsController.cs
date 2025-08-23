@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace MercuriusAPI.Controllers.LAN
 {
-    [Route("[controller]")]
+    [Route("lan/[controller]")]
     [Authorize]
     [ApiController]
     public class SponsorsController
@@ -34,13 +34,13 @@ namespace MercuriusAPI.Controllers.LAN
         }
 
         [HttpPost]
-        public Task<GetSponsorDTO> CreateAsync([FromBody] CreateSponsorDTO sponsorDTO)
+        public Task<GetSponsorDTO> CreateAsync([FromForm] CreateSponsorDTO sponsorDTO)
         {
             return _sponsorService.CreateSponsorAsync(sponsorDTO);
         }
 
         [HttpPatch("{id}")]
-        public Task UpdateAsync(int id, [FromBody] UpdateSponsorDTO value)
+        public Task<GetSponsorDTO> UpdateAsync(int id, [FromForm] UpdateSponsorDTO value)
         {
             return _sponsorService.UpdateSponsorAsync(id, value);
         }

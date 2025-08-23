@@ -8,6 +8,6 @@ namespace MercuriusAPI.Services.LAN.SponsorServices
         Task DeleteSponsorAsync(int id);
         Task<GetSponsorDTO> GetSponsorByIdAsync(int id);
         IEnumerable<GetSponsorDTO> GetSponsors();
-        Task UpdateSponsorAsync(int id, UpdateSponsorDTO sponsorDTO);
+        Task<GetSponsorDTO> UpdateSponsorAsync(int id, UpdateSponsorDTO sponsorDTO);
     }
 }

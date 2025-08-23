@@ -26,16 +26,17 @@ namespace MercuriusAPI.Services.LAN.GameServices
 
         public async Task<GetGameDTO> CreateGameAsync(CreateGameDTO createGameDTO)
         {
-            if (await CheckIfGameNameExistsAsync(createGameDTO.Name))
+            if(await CheckIfGameNameExistsAsync(createGameDTO.Name))
                 throw new ValidationException($"Game {createGameDTO.Name} already created");
 
             var game = new Game(createGameDTO.Name, createGameDTO.BracketType, createGameDTO.Format, createGameDTO.FinalsFormat, createGameDTO.ParticipantType);
 
-            if (createGameDTO.Image != null)
-            {
-                var bannerPath = await _fileService.SaveImageAsync(createGameDTO.Image);
-                game.ImageUrl = bannerPath;
-            }
+            if(createGameDTO.Image == null)
+                throw new ValidationException("A game banner/ image is required.");
+
+            var bannerPath = await _fileService.SaveImageAsync(createGameDTO.Image);
+            game.ImageUrl = bannerPath;
+
 
             _dbContext.Games.Add(game);
             await _dbContext.SaveChangesAsync();
@@ -50,19 +51,19 @@ namespace MercuriusAPI.Services.LAN.GameServices
         }
 
         public IEnumerable<GetGameDTO> GetAllGames()
-        {           
+        {
             return _dbContext.Games.Include(g => g.Participants).Include(g => g.Matches).ToList().Select(g => new GetGameDTO(g));
         }
 
         public async Task<GetGameDTO> UpdateGameAsync(int id, UpdateGameDTO gameDTO)
         {
             var game = await GetGameByIdAsync(id);
-            if (await CheckIfGameNameExistsAsync(gameDTO.Name) && game.Name != gameDTO.Name)
+            if(await CheckIfGameNameExistsAsync(gameDTO.Name) && game.Name != gameDTO.Name)
                 throw new ValidationException($"Game {gameDTO.Name} already exists");
 
             game.Update(gameDTO.Name, gameDTO.BracketType, gameDTO.Format, gameDTO.FinalsFormat);
 
-            if (gameDTO.Image != null)
+            if(gameDTO.Image != null)
             {
                 var bannerPath = await _fileService.SaveImageAsync(gameDTO.Image);
                 game.ImageUrl = bannerPath;
@@ -97,7 +98,7 @@ namespace MercuriusAPI.Services.LAN.GameServices
             var matchGenerator = _matchGeneratorFactory.GetMatchModerator(game.BracketType);
             game.Matches = matchGenerator.GenerateMatchesForGame(game).ToList();
 
-            _dbContext.Games.Update(game);           
+            _dbContext.Games.Update(game);
             await _dbContext.SaveChangesAsync();
         }
 

@@ -34,11 +34,14 @@ namespace MercuriusAPI.Services.LAN.SponsorServices
             if(string.IsNullOrWhiteSpace(sponsorDTO.Name))
                 throw new ValidationException("Sponsor name cannot be empty");
 
+            if(sponsorDTO.Logo is null)
+                throw new ValidationException("A sponsor logo is required.");
+
             var logoUrl = await _fileService.SaveImageAsync(sponsorDTO.Logo);
             var sponsor = new Sponsor
             {
                 Name = sponsorDTO.Name,
-                SponsorTier = sponsorDTO.SponsorTier,
+                SponsorTier = (int)sponsorDTO.SponsorTier,
                 LogoUrl = logoUrl,
                 InfoUrl = sponsorDTO.InfoUrl
             };
@@ -47,7 +50,7 @@ namespace MercuriusAPI.Services.LAN.SponsorServices
             return new GetSponsorDTO(sponsor);
         }
 
-        public async Task UpdateSponsorAsync(int id, UpdateSponsorDTO sponsorDTO)
+        public async Task<GetSponsorDTO> UpdateSponsorAsync(int id, UpdateSponsorDTO sponsorDTO)
         {
             var sponsor = await _dbContext.Sponsors.FindAsync(id);
             if(sponsor is null)
@@ -61,9 +64,11 @@ namespace MercuriusAPI.Services.LAN.SponsorServices
                 sponsor.LogoUrl = logoUrl;
             }
             sponsor.InfoUrl = sponsorDTO.InfoUrl;
-            sponsor.SponsorTier = sponsorDTO.SponsorTier;
+            sponsor.SponsorTier = (int)sponsorDTO.SponsorTier; // Explicitly cast enum to int
             _dbContext.Sponsors.Update(sponsor);
             await _dbContext.SaveChangesAsync();
+
+            return new GetSponsorDTO(sponsor);
         }
 
         public Task DeleteSponsorAsync(int id)

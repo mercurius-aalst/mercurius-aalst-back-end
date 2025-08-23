@@ -9,6 +9,8 @@ using System.Text.Json.Serialization;
 using Imageflow.Server;
 using MercuriusAPI.Services.Files;
 using MercuriusAPI.Controllers.LAN;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
+using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
 
 namespace MercuriusAPI
 {
@@ -21,11 +23,7 @@ namespace MercuriusAPI
 
             builder.Services.AddDbContext<MercuriusDBContext>(options =>
                 options.UseNpgsql(builder.Configuration.GetConnectionString("MercuriusDB")));
-            builder.Services.AddControllers()
-                .AddJsonOptions(options =>
-            {
-                options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
-            });
+               
 
             builder.Services.ConfigureVersionedSwagger();
             builder.Services.AddServiceDependencies();
@@ -34,6 +32,9 @@ namespace MercuriusAPI
             {
                 options.EnableEndpointRouting = false;
                 options.Filters.Add<ExceptionFilter>();
+            }).AddJsonOptions(options =>
+            {
+                options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
             });
 
             // Add JWT authentication

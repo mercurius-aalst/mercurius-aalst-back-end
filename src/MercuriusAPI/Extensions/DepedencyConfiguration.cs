@@ -7,6 +7,7 @@ using MercuriusAPI.Services.LAN.MatchServices;
 using MercuriusAPI.Services.LAN.MatchServices.BracketTypes;
 using MercuriusAPI.Services.LAN.ParticipantServices;
 using MercuriusAPI.Services.LAN.PlayerServices;
+using MercuriusAPI.Services.LAN.SponsorServices;
 using MercuriusAPI.Services.LAN.TeamServices;
 using MercuriusAPI.Services.UserServices;
 using Microsoft.OpenApi.Models;
@@ -71,6 +72,7 @@ namespace MercuriusAPI.Extensions
             services.AddTransient<IGameService, GameService>();
             services.AddTransient<IMatchService, MatchService>();
             services.AddTransient<IParticipantService, ParticipantService>();
+            services.AddTransient<ISponsorService, SponsorService>();
 
             services.AddTransient<IUserService, UserService>();
             services.Decorate<IUserService, UserValidationService>();

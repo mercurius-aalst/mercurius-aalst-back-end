@@ -80,5 +80,33 @@ namespace MercuriusAPI.Models.LAN
             Participants.Clear();
             Placements.Clear();
         }
+
+        public void AddParticipant(Participant participant)
+        {     
+            var expectedType = GetParticipantType();
+            if(participant.GetType() != expectedType)
+                throw new ValidationException($"This game only accepts {nameof(expectedType)}s as participants.");
+            if(Status != GameStatus.Scheduled)
+                throw new ValidationException("Game must be scheduled for registrations.");
+            Participants.Add(participant);
+        }
+        public void RemoveParticipant(Participant participant)
+        {
+            if(Status != GameStatus.Scheduled)
+                throw new ValidationException("Game must be scheduled for participant changes");
+            if(!Participants.Any(p => p.Id == participant.Id))
+                throw new NotFoundException($"{nameof(Participant)} not found for game {Name}");
+            Participants.Remove(participant);
+        }
+
+        private Type GetParticipantType()
+        {
+            return ParticipantType switch
+            {
+                ParticipantType.Player => typeof(Player),
+                ParticipantType.Team => typeof(Team),
+                _ => typeof(Participant)
+            };
+        }
     }
 }

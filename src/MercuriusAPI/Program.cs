@@ -1,4 +1,4 @@
-using MercuriusAPI.Data;
+﻿using MercuriusAPI.Data;
 using MercuriusAPI.Exceptions;
 using MercuriusAPI.Extensions;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -8,6 +8,9 @@ using System.Text;
 using System.Text.Json.Serialization;
 using Imageflow.Server;
 using MercuriusAPI.Services.Files;
+using MercuriusAPI.Controllers.LAN;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
+using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
 
 namespace MercuriusAPI
 {
@@ -20,11 +23,7 @@ namespace MercuriusAPI
 
             builder.Services.AddDbContext<MercuriusDBContext>(options =>
                 options.UseNpgsql(builder.Configuration.GetConnectionString("MercuriusDB")));
-            builder.Services.AddControllers()
-                .AddJsonOptions(options =>
-            {
-                options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
-            });
+               
 
             builder.Services.ConfigureVersionedSwagger();
             builder.Services.AddServiceDependencies();
@@ -33,6 +32,9 @@ namespace MercuriusAPI
             {
                 options.EnableEndpointRouting = false;
                 options.Filters.Add<ExceptionFilter>();
+            }).AddJsonOptions(options =>
+            {
+                options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
             });
 
             // Add JWT authentication
@@ -70,6 +72,10 @@ namespace MercuriusAPI
             // Register FileService
             builder.Services.AddTransient<IFileService, FileService>();
 
+                        builder.Services.AddEndpointsApiExplorer();
+
+                        builder.Services.AddSwaggerGen();
+
             var app = builder.Build();
 
             // Apply pending migrations on startup
@@ -82,6 +88,12 @@ namespace MercuriusAPI
             app.UseSwagger();
             app.UseSwaggerUI();          
 
+                        if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+};
+
             app.UseHttpsRedirection();
 
             app.UseCors("AllowAll");
@@ -92,7 +104,6 @@ namespace MercuriusAPI
             // Add ImageFlow middleware to serve and optimize images
             var imgflowOptions = new ImageflowMiddlewareOptions
             {
-                MapWebRoot = true, // Map the wwwroot folder
                 AllowDiskCaching = true, // Enable disk caching
                 AllowCaching = true, // Enable stream caching
                 DefaultCacheControlString = "public, max-age=31536000" // Cache images for 1 year

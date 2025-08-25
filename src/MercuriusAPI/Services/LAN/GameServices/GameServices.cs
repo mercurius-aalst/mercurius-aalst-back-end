@@ -5,9 +5,7 @@ using MercuriusAPI.Exceptions;
 using MercuriusAPI.Models.LAN;
 using MercuriusAPI.Services.Files;
 using MercuriusAPI.Services.LAN.MatchServices;
-using Microsoft.AspNetCore.Http; // For IFormFile
 using Microsoft.EntityFrameworkCore;
-using System.IO; // For file handling
 
 namespace MercuriusAPI.Services.LAN.GameServices
 {
@@ -31,7 +29,7 @@ namespace MercuriusAPI.Services.LAN.GameServices
             if(createGameDTO.Image == null)
                 throw new ValidationException("A game banner/ image is required.");
 
-            var game = new Game(createGameDTO.Name, createGameDTO.BracketType, createGameDTO.Format, createGameDTO.FinalsFormat, createGameDTO.ParticipantType);
+            var game = new Game(createGameDTO.Name, createGameDTO.BracketType, createGameDTO.Format, createGameDTO.FinalsFormat, createGameDTO.ParticipantType, createGameDTO.RegisterFormUrl);
 
             var bannerPath = await _fileService.SaveImageAsync(createGameDTO.Image);
             game.ImageUrl = bannerPath;
@@ -60,7 +58,7 @@ namespace MercuriusAPI.Services.LAN.GameServices
             if(await CheckIfGameNameExistsAsync(gameDTO.Name) && game.Name != gameDTO.Name)
                 throw new ValidationException($"Game {gameDTO.Name} already exists");
 
-            game.Update(gameDTO.Name, gameDTO.BracketType, gameDTO.Format, gameDTO.FinalsFormat);
+            game.Update(gameDTO.Name, gameDTO.BracketType, gameDTO.Format, gameDTO.FinalsFormat, gameDTO.RegisterFormUrl);
 
             if(gameDTO.Image != null)
             {

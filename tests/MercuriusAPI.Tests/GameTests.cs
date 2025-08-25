@@ -10,15 +10,16 @@ namespace MercuriusAPI.Tests
             BracketType bracketType = BracketType.SingleElimination,
             GameFormat format = GameFormat.BestOf1,
             GameFormat finalsFormat = GameFormat.BestOf1,
-            ParticipantType participantType = ParticipantType.Player)
+            ParticipantType participantType = ParticipantType.Player,
+            string registerformUrl = "www.testurl.be")
         {
-            return new Game(name, bracketType, format, finalsFormat, participantType);
+            return new Game(name, bracketType, format, finalsFormat, participantType, registerformUrl);
         }
 
         [Fact]
         public void Constructor_SetsPropertiesCorrectly()
         {
-            var game = CreateGame("LAN", BracketType.RoundRobin, GameFormat.BestOf3, GameFormat.BestOf5, ParticipantType.Team);
+            var game = CreateGame("LAN", BracketType.RoundRobin, GameFormat.BestOf3, GameFormat.BestOf5, ParticipantType.Team, "www.testurl.be");
 
             Assert.Equal("LAN", game.Name);
             Assert.Equal(BracketType.RoundRobin, game.BracketType);
@@ -35,12 +36,13 @@ namespace MercuriusAPI.Tests
         public void Update_UpdatesProperties_WhenStatusIsScheduled()
         {
             var game = CreateGame();
-            game.Update("Updated", BracketType.DoubleElimination, GameFormat.BestOf3, GameFormat.BestOf5);
+            game.Update("Updated", BracketType.DoubleElimination, GameFormat.BestOf3, GameFormat.BestOf5, "www.newtesturl.be");
 
             Assert.Equal("Updated", game.Name);
             Assert.Equal(BracketType.DoubleElimination, game.BracketType);
             Assert.Equal(GameFormat.BestOf3, game.Format);
             Assert.Equal(GameFormat.BestOf5, game.FinalsFormat);
+            Assert.Equal("www.newtesturl.be", game.RegisterFormUrl);
         }
 
         [Theory]
@@ -52,7 +54,7 @@ namespace MercuriusAPI.Tests
             game.Status = status;
 
             Assert.Throws<ValidationException>(() =>
-                game.Update("New", BracketType.Swiss, GameFormat.BestOf1, GameFormat.BestOf3));
+                game.Update("New", BracketType.Swiss, GameFormat.BestOf1, GameFormat.BestOf3, "www.testurl.be"));
         }
 
         [Fact]

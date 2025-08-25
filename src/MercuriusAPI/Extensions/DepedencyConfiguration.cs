@@ -83,7 +83,6 @@ namespace MercuriusAPI.Extensions
                 new LoginAttemptService(5, TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(5)));
             services.AddSingleton<TokenService>();
 
-            // Decorator: AuthValidationService wraps AuthService
             services.AddTransient<IAuthService, AuthService>();
             services.Decorate<IAuthService, AuthValidationService>();
             

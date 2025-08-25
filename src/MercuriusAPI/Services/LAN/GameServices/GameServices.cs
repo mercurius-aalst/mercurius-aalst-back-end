@@ -28,11 +28,10 @@ namespace MercuriusAPI.Services.LAN.GameServices
         {
             if(await CheckIfGameNameExistsAsync(createGameDTO.Name))
                 throw new ValidationException($"Game {createGameDTO.Name} already created");
-
-            var game = new Game(createGameDTO.Name, createGameDTO.BracketType, createGameDTO.Format, createGameDTO.FinalsFormat, createGameDTO.ParticipantType);
-
             if(createGameDTO.Image == null)
                 throw new ValidationException("A game banner/ image is required.");
+
+            var game = new Game(createGameDTO.Name, createGameDTO.BracketType, createGameDTO.Format, createGameDTO.FinalsFormat, createGameDTO.ParticipantType);
 
             var bannerPath = await _fileService.SaveImageAsync(createGameDTO.Image);
             game.ImageUrl = bannerPath;
@@ -126,17 +125,7 @@ namespace MercuriusAPI.Services.LAN.GameServices
         public async Task<GetGameDTO> AddParticipantAsync(int id, Participant participant)
         {
             var game = await GetGameByIdAsync(id);
-            var expectedType = game.ParticipantType switch
-            {
-                ParticipantType.Player => typeof(Player),
-                ParticipantType.Team => typeof(Team),
-                _ => typeof(Participant)
-            };
-            if(participant.GetType() != expectedType)
-                throw new ValidationException($"This game only accepts {nameof(expectedType)}s as participants.");
-            if(game.Status != GameStatus.Scheduled)
-                throw new ValidationException("Game must be scheduled for registrations.");
-            game.Participants.Add(participant);
+            game.AddParticipant(participant);
             _dbContext.Games.Update(game);
             await _dbContext.SaveChangesAsync();
             return new GetGameDTO(game);
@@ -145,11 +134,7 @@ namespace MercuriusAPI.Services.LAN.GameServices
         public async Task<GetGameDTO> RemoveParticipantAsync(int id, Participant participant)
         {
             var game = await GetGameByIdAsync(id);
-            if(game.Status != GameStatus.Scheduled)
-                throw new ValidationException("Game must be scheduled for participant changes");
-            if(!game.Participants.Any(p => p.Id == participant.Id))
-                throw new NotFoundException($"{nameof(Participant)} not found for game {game.Name}");
-            game.Participants.Remove(participant);
+            game.RemoveParticipant(participant);
             _dbContext.Games.Update(game);
             await _dbContext.SaveChangesAsync();
             return new GetGameDTO(game);

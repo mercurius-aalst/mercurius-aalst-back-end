@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.0](https://github.com/mercurius-aalst/mercurius-aalst-back-end/compare/backend-v0.4.0...backend-v0.5.0) (2025-08-25)
+
+
+### Features
+
+* image support ([#31](https://github.com/mercurius-aalst/mercurius-aalst-back-end/issues/31)) ([edf9f78](https://github.com/mercurius-aalst/mercurius-aalst-back-end/commit/edf9f788ced2cb003c055073247b8dfa1c7347a8))
+* Sponsors ([#34](https://github.com/mercurius-aalst/mercurius-aalst-back-end/issues/34)) ([0b2e621](https://github.com/mercurius-aalst/mercurius-aalst-back-end/commit/0b2e62199ff3e33c5416470a0631d258cd0e64fc))
+
 ## [0.4.0](https://github.com/mercurius-aalst/mercurius-aalst-back-end/compare/backend-v0.3.0...backend-v0.4.0) (2025-08-13)
 
 

@@ -10,5 +10,6 @@ namespace MercuriusAPI.DTOs.LAN.GameDTOs
         public GameFormat FinalsFormat { get; set; }
         public ParticipantType ParticipantType { get; set; }
         public IFormFile Image { get; set; }
+        public string RegisterFormUrl { get; set; }
     }
 }

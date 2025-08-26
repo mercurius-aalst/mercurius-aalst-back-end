@@ -23,7 +23,7 @@ namespace MercuriusAPI
 
             builder.Services.AddDbContext<MercuriusDBContext>(options =>
                 options.UseNpgsql(builder.Configuration.GetConnectionString("MercuriusDB")));
-               
+
 
             builder.Services.ConfigureVersionedSwagger();
             builder.Services.AddServiceDependencies();
@@ -69,30 +69,29 @@ namespace MercuriusAPI
                 });
             });
 
-            // Register FileService
-            builder.Services.AddTransient<IFileService, FileService>();
 
-                        builder.Services.AddEndpointsApiExplorer();
+            builder.Services.AddEndpointsApiExplorer();
 
-                        builder.Services.AddSwaggerGen();
+            builder.Services.AddSwaggerGen();
 
             var app = builder.Build();
 
             // Apply pending migrations on startup
-            using (var scope = app.Services.CreateScope())
+            using(var scope = app.Services.CreateScope())
             {
                 var dbContext = scope.ServiceProvider.GetRequiredService<MercuriusDBContext>();
                 dbContext.Database.Migrate();
             }
 
             app.UseSwagger();
-            app.UseSwaggerUI();          
+            app.UseSwaggerUI();
 
-                        if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-};
+            if(app.Environment.IsDevelopment())
+            {
+                app.UseSwagger();
+                app.UseSwaggerUI();
+            }
+            ;
 
             app.UseHttpsRedirection();
 

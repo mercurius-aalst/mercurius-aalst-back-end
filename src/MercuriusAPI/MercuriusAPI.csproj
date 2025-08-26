@@ -39,8 +39,4 @@
 		<PackageReference Include="Swashbuckle.AspNetCore" Version="8.1.2" />
 		<PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.13.0" />
 	</ItemGroup>
-
-	<ItemGroup>
-	  <Folder Include="Services\Files\" />
-	</ItemGroup>
 </Project>

@@ -1,4 +1,5 @@
 using Imageflow.Fluent;
+using MercuriusAPI.Exceptions;
 
 namespace MercuriusAPI.Services.Files
 {
@@ -12,7 +13,7 @@ namespace MercuriusAPI.Services.Files
             _configuration = configuration;
         }
         public async Task<string> SaveImageAsync(IFormFile image)
-        {
+        {            
             var folderPath = _configuration["FileStorage:Location"];
             if (!Directory.Exists(folderPath))
             {
@@ -24,10 +25,6 @@ namespace MercuriusAPI.Services.Files
 
             using (var inputStream = image.OpenReadStream())
             {
-                if (inputStream.Length == 0)
-                {
-                    throw new InvalidOperationException("Uploaded file is empty.");
-                }
 
                 inputStream.Position = 0; // Reset stream position
 

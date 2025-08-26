@@ -3,6 +3,7 @@ using System;
 using MercuriusAPI.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MercuriusAPI.Migrations
 {
     [DbContext(typeof(MercuriusDBContext))]
-    partial class MercuriusDBContextModelSnapshot : ModelSnapshot
+    [Migration("20250826114900_AddAcademicSeasonToGame")]
+    partial class AddAcademicSeasonToGame
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -112,6 +115,10 @@ namespace MercuriusAPI.Migrations
 
                     b.Property<int>("ParticipantType")
                         .HasColumnType("integer");
+
+                    b.Property<string>("RegisterFormUrl")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.Property<DateTime>("StartTime")
                         .HasColumnType("timestamp with time zone");

@@ -11,7 +11,7 @@ namespace MercuriusAPI.Services.LAN.GameServices
         Task<IEnumerable<GetPlacementDTO>> CompleteGameAsync(int id);
         Task<GetGameDTO> CreateGameAsync(CreateGameDTO createGameDTO);
         Task DeleteGameAsync(int id);
-        IEnumerable<GetGameDTO> GetAllGames();
+        IEnumerable<GetGameDTO> GetAllGames(string? academicSeason);
         Task<Game> GetGameByIdAsync(int gameId);
         Task<GetGameDTO> RemoveParticipantAsync(int id, Participant participant);
         Task ResetGameAsync(int id);

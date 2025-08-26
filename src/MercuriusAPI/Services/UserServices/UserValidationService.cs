@@ -47,5 +47,10 @@ namespace MercuriusAPI.Services.UserServices
                 throw new ValidationException("New password must be different from the old password.");
             await _inner.ChangePasswordAsync(username, request);
         }
+
+        public Task<IEnumerable<GetUserDTO>> GetAllUsersAsync() => _inner.GetAllUsersAsync();
+        public Task<GetUserDTO> GetUserByIdAsync(int id) => _inner.GetUserByIdAsync(id);
+        public Task DeleteRoleFromUserAsync(string username, string roleName) => _inner.DeleteRoleFromUserAsync(username, roleName);
+        public Task SeedInitialUserAsync(IConfiguration configuration) => _inner.SeedInitialUserAsync(configuration);
     }
 }

@@ -1,16 +1,14 @@
-﻿using MercuriusAPI.Data;
+﻿using Imageflow.Server;
+using MercuriusAPI.Data;
 using MercuriusAPI.Exceptions;
 using MercuriusAPI.Extensions;
+using MercuriusAPI.Services.Files;
+using MercuriusAPI.Services.UserServices;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using System.Text.Json.Serialization;
-using Imageflow.Server;
-using MercuriusAPI.Services.Files;
-using MercuriusAPI.Controllers.LAN;
-using Microsoft.AspNetCore.Mvc.ModelBinding;
-using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
 
 namespace MercuriusAPI
 {
@@ -19,7 +17,8 @@ namespace MercuriusAPI
         public static void Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
-            builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
+            builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+                                 .AddEnvironmentVariables("MercuriusApp_");
 
             builder.Services.AddDbContext<MercuriusDBContext>(options =>
                 options.UseNpgsql(builder.Configuration.GetConnectionString("MercuriusDB")));
@@ -83,6 +82,9 @@ namespace MercuriusAPI
             {
                 var dbContext = scope.ServiceProvider.GetRequiredService<MercuriusDBContext>();
                 dbContext.Database.Migrate();
+                // Seed initial user
+                var userService = scope.ServiceProvider.GetRequiredService<IUserService>();
+                userService.SeedInitialUserAsync(app.Configuration).GetAwaiter().GetResult();
             }
 
             app.UseSwagger();

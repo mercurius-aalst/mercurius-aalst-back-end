@@ -2,6 +2,7 @@
 using MercuriusAPI.Services.Auth;
 using MercuriusAPI.Services.Auth.Login;
 using MercuriusAPI.Services.Auth.Token;
+using MercuriusAPI.Services.Files;
 using MercuriusAPI.Services.LAN.GameServices;
 using MercuriusAPI.Services.LAN.MatchServices;
 using MercuriusAPI.Services.LAN.MatchServices.BracketTypes;
@@ -76,6 +77,9 @@ namespace MercuriusAPI.Extensions
 
             services.AddTransient<IUserService, UserService>();
             services.Decorate<IUserService, UserValidationService>();
+
+            services.AddTransient<IFileService, FileService>();
+            services.Decorate<IFileService, FileValidationService>();
 
             services.AddSingleton<ITokenService, TokenService>();
 

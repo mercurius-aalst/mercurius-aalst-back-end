@@ -22,7 +22,7 @@ namespace MercuriusAPI
 
             builder.Services.AddDbContext<MercuriusDBContext>(options =>
                 options.UseNpgsql(builder.Configuration.GetConnectionString("MercuriusDB")));
-               
+
 
             builder.Services.ConfigureVersionedSwagger();
             builder.Services.AddServiceDependencies();
@@ -53,32 +53,33 @@ namespace MercuriusAPI
                     ValidateIssuerSigningKey = true,
                     ValidIssuer = jwtSettings["Issuer"],
                     ValidAudience = jwtSettings["Audience"],
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings["Key"]))
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings["Key"]!))
                 };
             });
 
-            // Add CORS policy to allow all origins
+            // Add CORS policy to allow mercurius-aalst.be and its subdomains
             builder.Services.AddCors(options =>
             {
-                options.AddPolicy("AllowAll", builder =>
+                options.AddPolicy("AllowMercuriusAalst", policy =>
                 {
-                    builder.AllowAnyOrigin()
-                           .AllowAnyMethod()
-                           .AllowAnyHeader();
+                    policy.WithOrigins("https://*.mercurius-aalst.be")
+                .SetIsOriginAllowedToAllowWildcardSubdomains()
+                    .AllowAnyHeader()
+                    .AllowAnyMethod();
                 });
             });
 
             // Register FileService
             builder.Services.AddTransient<IFileService, FileService>();
 
-                        builder.Services.AddEndpointsApiExplorer();
+            builder.Services.AddEndpointsApiExplorer();
 
-                        builder.Services.AddSwaggerGen();
+            builder.Services.AddSwaggerGen();
 
             var app = builder.Build();
-
+            app.UseCors("AllowMercuriusAalst");
             // Apply pending migrations on startup
-            using (var scope = app.Services.CreateScope())
+            using(var scope = app.Services.CreateScope())
             {
                 var dbContext = scope.ServiceProvider.GetRequiredService<MercuriusDBContext>();
                 dbContext.Database.Migrate();
@@ -87,21 +88,16 @@ namespace MercuriusAPI
                 userService.SeedInitialUserAsync(app.Configuration).GetAwaiter().GetResult();
             }
 
-            app.UseSwagger();
-            app.UseSwaggerUI();          
 
-                        if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-};
+            if(app.Environment.IsDevelopment())
+            {
+                app.UseSwagger();
+                app.UseSwaggerUI();
+            }
+            ;
 
             app.UseHttpsRedirection();
 
-            app.UseCors("AllowAll");
-
-            app.UseAuthentication();
-            app.UseAuthorization();
 
             // Add ImageFlow middleware to serve and optimize images
             var imgflowOptions = new ImageflowMiddlewareOptions
@@ -113,6 +109,11 @@ namespace MercuriusAPI
 
             app.UseImageflow(imgflowOptions);
             app.UseStaticFiles();
+           
+
+            app.UseAuthentication();
+            app.UseAuthorization();
+
 
             app.MapControllers();
 

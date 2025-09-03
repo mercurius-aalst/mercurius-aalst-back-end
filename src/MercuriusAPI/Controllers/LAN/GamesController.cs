@@ -27,9 +27,9 @@ namespace MercuriusAPI.Controllers.LAN
         /// <returns>A list of all games.</returns>
         [HttpGet]
         [AllowAnonymous]
-        public IEnumerable<GetGameDTO> GetGames()
+        public IEnumerable<GetGameDTO> GetGames(string? academicSeason)
         {
-            return _gameService.GetAllGames();
+            return _gameService.GetAllGames(academicSeason);
         }
 
         /// <summary>

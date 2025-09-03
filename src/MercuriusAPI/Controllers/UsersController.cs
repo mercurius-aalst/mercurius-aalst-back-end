@@ -25,11 +25,27 @@ namespace MercuriusAPI.Controllers
         }
 
         /// <summary>
+        /// Gets a user by their unique ID.
+        /// </summary>
+        /// <param name="id">The unique identifier of the user.</param>
+        /// <returns>The user details.</returns>
+        [HttpGet("{id}")]
+        public Task<GetUserDTO> GetUserByIdAsync(int id)
+            => _userService.GetUserByIdAsync(id);
+
+        /// <summary>
+        /// Gets all users in the system.
+        /// </summary>
+        /// <returns>A list of all users.</returns>
+        [HttpGet]
+        public Task<IEnumerable<GetUserDTO>> GetAllUsersAsync()
+            => _userService.GetAllUsersAsync();
+        /// <summary>
         /// Deletes a user by username.
         /// </summary>
         /// <param name="username">The username of the user to delete.</param>
         [HttpDelete("{username}")]
-        public Task DeleteUser(string username)
+        public Task DeleteUserAsync(string username)
             => _userService.DeleteUserAsync(username);
 
         /// <summary>
@@ -38,9 +54,13 @@ namespace MercuriusAPI.Controllers
         /// <param name="username">The username of the user.</param>
         /// <param name="request">The request containing the role name.</param>
         [HttpPost("{username}/roles")]
-        public Task AddRoleToUser([FromRoute] string username, [FromBody] AddUserRoleRequest request)
+        public Task AddRoleToUserAsync([FromRoute] string username, [FromBody] AddUserRoleRequest request)
             => _userService.AddRoleToUserAsync(username, request);
 
+
+        [HttpDelete("{username}/roles/{role}")]
+        public Task DeleteRoleFromUserAsync([FromRoute] string username, [FromRoute] string role)
+            => _userService.DeleteRoleFromUserAsync(username, role);
         /// <summary>
         /// Changes the password of a user.
         /// </summary>

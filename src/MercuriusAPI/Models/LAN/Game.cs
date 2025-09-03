@@ -1,4 +1,5 @@
 ﻿using MercuriusAPI.Exceptions;
+using MercuriusAPI.Services.LAN.GameServices;
 
 namespace MercuriusAPI.Models.LAN
 {
@@ -6,6 +7,7 @@ namespace MercuriusAPI.Models.LAN
     {
         public int Id { get; set; }
         public string Name { get; set; }
+        public string AcademicSeason { get; set; }
         public DateTime StartTime { get; set; }
         public DateTime EndTime { get; set; }
         public GameStatus Status { get; set; }
@@ -25,6 +27,7 @@ namespace MercuriusAPI.Models.LAN
         public Game(string name, BracketType bracketType, GameFormat format, GameFormat finalsFormat, ParticipantType participantType, string registerFormUrl)
         {
             Name = name;
+            AcademicSeason = AcademicSeasonHelper.GetCurrent();
             BracketType = bracketType;
             Format = format;
             FinalsFormat = finalsFormat;
@@ -33,6 +36,9 @@ namespace MercuriusAPI.Models.LAN
             RegisterFormUrl = registerFormUrl;
             Placements = new List<Placement>();
         }
+
+       
+
         public Game()
         {
         }

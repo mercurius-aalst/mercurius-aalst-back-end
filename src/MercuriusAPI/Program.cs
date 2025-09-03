@@ -18,7 +18,7 @@ namespace MercuriusAPI
         {
             var builder = WebApplication.CreateBuilder(args);
             builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
-                                 .AddEnvironmentVariables("MercuriusApp_");
+                                 .AddEnvironmentVariables("MercuriusApi_");
 
             builder.Services.AddDbContext<MercuriusDBContext>(options =>
                 options.UseNpgsql(builder.Configuration.GetConnectionString("MercuriusDB")));

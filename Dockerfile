@@ -3,6 +3,11 @@ FROM mcr.microsoft.com/dotnet/sdk:8.0-azurelinux3.0 AS build
 
 # Arguments
 ARG BUILD_CONFIGURATION=Release
+ARG InitialUser__Password
+ARG InitialUser__Role
+ARG InitialUser__Username
+ARG Jwt__Key
+ARG ConnectionStrings__MercuriusDB
 
 # Workdir
 WORKDIR /src
@@ -29,4 +34,9 @@ RUN dotnet publish \
 FROM mcr.microsoft.com/dotnet/aspnet:8.0-azurelinux3.0-distroless AS run
 WORKDIR /app
 COPY --from=build /app/publish .
+ENV InitialUser__Password=${InitialUser__Password}
+ENV InitialUser__Role=${InitialUser__Role}
+ENV InitialUser__Username=${InitialUser__Username}
+ENV Jwt__Key=${Jwt__Key}
+ENV ConnectionStrings__MercuriusDB=${ConnectionStrings__MercuriusDB}
 ENTRYPOINT ["dotnet", "MercuriusAPI.dll"]

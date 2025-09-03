@@ -21,6 +21,7 @@ namespace MercuriusAPI.DTOs.LAN.GameDTOs
         public ParticipantType ParticipantType { get; set; }
         public string? ImageUrl { get; set; }
 
+        public string RegisterFormUrl { get; set; }
         public IEnumerable<GetPlacementDTO> Placements { get; set; } = [];
 
         public IEnumerable<GetMatchDTO> Matches { get; set; } = [];
@@ -38,6 +39,7 @@ namespace MercuriusAPI.DTOs.LAN.GameDTOs
             Format = game.Format;
             FinalsFormat = game.FinalsFormat;
             ImageUrl = game.ImageUrl;
+            RegisterFormUrl = game.RegisterFormUrl;
             ParticipantType = game.ParticipantType;
             Placements = game.Placements.Select(p => new GetPlacementDTO(p, game.ParticipantType));
             Matches = game.Matches.Select(m => new GetMatchDTO(m));

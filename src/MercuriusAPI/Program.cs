@@ -69,8 +69,6 @@ namespace MercuriusAPI
                 });
             });
 
-            // Register FileService
-            builder.Services.AddTransient<IFileService, FileService>();
 
             builder.Services.AddEndpointsApiExplorer();
 
@@ -88,13 +86,8 @@ namespace MercuriusAPI
                 userService.SeedInitialUserAsync(app.Configuration).GetAwaiter().GetResult();
             }
 
-
-            if(app.Environment.IsDevelopment())
-            {
-                app.UseSwagger();
-                app.UseSwaggerUI();
-            }
-            ;
+            app.UseSwagger();
+            app.UseSwaggerUI();
 
             app.UseHttpsRedirection();
 

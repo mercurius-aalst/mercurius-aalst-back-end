@@ -67,4 +67,9 @@ jobs:
             --registry ${{ vars.CONTAINER_REGISTRY }} \
             --image $IMAGE \
             --file ${{ env.DOCKERFILE_PATH }} \
+            --build-arg InitialUser__Password="${{ secrets.API_INITIALUSER_PASSWORD }}" \
+            --build-arg InitialUser__Role="${{ secrets.API_INITIALUSER_ROLE }}" \
+            --build-arg InitialUser__Username="${{ secrets.API_INITIALUSER_USERNAME }}" \
+            --build-arg Jwt__Key="${{ secrets.API_JWT_KEY }}" \
+            --build-arg ConnectionStrings__MercuriusDB="${{ secrets.API_CONNECTIONSTRINGS_MERCURIUSDB }}" \
             ${{ env.CONTEXT_PATH }}

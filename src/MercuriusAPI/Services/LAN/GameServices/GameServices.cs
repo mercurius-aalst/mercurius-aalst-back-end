@@ -24,7 +24,7 @@ namespace MercuriusAPI.Services.LAN.GameServices
 
         public async Task<GetGameDTO> CreateGameAsync(CreateGameDTO createGameDTO)
         {
-            if(await CheckIfGameNameExistsAsync(createGameDTO.Name))
+            if(await CheckIfGameNameExistsInCurrentSeasonAsync(createGameDTO.Name))
                 throw new ValidationException($"Game {createGameDTO.Name} already created");
             if(createGameDTO.Image == null)
                 throw new ValidationException("A game banner/ image is required.");
@@ -47,15 +47,17 @@ namespace MercuriusAPI.Services.LAN.GameServices
             return game;
         }
 
-        public IEnumerable<GetGameDTO> GetAllGames()
+        public IEnumerable<GetGameDTO> GetAllGames(string? academicSeason)
         {
-            return _dbContext.Games.Include(g => g.Participants).Include(g => g.Matches).ToList().Select(g => new GetGameDTO(g));
+            if(string.IsNullOrEmpty(academicSeason))
+                academicSeason = AcademicSeasonHelper.GetCurrent();
+            return _dbContext.Games.Where(g => g.AcademicSeason == academicSeason).Include(g => g.Participants).Include(g => g.Matches).ToList().Select(g => new GetGameDTO(g));
         }
 
         public async Task<GetGameDTO> UpdateGameAsync(int id, UpdateGameDTO gameDTO)
         {
             var game = await GetGameByIdAsync(id);
-            if(await CheckIfGameNameExistsAsync(gameDTO.Name) && game.Name != gameDTO.Name)
+            if(game.Name != gameDTO.Name && await CheckIfGameNameExistsInCurrentSeasonAsync(gameDTO.Name))
                 throw new ValidationException($"Game {gameDTO.Name} already exists");
 
             game.Update(gameDTO.Name, gameDTO.BracketType, gameDTO.Format, gameDTO.FinalsFormat, gameDTO.RegisterFormUrl);
@@ -138,9 +140,9 @@ namespace MercuriusAPI.Services.LAN.GameServices
             return new GetGameDTO(game);
         }
 
-        private async Task<bool> CheckIfGameNameExistsAsync(string name)
+        private async Task<bool> CheckIfGameNameExistsInCurrentSeasonAsync(string name)
         {
-            return await _dbContext.Games.AnyAsync(g => g.Name == name);
+            return await _dbContext.Games.AnyAsync(g => g.Name == name && g.AcademicSeason == AcademicSeasonHelper.GetCurrent());
         }
     }
 }

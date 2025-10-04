@@ -1,4 +1,5 @@
 using MercuriusAPI.DTOs.Auth;
+using Microsoft.Extensions.Configuration;
 
 namespace MercuriusAPI.Services.UserServices
 {
@@ -7,5 +8,9 @@ namespace MercuriusAPI.Services.UserServices
         Task DeleteUserAsync(string username);
         Task AddRoleToUserAsync(string username, AddUserRoleRequest request);
         Task ChangePasswordAsync(string username, ChangePasswordRequest newPassword);
+        Task<IEnumerable<GetUserDTO>> GetAllUsersAsync();
+        Task<GetUserDTO> GetUserByIdAsync(int id);
+        Task DeleteRoleFromUserAsync(string username, string roleName);
+        Task SeedInitialUserAsync(IConfiguration configuration);
     }
 }

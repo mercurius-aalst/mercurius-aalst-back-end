@@ -1,16 +1,14 @@
-﻿using MercuriusAPI.Data;
+﻿using Imageflow.Server;
+using MercuriusAPI.Data;
 using MercuriusAPI.Exceptions;
 using MercuriusAPI.Extensions;
+using MercuriusAPI.Services.Files;
+using MercuriusAPI.Services.UserServices;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using System.Text.Json.Serialization;
-using Imageflow.Server;
-using MercuriusAPI.Services.Files;
-using MercuriusAPI.Controllers.LAN;
-using Microsoft.AspNetCore.Mvc.ModelBinding;
-using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
 
 namespace MercuriusAPI
 {
@@ -19,7 +17,8 @@ namespace MercuriusAPI
         public static void Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
-            builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
+            builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+                                 .AddEnvironmentVariables("MercuriusApi_");
 
             builder.Services.AddDbContext<MercuriusDBContext>(options =>
                 options.UseNpgsql(builder.Configuration.GetConnectionString("MercuriusDB")));
@@ -54,18 +53,19 @@ namespace MercuriusAPI
                     ValidateIssuerSigningKey = true,
                     ValidIssuer = jwtSettings["Issuer"],
                     ValidAudience = jwtSettings["Audience"],
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings["Key"]))
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings["Key"]!))
                 };
             });
 
-            // Add CORS policy to allow all origins
+            // Add CORS policy to allow mercurius-aalst.be and its subdomains
             builder.Services.AddCors(options =>
             {
-                options.AddPolicy("AllowAll", builder =>
+                options.AddPolicy("AllowMercuriusAalst", policy =>
                 {
-                    builder.AllowAnyOrigin()
-                           .AllowAnyMethod()
-                           .AllowAnyHeader();
+                    policy.WithOrigins("https://*.mercurius-aalst.be")
+                .SetIsOriginAllowedToAllowWildcardSubdomains()
+                    .AllowAnyHeader()
+                    .AllowAnyMethod();
                 });
             });
 
@@ -75,30 +75,22 @@ namespace MercuriusAPI
             builder.Services.AddSwaggerGen();
 
             var app = builder.Build();
-
+            app.UseCors("AllowMercuriusAalst");
             // Apply pending migrations on startup
             using(var scope = app.Services.CreateScope())
             {
                 var dbContext = scope.ServiceProvider.GetRequiredService<MercuriusDBContext>();
                 dbContext.Database.Migrate();
+                // Seed initial user
+                var userService = scope.ServiceProvider.GetRequiredService<IUserService>();
+                userService.SeedInitialUserAsync(app.Configuration).GetAwaiter().GetResult();
             }
 
             app.UseSwagger();
             app.UseSwaggerUI();
 
-            if(app.Environment.IsDevelopment())
-            {
-                app.UseSwagger();
-                app.UseSwaggerUI();
-            }
-            ;
-
             app.UseHttpsRedirection();
 
-            app.UseCors("AllowAll");
-
-            app.UseAuthentication();
-            app.UseAuthorization();
 
             // Add ImageFlow middleware to serve and optimize images
             var imgflowOptions = new ImageflowMiddlewareOptions
@@ -110,6 +102,11 @@ namespace MercuriusAPI
 
             app.UseImageflow(imgflowOptions);
             app.UseStaticFiles();
+           
+
+            app.UseAuthentication();
+            app.UseAuthorization();
+
 
             app.MapControllers();
 

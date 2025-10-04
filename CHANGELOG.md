@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.5.0](https://github.com/mercurius-aalst/mercurius-aalst-back-end/compare/backend-v0.4.0...backend-v0.5.0) (2025-10-04)
+
+
+### Features
+
+* image support ([#31](https://github.com/mercurius-aalst/mercurius-aalst-back-end/issues/31)) ([edf9f78](https://github.com/mercurius-aalst/mercurius-aalst-back-end/commit/edf9f788ced2cb003c055073247b8dfa1c7347a8))
+* RegisterFormUrl on game ([#36](https://github.com/mercurius-aalst/mercurius-aalst-back-end/issues/36)) ([fe4407b](https://github.com/mercurius-aalst/mercurius-aalst-back-end/commit/fe4407ba2c0fd1b77b0218408574efe0cee3cec9))
+* Sponsors ([#34](https://github.com/mercurius-aalst/mercurius-aalst-back-end/issues/34)) ([0b2e621](https://github.com/mercurius-aalst/mercurius-aalst-back-end/commit/0b2e62199ff3e33c5416470a0631d258cd0e64fc))
+* various features and tweaks ([#39](https://github.com/mercurius-aalst/mercurius-aalst-back-end/issues/39)) ([cabdef9](https://github.com/mercurius-aalst/mercurius-aalst-back-end/commit/cabdef9c7ea55b581fc95cfdaadbb9f05cdf64cc))
+
 ## [0.4.0](https://github.com/mercurius-aalst/mercurius-aalst-back-end/compare/backend-v0.3.0...backend-v0.4.0) (2025-08-13)
 
 

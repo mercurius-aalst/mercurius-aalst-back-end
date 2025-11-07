@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace MercuriusAPI.Controllers.LAN
 {
     [Route("lan/[controller]")]
-    [Authorize]
+    [Authorize(Roles = "admin")]
     [ApiController]
     public class SponsorsController
     {

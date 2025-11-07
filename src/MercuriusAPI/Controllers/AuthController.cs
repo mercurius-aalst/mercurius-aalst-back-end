@@ -29,7 +29,7 @@ namespace MercuriusAPI.Controllers
         /// <param name="request">The registration request containing username and password.</param>
         /// <returns>Result of the registration operation.</returns>
         [HttpPost("register")]
-        [AllowAnonymous]
+        [Authorize(Roles = "admin")]
         public Task Register([FromBody] LoginRequest request)
             => _authService.RegisterAsync(request);
 

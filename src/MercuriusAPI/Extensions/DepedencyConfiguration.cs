@@ -11,6 +11,7 @@ using MercuriusAPI.Services.LAN.PlayerServices;
 using MercuriusAPI.Services.LAN.SponsorServices;
 using MercuriusAPI.Services.LAN.TeamServices;
 using MercuriusAPI.Services.UserServices;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.OpenApi.Models;
 using System.Reflection;
 
@@ -21,35 +22,7 @@ namespace MercuriusAPI.Extensions
         public static IServiceCollection ConfigureVersionedSwagger(this IServiceCollection services)
         {
             services.AddEndpointsApiExplorer();
-            services.AddSwaggerGen(c =>
-            {
-                c.IncludeXmlComments(Path.Combine(AppContext.BaseDirectory,
-                    $"{Assembly.GetExecutingAssembly().GetName().Name}.xml"));
-                
-                c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-                {
-                    Description = "JWT Authorization header using the Bearer scheme. Example: 'Bearer {token}'",
-                    Name = "Authorization",
-                    In = ParameterLocation.Header,
-                    Type = SecuritySchemeType.Http,
-                    Scheme = "bearer",
-                    BearerFormat = "JWT"
-                });
-                c.AddSecurityRequirement(new OpenApiSecurityRequirement
-                {
-                    {
-                        new OpenApiSecurityScheme
-                        {
-                            Reference = new OpenApiReference
-                            {
-                                Type = ReferenceType.SecurityScheme,
-                                Id = "Bearer"
-                            }
-                        },
-                        new string[] {}
-                    }
-                });
-            });
+
             services.AddApiVersioning(opt =>
             {
                 opt.DefaultApiVersion = new ApiVersion(1, 0);
@@ -65,7 +38,19 @@ namespace MercuriusAPI.Extensions
             services.ConfigureOptions<ConfigureSwaggerOptions>();
             return services;
         }
-
+        public static void UseSecuredSwaggerUI(this WebApplication app)
+        {
+            app.UseStaticFiles(new StaticFileOptions
+            {
+                FileProvider = new PhysicalFileProvider(Path.Combine(AppContext.BaseDirectory, "staticfiles")),
+                RequestPath = "/staticfiles"
+            })
+                .UseSwagger()
+                .UseSwaggerUI(options =>
+                {
+                    options.InjectJavascript("/staticfiles/swagger-custom.js");
+                });
+        }
         public static IServiceCollection AddServiceDependencies(this IServiceCollection services)
         {
             services.AddTransient<IPlayerService, PlayerService>();

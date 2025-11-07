@@ -2,7 +2,6 @@
 using MercuriusAPI.Data;
 using MercuriusAPI.Exceptions;
 using MercuriusAPI.Extensions;
-using MercuriusAPI.Services.Files;
 using MercuriusAPI.Services.UserServices;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -37,7 +36,6 @@ namespace MercuriusAPI
                 options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
             });
 
-            // Add JWT authentication
             var jwtSettings = builder.Configuration.GetSection("Jwt");
             builder.Services.AddAuthentication(options =>
             {
@@ -64,7 +62,6 @@ namespace MercuriusAPI
                 options.IncludeXMLComments = true;
                 options.UseEnumSchemaFilter = true;
             });
-            // Add CORS policy to allow mercurius-aalst.be and its subdomains
             builder.Services.AddCors(options =>
             {
                 options.AddPolicy("AllowMercuriusAalst", policy =>
@@ -78,12 +75,10 @@ namespace MercuriusAPI
 
             var app = builder.Build();
             app.UseCors("AllowMercuriusAalst");
-            // Apply pending migrations on startup
             using(var scope = app.Services.CreateScope())
             {
                 var dbContext = scope.ServiceProvider.GetRequiredService<MercuriusDBContext>();
                 dbContext.Database.Migrate();
-                // Seed initial user
                 var userService = scope.ServiceProvider.GetRequiredService<IUserService>();
                 userService.SeedInitialUserAsync(app.Configuration).GetAwaiter().GetResult();
             }
@@ -91,12 +86,11 @@ namespace MercuriusAPI
             app.UseHttpsRedirection();
 
 
-            // Add ImageFlow middleware to serve and optimize images
             var imgflowOptions = new ImageflowMiddlewareOptions
             {
-                AllowDiskCaching = true, // Enable disk caching
-                AllowCaching = true, // Enable stream caching
-                DefaultCacheControlString = "public, max-age=31536000" // Cache images for 1 year
+                AllowDiskCaching = true,
+                AllowCaching = true,
+                DefaultCacheControlString = "public, max-age=31536000"
             }.MapPath("/images", app.Configuration["FileStorage:Location"]);
 
             app.UseImageflow(imgflowOptions);

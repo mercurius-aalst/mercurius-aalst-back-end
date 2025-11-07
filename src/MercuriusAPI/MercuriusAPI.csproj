@@ -11,11 +11,11 @@
 		<NoWarn>CS1591;CS8602;CS8618</NoWarn>
 	</PropertyGroup>
 
+
 	<ItemGroup>
-	  <Compile Remove="wwwroot\**" />
-	  <Content Remove="wwwroot\**" />
-	  <EmbeddedResource Remove="wwwroot\**" />
-	  <None Remove="wwwroot\**" />
+	  <Content Include="staticfiles\swagger-custom.js">
+	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	  </Content>
 	</ItemGroup>
 
 	<ItemGroup>

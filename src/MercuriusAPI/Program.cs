@@ -25,6 +25,7 @@ namespace MercuriusAPI
 
 
             builder.Services.ConfigureVersionedSwagger();
+
             builder.Services.AddServiceDependencies();
 
             builder.Services.AddControllers(options =>
@@ -57,6 +58,12 @@ namespace MercuriusAPI
                 };
             });
 
+            var jwtBuilder = new JWTBuilder(builder);
+            jwtBuilder.AddJWTSecuredSwaggerGen(options =>
+            {
+                options.IncludeXMLComments = true;
+                options.UseEnumSchemaFilter = true;
+            });
             // Add CORS policy to allow mercurius-aalst.be and its subdomains
             builder.Services.AddCors(options =>
             {
@@ -69,11 +76,6 @@ namespace MercuriusAPI
                 });
             });
 
-
-            builder.Services.AddEndpointsApiExplorer();
-
-            builder.Services.AddSwaggerGen();
-
             var app = builder.Build();
             app.UseCors("AllowMercuriusAalst");
             // Apply pending migrations on startup
@@ -85,9 +87,6 @@ namespace MercuriusAPI
                 var userService = scope.ServiceProvider.GetRequiredService<IUserService>();
                 userService.SeedInitialUserAsync(app.Configuration).GetAwaiter().GetResult();
             }
-
-            app.UseSwagger();
-            app.UseSwaggerUI();
 
             app.UseHttpsRedirection();
 
@@ -107,6 +106,7 @@ namespace MercuriusAPI
             app.UseAuthentication();
             app.UseAuthorization();
 
+            app.UseSecuredSwaggerUI();
 
             app.MapControllers();
 

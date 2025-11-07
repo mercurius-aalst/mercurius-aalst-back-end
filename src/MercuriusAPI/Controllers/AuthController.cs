@@ -10,6 +10,7 @@ namespace MercuriusAPI.Controllers
     /// Handles authentication-related operations such as login and token refresh.
     /// </summary>
     [ApiController]
+    [Authorize]
     [Route("[controller]")]
     public class AuthController : ControllerBase
     {
@@ -29,7 +30,7 @@ namespace MercuriusAPI.Controllers
         /// <param name="request">The registration request containing username and password.</param>
         /// <returns>Result of the registration operation.</returns>
         [HttpPost("register")]
-        [AllowAnonymous]
+        [Authorize(Roles = "admin")]
         public Task Register([FromBody] LoginRequest request)
             => _authService.RegisterAsync(request);
 
@@ -49,7 +50,6 @@ namespace MercuriusAPI.Controllers
         /// <param name="request">The refresh token request.</param>
         /// <returns>New JWT and refresh token if the refresh token is valid.</returns>
         [HttpPost("refresh")]
-        [AllowAnonymous]
         public Task<AuthTokenResponse> Refresh([FromBody] RefreshTokenRequest request)
             => _authService.RefreshTokenAsync(request);
 

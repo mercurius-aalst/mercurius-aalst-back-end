@@ -11,6 +11,7 @@ using MercuriusAPI.Services.LAN.PlayerServices;
 using MercuriusAPI.Services.LAN.SponsorServices;
 using MercuriusAPI.Services.LAN.TeamServices;
 using MercuriusAPI.Services.UserServices;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.OpenApi.Models;
 using System.Reflection;
 
@@ -74,27 +75,71 @@ public static class DepedencyConfiguration
         services.AddTransient<IMatchService, MatchService>();
         services.AddTransient<IParticipantService, ParticipantService>();
         services.AddTransient<ISponsorService, SponsorService>();
+namespace MercuriusAPI.Extensions
+{
+    public static class DepedencyConfiguration
+    {
+        public static IServiceCollection ConfigureVersionedSwagger(this IServiceCollection services)
+        {
+            services.AddEndpointsApiExplorer();
 
-        services.AddTransient<IUserService, UserService>();
-        services.Decorate<IUserService, UserValidationService>();
+            services.AddApiVersioning(opt =>
+            {
+                opt.DefaultApiVersion = new ApiVersion(1, 0);
+                opt.AssumeDefaultVersionWhenUnspecified = true;
+                opt.ReportApiVersions = true;
+                opt.ApiVersionReader = ApiVersionReader.Combine(new UrlSegmentApiVersionReader());
+            });
+            services.AddApiVersioning().AddApiExplorer(setup =>
+            {
+                setup.GroupNameFormat = "'v'VVV";
+                setup.SubstituteApiVersionInUrl = true;
+            });
+            services.ConfigureOptions<ConfigureSwaggerOptions>();
+            return services;
+        }
+        public static void UseSecuredSwaggerUI(this WebApplication app)
+        {
+            app.UseStaticFiles(new StaticFileOptions
+            {
+                FileProvider = new PhysicalFileProvider(Path.Combine(AppContext.BaseDirectory, "staticfiles")),
+                RequestPath = "/staticfiles"
+            })
+                .UseSwagger()
+                .UseSwaggerUI(options =>
+                {
+                    options.InjectJavascript("/staticfiles/swagger-custom.js");
+                });
+        }
+        public static IServiceCollection AddServiceDependencies(this IServiceCollection services)
+        {
+            services.AddTransient<IPlayerService, PlayerService>();
+            services.AddTransient<ITeamService, TeamService>();
+            services.AddTransient<IGameService, GameService>();
+            services.AddTransient<IMatchService, MatchService>();
+            services.AddTransient<IParticipantService, ParticipantService>();
+            services.AddTransient<ISponsorService, SponsorService>();
 
-        services.AddTransient<IFileService, FileService>();
-        services.Decorate<IFileService, FileValidationService>();
+            services.AddTransient<IUserService, UserService>();
+            services.Decorate<IUserService, UserValidationService>();
 
-        services.AddSingleton<ITokenService, TokenService>();
+            services.AddTransient<IFileService, FileService>();
+            services.Decorate<IFileService, FileValidationService>();
 
-        services.AddSingleton<ILoginAttemptService>(provider =>
-            new LoginAttemptService(5, TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(5)));
-        services.AddSingleton<TokenService>();
+            services.AddSingleton<ITokenService, TokenService>();
 
-        services.AddTransient<IAuthService, AuthService>();
-        services.Decorate<IAuthService, AuthValidationService>();
+            services.AddSingleton<ILoginAttemptService>(provider =>
+                new LoginAttemptService(5, TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(5)));
+            services.AddSingleton<TokenService>();
 
-        services.AddTransient<IMatchModeratorFactory, MatchModeratorFactory>();
-        services.AddTransient<SingleEliminationMatchModerator>();
-        services.AddTransient<DoubleEliminationMatchModerator>();
-        services.AddTransient<SwissStageMatchModerator>();
-        services.AddTransient<RoundRobinMatchModerator>();
-        return services;
+            services.AddTransient<IAuthService, AuthService>();
+            services.Decorate<IAuthService, AuthValidationService>();
+
+            services.AddTransient<IMatchModeratorFactory, MatchModeratorFactory>();
+            services.AddTransient<SingleEliminationMatchModerator>();
+            services.AddTransient<DoubleEliminationMatchModerator>();
+            services.AddTransient<SwissStageMatchModerator>();
+            services.AddTransient<RoundRobinMatchModerator>();
+            return services;
+        }
     }
-}

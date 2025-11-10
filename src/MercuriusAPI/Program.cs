@@ -56,7 +56,12 @@ public class Program
             };
         });
 
-        // Add CORS policy to allow mercurius-aalst.be and its subdomains
+        var jwtBuilder = new JWTBuilder(builder);
+        jwtBuilder.AddJWTSecuredSwaggerGen(options =>
+        {
+            options.IncludeXMLComments = true;
+            options.UseEnumSchemaFilter = true;
+        });
         builder.Services.AddCors(options =>
         {
             options.AddPolicy("AllowMercuriusAalst", policy =>
@@ -106,6 +111,7 @@ public class Program
         app.UseAuthentication();
         app.UseAuthorization();
 
+        app.UseSecuredSwaggerUI();
 
         app.MapControllers();
 

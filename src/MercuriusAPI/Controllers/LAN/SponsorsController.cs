@@ -51,3 +51,4 @@ namespace MercuriusAPI.Controllers.LAN
             return _sponsorService.DeleteSponsorAsync(id);
         }
     }
+}

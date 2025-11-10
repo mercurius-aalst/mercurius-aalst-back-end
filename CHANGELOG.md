@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/mercurius-aalst/mercurius-aalst-back-end/compare/backend-v0.5.0...backend-v0.5.1) (2025-11-10)
+
+
+### Bug Fixes
+
+* clean up unused references ([#43](https://github.com/mercurius-aalst/mercurius-aalst-back-end/issues/43)) ([e3eee1c](https://github.com/mercurius-aalst/mercurius-aalst-back-end/commit/e3eee1c91f6f9583029692116b2c9dfff492462e))
+
 ## [0.5.0](https://github.com/mercurius-aalst/mercurius-aalst-back-end/compare/backend-v0.4.0...backend-v0.5.0) (2025-10-04)
 
 

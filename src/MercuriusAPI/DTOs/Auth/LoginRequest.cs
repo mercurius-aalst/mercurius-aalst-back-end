@@ -1,8 +1,7 @@
-namespace MercuriusAPI.DTOs.Auth
+namespace MercuriusAPI.DTOs.Auth;
+
+public class LoginRequest
 {
-    public class LoginRequest
-    {
-        public string Username { get; set; }
-        public string Password { get; set; }
-    }
+    public string Username { get; set; }
+    public string Password { get; set; }
 }

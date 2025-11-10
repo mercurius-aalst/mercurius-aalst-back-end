@@ -1,9 +1,8 @@
-﻿namespace MercuriusAPI.Models.LAN
+﻿namespace MercuriusAPI.Models.LAN;
+
+public enum GameFormat
 {
-    public enum GameFormat
-    {
-        BestOf1 = 0,
-        BestOf3 = 1,
-        BestOf5 = 2
-    }
+    BestOf1 = 0,
+    BestOf3 = 1,
+    BestOf5 = 2
 }

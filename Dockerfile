@@ -1,5 +1,5 @@
 # Build Stage
-FROM mcr.microsoft.com/dotnet/sdk:8.0-azurelinux3.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:8.0.415-azurelinux3.0 AS build
 
 # Arguments
 ARG BUILD_CONFIGURATION=Release
@@ -26,7 +26,7 @@ RUN dotnet publish \
     --output /app/publish
 
 # Run Stage
-FROM mcr.microsoft.com/dotnet/aspnet:8.0-azurelinux3.0-distroless AS run
+FROM mcr.microsoft.com/dotnet/aspnet:8.0.21-azurelinux3.0-distroless AS run
 WORKDIR /app
 COPY --from=build /app/publish .
 ENTRYPOINT ["dotnet", "MercuriusAPI.dll"]

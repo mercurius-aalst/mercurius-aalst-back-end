@@ -2,21 +2,20 @@
 
 #nullable disable
 
-namespace MercuriusAPI.Migrations
+namespace MercuriusAPI.Migrations;
+
+/// <inheritdoc />
+public partial class UpdateTableStructureToTPT : Migration
 {
     /// <inheritdoc />
-    public partial class UpdateTableStructureToTPT : Migration
+    protected override void Up(MigrationBuilder migrationBuilder)
     {
-        /// <inheritdoc />
-        protected override void Up(MigrationBuilder migrationBuilder)
-        {
 
-        }
+    }
 
-        /// <inheritdoc />
-        protected override void Down(MigrationBuilder migrationBuilder)
-        {
+    /// <inheritdoc />
+    protected override void Down(MigrationBuilder migrationBuilder)
+    {
 
-        }
     }
 }

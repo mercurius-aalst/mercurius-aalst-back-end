@@ -1,10 +1,9 @@
-﻿namespace MercuriusAPI.Exceptions
+﻿namespace MercuriusAPI.Exceptions;
+
+public class ValidationException : Exception
 {
-    public class ValidationException: Exception
+    public ValidationException(string message) : base(message)
     {
-        public ValidationException(string message): base(message)
-        {
-            
-        }
+
     }
 }

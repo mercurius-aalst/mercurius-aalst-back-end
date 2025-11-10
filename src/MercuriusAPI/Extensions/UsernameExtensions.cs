@@ -1,22 +1,19 @@
-using System.Text.RegularExpressions;
+namespace MercuriusAPI.Extensions;
 
-namespace MercuriusAPI.Extensions
+public static class UsernameExtensions
 {
-    public static class UsernameExtensions
+    public static string Normalize(this string username)
     {
-        public static string Normalize(this string username)
-        {
-            if (string.IsNullOrWhiteSpace(username))
-                throw new ArgumentException("Username cannot be null or empty.", nameof(username));
+        if (string.IsNullOrWhiteSpace(username))
+            throw new ArgumentException("Username cannot be null or empty.", nameof(username));
 
-            // Convert to lowercase and trim whitespace
-            username = username.ToLowerInvariant().Trim();
+        // Convert to lowercase and trim whitespace
+        username = username.ToLowerInvariant().Trim();
 
-            // Optionally, remove unwanted characters (e.g., special characters)
-            // Uncomment the following line if needed:
-            // username = Regex.Replace(username, "[^a-z0-9]", "");
+        // Optionally, remove unwanted characters (e.g., special characters)
+        // Uncomment the following line if needed:
+        // username = Regex.Replace(username, "[^a-z0-9]", "");
 
-            return username;
-        }
+        return username;
     }
 }

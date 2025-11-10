@@ -9,444 +9,443 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace MercuriusAPI.Migrations
+namespace MercuriusAPI.Migrations;
+
+[DbContext(typeof(MercuriusDBContext))]
+[Migration("20250805094205_FixTypeInMatchParticipant1Id")]
+partial class FixTypeInMatchParticipant1Id
 {
-    [DbContext(typeof(MercuriusDBContext))]
-    [Migration("20250805094205_FixTypeInMatchParticipant1Id")]
-    partial class FixTypeInMatchParticipant1Id
+    /// <inheritdoc />
+    protected override void BuildTargetModel(ModelBuilder modelBuilder)
     {
-        /// <inheritdoc />
-        protected override void BuildTargetModel(ModelBuilder modelBuilder)
-        {
 #pragma warning disable 612, 618
-            modelBuilder
-                .HasAnnotation("ProductVersion", "9.0.5")
-                .HasAnnotation("Relational:MaxIdentifierLength", 63);
+        modelBuilder
+            .HasAnnotation("ProductVersion", "9.0.5")
+            .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
-            NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
+        NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("GameParticipant", b =>
-                {
-                    b.Property<int>("GamesId")
-                        .HasColumnType("integer");
+        modelBuilder.Entity("GameParticipant", b =>
+            {
+                b.Property<int>("GamesId")
+                    .HasColumnType("integer");
 
-                    b.Property<int>("ParticipantsId")
-                        .HasColumnType("integer");
+                b.Property<int>("ParticipantsId")
+                    .HasColumnType("integer");
 
-                    b.HasKey("GamesId", "ParticipantsId");
+                b.HasKey("GamesId", "ParticipantsId");
 
-                    b.HasIndex("ParticipantsId");
+                b.HasIndex("ParticipantsId");
 
-                    b.ToTable("GameParticipant");
-                });
+                b.ToTable("GameParticipant");
+            });
 
-            modelBuilder.Entity("MercuriusAPI.Models.LAN.Game", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
+        modelBuilder.Entity("MercuriusAPI.Models.LAN.Game", b =>
+            {
+                b.Property<int>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("integer");
 
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+                NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
-                    b.Property<int>("BracketType")
-                        .HasColumnType("integer");
+                b.Property<int>("BracketType")
+                    .HasColumnType("integer");
 
-                    b.Property<DateTime>("EndTime")
-                        .HasColumnType("timestamp with time zone");
+                b.Property<DateTime>("EndTime")
+                    .HasColumnType("timestamp with time zone");
 
-                    b.Property<int>("FinalsFormat")
-                        .HasColumnType("integer");
+                b.Property<int>("FinalsFormat")
+                    .HasColumnType("integer");
 
-                    b.Property<int>("Format")
-                        .HasColumnType("integer");
+                b.Property<int>("Format")
+                    .HasColumnType("integer");
 
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("text");
+                b.Property<string>("Name")
+                    .IsRequired()
+                    .HasColumnType("text");
 
-                    b.Property<int>("ParticipantType")
-                        .HasColumnType("integer");
+                b.Property<int>("ParticipantType")
+                    .HasColumnType("integer");
 
-                    b.Property<DateTime>("StartTime")
-                        .HasColumnType("timestamp with time zone");
+                b.Property<DateTime>("StartTime")
+                    .HasColumnType("timestamp with time zone");
 
-                    b.Property<int>("Status")
-                        .HasColumnType("integer");
+                b.Property<int>("Status")
+                    .HasColumnType("integer");
 
-                    b.HasKey("Id");
+                b.HasKey("Id");
 
-                    b.ToTable("Games");
-                });
+                b.ToTable("Games");
+            });
 
-            modelBuilder.Entity("MercuriusAPI.Models.LAN.Match", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
+        modelBuilder.Entity("MercuriusAPI.Models.LAN.Match", b =>
+            {
+                b.Property<int>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("integer");
 
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+                NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
-                    b.Property<int>("BracketType")
-                        .HasColumnType("integer");
+                b.Property<int>("BracketType")
+                    .HasColumnType("integer");
 
-                    b.Property<DateTime>("EndTime")
-                        .HasColumnType("timestamp with time zone");
+                b.Property<DateTime>("EndTime")
+                    .HasColumnType("timestamp with time zone");
 
-                    b.Property<int>("Format")
-                        .HasColumnType("integer");
+                b.Property<int>("Format")
+                    .HasColumnType("integer");
 
-                    b.Property<int>("GameId")
-                        .HasColumnType("integer");
+                b.Property<int>("GameId")
+                    .HasColumnType("integer");
 
-                    b.Property<bool>("IsLowerBracketMatch")
-                        .HasColumnType("boolean");
+                b.Property<bool>("IsLowerBracketMatch")
+                    .HasColumnType("boolean");
 
-                    b.Property<int?>("LoserId")
-                        .HasColumnType("integer");
+                b.Property<int?>("LoserId")
+                    .HasColumnType("integer");
 
-                    b.Property<int?>("LoserNextMatchId")
-                        .HasColumnType("integer");
+                b.Property<int?>("LoserNextMatchId")
+                    .HasColumnType("integer");
 
-                    b.Property<int>("MatchNumber")
-                        .HasColumnType("integer");
+                b.Property<int>("MatchNumber")
+                    .HasColumnType("integer");
 
-                    b.Property<int?>("Participant1Id")
-                        .HasColumnType("integer");
+                b.Property<int?>("Participant1Id")
+                    .HasColumnType("integer");
 
-                    b.Property<int?>("Participant1Score")
-                        .HasColumnType("integer");
+                b.Property<int?>("Participant1Score")
+                    .HasColumnType("integer");
 
-                    b.Property<int?>("Participant2Id")
-                        .HasColumnType("integer");
+                b.Property<int?>("Participant2Id")
+                    .HasColumnType("integer");
 
-                    b.Property<int?>("Participant2Score")
-                        .HasColumnType("integer");
+                b.Property<int?>("Participant2Score")
+                    .HasColumnType("integer");
 
-                    b.Property<int>("ParticipantType")
-                        .HasColumnType("integer");
+                b.Property<int>("ParticipantType")
+                    .HasColumnType("integer");
 
-                    b.Property<int>("RoundNumber")
-                        .HasColumnType("integer");
+                b.Property<int>("RoundNumber")
+                    .HasColumnType("integer");
 
-                    b.Property<DateTime>("StartTime")
-                        .HasColumnType("timestamp with time zone");
+                b.Property<DateTime>("StartTime")
+                    .HasColumnType("timestamp with time zone");
 
-                    b.Property<int?>("WinnerId")
-                        .HasColumnType("integer");
+                b.Property<int?>("WinnerId")
+                    .HasColumnType("integer");
 
-                    b.Property<int?>("WinnerNextMatchId")
-                        .HasColumnType("integer");
+                b.Property<int?>("WinnerNextMatchId")
+                    .HasColumnType("integer");
 
-                    b.HasKey("Id");
+                b.HasKey("Id");
 
-                    b.HasIndex("GameId");
+                b.HasIndex("GameId");
 
-                    b.HasIndex("LoserId");
+                b.HasIndex("LoserId");
 
-                    b.HasIndex("LoserNextMatchId");
+                b.HasIndex("LoserNextMatchId");
 
-                    b.HasIndex("Participant1Id");
+                b.HasIndex("Participant1Id");
 
-                    b.HasIndex("Participant2Id");
+                b.HasIndex("Participant2Id");
 
-                    b.HasIndex("WinnerId");
+                b.HasIndex("WinnerId");
 
-                    b.HasIndex("WinnerNextMatchId");
+                b.HasIndex("WinnerNextMatchId");
 
-                    b.ToTable("Matches");
-                });
+                b.ToTable("Matches");
+            });
 
-            modelBuilder.Entity("MercuriusAPI.Models.LAN.Participant", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
+        modelBuilder.Entity("MercuriusAPI.Models.LAN.Participant", b =>
+            {
+                b.Property<int>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("integer");
 
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+                NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
-                    b.Property<int?>("PlacementId")
-                        .HasColumnType("integer");
+                b.Property<int?>("PlacementId")
+                    .HasColumnType("integer");
 
-                    b.HasKey("Id");
+                b.HasKey("Id");
 
-                    b.HasIndex("PlacementId");
+                b.HasIndex("PlacementId");
 
-                    b.ToTable("Participants");
+                b.ToTable("Participants");
 
-                    b.UseTptMappingStrategy();
-                });
+                b.UseTptMappingStrategy();
+            });
 
-            modelBuilder.Entity("MercuriusAPI.Models.LAN.Placement", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
+        modelBuilder.Entity("MercuriusAPI.Models.LAN.Placement", b =>
+            {
+                b.Property<int>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("integer");
 
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+                NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
-                    b.Property<int>("GameId")
-                        .HasColumnType("integer");
+                b.Property<int>("GameId")
+                    .HasColumnType("integer");
 
-                    b.Property<int>("Place")
-                        .HasColumnType("integer");
+                b.Property<int>("Place")
+                    .HasColumnType("integer");
 
-                    b.HasKey("Id");
+                b.HasKey("Id");
 
-                    b.HasIndex("GameId");
+                b.HasIndex("GameId");
 
-                    b.ToTable("Placement");
-                });
+                b.ToTable("Placement");
+            });
 
-            modelBuilder.Entity("MercuriusAPI.Models.LAN.TeamInvite", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
+        modelBuilder.Entity("MercuriusAPI.Models.LAN.TeamInvite", b =>
+            {
+                b.Property<int>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("integer");
 
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+                NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                b.Property<DateTime>("CreatedAt")
+                    .HasColumnType("timestamp with time zone");
 
-                    b.Property<int>("PlayerId")
-                        .HasColumnType("integer");
+                b.Property<int>("PlayerId")
+                    .HasColumnType("integer");
 
-                    b.Property<DateTime?>("RespondedAt")
-                        .HasColumnType("timestamp with time zone");
+                b.Property<DateTime?>("RespondedAt")
+                    .HasColumnType("timestamp with time zone");
 
-                    b.Property<int>("Status")
-                        .HasColumnType("integer");
+                b.Property<int>("Status")
+                    .HasColumnType("integer");
 
-                    b.Property<int>("TeamId")
-                        .HasColumnType("integer");
+                b.Property<int>("TeamId")
+                    .HasColumnType("integer");
 
-                    b.HasKey("Id");
+                b.HasKey("Id");
 
-                    b.HasIndex("PlayerId");
+                b.HasIndex("PlayerId");
 
-                    b.HasIndex("TeamId");
+                b.HasIndex("TeamId");
 
-                    b.ToTable("TeamInvites");
-                });
+                b.ToTable("TeamInvites");
+            });
 
-            modelBuilder.Entity("PlayerTeam", b =>
-                {
-                    b.Property<int>("PlayersId")
-                        .HasColumnType("integer");
+        modelBuilder.Entity("PlayerTeam", b =>
+            {
+                b.Property<int>("PlayersId")
+                    .HasColumnType("integer");
 
-                    b.Property<int>("TeamsId")
-                        .HasColumnType("integer");
+                b.Property<int>("TeamsId")
+                    .HasColumnType("integer");
 
-                    b.HasKey("PlayersId", "TeamsId");
+                b.HasKey("PlayersId", "TeamsId");
 
-                    b.HasIndex("TeamsId");
+                b.HasIndex("TeamsId");
 
-                    b.ToTable("PlayerTeam");
-                });
+                b.ToTable("PlayerTeam");
+            });
 
-            modelBuilder.Entity("MercuriusAPI.Models.LAN.Player", b =>
-                {
-                    b.HasBaseType("MercuriusAPI.Models.LAN.Participant");
+        modelBuilder.Entity("MercuriusAPI.Models.LAN.Player", b =>
+            {
+                b.HasBaseType("MercuriusAPI.Models.LAN.Participant");
 
-                    b.Property<string>("DiscordId")
-                        .HasColumnType("text");
+                b.Property<string>("DiscordId")
+                    .HasColumnType("text");
 
-                    b.Property<string>("Email")
-                        .IsRequired()
-                        .HasColumnType("text");
+                b.Property<string>("Email")
+                    .IsRequired()
+                    .HasColumnType("text");
 
-                    b.Property<string>("Firstname")
-                        .IsRequired()
-                        .HasColumnType("text");
+                b.Property<string>("Firstname")
+                    .IsRequired()
+                    .HasColumnType("text");
 
-                    b.Property<string>("Lastname")
-                        .IsRequired()
-                        .HasColumnType("text");
+                b.Property<string>("Lastname")
+                    .IsRequired()
+                    .HasColumnType("text");
 
-                    b.Property<string>("RiotId")
-                        .HasColumnType("text");
+                b.Property<string>("RiotId")
+                    .HasColumnType("text");
 
-                    b.Property<string>("SteamId")
-                        .HasColumnType("text");
+                b.Property<string>("SteamId")
+                    .HasColumnType("text");
 
-                    b.Property<string>("Username")
-                        .IsRequired()
-                        .HasColumnType("text");
+                b.Property<string>("Username")
+                    .IsRequired()
+                    .HasColumnType("text");
 
-                    b.ToTable("Players");
-                });
+                b.ToTable("Players");
+            });
 
-            modelBuilder.Entity("MercuriusAPI.Models.LAN.Team", b =>
-                {
-                    b.HasBaseType("MercuriusAPI.Models.LAN.Participant");
+        modelBuilder.Entity("MercuriusAPI.Models.LAN.Team", b =>
+            {
+                b.HasBaseType("MercuriusAPI.Models.LAN.Participant");
 
-                    b.Property<int>("CaptainId")
-                        .HasColumnType("integer");
+                b.Property<int>("CaptainId")
+                    .HasColumnType("integer");
 
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("text");
+                b.Property<string>("Name")
+                    .IsRequired()
+                    .HasColumnType("text");
 
-                    b.HasIndex("CaptainId");
+                b.HasIndex("CaptainId");
 
-                    b.ToTable("Teams");
-                });
+                b.ToTable("Teams");
+            });
 
-            modelBuilder.Entity("GameParticipant", b =>
-                {
-                    b.HasOne("MercuriusAPI.Models.LAN.Game", null)
-                        .WithMany()
-                        .HasForeignKey("GamesId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+        modelBuilder.Entity("GameParticipant", b =>
+            {
+                b.HasOne("MercuriusAPI.Models.LAN.Game", null)
+                    .WithMany()
+                    .HasForeignKey("GamesId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
 
-                    b.HasOne("MercuriusAPI.Models.LAN.Participant", null)
-                        .WithMany()
-                        .HasForeignKey("ParticipantsId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
+                b.HasOne("MercuriusAPI.Models.LAN.Participant", null)
+                    .WithMany()
+                    .HasForeignKey("ParticipantsId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
+            });
 
-            modelBuilder.Entity("MercuriusAPI.Models.LAN.Match", b =>
-                {
-                    b.HasOne("MercuriusAPI.Models.LAN.Game", "Game")
-                        .WithMany("Matches")
-                        .HasForeignKey("GameId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+        modelBuilder.Entity("MercuriusAPI.Models.LAN.Match", b =>
+            {
+                b.HasOne("MercuriusAPI.Models.LAN.Game", "Game")
+                    .WithMany("Matches")
+                    .HasForeignKey("GameId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
 
-                    b.HasOne("MercuriusAPI.Models.LAN.Participant", "Loser")
-                        .WithMany()
-                        .HasForeignKey("LoserId");
+                b.HasOne("MercuriusAPI.Models.LAN.Participant", "Loser")
+                    .WithMany()
+                    .HasForeignKey("LoserId");
 
-                    b.HasOne("MercuriusAPI.Models.LAN.Match", "LoserNextMatch")
-                        .WithMany()
-                        .HasForeignKey("LoserNextMatchId");
+                b.HasOne("MercuriusAPI.Models.LAN.Match", "LoserNextMatch")
+                    .WithMany()
+                    .HasForeignKey("LoserNextMatchId");
 
-                    b.HasOne("MercuriusAPI.Models.LAN.Participant", "Participant1")
-                        .WithMany()
-                        .HasForeignKey("Participant1Id");
+                b.HasOne("MercuriusAPI.Models.LAN.Participant", "Participant1")
+                    .WithMany()
+                    .HasForeignKey("Participant1Id");
 
-                    b.HasOne("MercuriusAPI.Models.LAN.Participant", "Participant2")
-                        .WithMany()
-                        .HasForeignKey("Participant2Id");
+                b.HasOne("MercuriusAPI.Models.LAN.Participant", "Participant2")
+                    .WithMany()
+                    .HasForeignKey("Participant2Id");
 
-                    b.HasOne("MercuriusAPI.Models.LAN.Participant", "Winner")
-                        .WithMany()
-                        .HasForeignKey("WinnerId");
+                b.HasOne("MercuriusAPI.Models.LAN.Participant", "Winner")
+                    .WithMany()
+                    .HasForeignKey("WinnerId");
 
-                    b.HasOne("MercuriusAPI.Models.LAN.Match", "WinnerNextMatch")
-                        .WithMany()
-                        .HasForeignKey("WinnerNextMatchId");
+                b.HasOne("MercuriusAPI.Models.LAN.Match", "WinnerNextMatch")
+                    .WithMany()
+                    .HasForeignKey("WinnerNextMatchId");
 
-                    b.Navigation("Game");
+                b.Navigation("Game");
 
-                    b.Navigation("Loser");
+                b.Navigation("Loser");
 
-                    b.Navigation("LoserNextMatch");
+                b.Navigation("LoserNextMatch");
 
-                    b.Navigation("Participant1");
+                b.Navigation("Participant1");
 
-                    b.Navigation("Participant2");
+                b.Navigation("Participant2");
 
-                    b.Navigation("Winner");
+                b.Navigation("Winner");
 
-                    b.Navigation("WinnerNextMatch");
-                });
+                b.Navigation("WinnerNextMatch");
+            });
 
-            modelBuilder.Entity("MercuriusAPI.Models.LAN.Participant", b =>
-                {
-                    b.HasOne("MercuriusAPI.Models.LAN.Placement", null)
-                        .WithMany("Participants")
-                        .HasForeignKey("PlacementId");
-                });
+        modelBuilder.Entity("MercuriusAPI.Models.LAN.Participant", b =>
+            {
+                b.HasOne("MercuriusAPI.Models.LAN.Placement", null)
+                    .WithMany("Participants")
+                    .HasForeignKey("PlacementId");
+            });
 
-            modelBuilder.Entity("MercuriusAPI.Models.LAN.Placement", b =>
-                {
-                    b.HasOne("MercuriusAPI.Models.LAN.Game", null)
-                        .WithMany("Placements")
-                        .HasForeignKey("GameId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
+        modelBuilder.Entity("MercuriusAPI.Models.LAN.Placement", b =>
+            {
+                b.HasOne("MercuriusAPI.Models.LAN.Game", null)
+                    .WithMany("Placements")
+                    .HasForeignKey("GameId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
+            });
 
-            modelBuilder.Entity("MercuriusAPI.Models.LAN.TeamInvite", b =>
-                {
-                    b.HasOne("MercuriusAPI.Models.LAN.Player", "Player")
-                        .WithMany()
-                        .HasForeignKey("PlayerId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+        modelBuilder.Entity("MercuriusAPI.Models.LAN.TeamInvite", b =>
+            {
+                b.HasOne("MercuriusAPI.Models.LAN.Player", "Player")
+                    .WithMany()
+                    .HasForeignKey("PlayerId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
 
-                    b.HasOne("MercuriusAPI.Models.LAN.Team", "Team")
-                        .WithMany("TeamInvites")
-                        .HasForeignKey("TeamId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                b.HasOne("MercuriusAPI.Models.LAN.Team", "Team")
+                    .WithMany("TeamInvites")
+                    .HasForeignKey("TeamId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
 
-                    b.Navigation("Player");
+                b.Navigation("Player");
 
-                    b.Navigation("Team");
-                });
+                b.Navigation("Team");
+            });
 
-            modelBuilder.Entity("PlayerTeam", b =>
-                {
-                    b.HasOne("MercuriusAPI.Models.LAN.Player", null)
-                        .WithMany()
-                        .HasForeignKey("PlayersId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+        modelBuilder.Entity("PlayerTeam", b =>
+            {
+                b.HasOne("MercuriusAPI.Models.LAN.Player", null)
+                    .WithMany()
+                    .HasForeignKey("PlayersId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
 
-                    b.HasOne("MercuriusAPI.Models.LAN.Team", null)
-                        .WithMany()
-                        .HasForeignKey("TeamsId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
+                b.HasOne("MercuriusAPI.Models.LAN.Team", null)
+                    .WithMany()
+                    .HasForeignKey("TeamsId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
+            });
 
-            modelBuilder.Entity("MercuriusAPI.Models.LAN.Player", b =>
-                {
-                    b.HasOne("MercuriusAPI.Models.LAN.Participant", null)
-                        .WithOne()
-                        .HasForeignKey("MercuriusAPI.Models.LAN.Player", "Id")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
+        modelBuilder.Entity("MercuriusAPI.Models.LAN.Player", b =>
+            {
+                b.HasOne("MercuriusAPI.Models.LAN.Participant", null)
+                    .WithOne()
+                    .HasForeignKey("MercuriusAPI.Models.LAN.Player", "Id")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
+            });
 
-            modelBuilder.Entity("MercuriusAPI.Models.LAN.Team", b =>
-                {
-                    b.HasOne("MercuriusAPI.Models.LAN.Player", "Captain")
-                        .WithMany()
-                        .HasForeignKey("CaptainId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+        modelBuilder.Entity("MercuriusAPI.Models.LAN.Team", b =>
+            {
+                b.HasOne("MercuriusAPI.Models.LAN.Player", "Captain")
+                    .WithMany()
+                    .HasForeignKey("CaptainId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
 
-                    b.HasOne("MercuriusAPI.Models.LAN.Participant", null)
-                        .WithOne()
-                        .HasForeignKey("MercuriusAPI.Models.LAN.Team", "Id")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                b.HasOne("MercuriusAPI.Models.LAN.Participant", null)
+                    .WithOne()
+                    .HasForeignKey("MercuriusAPI.Models.LAN.Team", "Id")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
 
-                    b.Navigation("Captain");
-                });
+                b.Navigation("Captain");
+            });
 
-            modelBuilder.Entity("MercuriusAPI.Models.LAN.Game", b =>
-                {
-                    b.Navigation("Matches");
+        modelBuilder.Entity("MercuriusAPI.Models.LAN.Game", b =>
+            {
+                b.Navigation("Matches");
 
-                    b.Navigation("Placements");
-                });
+                b.Navigation("Placements");
+            });
 
-            modelBuilder.Entity("MercuriusAPI.Models.LAN.Placement", b =>
-                {
-                    b.Navigation("Participants");
-                });
+        modelBuilder.Entity("MercuriusAPI.Models.LAN.Placement", b =>
+            {
+                b.Navigation("Participants");
+            });
 
-            modelBuilder.Entity("MercuriusAPI.Models.LAN.Team", b =>
-                {
-                    b.Navigation("TeamInvites");
-                });
+        modelBuilder.Entity("MercuriusAPI.Models.LAN.Team", b =>
+            {
+                b.Navigation("TeamInvites");
+            });
 #pragma warning restore 612, 618
-        }
     }
 }

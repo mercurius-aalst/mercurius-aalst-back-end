@@ -2,28 +2,27 @@
 
 #nullable disable
 
-namespace MercuriusAPI.Migrations
+namespace MercuriusAPI.Migrations;
+
+/// <inheritdoc />
+public partial class RemoveIsRevokedFromRefreshToken : Migration
 {
     /// <inheritdoc />
-    public partial class RemoveIsRevokedFromRefreshToken : Migration
+    protected override void Up(MigrationBuilder migrationBuilder)
     {
-        /// <inheritdoc />
-        protected override void Up(MigrationBuilder migrationBuilder)
-        {
-            migrationBuilder.DropColumn(
-                name: "IsRevoked",
-                table: "RefreshTokens");
-        }
+        migrationBuilder.DropColumn(
+            name: "IsRevoked",
+            table: "RefreshTokens");
+    }
 
-        /// <inheritdoc />
-        protected override void Down(MigrationBuilder migrationBuilder)
-        {
-            migrationBuilder.AddColumn<bool>(
-                name: "IsRevoked",
-                table: "RefreshTokens",
-                type: "boolean",
-                nullable: false,
-                defaultValue: false);
-        }
+    /// <inheritdoc />
+    protected override void Down(MigrationBuilder migrationBuilder)
+    {
+        migrationBuilder.AddColumn<bool>(
+            name: "IsRevoked",
+            table: "RefreshTokens",
+            type: "boolean",
+            nullable: false,
+            defaultValue: false);
     }
 }

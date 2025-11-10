@@ -1,7 +1,7 @@
 using MercuriusAPI.Models.LAN;
-using Xunit;
 
 namespace MercuriusAPI.Tests;
+
 public class PlayerTests
 {
     [Fact]
@@ -27,7 +27,7 @@ public class PlayerTests
     {
         var player = new Player("user", "OldFirst", "OldLast", "email@test.com", null, null, null);
 
-        player.Update(player.Firstname, player.Lastname,player.Username, string.Empty, string.Empty, string.Empty);
+        player.Update(player.Firstname, player.Lastname, player.Username, string.Empty, string.Empty, string.Empty);
 
         Assert.Equal(string.Empty, player.DiscordId);
         Assert.Equal(string.Empty, player.SteamId);

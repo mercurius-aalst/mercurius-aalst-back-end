@@ -2,28 +2,27 @@
 
 #nullable disable
 
-namespace MercuriusAPI.Migrations
+namespace MercuriusAPI.Migrations;
+
+/// <inheritdoc />
+public partial class AddContainsBYEToMatch : Migration
 {
     /// <inheritdoc />
-    public partial class AddContainsBYEToMatch : Migration
+    protected override void Up(MigrationBuilder migrationBuilder)
     {
-        /// <inheritdoc />
-        protected override void Up(MigrationBuilder migrationBuilder)
-        {
-            migrationBuilder.AddColumn<bool>(
-                name: "ContainsBYE",
-                table: "Matches",
-                type: "boolean",
-                nullable: false,
-                defaultValue: false);
-        }
+        migrationBuilder.AddColumn<bool>(
+            name: "ContainsBYE",
+            table: "Matches",
+            type: "boolean",
+            nullable: false,
+            defaultValue: false);
+    }
 
-        /// <inheritdoc />
-        protected override void Down(MigrationBuilder migrationBuilder)
-        {
-            migrationBuilder.DropColumn(
-                name: "ContainsBYE",
-                table: "Matches");
-        }
+    /// <inheritdoc />
+    protected override void Down(MigrationBuilder migrationBuilder)
+    {
+        migrationBuilder.DropColumn(
+            name: "ContainsBYE",
+            table: "Matches");
     }
 }

@@ -1,7 +1,6 @@
-namespace MercuriusAPI.DTOs.Auth
+namespace MercuriusAPI.DTOs.Auth;
+
+public class AddUserRoleRequest
 {
-    public class AddUserRoleRequest
-    {
-        public string RoleName { get; set; }
-    }
+    public string RoleName { get; set; }
 }

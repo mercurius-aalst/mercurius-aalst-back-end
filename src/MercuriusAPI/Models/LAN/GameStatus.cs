@@ -1,10 +1,9 @@
-﻿namespace MercuriusAPI.Models.LAN
+﻿namespace MercuriusAPI.Models.LAN;
+
+public enum GameStatus
 {
-    public enum GameStatus
-    {
-        Scheduled = 0,
-        InProgress = 1,
-        Completed = 2,
-        Canceled = 3
-    }
+    Scheduled = 0,
+    InProgress = 1,
+    Completed = 2,
+    Canceled = 3
 }

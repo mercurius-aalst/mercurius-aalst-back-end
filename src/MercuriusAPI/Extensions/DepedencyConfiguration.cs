@@ -14,88 +14,87 @@ using MercuriusAPI.Services.UserServices;
 using Microsoft.OpenApi.Models;
 using System.Reflection;
 
-namespace MercuriusAPI.Extensions
+namespace MercuriusAPI.Extensions;
+
+public static class DepedencyConfiguration
 {
-    public static class DepedencyConfiguration
+    public static IServiceCollection ConfigureVersionedSwagger(this IServiceCollection services)
     {
-        public static IServiceCollection ConfigureVersionedSwagger(this IServiceCollection services)
+        services.AddEndpointsApiExplorer();
+        services.AddSwaggerGen(c =>
         {
-            services.AddEndpointsApiExplorer();
-            services.AddSwaggerGen(c =>
+            c.IncludeXmlComments(Path.Combine(AppContext.BaseDirectory,
+                $"{Assembly.GetExecutingAssembly().GetName().Name}.xml"));
+
+            c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
             {
-                c.IncludeXmlComments(Path.Combine(AppContext.BaseDirectory,
-                    $"{Assembly.GetExecutingAssembly().GetName().Name}.xml"));
-                
-                c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+                Description = "JWT Authorization header using the Bearer scheme. Example: 'Bearer {token}'",
+                Name = "Authorization",
+                In = ParameterLocation.Header,
+                Type = SecuritySchemeType.Http,
+                Scheme = "bearer",
+                BearerFormat = "JWT"
+            });
+            c.AddSecurityRequirement(new OpenApiSecurityRequirement
+            {
                 {
-                    Description = "JWT Authorization header using the Bearer scheme. Example: 'Bearer {token}'",
-                    Name = "Authorization",
-                    In = ParameterLocation.Header,
-                    Type = SecuritySchemeType.Http,
-                    Scheme = "bearer",
-                    BearerFormat = "JWT"
-                });
-                c.AddSecurityRequirement(new OpenApiSecurityRequirement
-                {
+                    new OpenApiSecurityScheme
                     {
-                        new OpenApiSecurityScheme
+                        Reference = new OpenApiReference
                         {
-                            Reference = new OpenApiReference
-                            {
-                                Type = ReferenceType.SecurityScheme,
-                                Id = "Bearer"
-                            }
-                        },
-                        new string[] {}
-                    }
-                });
+                            Type = ReferenceType.SecurityScheme,
+                            Id = "Bearer"
+                        }
+                    },
+                    new string[] {}
+                }
             });
-            services.AddApiVersioning(opt =>
-            {
-                opt.DefaultApiVersion = new ApiVersion(1, 0);
-                opt.AssumeDefaultVersionWhenUnspecified = true;
-                opt.ReportApiVersions = true;
-                opt.ApiVersionReader = ApiVersionReader.Combine(new UrlSegmentApiVersionReader());
-            });
-            services.AddApiVersioning().AddApiExplorer(setup =>
-            {
-                setup.GroupNameFormat = "'v'VVV";
-                setup.SubstituteApiVersionInUrl = true;
-            });
-            services.ConfigureOptions<ConfigureSwaggerOptions>();
-            return services;
-        }
-
-        public static IServiceCollection AddServiceDependencies(this IServiceCollection services)
+        });
+        services.AddApiVersioning(opt =>
         {
-            services.AddTransient<IPlayerService, PlayerService>();
-            services.AddTransient<ITeamService, TeamService>();
-            services.AddTransient<IGameService, GameService>();
-            services.AddTransient<IMatchService, MatchService>();
-            services.AddTransient<IParticipantService, ParticipantService>();
-            services.AddTransient<ISponsorService, SponsorService>();
+            opt.DefaultApiVersion = new ApiVersion(1, 0);
+            opt.AssumeDefaultVersionWhenUnspecified = true;
+            opt.ReportApiVersions = true;
+            opt.ApiVersionReader = ApiVersionReader.Combine(new UrlSegmentApiVersionReader());
+        });
+        services.AddApiVersioning().AddApiExplorer(setup =>
+        {
+            setup.GroupNameFormat = "'v'VVV";
+            setup.SubstituteApiVersionInUrl = true;
+        });
+        services.ConfigureOptions<ConfigureSwaggerOptions>();
+        return services;
+    }
 
-            services.AddTransient<IUserService, UserService>();
-            services.Decorate<IUserService, UserValidationService>();
+    public static IServiceCollection AddServiceDependencies(this IServiceCollection services)
+    {
+        services.AddTransient<IPlayerService, PlayerService>();
+        services.AddTransient<ITeamService, TeamService>();
+        services.AddTransient<IGameService, GameService>();
+        services.AddTransient<IMatchService, MatchService>();
+        services.AddTransient<IParticipantService, ParticipantService>();
+        services.AddTransient<ISponsorService, SponsorService>();
 
-            services.AddTransient<IFileService, FileService>();
-            services.Decorate<IFileService, FileValidationService>();
+        services.AddTransient<IUserService, UserService>();
+        services.Decorate<IUserService, UserValidationService>();
 
-            services.AddSingleton<ITokenService, TokenService>();
+        services.AddTransient<IFileService, FileService>();
+        services.Decorate<IFileService, FileValidationService>();
 
-            services.AddSingleton<ILoginAttemptService>(provider =>
-                new LoginAttemptService(5, TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(5)));
-            services.AddSingleton<TokenService>();
+        services.AddSingleton<ITokenService, TokenService>();
 
-            services.AddTransient<IAuthService, AuthService>();
-            services.Decorate<IAuthService, AuthValidationService>();
-            
-            services.AddTransient<IMatchModeratorFactory, MatchModeratorFactory>();
-            services.AddTransient<SingleEliminationMatchModerator>();
-            services.AddTransient<DoubleEliminationMatchModerator>();
-            services.AddTransient<SwissStageMatchModerator>();
-            services.AddTransient<RoundRobinMatchModerator>();
-            return services;
-        }
+        services.AddSingleton<ILoginAttemptService>(provider =>
+            new LoginAttemptService(5, TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(5)));
+        services.AddSingleton<TokenService>();
+
+        services.AddTransient<IAuthService, AuthService>();
+        services.Decorate<IAuthService, AuthValidationService>();
+
+        services.AddTransient<IMatchModeratorFactory, MatchModeratorFactory>();
+        services.AddTransient<SingleEliminationMatchModerator>();
+        services.AddTransient<DoubleEliminationMatchModerator>();
+        services.AddTransient<SwissStageMatchModerator>();
+        services.AddTransient<RoundRobinMatchModerator>();
+        return services;
     }
 }

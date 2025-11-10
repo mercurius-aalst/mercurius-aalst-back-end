@@ -1,8 +1,7 @@
-﻿namespace MercuriusAPI.DTOs.LAN.TeamDTOs
+﻿namespace MercuriusAPI.DTOs.LAN.TeamDTOs;
+
+public class UpdateTeamDTO
 {
-    public class UpdateTeamDTO
-    {
-        public string Name { get; set; }
-        public int CaptainId { get; set; }
-    }
+    public string Name { get; set; }
+    public int CaptainId { get; set; }
 }

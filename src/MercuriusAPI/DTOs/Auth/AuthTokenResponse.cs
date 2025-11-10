@@ -1,8 +1,7 @@
-namespace MercuriusAPI.DTOs.Auth
+namespace MercuriusAPI.DTOs.Auth;
+
+public class AuthTokenResponse
 {
-    public class AuthTokenResponse
-    {
-        public string Token { get; set; }
-        public string RefreshToken { get; set; }
-    }
+    public string Token { get; set; }
+    public string RefreshToken { get; set; }
 }

@@ -1,8 +1,7 @@
-﻿namespace MercuriusAPI.Models.LAN
+﻿namespace MercuriusAPI.Models.LAN;
+
+public enum ParticipantType
 {
-    public enum ParticipantType
-    {
-        Team = 0,
-        Player = 1
-    }
+    Team = 0,
+    Player = 1
 }

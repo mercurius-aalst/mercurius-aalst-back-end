@@ -2,28 +2,27 @@
 
 #nullable disable
 
-namespace MercuriusAPI.Migrations
+namespace MercuriusAPI.Migrations;
+
+/// <inheritdoc />
+public partial class AddAcademicSeasonToGame : Migration
 {
     /// <inheritdoc />
-    public partial class AddAcademicSeasonToGame : Migration
+    protected override void Up(MigrationBuilder migrationBuilder)
     {
-        /// <inheritdoc />
-        protected override void Up(MigrationBuilder migrationBuilder)
-        {
-            migrationBuilder.AddColumn<string>(
-                name: "AcademicSeason",
-                table: "Games",
-                type: "text",
-                nullable: false,
-                defaultValue: "");
-        }
+        migrationBuilder.AddColumn<string>(
+            name: "AcademicSeason",
+            table: "Games",
+            type: "text",
+            nullable: false,
+            defaultValue: "");
+    }
 
-        /// <inheritdoc />
-        protected override void Down(MigrationBuilder migrationBuilder)
-        {
-            migrationBuilder.DropColumn(
-                name: "AcademicSeason",
-                table: "Games");
-        }
+    /// <inheritdoc />
+    protected override void Down(MigrationBuilder migrationBuilder)
+    {
+        migrationBuilder.DropColumn(
+            name: "AcademicSeason",
+            table: "Games");
     }
 }

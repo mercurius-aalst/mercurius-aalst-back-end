@@ -1,67 +1,64 @@
 ﻿using Asp.Versioning.ApiExplorer;
-using Microsoft.AspNetCore.Mvc.ApiExplorer;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
 using Swashbuckle.AspNetCore.SwaggerGen;
 
-namespace MercuriusAPI.Extensions
+namespace MercuriusAPI.Extensions;
+
+public class ConfigureSwaggerOptions
+ : IConfigureNamedOptions<SwaggerGenOptions>
 {
-    public class ConfigureSwaggerOptions
-     : IConfigureNamedOptions<SwaggerGenOptions>
+    private readonly IApiVersionDescriptionProvider _provider;
+
+    public ConfigureSwaggerOptions(
+        IApiVersionDescriptionProvider provider)
     {
-        private readonly IApiVersionDescriptionProvider _provider;
+        _provider = provider;
+    }
 
-        public ConfigureSwaggerOptions(
-            IApiVersionDescriptionProvider provider)
+    /// <summary>
+    /// Configure each API discovered for Swagger Documentation
+    /// </summary>
+    /// <param name="options"></param>
+    public void Configure(SwaggerGenOptions options)
+    {
+        // add swagger document for every API version discovered
+        foreach (var description in _provider.ApiVersionDescriptions)
         {
-            _provider = provider;
+            options.SwaggerDoc(
+                description.GroupName,
+                CreateVersionInfo(description));
+        }
+    }
+
+    /// <summary>
+    /// Configure Swagger Options. Inherited from the Interface
+    /// </summary>
+    /// <param name="name"></param>
+    /// <param name="options"></param>
+    public void Configure(string? name, SwaggerGenOptions options)
+    {
+        Configure(options);
+    }
+
+    /// <summary>
+    /// Create information about the version of the API
+    /// </summary>
+    /// <returns>Information about the API</returns>
+    private OpenApiInfo CreateVersionInfo(
+            ApiVersionDescription desc)
+    {
+        var info = new OpenApiInfo()
+        {
+            Title = "Mercurius API",
+            Version = desc.ApiVersion.ToString()
+        };
+
+        if (desc.IsDeprecated)
+        {
+            info.Description += " This API version has been deprecated. Please use one of the new APIs available from the explorer.";
         }
 
-        /// <summary>
-        /// Configure each API discovered for Swagger Documentation
-        /// </summary>
-        /// <param name="options"></param>
-        public void Configure(SwaggerGenOptions options)
-        {
-            // add swagger document for every API version discovered
-            foreach(var description in _provider.ApiVersionDescriptions)
-            {
-                options.SwaggerDoc(
-                    description.GroupName,
-                    CreateVersionInfo(description));
-            }
-        }
-
-        /// <summary>
-        /// Configure Swagger Options. Inherited from the Interface
-        /// </summary>
-        /// <param name="name"></param>
-        /// <param name="options"></param>
-        public void Configure(string? name, SwaggerGenOptions options)
-        {
-            Configure(options);
-        }
-
-        /// <summary>
-        /// Create information about the version of the API
-        /// </summary>
-        /// <returns>Information about the API</returns>
-        private OpenApiInfo CreateVersionInfo(
-                ApiVersionDescription desc)
-        {
-            var info = new OpenApiInfo()
-            {
-                Title = "Mercurius API",
-                Version = desc.ApiVersion.ToString()
-            };
-
-            if(desc.IsDeprecated)
-            {
-                info.Description += " This API version has been deprecated. Please use one of the new APIs available from the explorer.";
-            }
-
-            return info;
-        }
+        return info;
     }
 }

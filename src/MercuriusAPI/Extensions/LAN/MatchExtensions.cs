@@ -1,37 +1,36 @@
 ﻿using MercuriusAPI.Models.LAN;
 
-namespace MercuriusAPI.Extensions.LAN
+namespace MercuriusAPI.Extensions.LAN;
+
+public static class MatchExtensions
 {
-    public static class MatchExtensions
+    public static void AssignByeWinnersNextMatch(this IEnumerable<Match> matches)
     {
-        public static void AssignByeWinnersNextMatch(this IEnumerable<Match> matches)
+        foreach (var match in matches)
         {
-            foreach(var match in matches)
+            if (match.WinnerNextMatch == null)
+                continue;
+
+            var targetMatch = match.WinnerNextMatch;
+
+            if (match.Winner == null && match.Participant1IsBYE && match.Participant2IsBYE)
             {
-                if(match.WinnerNextMatch == null)
-                    continue;
-
-                var targetMatch = match.WinnerNextMatch;
-
-                if(match.Winner == null && match.Participant1IsBYE && match.Participant2IsBYE)
-                {
-                    if(match.MatchNumber % 2 != 0)
-                        targetMatch.Participant1IsBYE = true;
-                    else
-                        targetMatch.Participant2IsBYE = true;
-                }
-
-                if(match.MatchNumber % 2 != 0)
-                    targetMatch.Participant1 = match.Winner;
+                if (match.MatchNumber % 2 != 0)
+                    targetMatch.Participant1IsBYE = true;
                 else
-                    targetMatch.Participant2 = match.Winner;
+                    targetMatch.Participant2IsBYE = true;
             }
 
-            foreach(var match in matches)
-            {
+            if (match.MatchNumber % 2 != 0)
+                targetMatch.Participant1 = match.Winner;
+            else
+                targetMatch.Participant2 = match.Winner;
+        }
 
-                match.TryAssignByeWin();
-            }
+        foreach (var match in matches)
+        {
+
+            match.TryAssignByeWin();
         }
     }
 }

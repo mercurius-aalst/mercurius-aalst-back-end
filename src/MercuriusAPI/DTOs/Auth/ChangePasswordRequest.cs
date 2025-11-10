@@ -1,8 +1,7 @@
-﻿namespace MercuriusAPI.DTOs.Auth
+﻿namespace MercuriusAPI.DTOs.Auth;
+
+public class ChangePasswordRequest
 {
-    public class ChangePasswordRequest
-    {
-        public string CurrentPassword { get; set; }
-        public string NewPassword { get; set; }
-    }
+    public string CurrentPassword { get; set; }
+    public string NewPassword { get; set; }
 }

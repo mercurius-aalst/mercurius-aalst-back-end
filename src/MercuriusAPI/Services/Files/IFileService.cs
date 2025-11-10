@@ -1,10 +1,6 @@
-using Microsoft.AspNetCore.Http;
-using System.Threading.Tasks;
+namespace MercuriusAPI.Services.Files;
 
-namespace MercuriusAPI.Services.Files
+public interface IFileService
 {
-    public interface IFileService
-    {
-        Task<string> SaveImageAsync(IFormFile image);
-    }
+    Task<string> SaveImageAsync(IFormFile image);
 }

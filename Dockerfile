@@ -26,7 +26,7 @@ RUN dotnet publish \
     --output /app/publish
 
 # Run Stage
-FROM mcr.microsoft.com/dotnet/aspnet:8.0.21-azurelinux3.0-distroless AS run
+FROM mcr.microsoft.com/dotnet/aspnet:8.0.21-azurelinux3.0 AS run
 WORKDIR /app
 COPY --from=build /app/publish .
 ENTRYPOINT ["dotnet", "MercuriusAPI.dll"]

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.2](https://github.com/mercurius-aalst/mercurius-aalst-back-end/compare/backend-v0.5.1...backend-v0.5.2) (2025-11-14)
+
+
+### Bug Fixes
+
+* change image to azure linux ([#45](https://github.com/mercurius-aalst/mercurius-aalst-back-end/issues/45)) ([06a961e](https://github.com/mercurius-aalst/mercurius-aalst-back-end/commit/06a961e3d51979ee1f242e8c26642dba5134ce0f))
+
 ## [0.5.1](https://github.com/mercurius-aalst/mercurius-aalst-back-end/compare/backend-v0.5.0...backend-v0.5.1) (2025-11-10)
 
 

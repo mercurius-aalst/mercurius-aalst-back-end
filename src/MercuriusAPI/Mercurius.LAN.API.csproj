@@ -4,7 +4,9 @@
 		<TargetFramework>net8.0</TargetFramework>
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>
-		<UserSecretsId>aspnet-MercuriusAPI-ceac6faf-a2c0-4bdb-a3f1-f7b60c89e1ee</UserSecretsId>
+     <AssemblyName>Mercurius.LAN.API</AssemblyName>
+		<RootNamespace>Mercurius.LAN.API</RootNamespace>
+		<UserSecretsId>aspnet-Mercurius.LAN.API-ceac6faf-a2c0-4bdb-a3f1-f7b60c89e1ee</UserSecretsId>
 		<GenerateDocumentationFile>true</GenerateDocumentationFile>
 		<DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
 		<DockerfileContext>.</DockerfileContext>

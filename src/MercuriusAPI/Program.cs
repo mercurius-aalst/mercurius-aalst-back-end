@@ -1,7 +1,8 @@
 ﻿using Imageflow.Server;
 using Mercurius.LAN.API.Data;
-using Mercurius.LAN.API.Exceptions;
+using Mercurius.LAN.API.Endpoints;
 using Mercurius.LAN.API.Extensions;
+using Mercurius.LAN.API.Middleware;
 using Mercurius.LAN.API.Services.UserServices;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -26,13 +27,9 @@ public class Program
         builder.Services.ConfigureVersionedSwagger();
         builder.Services.AddServiceDependencies();
 
-        builder.Services.AddControllers(options =>
+        builder.Services.ConfigureHttpJsonOptions(options =>
         {
-            options.EnableEndpointRouting = false;
-            options.Filters.Add<ExceptionFilter>();
-        }).AddJsonOptions(options =>
-        {
-            options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+            options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
         });
 
         // Add JWT authentication
@@ -93,6 +90,8 @@ public class Program
         app.UseSwagger();
         app.UseSwaggerUI();
 
+        app.UseMiddleware<ExceptionHandlingMiddleware>();
+
         app.UseHttpsRedirection();
 
 
@@ -113,7 +112,13 @@ public class Program
 
         app.UseSecuredSwaggerUI();
 
-        app.MapControllers();
+        app.MapGameEndpoints();
+        app.MapMatchEndpoints();
+        app.MapPlayerEndpoints();
+        app.MapTeamEndpoints();
+        app.MapSponsorEndpoints();
+        app.MapUserEndpoints();
+        app.MapAuthEndpoints();
 
         app.Run();
     }

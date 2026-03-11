@@ -1,4 +1,3 @@
-using Asp.Versioning;
 using Mercurius.LAN.API.Services.Auth;
 using Mercurius.LAN.API.Services.Auth.Login;
 using Mercurius.LAN.API.Services.Auth.Token;
@@ -20,20 +19,6 @@ public static class DepedencyConfiguration
     public static IServiceCollection ConfigureVersionedSwagger(this IServiceCollection services)
     {
         services.AddEndpointsApiExplorer();
-
-        services.AddApiVersioning(opt =>
-        {
-            opt.DefaultApiVersion = new ApiVersion(1, 0);
-            opt.AssumeDefaultVersionWhenUnspecified = true;
-            opt.ReportApiVersions = true;
-            opt.ApiVersionReader = ApiVersionReader.Combine(new UrlSegmentApiVersionReader());
-        });
-        services.AddApiVersioning().AddApiExplorer(setup =>
-        {
-            setup.GroupNameFormat = "'v'VVV";
-            setup.SubstituteApiVersionInUrl = true;
-        });
-        services.ConfigureOptions<ConfigureSwaggerOptions>();
         return services;
     }
 

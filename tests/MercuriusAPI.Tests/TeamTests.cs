@@ -1,9 +1,9 @@
-﻿using AutoFixture;
+using AutoFixture;
 using AutoFixture.Kernel;
-using MercuriusAPI.Exceptions;
-using MercuriusAPI.Models.LAN;
+using Mercurius.LAN.API.Exceptions;
+using Mercurius.LAN.API.Models;
 
-namespace MercuriusAPI.Tests;
+namespace Mercurius.LAN.API.Tests;
 
 public class TeamTests
 {
@@ -249,3 +249,4 @@ public class TeamTests
         return fixture;
     }
 }
+

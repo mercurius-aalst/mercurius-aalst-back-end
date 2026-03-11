@@ -4,7 +4,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
 
-namespace MercuriusAPI.Extensions;
+namespace Mercurius.LAN.API.Extensions;
 
 public class JWTBuilder(WebApplicationBuilder appBuilder) : IJWTBuilder
 {

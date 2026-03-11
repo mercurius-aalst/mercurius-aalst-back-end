@@ -1,15 +1,15 @@
 ﻿using Imageflow.Server;
-using MercuriusAPI.Data;
-using MercuriusAPI.Exceptions;
-using MercuriusAPI.Extensions;
-using MercuriusAPI.Services.UserServices;
+using Mercurius.LAN.API.Data;
+using Mercurius.LAN.API.Exceptions;
+using Mercurius.LAN.API.Extensions;
+using Mercurius.LAN.API.Services.UserServices;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using System.Text.Json.Serialization;
 
-namespace MercuriusAPI;
+namespace Mercurius.LAN.API;
 
 public class Program
 {
@@ -17,7 +17,7 @@ public class Program
     {
         var builder = WebApplication.CreateBuilder(args);
         builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
-                             .AddEnvironmentVariables("MercuriusApi_");
+                             .AddEnvironmentVariables("Mercurius.LAN.API_");
 
         builder.Services.AddDbContext<MercuriusDBContext>(options =>
             options.UseNpgsql(builder.Configuration.GetConnectionString("MercuriusDB")));

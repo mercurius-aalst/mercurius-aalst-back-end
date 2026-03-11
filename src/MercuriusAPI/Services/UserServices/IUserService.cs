@@ -1,6 +1,6 @@
-using MercuriusAPI.DTOs.Auth;
+using Mercurius.LAN.API.DTOs.Auth;
 
-namespace MercuriusAPI.Services.UserServices;
+namespace Mercurius.LAN.API.Services.UserServices;
 
 public interface IUserService
 {

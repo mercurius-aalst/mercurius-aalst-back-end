@@ -1,19 +1,19 @@
-﻿using Asp.Versioning;
-using MercuriusAPI.Services.Auth;
-using MercuriusAPI.Services.Auth.Login;
-using MercuriusAPI.Services.Auth.Token;
-using MercuriusAPI.Services.Files;
-using MercuriusAPI.Services.LAN.GameServices;
-using MercuriusAPI.Services.LAN.MatchServices;
-using MercuriusAPI.Services.LAN.MatchServices.BracketTypes;
-using MercuriusAPI.Services.LAN.ParticipantServices;
-using MercuriusAPI.Services.LAN.PlayerServices;
-using MercuriusAPI.Services.LAN.SponsorServices;
-using MercuriusAPI.Services.LAN.TeamServices;
-using MercuriusAPI.Services.UserServices;
+using Asp.Versioning;
+using Mercurius.LAN.API.Services.Auth;
+using Mercurius.LAN.API.Services.Auth.Login;
+using Mercurius.LAN.API.Services.Auth.Token;
+using Mercurius.LAN.API.Services.Files;
+using Mercurius.LAN.API.Services.GameServices;
+using Mercurius.LAN.API.Services.MatchServices;
+using Mercurius.LAN.API.Services.MatchServices.BracketTypes;
+using Mercurius.LAN.API.Services.ParticipantServices;
+using Mercurius.LAN.API.Services.PlayerServices;
+using Mercurius.LAN.API.Services.SponsorServices;
+using Mercurius.LAN.API.Services.TeamServices;
+using Mercurius.LAN.API.Services.UserServices;
 using Microsoft.Extensions.FileProviders;
 
-namespace MercuriusAPI.Extensions;
+namespace Mercurius.LAN.API.Extensions;
 
 public static class DepedencyConfiguration
 {

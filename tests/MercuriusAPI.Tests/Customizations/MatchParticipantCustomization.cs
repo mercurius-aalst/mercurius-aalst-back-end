@@ -1,9 +1,9 @@
 using AutoFixture;
 using AutoFixture.Kernel;
-using MercuriusAPI.Models.LAN;
+using Mercurius.LAN.API.Models;
 using System.Reflection;
 
-namespace MercuriusAPI.Tests.Customizations;
+namespace Mercurius.LAN.API.Tests.Customizations;
 public class MatchParticipantCustomization : ICustomization
 {
     public void Customize(IFixture fixture)
@@ -35,3 +35,4 @@ public class MatchParticipantCustomization : ICustomization
         }
     }
 }
+

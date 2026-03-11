@@ -1,8 +1,8 @@
-using MercuriusAPI.Services.Auth;
-using MercuriusAPI.DTOs.Auth;
-using MercuriusAPI.Exceptions;
+using Mercurius.LAN.API.Services.Auth;
+using Mercurius.LAN.API.DTOs.Auth;
+using Mercurius.LAN.API.Exceptions;
 
-namespace MercuriusAPI.Services.UserServices;
+namespace Mercurius.LAN.API.Services.UserServices;
 
 /// <summary>
 /// Decorator for IUserService that performs input validation before delegating to the actual business logic.

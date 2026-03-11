@@ -1,4 +1,4 @@
-namespace MercuriusAPI.Extensions;
+namespace Mercurius.LAN.API.Extensions;
 
 public static class UsernameExtensions
 {

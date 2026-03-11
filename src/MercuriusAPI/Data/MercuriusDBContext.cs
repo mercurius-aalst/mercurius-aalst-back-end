@@ -1,9 +1,9 @@
-﻿using MercuriusAPI.Models.LAN;
+using Mercurius.LAN.API.Models;
 using Microsoft.EntityFrameworkCore;
-using MercuriusAPI.Models;
-using MercuriusAPI.Models.Auth;
+using Mercurius.LAN.API.Models;
+using Mercurius.LAN.API.Models.Auth;
 
-namespace MercuriusAPI.Data;
+namespace Mercurius.LAN.API.Data;
 
 public partial class MercuriusDBContext : DbContext
 {
@@ -139,3 +139,4 @@ public partial class MercuriusDBContext : DbContext
     partial void OnModelCreatingPartial(ModelBuilder modelBuilder);
 
 }
+

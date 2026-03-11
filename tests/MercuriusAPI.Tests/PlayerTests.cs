@@ -1,6 +1,6 @@
-using MercuriusAPI.Models.LAN;
+using Mercurius.LAN.API.Models;
 
-namespace MercuriusAPI.Tests;
+namespace Mercurius.LAN.API.Tests;
 
 public class PlayerTests
 {
@@ -38,3 +38,4 @@ public class PlayerTests
         Assert.Equal("email@test.com", player.Email);
     }
 }
+

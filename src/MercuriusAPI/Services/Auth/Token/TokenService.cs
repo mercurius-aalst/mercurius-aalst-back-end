@@ -2,10 +2,10 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Microsoft.IdentityModel.Tokens;
-using MercuriusAPI.Models.Auth;
-using MercuriusAPI.Models;
+using Mercurius.LAN.API.Models.Auth;
+using Mercurius.LAN.API.Models;
 
-namespace MercuriusAPI.Services.Auth.Token;
+namespace Mercurius.LAN.API.Services.Auth.Token;
 
 public class TokenService : ITokenService
 {

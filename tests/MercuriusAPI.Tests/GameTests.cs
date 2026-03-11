@@ -1,7 +1,7 @@
-﻿using MercuriusAPI.Exceptions;
-using MercuriusAPI.Models.LAN;
+using Mercurius.LAN.API.Exceptions;
+using Mercurius.LAN.API.Models;
 
-namespace MercuriusAPI.Tests;
+namespace Mercurius.LAN.API.Tests;
 
 public class GameTests
 {
@@ -169,3 +169,4 @@ public class GameTests
         public TestParticipant() { Games = new List<Game>(); }
     }
 }
+

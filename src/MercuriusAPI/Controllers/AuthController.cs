@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using MercuriusAPI.DTOs.Auth;
-using MercuriusAPI.Services.Auth;
+using Mercurius.LAN.API.DTOs.Auth;
+using Mercurius.LAN.API.Services.Auth;
 
-namespace MercuriusAPI.Controllers;
+namespace Mercurius.LAN.API.Controllers;
 
 /// <summary>
 /// Handles authentication-related operations such as login and token refresh.

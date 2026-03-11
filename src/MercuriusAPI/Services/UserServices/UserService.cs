@@ -1,12 +1,12 @@
-using MercuriusAPI.Data;
-using MercuriusAPI.DTOs.Auth;
-using MercuriusAPI.Exceptions;
-using MercuriusAPI.Models.Auth;
+using Mercurius.LAN.API.Data;
+using Mercurius.LAN.API.DTOs.Auth;
+using Mercurius.LAN.API.Exceptions;
+using Mercurius.LAN.API.Models.Auth;
 using Microsoft.EntityFrameworkCore;
-using MercuriusAPI.Services.Auth;
-using MercuriusAPI.Models;
+using Mercurius.LAN.API.Services.Auth;
+using Mercurius.LAN.API.Models;
 
-namespace MercuriusAPI.Services.UserServices;
+namespace Mercurius.LAN.API.Services.UserServices;
 
 public class UserService : IUserService
 {

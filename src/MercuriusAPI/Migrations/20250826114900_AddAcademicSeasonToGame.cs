@@ -2,7 +2,7 @@
 
 #nullable disable
 
-namespace MercuriusAPI.Migrations;
+namespace Mercurius.LAN.API.Migrations;
 
 /// <inheritdoc />
 public partial class AddAcademicSeasonToGame : Migration

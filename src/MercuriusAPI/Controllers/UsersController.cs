@@ -1,10 +1,10 @@
-using MercuriusAPI.DTOs.Auth;
-using MercuriusAPI.Services.UserServices;
+using Mercurius.LAN.API.DTOs.Auth;
+using Mercurius.LAN.API.Services.UserServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 
-namespace MercuriusAPI.Controllers;
+namespace Mercurius.LAN.API.Controllers;
 
 /// <summary>
 /// Handles user management actions such as deleting users and assigning roles.

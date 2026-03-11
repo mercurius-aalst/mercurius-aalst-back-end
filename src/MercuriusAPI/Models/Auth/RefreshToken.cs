@@ -1,4 +1,4 @@
-namespace MercuriusAPI.Models.Auth;
+namespace Mercurius.LAN.API.Models.Auth;
 
 public class RefreshToken
 {

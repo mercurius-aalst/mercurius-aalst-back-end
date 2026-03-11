@@ -1,6 +1,6 @@
-﻿using MercuriusAPI.Models;
+﻿using Mercurius.LAN.API.Models;
 
-namespace MercuriusAPI.DTOs.Auth;
+namespace Mercurius.LAN.API.DTOs.Auth;
 
 public class GetUserDTO
 {

@@ -1,7 +1,7 @@
-using MercuriusAPI.DTOs.Auth;
-using MercuriusAPI.Exceptions;
+using Mercurius.LAN.API.DTOs.Auth;
+using Mercurius.LAN.API.Exceptions;
 
-namespace MercuriusAPI.Services.Auth;
+namespace Mercurius.LAN.API.Services.Auth;
 
 /// <summary>
 /// Decorator for IAuthService that performs input validation before delegating to the actual business logic.

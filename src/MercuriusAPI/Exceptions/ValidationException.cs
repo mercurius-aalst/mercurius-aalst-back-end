@@ -1,4 +1,4 @@
-﻿namespace MercuriusAPI.Exceptions;
+﻿namespace Mercurius.LAN.API.Exceptions;
 
 public class ValidationException : Exception
 {

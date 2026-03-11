@@ -1,10 +1,10 @@
-﻿using AutoFixture;
+using AutoFixture;
 using AutoFixture.Kernel;
-using MercuriusAPI.Exceptions;
-using MercuriusAPI.Models.LAN;
-using MercuriusAPI.Tests.Customizations;
+using Mercurius.LAN.API.Exceptions;
+using Mercurius.LAN.API.Models;
+using Mercurius.LAN.API.Tests.Customizations;
 
-namespace MercuriusAPI.Tests;
+namespace Mercurius.LAN.API.Tests;
 
 public class MatchTests
 {
@@ -407,3 +407,4 @@ public class MatchTests
         return fixture.Create<Player>();
     }
 }
+

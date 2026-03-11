@@ -11,7 +11,7 @@ public interface IGameService
     Task<IEnumerable<GetPlacementDTO>> CompleteGameAsync(int id);
     Task<GetGameDTO> CreateGameAsync(CreateGameDTO createGameDTO);
     Task DeleteGameAsync(int id);
-    IEnumerable<GetGameDTO> GetAllGames(string? academicSeason);
+    IEnumerable<GetGameDTO> GetAllGames();
     Task<Game> GetGameByIdAsync(int gameId);
     Task<GetGameDTO> RemoveParticipantAsync(int id, Participant participant);
     Task ResetGameAsync(int id);

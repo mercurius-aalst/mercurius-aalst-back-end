@@ -11,7 +11,6 @@ public class GetGameDTO
 {
     public int Id { get; set; }
     public string Name { get; set; }
-    public string AcademicSeason { get; set; }
     public DateTime StartTime { get; set; }
     public DateTime EndTime { get; set; }
     public GameStatus Status { get; set; }
@@ -31,7 +30,6 @@ public class GetGameDTO
     {
         Id = game.Id;
         Name = game.Name;
-        AcademicSeason = game.AcademicSeason;
         StartTime = game.StartTime;
         EndTime = game.EndTime;
         Status = game.Status;

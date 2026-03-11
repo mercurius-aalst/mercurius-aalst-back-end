@@ -47,11 +47,9 @@ public class GameService : IGameService
         return game;
     }
 
-    public IEnumerable<GetGameDTO> GetAllGames(string? academicSeason)
+    public IEnumerable<GetGameDTO> GetAllGames()
     {
-        if (string.IsNullOrEmpty(academicSeason))
-            academicSeason = AcademicSeasonHelper.GetCurrent();
-        return _dbContext.Games.Where(g => g.AcademicSeason == academicSeason).Include(g => g.Participants).Include(g => g.Matches).ToList().Select(g => new GetGameDTO(g));
+        return _dbContext.Games.Include(g => g.Participants).Include(g => g.Matches).ToList().Select(g => new GetGameDTO(g));
     }
 
     public async Task<GetGameDTO> UpdateGameAsync(int id, UpdateGameDTO gameDTO)
@@ -142,7 +140,7 @@ public class GameService : IGameService
 
     private async Task<bool> CheckIfGameNameExistsInCurrentSeasonAsync(string name)
     {
-        return await _dbContext.Games.AnyAsync(g => g.Name == name && g.AcademicSeason == AcademicSeasonHelper.GetCurrent());
+        return await _dbContext.Games.AnyAsync(g => g.Name == name);
     }
 }
 

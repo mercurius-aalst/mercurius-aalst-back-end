@@ -26,9 +26,9 @@ public class GamesController(IGameService _gameService, IParticipantService _par
     /// <returns>A list of all games.</returns>
     [HttpGet]
     [AllowAnonymous]
-    public IEnumerable<GetGameDTO> GetGames(string? academicSeason)
+    public IEnumerable<GetGameDTO> GetGames()
     {
-        return _gameService.GetAllGames(academicSeason);
+        return _gameService.GetAllGames();
     }
 
     /// <summary>

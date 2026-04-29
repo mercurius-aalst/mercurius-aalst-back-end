@@ -1,97 +1,96 @@
-# Issue #50 Plan — Code simplification
+# Issue #47 + #50 Unified Implementation Plan — Player/User unification and relation simplification
 
-## Issue context
-Issue #50 (opened April 28, 2026) asks to simplify the codebase, with focus on **Game** and **Match** structures. It specifically requests minimizing hard references/relations and ensuring that deleting one user/player does not break connected matches/games/teams.
+## Source issues
+- **Issue #47: "Unification of players and users"** (opened **April 28, 2026**).
+  - `Player` should no longer be a separate entity.
+  - `Participant` should be removed.
+  - Player attributes (email, socials) should belong to `User`.
+  - Teams should contain `User` references, not players.
+  - On `Game` and `Match` levels, replace participant-based modeling with specialized forms for team-vs-individual logic.
+- **Issue #50: "Code simplification"** (opened **April 28, 2026**).
+  - Simplify `Game`/`Match` relations and reduce fragile hard references.
+  - Ensure user deletion does not break related game/match/team data.
 
-## Goals
-- Reduce tight coupling between `Game`, `Match`, `Team`, `Participant`, and `Player`.
-- Prevent entity deletions from causing cascading breakage or invalid object graphs.
-- Keep current API behavior stable where possible while making relation handling safer.
+## Why these must be implemented together
+Issue #47 changes core domain shape (`Player`/`Participant` removal), while issue #50 changes relation safety and traversal strategy. Implementing one without the other would likely create duplicate migrations, incompatible service assumptions, and temporary API instability.
 
-## Non-goals
-- Full domain rewrite.
-- Changing bracket business logic behavior unless required by decoupling.
-- Introducing breaking API changes without migration/compatibility path.
+## Target domain model (combined end state)
 
-## Proposed approach
+### Entity-level changes
+1. **Remove `Player` as first-class domain entity**.
+   - Migrate required player profile fields into `User` (or linked user-profile value object/table).
+2. **Remove `Participant` entity**.
+   - Replace with explicit game/match polymorphism:
+     - `TeamGame` and `IndividualGame` (derived/specialized representations)
+     - `TeamMatch` and `IndividualMatch` (or equivalent typed strategy)
+3. **Team membership points to `User`**.
+   - Team-user link table/relation replaces team-player relation.
 
-### 1) Baseline mapping of current coupling
-- Inventory all direct entity references and navigation chains in:
-  - `Models/*` (especially `Game`, `Match`, `Participant`, `Team`, `Player`)
-  - `MercuriusDBContext` relationship configuration
-  - Services that eagerly traverse those relations
-- Create a quick dependency matrix: **who owns who**, **who can be null**, **what deletes cascade**.
+### Relation-safety changes
+1. Convert risky delete cascades from user links to safer behaviors (`Restrict`/`SetNull` where history is required).
+2. Preserve historical competition records even after a user deletion/deactivation.
+3. Replace deep navigation assumptions with explicit ID-based loading and guarded mapping.
 
-### 2) Define safe ownership boundaries
-- Treat `Game` and `Match` as aggregate roots with stable identifiers.
-- Replace hard object dependencies where possible with ID-based references and guarded lookups at service boundaries.
-- Introduce explicit "inactive/orphan-safe" behavior for removed users/players (e.g., soft deletion marker or placeholder participant semantics).
+## Implementation plan
 
-### 3) Refactor deletion semantics
-- Update EF Core relationship rules to avoid dangerous cascade paths:
-  - Prefer `Restrict`/`SetNull` for user/player links that should not destroy historical match/game records.
-- Add service-layer guard rails:
-  - Deleting a player/user should trigger controlled detachment/reassignment workflow.
-  - Ensure teams/matches/games remain queryable and valid post-delete.
+### Phase 0 — Discovery and safety net
+- Map current dependencies across:
+  - `Models/*` (especially `Game`, `Match`, `Participant`, `Team`, `Player`, `User`)
+  - DB context relationship configuration
+  - Services/controllers assuming `Player`/`Participant`
+- Add failing tests that reproduce:
+  - user/player delete breakages
+  - participant-dependent flows in game/match generation/read paths
 
-### 4) Simplify service logic around Game/Match
-- Move relation resolution into clearly scoped helper methods.
-- Remove implicit assumptions that every participant always maps to an active player record.
-- Normalize error handling for missing related entities (consistent `NotFound`/validation behavior).
+### Phase 1 — Introduce compatibility layer
+- Add transitional mapping so services can resolve user-centric identity while legacy entities still exist.
+- Add adapter/helpers that encapsulate "current player source" to limit touching all call-sites at once.
 
-### 5) API contract hardening
-- Ensure endpoint responses remain stable even when related user/player is missing.
-- Return deterministic fallback payload values instead of null-reference failures.
-- Document any response-shape changes in Swagger annotations/changelog if unavoidable.
+### Phase 2 — Data model transition (#47 core)
+- Migration set A:
+  - copy/merge required player attributes into user-owned structure
+  - create/upgrade team-user link
+- Migration set B:
+  - remove participant links in favor of typed game/match relations
+- Keep reversible migration path with explicit rollback notes.
 
-## Work breakdown
-1. **Discovery PR**
-   - Add tests that reproduce current failure modes when deleting linked player/user.
-   - Add relationship matrix notes (internal doc/comment).
-2. **Data-model PR**
-   - Adjust EF relationships and migration(s).
-   - Implement deletion-safe entity configuration.
-3. **Service-layer PR**
-   - Refactor Game/Match flows to use safe lookup patterns and defensive mapping.
-4. **Endpoint stabilization PR**
-   - Ensure outward API behavior consistency and update docs.
-5. **Cleanup PR**
-   - Remove dead code, simplify duplicated relation traversal, finalize naming.
+### Phase 3 — Service refactor (#47 + #50 joint)
+- Replace participant traversal with typed game/match resolution paths.
+- Replace player-centric service logic with user-centric logic.
+- Normalize not-found/inactive-user behavior so responses are deterministic.
 
-## Testing plan
-- Unit tests:
-  - Delete player/user linked to team/match/game should not break retrieval or updates.
-  - Match generation/update still functions with inactive/missing linked player.
-- Integration tests:
-  - End-to-end delete scenario followed by reads on game, match, team endpoints.
-  - Regression tests for bracket flows.
-- Migration validation:
-  - Apply migration on existing dev DB snapshot and verify no destructive data loss.
+### Phase 4 — Deletion semantics hardening (#50 core)
+- Enforce deletion workflows that detach/reassign links instead of breaking aggregates.
+- Ensure read endpoints for game/match/team still return stable payloads after user deletion/deactivation.
+
+### Phase 5 — Remove legacy artifacts
+- Drop obsolete `Player` and `Participant` code paths and schema remnants.
+- Remove temporary compatibility helpers.
+- Final cleanup for duplicate traversal and naming.
+
+## Test plan
+- **Unit tests**
+  - Team membership and game/match creation using `User` only.
+  - Individual and team game/match flows without participant entity.
+  - Deleting/deactivating user preserves historical game/match/team integrity.
+- **Integration tests**
+  - Full flow: create users/teams/games/matches → delete/deactivate user → re-read/update dependent resources.
+  - Regression tests for bracket and result update flows.
+- **Migration tests**
+  - Upgrade from pre-#47 schema snapshot and verify data preservation.
+  - Verify rollback path in non-production DB.
 
 ## Acceptance criteria
-- Deleting a user/player does not break reads or writes for related matches/games/teams.
-- Game/Match service code has reduced direct relation traversal and fewer hard object dependencies.
-- Tests cover deletion safety scenarios and pass in CI.
-- No unintended breaking API changes; any required changes are documented.
-
-## Risks and mitigations
-- **Risk:** Hidden assumptions in bracket/moderator logic.
-  - **Mitigation:** Add focused regression tests per bracket type before refactor.
-- **Risk:** Migration side effects on existing relation constraints.
-  - **Mitigation:** Validate migration on seeded data and document rollback steps.
-- **Risk:** Performance impact from replacing navigations with lookups.
-  - **Mitigation:** Profile key endpoints and add targeted includes/indexes where needed.
+- No runtime dependency remains on `Player` or `Participant` in active domain flows.
+- Teams reference users directly.
+- Game/match logic supports explicit team vs individual modes without participant abstraction.
+- Deleting/deactivating a user does not corrupt or invalidate historical competition records.
+- API behavior remains stable, with documented and intentional response changes only.
 
 ## Delivery estimate
-- Discovery + failure-case tests: 0.5–1 day
-- Data model + migration: 0.5 day
-- Service refactor + endpoint hardening: 1–2 days
-- Regression testing + cleanup: 0.5–1 day
+- Discovery + failing tests: 0.5–1 day
+- Compatibility layer + migrations: 1–1.5 days
+- Service refactor + deletion hardening: 1–2 days
+- Cleanup + regression stabilization: 0.5–1 day
 
-**Total:** ~2.5 to 4.5 engineering days
-
-
-## Estimation basis
-- The delivery estimate above is based on **one human engineer** working in this codebase with normal review/CI loops.
-- It assumes selective AI assistance (drafting/refactor support), **not** a fully autonomous agent shipping directly to production.
-- If executed by a highly capable autonomous agent with reliable repo context and test-fix loops, a best-case range could be lower (roughly **1 to 2.5 days**), but operational risk and verification overhead typically still require human sign-off.
+**Total:** ~3 to 5.5 engineering days

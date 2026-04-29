@@ -1,8 +1,10 @@
 using AutoFixture;
 using AutoFixture.Kernel;
+using Mercurius.LAN.API.DTOs.MatchDTOs;
 using Mercurius.LAN.API.Exceptions;
 using Mercurius.LAN.API.Models;
 using Mercurius.LAN.API.Tests.Customizations;
+using DataAnnotations = System.ComponentModel.DataAnnotations;
 
 namespace Mercurius.LAN.API.Tests;
 
@@ -405,6 +407,23 @@ public class MatchTests
         fixture.Customizations.Add(new TypeRelay(typeof(Participant), typeof(Player)));
         fixture.Customize(new MatchParticipantCustomization());
         return fixture.Create<Player>();
+    }
+
+    [Fact]
+    public void UpdateMatchDTO_FailsValidation_WhenScoresAreNegative()
+    {
+        var dto = new UpdateMatchDTO
+        {
+            Participant1Score = -1,
+            Participant2Score = -2
+        };
+        var validationContext = new DataAnnotations.ValidationContext(dto);
+        var validationResults = new List<DataAnnotations.ValidationResult>();
+
+        var isValid = DataAnnotations.Validator.TryValidateObject(dto, validationContext, validationResults, validateAllProperties: true);
+
+        Assert.False(isValid);
+        Assert.Equal(2, validationResults.Count);
     }
 }
 

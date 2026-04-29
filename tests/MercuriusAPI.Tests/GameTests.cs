@@ -1,5 +1,7 @@
 using Mercurius.LAN.API.Exceptions;
+using Mercurius.LAN.API.DTOs.GameDTOs;
 using Mercurius.LAN.API.Models;
+using DataAnnotations = System.ComponentModel.DataAnnotations;
 
 namespace Mercurius.LAN.API.Tests;
 
@@ -167,6 +169,21 @@ public class GameTests
     private class TestParticipant : Participant
     {
         public TestParticipant() { Games = new List<Game>(); }
+    }
+
+    [Fact]
+    public void CreateGameDTO_FailsValidation_WhenRequiredFieldsAreMissing()
+    {
+        var dto = new CreateGameDTO();
+        var validationContext = new DataAnnotations.ValidationContext(dto);
+        var validationResults = new List<DataAnnotations.ValidationResult>();
+
+        var isValid = DataAnnotations.Validator.TryValidateObject(dto, validationContext, validationResults, validateAllProperties: true);
+
+        Assert.False(isValid);
+        Assert.Contains(validationResults, r => r.MemberNames.Contains(nameof(CreateGameDTO.Name)));
+        Assert.Contains(validationResults, r => r.MemberNames.Contains(nameof(CreateGameDTO.Image)));
+        Assert.Contains(validationResults, r => r.MemberNames.Contains(nameof(CreateGameDTO.RegisterFormUrl)));
     }
 }
 

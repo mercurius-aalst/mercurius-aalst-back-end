@@ -106,7 +106,7 @@ namespace Mercurius.LAN.API.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<int>("ParticipantType")
+                    b.Property<int>("ParticipationMode")
                         .HasColumnType("integer");
 
                     b.Property<string>("RegisterFormUrl")
@@ -174,7 +174,7 @@ namespace Mercurius.LAN.API.Migrations
                     b.Property<int?>("Participant2Score")
                         .HasColumnType("integer");
 
-                    b.Property<int>("ParticipantType")
+                    b.Property<int>("ParticipationMode")
                         .HasColumnType("integer");
 
                     b.Property<int>("RoundNumber")
@@ -283,7 +283,7 @@ namespace Mercurius.LAN.API.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<int>("PlayerId")
+                    b.Property<int>("UserId")
                         .HasColumnType("integer");
 
                     b.Property<DateTime?>("RespondedAt")
@@ -297,7 +297,7 @@ namespace Mercurius.LAN.API.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("PlayerId");
+                    b.HasIndex("UserId");
 
                     b.HasIndex("TeamId");
 
@@ -344,19 +344,19 @@ namespace Mercurius.LAN.API.Migrations
                     b.ToTable("ParticipantPlacement");
                 });
 
-            modelBuilder.Entity("PlayerTeam", b =>
+            modelBuilder.Entity("TeamUser", b =>
                 {
-                    b.Property<int>("PlayersId")
+                    b.Property<int>("TeamId")
                         .HasColumnType("integer");
 
-                    b.Property<int>("TeamsId")
+                    b.Property<int>("UserId")
                         .HasColumnType("integer");
 
-                    b.HasKey("PlayersId", "TeamsId");
+                    b.HasKey("TeamId", "UserId");
 
-                    b.HasIndex("TeamsId");
+                    b.HasIndex("UserId");
 
-                    b.ToTable("PlayerTeam");
+                    b.ToTable("TeamUser");
                 });
 
             modelBuilder.Entity("RoleUser", b =>
@@ -374,50 +374,18 @@ namespace Mercurius.LAN.API.Migrations
                     b.ToTable("RoleUser");
                 });
 
-            modelBuilder.Entity("Mercurius.LAN.API.Models.Player", b =>
-                {
-                    b.HasBaseType("Mercurius.LAN.API.Models.Participant");
-
-                    b.Property<string>("DiscordId")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Email")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Firstname")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Lastname")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("RiotId")
-                        .HasColumnType("text");
-
-                    b.Property<string>("SteamId")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Username")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.ToTable("Players");
-                });
-
             modelBuilder.Entity("Mercurius.LAN.API.Models.Team", b =>
                 {
                     b.HasBaseType("Mercurius.LAN.API.Models.Participant");
 
-                    b.Property<int>("CaptainId")
+                    b.Property<int>("CaptainUserId")
                         .HasColumnType("integer");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.HasIndex("CaptainId");
+                    b.HasIndex("CaptainUserId");
 
                     b.ToTable("Teams");
                 });
@@ -508,9 +476,9 @@ namespace Mercurius.LAN.API.Migrations
 
             modelBuilder.Entity("Mercurius.LAN.API.Models.TeamInvite", b =>
                 {
-                    b.HasOne("Mercurius.LAN.API.Models.Player", "Player")
+                    b.HasOne("Mercurius.LAN.API.Models.User", "User")
                         .WithMany()
-                        .HasForeignKey("PlayerId")
+                        .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -520,7 +488,7 @@ namespace Mercurius.LAN.API.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Player");
+                    b.Navigation("User");
 
                     b.Navigation("Team");
                 });
@@ -540,17 +508,17 @@ namespace Mercurius.LAN.API.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("PlayerTeam", b =>
+            modelBuilder.Entity("TeamUser", b =>
                 {
-                    b.HasOne("Mercurius.LAN.API.Models.Player", null)
+                    b.HasOne("Mercurius.LAN.API.Models.User", null)
                         .WithMany()
-                        .HasForeignKey("PlayersId")
+                        .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.HasOne("Mercurius.LAN.API.Models.Team", null)
                         .WithMany()
-                        .HasForeignKey("TeamsId")
+                        .HasForeignKey("TeamId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
@@ -570,20 +538,11 @@ namespace Mercurius.LAN.API.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Mercurius.LAN.API.Models.Player", b =>
-                {
-                    b.HasOne("Mercurius.LAN.API.Models.Participant", null)
-                        .WithOne()
-                        .HasForeignKey("Mercurius.LAN.API.Models.Player", "Id")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("Mercurius.LAN.API.Models.Team", b =>
                 {
-                    b.HasOne("Mercurius.LAN.API.Models.Player", "Captain")
+                    b.HasOne("Mercurius.LAN.API.Models.User", "Captain")
                         .WithMany()
-                        .HasForeignKey("CaptainId")
+                        .HasForeignKey("CaptainUserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 

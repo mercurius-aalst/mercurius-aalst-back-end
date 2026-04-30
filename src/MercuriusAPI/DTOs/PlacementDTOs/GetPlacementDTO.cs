@@ -14,15 +14,15 @@ public class GetPlacementDTO
 
     }
 
-    public GetPlacementDTO(Placement placement, ParticipantType participantType)
+    public GetPlacementDTO(Placement placement, ParticipationMode participationMode)
     {
         Place = placement.Place;
-        switch (participantType)
+        switch (participationMode)
         {
-            case ParticipantType.Player:
+            case ParticipationMode.Individual:
                 Participants = placement.Participants.Select(p => new GetParticipantUserDTO((User)p)).ToList();
                 break;
-            case ParticipantType.Team:
+            case ParticipationMode.Team:
                 Participants = placement.Participants.Select(t => new GetTeamDTO((Team)t)).ToList();
                 break;
         }

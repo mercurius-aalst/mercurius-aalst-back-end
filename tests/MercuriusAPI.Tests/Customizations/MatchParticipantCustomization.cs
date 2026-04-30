@@ -23,9 +23,9 @@ public class MatchParticipantCustomization : ICustomization
                 var match = context.Resolve(typeof(Match)) as Match;
                 if (match != null)
                 {
-                    if (match.ParticipantType == ParticipantType.Player)
+                    if (match.ParticipationMode == ParticipationMode.Individual)
                         return context.Resolve(typeof(User));
-                    else if (match.ParticipantType == ParticipantType.Team)
+                    else if (match.ParticipationMode == ParticipationMode.Team)
                         return context.Resolve(typeof(Team));
                 }
                 // Fallback: just return an individual-mode participant.

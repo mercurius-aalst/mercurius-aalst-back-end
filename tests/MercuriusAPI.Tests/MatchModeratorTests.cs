@@ -1,6 +1,6 @@
 using Mercurius.LAN.API.Models;
-using Mercurius.LAN.API.Services.MatchServices.BracketTypes;
 using Mercurius.LAN.API.Exceptions;
+using Mercurius.LAN.API.Services.MatchServices.BracketTypes;
 
 namespace Mercurius.LAN.API.Tests;
 

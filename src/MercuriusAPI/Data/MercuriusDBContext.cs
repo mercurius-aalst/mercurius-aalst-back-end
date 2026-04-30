@@ -14,7 +14,6 @@ public partial class MercuriusDBContext : DbContext
     {
     }
 
-    public DbSet<Player> Players { get; set; }
     public DbSet<Team> Teams { get; set; }
     public DbSet<Match> Matches { get; set; }
     public DbSet<Game> Games { get; set; }
@@ -28,15 +27,6 @@ public partial class MercuriusDBContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity<Player>(entity =>
-        {
-            entity.Property(e => e.Username).IsRequired();
-            entity.Property(e => e.Firstname).IsRequired();
-            entity.Property(e => e.Lastname).IsRequired();
-            entity.Property(e => e.Email).IsRequired();
-
-        });
-
         modelBuilder.Entity<User>(entity =>
         {
             entity.Property(e => e.Username).IsRequired();
@@ -51,7 +41,18 @@ public partial class MercuriusDBContext : DbContext
         {
             entity.Property(e => e.Name).IsRequired();
             entity.HasMany(e => e.Members)
-                  .WithMany();
+                  .WithMany()
+                  .UsingEntity<Dictionary<string, object>>(
+                      "TeamUser",
+                      j => j.HasOne<User>()
+                          .WithMany()
+                          .HasForeignKey("UserId")
+                          .OnDelete(DeleteBehavior.Cascade),
+                      j => j.HasOne<Team>()
+                          .WithMany()
+                          .HasForeignKey("TeamId")
+                          .OnDelete(DeleteBehavior.Cascade),
+                      j => j.HasKey("TeamId", "UserId"));
             entity.HasOne(e => e.Captain)
                    .WithMany()
                    .HasForeignKey(e => e.CaptainUserId)

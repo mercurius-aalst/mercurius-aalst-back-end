@@ -109,7 +109,7 @@ public class GameService : IGameService
 
         _dbContext.Games.Update(game);
         await _dbContext.SaveChangesAsync();
-        return game.Placements.Select(p => new GetPlacementDTO(p, game.ParticipationMode.ToParticipantType()));
+        return game.Placements.Select(p => new GetPlacementDTO(p, game.ParticipationMode));
     }
 
     public async Task ResetGameAsync(int id)

@@ -1,5 +1,4 @@
 using Mercurius.LAN.API.Exceptions;
-using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Mercurius.LAN.API.Models;
 
@@ -10,13 +9,7 @@ public class Match
     public DateTime EndTime { get; set; }
     public BracketType BracketType { get; set; }
     public GameFormat Format { get; set; }
-    public ParticipantType ParticipantType { get; set; }
-    [NotMapped]
-    public ParticipationMode ParticipationMode
-    {
-        get => ParticipantType.ToParticipationMode();
-        set => ParticipantType = value.ToParticipantType();
-    }
+    public ParticipationMode ParticipationMode { get; set; }
 
     public int RoundNumber { get; set; }
     public int MatchNumber { get; set; }

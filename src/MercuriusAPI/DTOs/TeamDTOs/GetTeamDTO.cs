@@ -16,7 +16,6 @@ public class GetTeamDTO : GetParticipantDTO
         Members = team.Members.Select(p => new GetTeamUserDTO(p));
         TeamInvites = team.TeamInvites.Where(i => i.Status == TeamInviteStatus.Pending).Select(i => new TeamInviteDTO(i));
         CaptainUserId = team.CaptainUserId;
-        Type = ParticipantType.Team;
     }
 }
 

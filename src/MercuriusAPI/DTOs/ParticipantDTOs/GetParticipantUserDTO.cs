@@ -28,6 +28,5 @@ public class GetParticipantUserDTO : GetParticipantDTO
         SteamId = user.SteamId;
         RiotId = user.RiotId;
         DisplayName = user.DisplayName;
-        Type = ParticipantType.Player;
     }
 }

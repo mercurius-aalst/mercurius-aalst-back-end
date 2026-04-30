@@ -77,7 +77,7 @@ public class MatchTests
         var winner = CreateUserParticipant();
         var match = new Match
         {
-            ParticipantType = ParticipantType.Player,
+            ParticipationMode = ParticipationMode.Individual,
             Winner = winner,
             MatchNumber = 1,
             WinnerNextMatch = new Match()
@@ -97,7 +97,7 @@ public class MatchTests
         var winner = CreateUserParticipant();
         var match = new Match
         {
-            ParticipantType = ParticipantType.Player,
+            ParticipationMode = ParticipationMode.Individual,
             Winner = winner,
             MatchNumber = 2,
             WinnerNextMatch = new Match()
@@ -118,7 +118,7 @@ public class MatchTests
         var loser = CreateUserParticipant();
         var match = new Match
         {
-            ParticipantType = ParticipantType.Player,
+            ParticipationMode = ParticipationMode.Individual,
             Winner = winner,
             Loser = loser,
             MatchNumber = 1,
@@ -379,21 +379,6 @@ public class MatchTests
         var exception = Assert.Throws<ValidationException>(() => match.SetParticipants(user, (Participant)team));
 
         Assert.Equal("participant2 is incompatible with Individual match mode.", exception.Message);
-    }
-
-    [Fact]
-    public void ParticipationMode_BridgeKeepsLegacyParticipantTypeCompatibility()
-    {
-        var match = new Match
-        {
-            ParticipationMode = ParticipationMode.Team
-        };
-
-        Assert.Equal(ParticipantType.Team, match.ParticipantType);
-
-        match.ParticipantType = ParticipantType.Player;
-
-        Assert.Equal(ParticipationMode.Individual, match.ParticipationMode);
     }
 
     private Match CreateMatch()

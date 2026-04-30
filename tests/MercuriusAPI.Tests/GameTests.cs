@@ -29,7 +29,7 @@ public class GameTests
         Assert.Equal(GameFormat.BestOf5, game.FinalsFormat);
         Assert.Equal(GameStatus.Scheduled, game.Status);
         Assert.Equal(ParticipationMode.Team, game.ParticipationMode);
-        Assert.Equal(ParticipantType.Team, game.ParticipantType);
+        Assert.Equal(ParticipationMode.Team, game.ParticipationMode);
         Assert.NotNull(game.Placements);
         Assert.NotNull(game.Matches);
         Assert.NotNull(game.Participants);

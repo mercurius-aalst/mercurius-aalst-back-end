@@ -9,7 +9,7 @@ public class GetMatchDTO
     public DateTime EndTime { get; set; }
     public BracketType BracketType { get; set; }
     public GameFormat Format { get; set; }
-    public ParticipantType ParticipantType { get; set; }
+    public ParticipationMode ParticipationMode { get; set; }
 
     public int RoundNumber { get; set; }
     public int MatchNumber { get; set; }
@@ -38,7 +38,7 @@ public class GetMatchDTO
         EndTime = match.EndTime;
         BracketType = match.BracketType;
         Format = match.Format;
-        ParticipantType = match.ParticipantType;
+        ParticipationMode = match.ParticipationMode;
         RoundNumber = match.RoundNumber;
         MatchNumber = match.MatchNumber;
         IsLowerBracketMatch = match.IsLowerBracketMatch;

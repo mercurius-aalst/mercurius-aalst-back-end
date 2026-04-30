@@ -38,7 +38,7 @@ public class GetGameDTO
         ImageUrl = game.ImageUrl;
         RegisterFormUrl = game.RegisterFormUrl;
         ParticipationMode = game.ParticipationMode;
-        Placements = game.Placements.Select(p => new GetPlacementDTO(p, game.ParticipationMode.ToParticipantType()));
+        Placements = game.Placements.Select(p => new GetPlacementDTO(p, game.ParticipationMode));
         Matches = game.Matches.Select(m => new GetMatchDTO(m));
         switch (ParticipationMode)
         {

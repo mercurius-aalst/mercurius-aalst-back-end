@@ -68,8 +68,10 @@ public class SingleEliminationMatchModerator : IMatchModerator
     {
         var matches = new List<Match>();
 
-        int participantCount = game.Participants.Count();
-        var participants = game.Participants.OrderBy(_ => Guid.NewGuid()).ToList();
+        var participants = MatchModeParticipantHelper.GetParticipantsForBracket(game)
+            .OrderBy(_ => Guid.NewGuid())
+            .ToList();
+        int participantCount = participants.Count;
         int nextPowerOfTwo = (int)Math.Pow(2, Math.Ceiling(Math.Log2(participantCount)));
         int totalMatches = nextPowerOfTwo - 1;
 
@@ -78,7 +80,7 @@ public class SingleEliminationMatchModerator : IMatchModerator
 
         // Shuffle participants and assign them to slots
         int[] slotOrder = SeedingHelper.GenerateBracketSlotOrder(nextPowerOfTwo);
-        var slots = new Participant[firstRoundMatchCount * 2];
+        var slots = new Participant?[firstRoundMatchCount * 2];
         for (int i = 0; i < participants.Count; i++)
             slots[slotOrder[i]] = participants[i];
 
@@ -105,15 +107,14 @@ public class SingleEliminationMatchModerator : IMatchModerator
                 MatchNumber = matchNumber,
                 BracketType = BracketType.SingleElimination,
                 Format = game.Format,
-                ParticipantType = game.ParticipantType
+                ParticipationMode = game.ParticipationMode
             };
 
             // Assign participants to first-round matches
             if (i >= totalMatches - firstRoundMatchCount)
             {
                 int leafIndex = i - (totalMatches - firstRoundMatchCount);
-                match.Participant1 = slots[leafIndex * 2];
-                match.Participant2 = slots[leafIndex * 2 + 1];
+                MatchModeParticipantHelper.AssignParticipants(match, slots[leafIndex * 2], slots[leafIndex * 2 + 1]);
 
                 // Handle BYE participants
                 match.SetParticipantBYEs(match.Participant1 is null, match.Participant2 is null);

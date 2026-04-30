@@ -223,7 +223,7 @@ public class MatchTests
             Loser = loser,
             Winner = winner,
             MatchNumber = 1,
-            LoserNextMatch = CreateMatch()
+            LoserNextMatch = new Match()
         };
 
         // Act
@@ -245,7 +245,7 @@ public class MatchTests
             Loser = loser,
             Winner = winner,
             MatchNumber = 2,
-            LoserNextMatch = CreateMatch()
+            LoserNextMatch = new Match()
         };
 
         // Act
@@ -365,6 +365,37 @@ public class MatchTests
         Assert.Equal(0, match.Participant2Score);
     }
 
+    [Fact]
+    public void SetParticipants_ThrowsValidationException_WhenParticipantDoesNotMatchParticipationMode()
+    {
+        var match = new Match
+        {
+            ParticipationMode = ParticipationMode.Individual
+        };
+        var player = CreatePlayer();
+        var captain = CreateUser();
+        var team = new Team("Team A", captain);
+
+        var exception = Assert.Throws<ValidationException>(() => match.SetParticipants(player, (Participant)team));
+
+        Assert.Equal("participant2 is incompatible with Individual match mode.", exception.Message);
+    }
+
+    [Fact]
+    public void ParticipationMode_BridgeKeepsLegacyParticipantTypeCompatibility()
+    {
+        var match = new Match
+        {
+            ParticipationMode = ParticipationMode.Team
+        };
+
+        Assert.Equal(ParticipantType.Team, match.ParticipantType);
+
+        match.ParticipantType = ParticipantType.Player;
+
+        Assert.Equal(ParticipationMode.Individual, match.ParticipationMode);
+    }
+
     private Match CreateMatch()
     {
         var fixture = GetFixture();
@@ -407,6 +438,20 @@ public class MatchTests
         fixture.Customizations.Add(new TypeRelay(typeof(Participant), typeof(Player)));
         fixture.Customize(new MatchParticipantCustomization());
         return fixture.Create<Player>();
+    }
+
+    private User CreateUser()
+    {
+        var fixture = GetFixture();
+        return fixture.Build<User>()
+            .With(u => u.Id, fixture.Create<int>())
+            .With(u => u.Username, fixture.Create<string>())
+            .With(u => u.Firstname, fixture.Create<string>())
+            .With(u => u.Lastname, fixture.Create<string>())
+            .With(u => u.Email, fixture.Create<string>())
+            .Without(u => u.RefreshTokens)
+            .Without(u => u.Roles)
+            .Create();
     }
 
     [Fact]

@@ -1,4 +1,5 @@
 using Mercurius.LAN.API.Exceptions;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Mercurius.LAN.API.Models;
 
@@ -10,6 +11,12 @@ public class Match
     public BracketType BracketType { get; set; }
     public GameFormat Format { get; set; }
     public ParticipantType ParticipantType { get; set; }
+    [NotMapped]
+    public ParticipationMode ParticipationMode
+    {
+        get => ParticipantType.ToParticipationMode();
+        set => ParticipantType = value.ToParticipantType();
+    }
 
     public int RoundNumber { get; set; }
     public int MatchNumber { get; set; }
@@ -39,8 +46,29 @@ public class Match
     public Match? WinnerNextMatch { get; set; }
     public Match? LoserNextMatch { get; set; }
 
+    public void SetParticipants(Player? participant1, Player? participant2)
+    {
+        ParticipationMode = ParticipationMode.Individual;
+        SetParticipantsCore(participant1, participant2);
+    }
+
+    public void SetParticipants(Team? participant1, Team? participant2)
+    {
+        ParticipationMode = ParticipationMode.Team;
+        SetParticipantsCore(participant1, participant2);
+    }
+
+    public void SetParticipants(Participant? participant1, Participant? participant2)
+    {
+        EnsureParticipantMatchesMode(participant1, nameof(participant1));
+        EnsureParticipantMatchesMode(participant2, nameof(participant2));
+        SetParticipantsCore(participant1, participant2);
+    }
+
     public void TryAssignByeWin()
     {
+        NormalizeParticipationModeFromAssignedParticipants();
+
         if (Participant1IsBYE || Participant2IsBYE)
         {
             if ((Participant1 == null && Participant2 != null))
@@ -56,6 +84,8 @@ public class Match
 
     public void SetParticipantBYEs(bool participant1BYE, bool participant2BYE)
     {
+        NormalizeParticipationModeFromAssignedParticipants();
+
         if (RoundNumber != 1 && participant1BYE && participant2BYE)
             return;
 
@@ -66,6 +96,7 @@ public class Match
     private void AssignWinner(Participant? winner, bool isParticipant1Bye = false, bool isParticipant2Bye = false)
     {
         Winner = winner;
+        Loser = null;
         UpdateParticipantsNextMatch();
     }
 
@@ -76,12 +107,15 @@ public class Match
 
     public void Finish()
     {
+        NormalizeParticipationModeFromAssignedParticipants();
         EndTime = DateTime.UtcNow;
         UpdateParticipantsNextMatch();
     }
 
     public void SetScoresAndWinner(int participant1Score, int participant2Score)
     {
+        NormalizeParticipationModeFromAssignedParticipants();
+
         if (participant1Score < 0 || participant2Score < 0)
             throw new ValidationException("Scores cannot be negative");
         int winsNeeded = Format switch
@@ -101,20 +135,20 @@ public class Match
 
         if (participant1Score == winsNeeded && participant1Score > participant2Score)
         {
-            Winner = Participant1;
-            Loser = Participant2;
+            SetWinnerAndLoser(Participant1, Participant2);
             Finish();
         }
         else if (participant2Score == winsNeeded && participant2Score > participant1Score)
         {
-            Winner = Participant2;
-            Loser = Participant1;
+            SetWinnerAndLoser(Participant2, Participant1);
             Finish();
         }
     }
 
     public void UpdateParticipantsNextMatch()
     {
+        NormalizeParticipationModeFromAssignedParticipants();
+
         if (Winner == null)
             return;
 
@@ -124,9 +158,9 @@ public class Match
             if (WinnerNextMatch.IsLowerBracketMatch)
             {
                 if (WinnerNextMatch.Participant2 == null || WinnerNextMatch.Participant2?.Id == Winner.Id)
-                    WinnerNextMatch.Participant2 = Winner;
+                    WinnerNextMatch.SetParticipant2(Winner);
                 else
-                    WinnerNextMatch.Participant1 = Winner;
+                    WinnerNextMatch.SetParticipant1(Winner);
 
                 if (WinnerNextMatch.Participant1IsBYE || WinnerNextMatch.Participant2IsBYE)
                     WinnerNextMatch.TryAssignByeWin();
@@ -134,9 +168,9 @@ public class Match
             else
             {
                 if (MatchNumber % 2 != 0 && !IsLowerBracketMatch)
-                    WinnerNextMatch.Participant1 = Winner;
+                    WinnerNextMatch.SetParticipant1(Winner);
                 else
-                    WinnerNextMatch.Participant2 = Winner;
+                    WinnerNextMatch.SetParticipant2(Winner);
             }
         }
 
@@ -146,17 +180,102 @@ public class Match
             if (RoundNumber == 1)
             {
                 if (MatchNumber % 2 != 0)
-                    LoserNextMatch.Participant1 = Loser;
+                    LoserNextMatch.SetParticipant1(Loser);
                 else
-                    LoserNextMatch.Participant2 = Loser;
+                    LoserNextMatch.SetParticipant2(Loser);
             }
             else
             {
-                LoserNextMatch.Participant1 = Loser;
+                LoserNextMatch.SetParticipant1(Loser);
             }
             if (LoserNextMatch.Participant1IsBYE || LoserNextMatch.Participant2IsBYE)
                 LoserNextMatch.TryAssignByeWin();
         }
+    }
+
+    public void SetParticipant1(Participant? participant)
+    {
+        AdoptParticipationModeIfUnset(participant);
+        EnsureParticipantMatchesMode(participant, nameof(Participant1));
+        Participant1 = participant;
+    }
+
+    public void SetParticipant2(Participant? participant)
+    {
+        AdoptParticipationModeIfUnset(participant);
+        EnsureParticipantMatchesMode(participant, nameof(Participant2));
+        Participant2 = participant;
+    }
+
+    private void SetParticipantsCore(Participant? participant1, Participant? participant2)
+    {
+        AdoptParticipationModeIfUnset(participant1 ?? participant2);
+        Participant1 = participant1;
+        Participant2 = participant2;
+    }
+
+    private void SetWinnerAndLoser(Participant? winner, Participant? loser)
+    {
+        AdoptParticipationModeIfUnset(winner ?? loser);
+        EnsureParticipantMatchesMode(winner, nameof(Winner));
+        EnsureParticipantMatchesMode(loser, nameof(Loser));
+        Winner = winner;
+        Loser = loser;
+    }
+
+    private void AdoptParticipationModeIfUnset(Participant? participant)
+    {
+        if (participant is null || HasResolvedMode())
+            return;
+
+        ParticipationMode = participant switch
+        {
+            Player => ParticipationMode.Individual,
+            Team => ParticipationMode.Team,
+            _ => ParticipationMode
+        };
+    }
+
+    private bool HasResolvedMode()
+    {
+        return Participant1 != null
+            || Participant2 != null
+            || Winner != null
+            || Loser != null
+            || Participant1Id.HasValue
+            || Participant2Id.HasValue
+            || WinnerId.HasValue
+            || LoserId.HasValue;
+    }
+
+    private void NormalizeParticipationModeFromAssignedParticipants()
+    {
+        var participant = Participant1 ?? Participant2 ?? Winner ?? Loser;
+        if (participant is null)
+            return;
+
+        ParticipationMode = participant switch
+        {
+            Player => ParticipationMode.Individual,
+            Team => ParticipationMode.Team,
+            _ => ParticipationMode
+        };
+    }
+
+    private void EnsureParticipantMatchesMode(Participant? participant, string parameterName)
+    {
+        if (participant is null)
+            return;
+
+        bool isCompatible = ParticipationMode switch
+        {
+            ParticipationMode.Individual => participant is Player,
+            ParticipationMode.Team => participant is Team,
+            _ => false
+        };
+
+        if (!isCompatible)
+            throw new ValidationException($"{parameterName} is incompatible with {ParticipationMode} match mode.");
     }
 }
 

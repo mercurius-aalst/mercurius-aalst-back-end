@@ -18,9 +18,10 @@ public class DoubleEliminationMatchModerator : IMatchModerator
     public IEnumerable<Match> GenerateMatchesForGame(Game game)
     {
         var matches = new List<Match>();
+        var participants = MatchModeParticipantHelper.GetParticipantsForBracket(game);
 
         // Generate upper and lower bracket matches
-        GenerateUpperBracketMatches(game, game.Participants, matches);
+        GenerateUpperBracketMatches(game, participants, matches);
         GenerateLowerBracketMatches(game, matches);
 
         // Generate the grand final match
@@ -40,9 +41,9 @@ public class DoubleEliminationMatchModerator : IMatchModerator
     /// <param name="game">The game for which matches are to be generated.</param>
     /// <param name="participants">The participants in the tournament.</param>
     /// <param name="matches">The list to which generated matches will be added.</param>
-    private void GenerateUpperBracketMatches(Game game, IEnumerable<Participant> participants, List<Match> matches)
+    private void GenerateUpperBracketMatches(Game game, IReadOnlyCollection<Participant> participants, List<Match> matches)
     {
-        int participantCount = game.Participants.Count();
+        int participantCount = participants.Count;
         int nextPowerOfTwo = (int)Math.Pow(2, Math.Ceiling(Math.Log2(participantCount)));
         int totalMatches = nextPowerOfTwo - 1;
         int totalRounds = (int)Math.Ceiling(Math.Log2(participantCount));
@@ -81,11 +82,11 @@ public class DoubleEliminationMatchModerator : IMatchModerator
     /// <param name="firstRoundMatchCount">The number of matches in the first round.</param>
     /// <param name="nextPowerOfTwo">The next power of two greater than or equal to the number of participants.</param>
     /// <returns>An array of participants assigned to slots.</returns>
-    private Participant[] AssignParticipantsToSlots(IEnumerable<Participant> participants, int firstRoundMatchCount, int nextPowerOfTwo)
+    private Participant?[] AssignParticipantsToSlots(IEnumerable<Participant> participants, int firstRoundMatchCount, int nextPowerOfTwo)
     {
         var shuffled = participants.OrderBy(_ => Guid.NewGuid()).ToList();
         int[] slotOrder = SeedingHelper.GenerateBracketSlotOrder(nextPowerOfTwo);
-        var slots = new Participant[firstRoundMatchCount * 2];
+        var slots = new Participant?[firstRoundMatchCount * 2];
 
         // Assign participants to slots based on the shuffled list
         for (int i = 0; i < shuffled.Count; i++)
@@ -139,7 +140,7 @@ public class DoubleEliminationMatchModerator : IMatchModerator
             BracketType = game.BracketType,
             Format = game.Format,
             MatchNumber = matchNumber,
-            ParticipantType = game.ParticipantType
+            ParticipationMode = game.ParticipationMode
         };
     }
 
@@ -151,12 +152,11 @@ public class DoubleEliminationMatchModerator : IMatchModerator
     /// <param name="matchIndex">The index of the match.</param>
     /// <param name="totalMatches">The total number of matches in the tournament.</param>
     /// <param name="firstRoundMatchCount">The number of matches in the first round.</param>
-    private void AssignParticipantsToMatch(Participant[] slots, Match match, int matchIndex, int totalMatches, int firstRoundMatchCount)
+    private void AssignParticipantsToMatch(Participant?[] slots, Match match, int matchIndex, int totalMatches, int firstRoundMatchCount)
     {
         int firstRoundStart = totalMatches - firstRoundMatchCount;
         int leafIndex = matchIndex - firstRoundStart;
-        match.Participant1 = slots[leafIndex * 2];
-        match.Participant2 = slots[leafIndex * 2 + 1];
+        MatchModeParticipantHelper.AssignParticipants(match, slots[leafIndex * 2], slots[leafIndex * 2 + 1]);
 
         match.SetParticipantBYEs(match.Participant1 is null, match.Participant2 is null);
         match.TryAssignByeWin();
@@ -190,7 +190,7 @@ public class DoubleEliminationMatchModerator : IMatchModerator
                     MatchNumber = i + 1,
                     Format = game.Format,
                     BracketType = game.BracketType,
-                    ParticipantType = game.ParticipantType,
+                    ParticipationMode = game.ParticipationMode,
                     IsLowerBracketMatch = true
                 };
 
@@ -220,7 +220,7 @@ public class DoubleEliminationMatchModerator : IMatchModerator
             MatchNumber = 1,
             Format = game.FinalsFormat,
             BracketType = game.BracketType,
-            ParticipantType = game.ParticipantType,
+            ParticipationMode = game.ParticipationMode,
             IsLowerBracketMatch = false
         };
         matches.Add(grandFinalMatch);

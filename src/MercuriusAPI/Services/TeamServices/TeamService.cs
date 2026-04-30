@@ -16,10 +16,13 @@ public class TeamService : ITeamService
         _inviteResendCooldownDays = configuration.GetSection("TeamInvite:ResendCooldownDays").Get<int>();
     }
 
-    public async Task<GetTeamDTO> CreateTeamAsync(CreateTeamDTO teamDTO, Player captain)
+    public async Task<GetTeamDTO> CreateTeamAsync(CreateTeamDTO teamDTO)
     {
         if (await CheckIfTeamNameExistsAsync(teamDTO.Name))
             throw new ValidationException($"Teamname {teamDTO.Name} already in use");
+        var captain = await _dbContext.Users.FindAsync(teamDTO.CaptainUserId);
+        if (captain is null)
+            throw new NotFoundException($"{nameof(User)} not found");
         var team = new Team(teamDTO.Name, captain);
         _dbContext.Teams.Add(team);
         await _dbContext.SaveChangesAsync();
@@ -35,23 +38,28 @@ public class TeamService : ITeamService
     }
     public IEnumerable<GetTeamDTO> GetAllTeams()
     {
-        return _dbContext.Teams.Include(t => t.Players).Select(t => new GetTeamDTO(t));
+        return _dbContext.Teams
+            .Include(t => t.Members)
+            .Include(t => t.TeamInvites)
+            .Select(t => new GetTeamDTO(t));
     }
     public async Task<Team> GetTeamByIdAsync(int teamId)
     {
-        var team = await _dbContext.Teams.FindAsync(teamId);
+        var team = await _dbContext.Teams
+            .Include(t => t.Members)
+            .Include(t => t.TeamInvites)
+            .FirstOrDefaultAsync(t => t.Id == teamId);
         if (team is null)
             throw new NotFoundException($"{nameof(Team)} not found");
-        await _dbContext.Entry(team).Collection(p => p.Players).LoadAsync();
         return team;
     }
 
-    public async Task<GetTeamDTO> RemovePlayerAsync(int id, int playerId)
+    public async Task<GetTeamDTO> RemoveMemberAsync(int id, int userId)
     {
-        var team = await _dbContext.Teams.Include(t => t.Players).FirstOrDefaultAsync(t => t.Id == id);
+        var team = await _dbContext.Teams.Include(t => t.Members).FirstOrDefaultAsync(t => t.Id == id);
         if (team is null)
             throw new NotFoundException($"{nameof(Team)} not found");
-        team.RemovePlayer(playerId);
+        team.RemoveMember(userId);
         await _dbContext.SaveChangesAsync();
         return new GetTeamDTO(team);
     }
@@ -61,41 +69,46 @@ public class TeamService : ITeamService
         var team = await GetTeamByIdAsync(id);
         if (teamDTO.Name != null && !team.Name.Equals(teamDTO.Name) && await CheckIfTeamNameExistsAsync(teamDTO.Name))
             throw new ValidationException($"Teamname {teamDTO.Name} already in use");
-        team.Update(teamDTO.Name, teamDTO.CaptainId);
+        team.Update(teamDTO.Name, teamDTO.CaptainUserId);
         _dbContext.Teams.Update(team);
         await _dbContext.SaveChangesAsync();
         return new GetTeamDTO(team);
     }
 
-    public async Task<TeamInviteDTO> InvitePlayerAsync(int teamId, int playerId)
+    public async Task<TeamInviteDTO> InviteUserAsync(int teamId, int userId)
     {
         var team = await GetTeamByIdAsync(teamId);
-        await _dbContext.Entry(team).Collection(t => t.TeamInvites).LoadAsync();
-        if (team == null)
-            throw new NotFoundException($"{nameof(Team)} not found");
-        var invite = team.InvitePlayer(playerId, _inviteResendCooldownDays);
+        if (!await _dbContext.Users.AnyAsync(u => u.Id == userId))
+            throw new NotFoundException($"{nameof(User)} not found");
+        var invite = team.InviteUser(userId, _inviteResendCooldownDays);
         await _dbContext.SaveChangesAsync();
         return new TeamInviteDTO(invite);
     }
 
-    public async Task<TeamInviteDTO> RespondToInviteAsync(int teamId, int playerId, bool accept)
+    public async Task<TeamInviteDTO> RespondToInviteAsync(int teamId, int userId, bool accept)
     {
-        var invite = await _dbContext.TeamInvites.Include(ti => ti.Player).Include(ti => ti.Team).FirstOrDefaultAsync(i => i.TeamId == teamId && i.PlayerId == playerId && i.Status == TeamInviteStatus.Pending);
+        var invite = await _dbContext.TeamInvites
+            .Include(ti => ti.User)
+            .Include(ti => ti.Team)
+            .FirstOrDefaultAsync(i => i.TeamId == teamId && i.UserId == userId && i.Status == TeamInviteStatus.Pending);
         if (invite == null)
             throw new NotFoundException("No pending invite found");
+        await _dbContext.Entry(invite.Team).Collection(t => t.Members).LoadAsync();
         invite.Respond(accept);
         await _dbContext.SaveChangesAsync();
         return new TeamInviteDTO(invite);
     }
 
-    public async Task<IEnumerable<TeamInviteDTO>> GetPlayerInvitesAsync(int playerId)
+    public async Task<IEnumerable<TeamInviteDTO>> GetUserInvitesAsync(int userId)
     {
-        var invites = await _dbContext.TeamInvites.Where(i => i.PlayerId == playerId && i.Status == TeamInviteStatus.Pending).ToListAsync();
+        var invites = await _dbContext.TeamInvites
+            .Where(i => i.UserId == userId && i.Status == TeamInviteStatus.Pending)
+            .ToListAsync();
         return invites.Select(invite => new TeamInviteDTO
         {
             Id = invite.Id,
             TeamId = invite.TeamId,
-            PlayerId = invite.PlayerId,
+            UserId = invite.UserId,
             Status = invite.Status.ToString(),
             CreatedAt = invite.CreatedAt
         });

@@ -14,8 +14,8 @@ public class TeamInvite
     public int Id { get; set; }
     public int TeamId { get; set; }
     public Team Team { get; set; }
-    public int PlayerId { get; set; }
-    public Player Player { get; set; }
+    public int UserId { get; set; }
+    public User User { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public TeamInviteStatus Status { get; set; } = TeamInviteStatus.Pending;
     public DateTime? RespondedAt { get; set; }
@@ -27,7 +27,7 @@ public class TeamInvite
 
         Status = accept ? TeamInviteStatus.Accepted : TeamInviteStatus.Declined;
         if (accept)
-            Team.Players.Add(Player);
+            Team.Members.Add(User);
         RespondedAt = DateTime.UtcNow;
     }
 }

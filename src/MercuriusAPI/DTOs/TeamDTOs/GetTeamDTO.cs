@@ -6,16 +6,16 @@ namespace Mercurius.LAN.API.DTOs.TeamDTOs;
 public class GetTeamDTO : GetParticipantDTO
 {
     public string Name { get; set; }
-    public int CaptainId { get; set; }
-    public IEnumerable<GetTeamPlayerDTO> Players { get; set; } = [];
+    public int CaptainUserId { get; set; }
+    public IEnumerable<GetTeamUserDTO> Members { get; set; } = [];
     public IEnumerable<TeamInviteDTO> TeamInvites { get; set; } = [];
     public GetTeamDTO(Team team)
     {
         Id = team.Id;
         Name = team.Name;
-        Players = team.Players.Select(p => new GetTeamPlayerDTO(p));
+        Members = team.Members.Select(p => new GetTeamUserDTO(p));
         TeamInvites = team.TeamInvites.Where(i => i.Status == TeamInviteStatus.Pending).Select(i => new TeamInviteDTO(i));
-        CaptainId = team.CaptainId;
+        CaptainUserId = team.CaptainUserId;
         Type = ParticipantType.Team;
     }
 }

@@ -5,10 +5,10 @@ namespace Mercurius.LAN.API.Models;
 public class Team : Participant
 {
     public string Name { get; set; }
-    public int CaptainId { get; set; }
-    public Player Captain { get; set; }
+    public int CaptainUserId { get; set; }
+    public User Captain { get; set; }
 
-    public IList<Player> Players { get; set; } = new List<Player>();
+    public IList<User> Members { get; set; } = new List<User>();
     public IList<TeamInvite> TeamInvites { get; set; } = new List<TeamInvite>();
 
     public Team()
@@ -16,44 +16,44 @@ public class Team : Participant
 
     }
 
-    public Team(string name, Player captain)
+    public Team(string name, User captain)
     {
         Name = name;
         Captain = captain;
-        CaptainId = captain.Id;
-        Players.Add(captain);
+        CaptainUserId = captain.Id;
+        Members.Add(captain);
     }
 
-    public void Update(string? name, int? captainId)
+    public void Update(string? name, int? captainUserId)
     {
         if (name is not null)
             Name = name;
-        if (captainId is not null)
+        if (captainUserId is not null)
         {
-            if (!Players.Any(m => m.Id == captainId))
+            if (!Members.Any(m => m.Id == captainUserId))
                 throw new ValidationException($"New captain must be part of the team.");
-            CaptainId = (int)captainId;
+            CaptainUserId = captainUserId.Value;
         }
     }
 
-    public void RemovePlayer(int playerId)
+    public void RemoveMember(int userId)
     {
-        var player = Players.FirstOrDefault(m => m.Id == playerId);
-        if (player is null)
-            throw new NotFoundException($"{nameof(Player)} not found in {Name}");
-        if (player.Id == CaptainId)
+        var member = Members.FirstOrDefault(m => m.Id == userId);
+        if (member is null)
+            throw new NotFoundException($"{nameof(User)} not found in {Name}");
+        if (member.Id == CaptainUserId)
             throw new ValidationException("The captain cannot be removed from a team");
-        Players.Remove(player);
+        Members.Remove(member);
     }
 
-    public TeamInvite InvitePlayer(int playerId, int inviteResendCooldownDays)
+    public TeamInvite InviteUser(int userId, int inviteResendCooldownDays)
     {
-        if (Players.Any(p => p.Id == playerId))
-            throw new ValidationException("Player is already in the team");
-        if (TeamInvites.Any(i => i.PlayerId == playerId && i.Status == TeamInviteStatus.Pending))
-            throw new ValidationException("Player already has a pending invite to this team");
+        if (Members.Any(p => p.Id == userId))
+            throw new ValidationException("User is already in the team");
+        if (TeamInvites.Any(i => i.UserId == userId && i.Status == TeamInviteStatus.Pending))
+            throw new ValidationException("User already has a pending invite to this team");
         var lastDeclinedInvite = TeamInvites
-           .Where(i => i.PlayerId == playerId && i.Status == TeamInviteStatus.Declined)
+           .Where(i => i.UserId == userId && i.Status == TeamInviteStatus.Declined)
            .OrderByDescending(i => i.RespondedAt)
            .FirstOrDefault();
         if (lastDeclinedInvite != null && lastDeclinedInvite.RespondedAt.HasValue)
@@ -61,10 +61,10 @@ public class Team : Participant
             var daysSinceDeclined = (DateTime.UtcNow - lastDeclinedInvite.RespondedAt.Value).TotalDays;
             if (daysSinceDeclined < inviteResendCooldownDays)
             {
-                throw new ValidationException($"Player declined the last invite less than {inviteResendCooldownDays} days ago. Please wait {inviteResendCooldownDays - (int)daysSinceDeclined} more day(s).");
+                throw new ValidationException($"User declined the last invite less than {inviteResendCooldownDays} days ago. Please wait {inviteResendCooldownDays - (int)daysSinceDeclined} more day(s).");
             }
         }
-        var invite = new TeamInvite { TeamId = Id, PlayerId = playerId };
+        var invite = new TeamInvite { TeamId = Id, UserId = userId };
         TeamInvites.Add(invite);
         return invite;
     }

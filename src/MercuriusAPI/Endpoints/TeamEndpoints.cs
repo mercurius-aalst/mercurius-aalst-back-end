@@ -1,5 +1,4 @@
 using Mercurius.LAN.API.DTOs.TeamDTOs;
-using Mercurius.LAN.API.Services.PlayerServices;
 using Mercurius.LAN.API.Services.TeamServices;
 using Microsoft.AspNetCore.Authorization;
 
@@ -25,15 +24,14 @@ public static class TeamEndpoints
         })
         .AllowAnonymous();
 
-        group.MapPost("/", async (CreateTeamDTO createTeamDTO, ITeamService teamService, IPlayerService playerService) =>
+        group.MapPost("/", async (CreateTeamDTO createTeamDTO, ITeamService teamService) =>
         {
-            var captain = await playerService.GetPlayerByIdAsync(createTeamDTO.CaptainId);
-            return await teamService.CreateTeamAsync(createTeamDTO, captain);
+            return await teamService.CreateTeamAsync(createTeamDTO);
         });
 
-        group.MapDelete("/{id}/players/{playerId}", async (int id, int playerId, ITeamService teamService) =>
+        group.MapDelete("/{id}/users/{userId}", async (int id, int userId, ITeamService teamService) =>
         {
-            return await teamService.RemovePlayerAsync(id, playerId);
+            return await teamService.RemoveMemberAsync(id, userId);
         });
 
         group.MapPut("/{id}", async (int id, UpdateTeamDTO updateTeamDTO, ITeamService teamService) =>
@@ -46,19 +44,19 @@ public static class TeamEndpoints
             await teamService.DeleteTeamAsync(id);
         });
 
-        group.MapPost("/{id}/players/invite/{playerId}", async (int id, int playerId, ITeamService teamService) =>
+        group.MapPost("/{id}/users/invite/{userId}", async (int id, int userId, ITeamService teamService) =>
         {
-            return await teamService.InvitePlayerAsync(id, playerId);
+            return await teamService.InviteUserAsync(id, userId);
         });
 
-        group.MapPut("/{id}/players/invite/{playerId}", async (int id, int playerId, RespondTeamInviteDTO dto, ITeamService teamService) =>
+        group.MapPut("/{id}/users/invite/{userId}", async (int id, int userId, RespondTeamInviteDTO dto, ITeamService teamService) =>
         {
-            return await teamService.RespondToInviteAsync(id, playerId, dto.Accept);
+            return await teamService.RespondToInviteAsync(id, userId, dto.Accept);
         });
 
-        group.MapGet("/players/{playerId}/invites", async (int playerId, ITeamService teamService) =>
+        group.MapGet("/users/{userId}/invites", async (int userId, ITeamService teamService) =>
         {
-            return await teamService.GetPlayerInvitesAsync(playerId);
+            return await teamService.GetUserInvitesAsync(userId);
         });
 
         return group;

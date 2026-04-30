@@ -2,10 +2,11 @@ using Mercurius.LAN.API.Models;
 
 namespace Mercurius.LAN.API.DTOs.TeamDTOs;
 
-public class GetTeamPlayerDTO
+public class GetTeamUserDTO
 {
     public int Id { get; set; }
     public string Username { get; set; }
+    public string DisplayName { get; set; }
     public string Firstname { get; set; }
     public string Lastname { get; set; }
 
@@ -15,20 +16,21 @@ public class GetTeamPlayerDTO
 
     public string Email { get; set; }
 
-    public GetTeamPlayerDTO()
+    public GetTeamUserDTO()
     {
 
     }
-    public GetTeamPlayerDTO(Player player)
+    public GetTeamUserDTO(User user)
     {
-        Id = player.Id;
-        Username = player.Username;
-        Firstname = player.Firstname;
-        Lastname = player.Lastname;
-        DiscordId = player.DiscordId;
-        SteamId = player.SteamId;
-        RiotId = player.RiotId;
-        Email = player.Email;
+        Id = user.Id;
+        Username = user.Username;
+        DisplayName = user.DisplayName;
+        Firstname = user.Firstname;
+        Lastname = user.Lastname;
+        DiscordId = user.DiscordId;
+        SteamId = user.SteamId;
+        RiotId = user.RiotId;
+        Email = user.Email;
     }
 }
 

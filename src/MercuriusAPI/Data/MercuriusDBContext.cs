@@ -1,6 +1,5 @@
 using Mercurius.LAN.API.Models;
 using Microsoft.EntityFrameworkCore;
-using Mercurius.LAN.API.Models;
 using Mercurius.LAN.API.Models.Auth;
 
 namespace Mercurius.LAN.API.Data;
@@ -43,11 +42,11 @@ public partial class MercuriusDBContext : DbContext
         modelBuilder.Entity<Team>(entity =>
         {
             entity.Property(e => e.Name).IsRequired();
-            entity.HasMany(e => e.Players)
-                  .WithMany(e => e.Teams);
+            entity.HasMany(e => e.Members)
+                  .WithMany();
             entity.HasOne(e => e.Captain)
                    .WithMany()
-                   .HasForeignKey(e => e.CaptainId)
+                   .HasForeignKey(e => e.CaptainUserId)
                    .IsRequired();
 
         });
@@ -96,9 +95,9 @@ public partial class MercuriusDBContext : DbContext
                   .WithMany(t => t.TeamInvites)
                   .HasForeignKey(e => e.TeamId)
                   .OnDelete(DeleteBehavior.Cascade);
-            entity.HasOne(e => e.Player)
+            entity.HasOne(e => e.User)
                   .WithMany()
-                  .HasForeignKey(e => e.PlayerId)
+                  .HasForeignKey(e => e.UserId)
                   .OnDelete(DeleteBehavior.Cascade);
             entity.Property(e => e.Status).IsRequired();
             entity.Property(e => e.CreatedAt).IsRequired();

@@ -1,7 +1,6 @@
 using Mercurius.LAN.API.DTOs.GameDTOs;
 using Mercurius.LAN.API.DTOs.PlacementDTOs;
 using Mercurius.LAN.API.Services.GameServices;
-using Mercurius.LAN.API.Services.ParticipantServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -42,16 +41,24 @@ public static class GameEndpoints
             await gameService.DeleteGameAsync(id);
         });
 
-        group.MapPost("/{id}/participants/{participantId}", async (int id, int participantId, IGameService gameService, IParticipantService participantService) =>
+        group.MapPost("/{id}/players", async (int id, RegisterGamePlayerDTO registrationDTO, IGameService gameService) =>
         {
-            var participant = await participantService.GetParticipantByIdAsync(participantId);
-            return await gameService.AddParticipantAsync(id, participant);
+            return await gameService.RegisterPlayerAsync(id, registrationDTO.PlayerId);
         });
 
-        group.MapDelete("/{id}/participants/{participantId}", async (int id, int participantId, IGameService gameService, IParticipantService participantService) =>
+        group.MapDelete("/{id}/players/{playerId}", async (int id, int playerId, IGameService gameService) =>
         {
-            var participant = await participantService.GetParticipantByIdAsync(participantId);
-            return await gameService.RemoveParticipantAsync(id, participant);
+            return await gameService.UnregisterPlayerAsync(id, playerId);
+        });
+
+        group.MapPost("/{id}/teams", async (int id, RegisterGameTeamDTO registrationDTO, IGameService gameService) =>
+        {
+            return await gameService.RegisterTeamAsync(id, registrationDTO.TeamId);
+        });
+
+        group.MapDelete("/{id}/teams/{teamId}", async (int id, int teamId, IGameService gameService) =>
+        {
+            return await gameService.UnregisterTeamAsync(id, teamId);
         });
 
         group.MapPost("/{id}/start", async (int id, IGameService gameService) =>

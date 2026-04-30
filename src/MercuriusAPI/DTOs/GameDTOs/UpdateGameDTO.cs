@@ -11,6 +11,8 @@ public class UpdateGameDTO
     public GameFormat Format { get; set; }
     public GameFormat FinalsFormat { get; set; }
     public BracketType BracketType { get; set; }
+    [Required]
+    public ParticipationMode? ParticipationMode { get; set; }
     public IFormFile? Image { get; set; }
     [Required]
     [StringLength(500, MinimumLength = 1)]

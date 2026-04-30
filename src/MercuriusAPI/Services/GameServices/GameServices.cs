@@ -29,7 +29,7 @@ public class GameService : IGameService
         if (createGameDTO.Image == null)
             throw new ValidationException("A game banner/ image is required.");
 
-        var game = new Game(createGameDTO.Name, createGameDTO.BracketType, createGameDTO.Format, createGameDTO.FinalsFormat, createGameDTO.ParticipantType, createGameDTO.RegisterFormUrl);
+        var game = new Game(createGameDTO.Name, createGameDTO.BracketType, createGameDTO.Format, createGameDTO.FinalsFormat, createGameDTO.ParticipationMode!.Value, createGameDTO.RegisterFormUrl);
 
         var bannerPath = await _fileService.SaveImageAsync(createGameDTO.Image);
         game.ImageUrl = bannerPath;
@@ -58,7 +58,7 @@ public class GameService : IGameService
         if (game.Name != gameDTO.Name && await CheckIfGameNameExistsInCurrentSeasonAsync(gameDTO.Name))
             throw new ValidationException($"Game {gameDTO.Name} already exists");
 
-        game.Update(gameDTO.Name, gameDTO.BracketType, gameDTO.Format, gameDTO.FinalsFormat, gameDTO.RegisterFormUrl);
+        game.Update(gameDTO.Name, gameDTO.BracketType, gameDTO.Format, gameDTO.FinalsFormat, gameDTO.ParticipationMode!.Value, gameDTO.RegisterFormUrl);
 
         if (gameDTO.Image != null)
         {
@@ -109,7 +109,7 @@ public class GameService : IGameService
 
         _dbContext.Games.Update(game);
         await _dbContext.SaveChangesAsync();
-        return game.Placements.Select(p => new GetPlacementDTO(p, game.ParticipantType));
+        return game.Placements.Select(p => new GetPlacementDTO(p, game.ParticipationMode.ToParticipantType()));
     }
 
     public async Task ResetGameAsync(int id)
@@ -120,19 +120,51 @@ public class GameService : IGameService
         await _dbContext.SaveChangesAsync();
     }
 
-    public async Task<GetGameDTO> AddParticipantAsync(int id, Participant participant)
+    public async Task<GetGameDTO> RegisterPlayerAsync(int id, int playerId)
     {
         var game = await GetGameByIdAsync(id);
-        game.AddParticipant(participant);
+        if (game.ParticipationMode != ParticipationMode.Individual)
+            throw new ValidationException("Players can only register for individual-mode games.");
+        var player = await _dbContext.Players.FindAsync(playerId);
+        if (player is null)
+            throw new NotFoundException($"{nameof(Player)} not found");
+        game.RegisterPlayer(player);
         _dbContext.Games.Update(game);
         await _dbContext.SaveChangesAsync();
         return new GetGameDTO(game);
     }
 
-    public async Task<GetGameDTO> RemoveParticipantAsync(int id, Participant participant)
+    public async Task<GetGameDTO> RegisterTeamAsync(int id, int teamId)
     {
         var game = await GetGameByIdAsync(id);
-        game.RemoveParticipant(participant);
+        if (game.ParticipationMode != ParticipationMode.Team)
+            throw new ValidationException("Teams can only register for team-mode games.");
+        var team = await _dbContext.Teams.FindAsync(teamId);
+        if (team is null)
+            throw new NotFoundException($"{nameof(Team)} not found");
+        game.RegisterTeam(team);
+        _dbContext.Games.Update(game);
+        await _dbContext.SaveChangesAsync();
+        return new GetGameDTO(game);
+    }
+
+    public async Task<GetGameDTO> UnregisterPlayerAsync(int id, int playerId)
+    {
+        var game = await GetGameByIdAsync(id);
+        if (game.ParticipationMode != ParticipationMode.Individual)
+            throw new ValidationException("Players can only be removed from individual-mode games.");
+        game.RemovePlayer(playerId);
+        _dbContext.Games.Update(game);
+        await _dbContext.SaveChangesAsync();
+        return new GetGameDTO(game);
+    }
+
+    public async Task<GetGameDTO> UnregisterTeamAsync(int id, int teamId)
+    {
+        var game = await GetGameByIdAsync(id);
+        if (game.ParticipationMode != ParticipationMode.Team)
+            throw new ValidationException("Teams can only be removed from team-mode games.");
+        game.RemoveTeam(teamId);
         _dbContext.Games.Update(game);
         await _dbContext.SaveChangesAsync();
         return new GetGameDTO(game);

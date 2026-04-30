@@ -1,5 +1,5 @@
 using Mercurius.LAN.API.Exceptions;
-using Mercurius.LAN.API.Services.GameServices;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Mercurius.LAN.API.Models;
 
@@ -13,7 +13,14 @@ public class Game
     public BracketType BracketType { get; set; }
     public GameFormat Format { get; set; }
     public GameFormat FinalsFormat { get; set; }
-    public ParticipantType ParticipantType { get; set; }
+    [Column("ParticipantType")]
+    public ParticipationMode ParticipationMode { get; set; }
+    [NotMapped]
+    public ParticipantType ParticipantType
+    {
+        get => ParticipationMode.ToParticipantType();
+        set => ParticipationMode = value.ToParticipationMode();
+    }
 
     public IList<Placement> Placements { get; set; } = [];
 
@@ -23,14 +30,14 @@ public class Game
     public string RegisterFormUrl { get; set; }
     public string? ImageUrl { get; set; }
 
-    public Game(string name, BracketType bracketType, GameFormat format, GameFormat finalsFormat, ParticipantType participantType, string registerFormUrl)
+    public Game(string name, BracketType bracketType, GameFormat format, GameFormat finalsFormat, ParticipationMode participationMode, string registerFormUrl)
     {
         Name = name;
         BracketType = bracketType;
         Format = format;
         FinalsFormat = finalsFormat;
         Status = GameStatus.Scheduled;
-        ParticipantType = participantType;
+        ParticipationMode = participationMode;
         RegisterFormUrl = registerFormUrl;
         Placements = new List<Placement>();
     }
@@ -41,14 +48,17 @@ public class Game
     {
     }
 
-    public void Update(string name, BracketType bracketType, GameFormat format, GameFormat finalsFormat, string registerFormUrl)
+    public void Update(string name, BracketType bracketType, GameFormat format, GameFormat finalsFormat, ParticipationMode participationMode, string registerFormUrl)
     {
         if (Status == GameStatus.InProgress || Status == GameStatus.Completed)
             throw new ValidationException("Game cannot be updated when it's in progress or completed.");
+        if (ParticipationMode != participationMode && Matches.Any())
+            throw new ValidationException("Participation mode cannot be changed once match generation has started.");
         Name = name;
         BracketType = bracketType;
         Format = format;
         FinalsFormat = finalsFormat;
+        ParticipationMode = participationMode;
         RegisterFormUrl = registerFormUrl;
     }
     public void Cancel()
@@ -88,31 +98,51 @@ public class Game
         Placements.Clear();
     }
 
-    public void AddParticipant(Participant participant)
+    public void RegisterPlayer(Player player)
     {
-        var expectedType = GetParticipantType();
-        if (participant.GetType() != expectedType)
-            throw new ValidationException($"This game only accepts {nameof(expectedType)}s as participants.");
-        if (Status != GameStatus.Scheduled)
-            throw new ValidationException("Game must be scheduled for registrations.");
-        Participants.Add(participant);
-    }
-    public void RemoveParticipant(Participant participant)
-    {
-        if (Status != GameStatus.Scheduled)
-            throw new ValidationException("Game must be scheduled for participant changes");
-        if (!Participants.Any(p => p.Id == participant.Id))
-            throw new NotFoundException($"{nameof(Participant)} not found for game {Name}");
-        Participants.Remove(participant);
+        EnsureScheduledRegistrationState();
+        if (ParticipationMode != ParticipationMode.Individual)
+            throw new ValidationException("This game only accepts individual registrations.");
+        if (Participants.Any(p => p.Id == player.Id))
+            throw new ValidationException("Player is already registered for this game.");
+        Participants.Add(player);
     }
 
-    private Type GetParticipantType()
+    public void RegisterTeam(Team team)
     {
-        return ParticipantType switch
-        {
-            ParticipantType.Player => typeof(Player),
-            ParticipantType.Team => typeof(Team),
-            _ => typeof(Participant)
-        };
+        EnsureScheduledRegistrationState();
+        if (ParticipationMode != ParticipationMode.Team)
+            throw new ValidationException("This game only accepts team registrations.");
+        if (Participants.Any(p => p.Id == team.Id))
+            throw new ValidationException("Team is already registered for this game.");
+        Participants.Add(team);
+    }
+
+    public void RemovePlayer(int playerId)
+    {
+        EnsureScheduledRegistrationState();
+        if (ParticipationMode != ParticipationMode.Individual)
+            throw new ValidationException("This game only accepts individual registrations.");
+        var player = Participants.OfType<Player>().FirstOrDefault(p => p.Id == playerId);
+        if (player is null)
+            throw new NotFoundException($"{nameof(Player)} not found for game {Name}");
+        Participants.Remove(player);
+    }
+
+    public void RemoveTeam(int teamId)
+    {
+        EnsureScheduledRegistrationState();
+        if (ParticipationMode != ParticipationMode.Team)
+            throw new ValidationException("This game only accepts team registrations.");
+        var team = Participants.OfType<Team>().FirstOrDefault(t => t.Id == teamId);
+        if (team is null)
+            throw new NotFoundException($"{nameof(Team)} not found for game {Name}");
+        Participants.Remove(team);
+    }
+
+    private void EnsureScheduledRegistrationState()
+    {
+        if (Status != GameStatus.Scheduled)
+            throw new ValidationException("Game must be scheduled for registrations.");
     }
 }

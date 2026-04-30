@@ -11,7 +11,8 @@ public class CreateGameDTO
     public BracketType BracketType { get; set; }
     public GameFormat Format { get; set; }
     public GameFormat FinalsFormat { get; set; }
-    public ParticipantType ParticipantType { get; set; }
+    [Required]
+    public ParticipationMode? ParticipationMode { get; set; }
     [Required]
     public IFormFile Image { get; set; }
     [Required]

@@ -17,7 +17,7 @@ public class GetGameDTO
     public BracketType BracketType { get; set; }
     public GameFormat Format { get; set; }
     public GameFormat FinalsFormat { get; set; }
-    public ParticipantType ParticipantType { get; set; }
+    public ParticipationMode ParticipationMode { get; set; }
     public string? ImageUrl { get; set; }
 
     public string RegisterFormUrl { get; set; }
@@ -38,15 +38,15 @@ public class GetGameDTO
         FinalsFormat = game.FinalsFormat;
         ImageUrl = game.ImageUrl;
         RegisterFormUrl = game.RegisterFormUrl;
-        ParticipantType = game.ParticipantType;
-        Placements = game.Placements.Select(p => new GetPlacementDTO(p, game.ParticipantType));
+        ParticipationMode = game.ParticipationMode;
+        Placements = game.Placements.Select(p => new GetPlacementDTO(p, game.ParticipationMode.ToParticipantType()));
         Matches = game.Matches.Select(m => new GetMatchDTO(m));
-        switch (ParticipantType)
+        switch (ParticipationMode)
         {
-            case ParticipantType.Player:
+            case ParticipationMode.Individual:
                 Participants = game.Participants.Select(p => new GetPlayerDTO((Player)p)).ToList();
                 break;
-            case ParticipantType.Team:
+            case ParticipationMode.Team:
                 Participants = game.Participants.Select(t => new GetTeamDTO((Team)t)).ToList();
                 break;
         }

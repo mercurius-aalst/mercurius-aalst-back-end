@@ -74,7 +74,7 @@ public class MatchTests
     public void UpdateParticipantsNextMatch_SetsWinnerInWinnerNextMatch_Participant1_WhenMatchNumberOdd()
     {
         // Arrange
-        var winner = CreatePlayer();
+        var winner = CreateUserParticipant();
         var match = new Match
         {
             ParticipantType = ParticipantType.Player,
@@ -94,7 +94,7 @@ public class MatchTests
     public void UpdateParticipantsNextMatch_SetsWinnerInWinnerNextMatch_Participant2_WhenMatchNumberEven()
     {
         // Arrange
-        var winner = CreatePlayer();
+        var winner = CreateUserParticipant();
         var match = new Match
         {
             ParticipantType = ParticipantType.Player,
@@ -114,8 +114,8 @@ public class MatchTests
     public void UpdateParticipantsNextMatch_SetsLoserInLoserNextMatch_Participant1_WhenMatchNumberOdd()
     {
         // Arrange
-        var winner = CreatePlayer();
-        var loser = CreatePlayer();
+        var winner = CreateUserParticipant();
+        var loser = CreateUserParticipant();
         var match = new Match
         {
             ParticipantType = ParticipantType.Player,
@@ -160,7 +160,7 @@ public class MatchTests
     public void UpdateParticipantsNextMatch_SetsWinnerInLowerBracketMatch()
     {
         // Arrange
-        var winner = CreatePlayer();
+        var winner = CreateUserParticipant();
         var match = new Match
         {
             Winner = winner,
@@ -178,7 +178,7 @@ public class MatchTests
     public void UpdateParticipantsNextMatch_SetsWinnerInUpperBracketMatch_Participant1_WhenMatchNumberOdd()
     {
         // Arrange
-        var winner = CreatePlayer();
+        var winner = CreateUserParticipant();
         var match = new Match
         {
             Winner = winner,
@@ -197,7 +197,7 @@ public class MatchTests
     public void UpdateParticipantsNextMatch_SetsWinnerInUpperBracketMatch_Participant2_WhenMatchNumberEven()
     {
         // Arrange
-        var winner = CreatePlayer();
+        var winner = CreateUserParticipant();
         var match = new Match
         {
             Winner = winner,
@@ -216,8 +216,8 @@ public class MatchTests
     public void UpdateParticipantsNextMatch_AssignsLoserToParticipant1_WhenMatchNumberOdd()
     {
         // Arrange
-        var loser = CreatePlayer();
-        var winner = CreatePlayer();
+        var loser = CreateUserParticipant();
+        var winner = CreateUserParticipant();
         var match = new Match
         {
             Loser = loser,
@@ -237,8 +237,8 @@ public class MatchTests
     public void UpdateParticipantsNextMatch_AssignsLoserToParticipant1_WhenNotFirstRound()
     {
         // Arrange
-        var loser = CreatePlayer();
-        var winner = CreatePlayer();
+        var loser = CreateUserParticipant();
+        var winner = CreateUserParticipant();
 
         var match = new Match
         {
@@ -372,11 +372,11 @@ public class MatchTests
         {
             ParticipationMode = ParticipationMode.Individual
         };
-        var player = CreatePlayer();
+        var user = CreateUserParticipant();
         var captain = CreateUser();
         var team = new Team("Team A", captain);
 
-        var exception = Assert.Throws<ValidationException>(() => match.SetParticipants(player, (Participant)team));
+        var exception = Assert.Throws<ValidationException>(() => match.SetParticipants(user, (Participant)team));
 
         Assert.Equal("participant2 is incompatible with Individual match mode.", exception.Message);
     }
@@ -399,7 +399,7 @@ public class MatchTests
     private Match CreateMatch()
     {
         var fixture = GetFixture();
-        fixture.Customizations.Add(new TypeRelay(typeof(Participant), typeof(Player)));
+        fixture.Customizations.Add(new TypeRelay(typeof(Participant), typeof(User)));
         fixture.Customizations.Add(new TypeRelay(typeof(Participant), typeof(Team)));
         fixture.Customize(new MatchParticipantCustomization());
         return fixture.Create<Match>();
@@ -408,7 +408,7 @@ public class MatchTests
     private Match CreateMatch(GameFormat format = GameFormat.BestOf1)
     {
         var fixture = GetFixture();
-        fixture.Customizations.Add(new TypeRelay(typeof(Participant), typeof(Player)));
+        fixture.Customizations.Add(new TypeRelay(typeof(Participant), typeof(User)));
         fixture.Customizations.Add(new TypeRelay(typeof(Participant), typeof(Team)));
         fixture.Customize(new MatchParticipantCustomization());
         var match = fixture.Build<Match>()
@@ -432,26 +432,24 @@ public class MatchTests
         return fixture;
     }
 
-    private Player CreatePlayer()
+    private User CreateUserParticipant()
     {
-        var fixture = GetFixture();
-        fixture.Customizations.Add(new TypeRelay(typeof(Participant), typeof(Player)));
-        fixture.Customize(new MatchParticipantCustomization());
-        return fixture.Create<Player>();
+        return CreateUser();
     }
 
     private User CreateUser()
     {
         var fixture = GetFixture();
-        return fixture.Build<User>()
-            .With(u => u.Id, fixture.Create<int>())
-            .With(u => u.Username, fixture.Create<string>())
-            .With(u => u.Firstname, fixture.Create<string>())
-            .With(u => u.Lastname, fixture.Create<string>())
-            .With(u => u.Email, fixture.Create<string>())
-            .Without(u => u.RefreshTokens)
-            .Without(u => u.Roles)
-            .Create();
+        return new User
+        {
+            Id = fixture.Create<int>(),
+            Username = fixture.Create<string>(),
+            Firstname = fixture.Create<string>(),
+            Lastname = fixture.Create<string>(),
+            Email = fixture.Create<string>(),
+            RefreshTokens = [],
+            Roles = []
+        };
     }
 
     [Fact]

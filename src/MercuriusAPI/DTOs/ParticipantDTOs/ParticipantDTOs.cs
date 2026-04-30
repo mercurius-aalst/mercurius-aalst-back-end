@@ -5,6 +5,7 @@ using System.Text.Json.Serialization;
 
 namespace Mercurius.LAN.API.DTOs.ParticipantDTOs;
 
+[JsonDerivedType(typeof(GetParticipantUserDTO))]
 [JsonDerivedType(typeof(GetPlayerDTO))]
 [JsonDerivedType(typeof(GetTeamDTO))]
 public abstract class GetParticipantDTO

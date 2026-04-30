@@ -12,11 +12,11 @@ public interface IGameService
     Task DeleteGameAsync(int id);
     IEnumerable<GetGameDTO> GetAllGames();
     Task<Game> GetGameByIdAsync(int gameId);
-    Task<GetGameDTO> RegisterPlayerAsync(int id, int playerId);
+    Task<GetGameDTO> RegisterUserAsync(int id, int userId);
     Task<GetGameDTO> RegisterTeamAsync(int id, int teamId);
     Task ResetGameAsync(int id);
     Task StartGameAsync(int id);
-    Task<GetGameDTO> UnregisterPlayerAsync(int id, int playerId);
+    Task<GetGameDTO> UnregisterUserAsync(int id, int userId);
     Task<GetGameDTO> UnregisterTeamAsync(int id, int teamId);
     Task<GetGameDTO> UpdateGameAsync(int id, UpdateGameDTO gameDTO);
 }

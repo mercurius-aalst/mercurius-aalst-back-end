@@ -10,7 +10,7 @@ internal static class MatchModeParticipantHelper
         var participants = game.ParticipationMode switch
         {
             ParticipationMode.Individual => game.Participants
-                .OfType<Player>()
+                .OfType<User>()
                 .Cast<Participant>()
                 .ToList(),
             ParticipationMode.Team => game.Participants
@@ -31,7 +31,7 @@ internal static class MatchModeParticipantHelper
         switch (match.ParticipationMode)
         {
             case ParticipationMode.Individual:
-                match.SetParticipants(AsPlayer(participant1), AsPlayer(participant2));
+                match.SetParticipants(AsUser(participant1), AsUser(participant2));
                 return;
             case ParticipationMode.Team:
                 match.SetParticipants(AsTeam(participant1), AsTeam(participant2));
@@ -46,7 +46,7 @@ internal static class MatchModeParticipantHelper
         switch (match.ParticipationMode)
         {
             case ParticipationMode.Individual:
-                match.SetParticipant1(AsPlayer(participant));
+                match.SetParticipant1(AsUser(participant));
                 return;
             case ParticipationMode.Team:
                 match.SetParticipant1(AsTeam(participant));
@@ -61,7 +61,7 @@ internal static class MatchModeParticipantHelper
         switch (match.ParticipationMode)
         {
             case ParticipationMode.Individual:
-                match.SetParticipant2(AsPlayer(participant));
+                match.SetParticipant2(AsUser(participant));
                 return;
             case ParticipationMode.Team:
                 match.SetParticipant2(AsTeam(participant));
@@ -71,12 +71,12 @@ internal static class MatchModeParticipantHelper
         }
     }
 
-    private static Player? AsPlayer(Participant? participant)
+    private static User? AsUser(Participant? participant)
     {
         return participant switch
         {
             null => null,
-            Player player => player,
+            User user => user,
             _ => throw new ValidationException("Team participant cannot be assigned to an individual match.")
         };
     }

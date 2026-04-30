@@ -1,4 +1,5 @@
 using Mercurius.LAN.API.Models;
+using Mercurius.LAN.API.Services.MatchServices.Helpers;
 
 namespace Mercurius.LAN.API.Services.MatchServices.BracketTypes;
 
@@ -22,7 +23,7 @@ public class SwissStageMatchModerator : IMatchModerator
 
     private void GenerateSwissMatches(Game game, List<Match> matches)
     {
-        var paddedParticipants = PadTo16(game.Participants.ToList());
+        var paddedParticipants = PadTo16(MatchModeParticipantHelper.GetParticipantsForBracket(game));
         int matchCounter = 0;
 
         for (int round = 1; round <= _maxRounds; round++)
@@ -38,15 +39,17 @@ public class SwissStageMatchModerator : IMatchModerator
                     MatchNumber = matchCounter++,
                     BracketType = BracketType.Swiss,
                     Format = game.Format,
-                    ParticipantType = game.ParticipantType
+                    ParticipationMode = game.ParticipationMode
                 };
                 if (round == 1)
                 {
                     int p1Index = i * 2;
                     int p2Index = p1Index + 1;
 
-                    match.Participant1 = paddedParticipants[p1Index];
-                    match.Participant2 = p2Index < paddedParticipants.Count ? paddedParticipants[p2Index] : null;
+                    MatchModeParticipantHelper.AssignParticipants(
+                        match,
+                        paddedParticipants[p1Index],
+                        p2Index < paddedParticipants.Count ? paddedParticipants[p2Index] : null);
 
                     match.TryAssignByeWin();
                 }
@@ -79,7 +82,7 @@ public class SwissStageMatchModerator : IMatchModerator
                     MatchNumber = matchIndex++,
                     BracketType = game.BracketType,
                     Format = game.Format,
-                    ParticipantType = game.ParticipantType
+                    ParticipationMode = game.ParticipationMode
                 };
 
                 matches.Add(match);
@@ -95,7 +98,7 @@ public class SwissStageMatchModerator : IMatchModerator
             MatchNumber = matchIndex++,
             BracketType = BracketType.SingleElimination,
             Format = game.FinalsFormat,
-            ParticipantType = game.ParticipantType
+            ParticipationMode = game.ParticipationMode
         };
 
         matches.Add(grandFinalMatch);

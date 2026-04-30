@@ -1,5 +1,6 @@
 using Mercurius.LAN.API.Models;
 using Mercurius.LAN.API.Services.MatchServices.BracketTypes;
+using Mercurius.LAN.API.Exceptions;
 
 namespace Mercurius.LAN.API.Tests;
 
@@ -9,16 +10,16 @@ public class MatchModeratorTests
     public void SingleElimination_GenerateMatchesForGame_KeepsIndividualParticipantsModeSafe_AndAdvancesByeWinner()
     {
         var game = new Game("Bracket", BracketType.SingleElimination, GameFormat.BestOf1, GameFormat.BestOf1, ParticipationMode.Individual, "https://example.test");
-        game.Participants.Add(CreatePlayer(1));
-        game.Participants.Add(CreatePlayer(2));
-        game.Participants.Add(CreatePlayer(3));
+        game.Participants.Add(CreateUser(1));
+        game.Participants.Add(CreateUser(2));
+        game.Participants.Add(CreateUser(3));
 
         var moderator = new SingleEliminationMatchModerator();
 
         var matches = moderator.GenerateMatchesForGame(game).ToList();
 
         Assert.All(matches, match => Assert.Equal(ParticipationMode.Individual, match.ParticipationMode));
-        Assert.All(matches.SelectMany(GetAssignedParticipants), participant => Assert.IsType<Player>(participant));
+        Assert.All(matches.SelectMany(GetAssignedParticipants), participant => Assert.IsType<User>(participant));
 
         var byeMatch = matches.Single(match => match.RoundNumber == 1 && (match.Participant1IsBYE || match.Participant2IsBYE));
         Assert.NotNull(byeMatch.Winner);
@@ -48,6 +49,68 @@ public class MatchModeratorTests
         Assert.Contains(byeMatch.Winner, new[] { byeMatch.WinnerNextMatch.Participant1, byeMatch.WinnerNextMatch.Participant2 });
     }
 
+    [Fact]
+    public void RoundRobin_GenerateMatchesForGame_KeepsTeamParticipantsModeSafe()
+    {
+        var game = new Game("Bracket", BracketType.RoundRobin, GameFormat.BestOf1, GameFormat.BestOf1, ParticipationMode.Team, "https://example.test");
+        game.Participants.Add(CreateTeam(1));
+        game.Participants.Add(CreateTeam(2));
+        game.Participants.Add(CreateTeam(3));
+
+        var moderator = new RoundRobinMatchModerator();
+
+        var matches = moderator.GenerateMatchesForGame(game).ToList();
+
+        Assert.NotEmpty(matches);
+        Assert.All(matches, match => Assert.Equal(ParticipationMode.Team, match.ParticipationMode));
+        Assert.All(matches.SelectMany(GetAssignedParticipants), participant => Assert.IsType<Team>(participant));
+    }
+
+    [Fact]
+    public void RoundRobin_GenerateMatchesForGame_ThrowsValidationException_WhenParticipantsDoNotMatchMode()
+    {
+        var game = new Game("Bracket", BracketType.RoundRobin, GameFormat.BestOf1, GameFormat.BestOf1, ParticipationMode.Team, "https://example.test");
+        game.Participants.Add(CreateTeam(1));
+        game.Participants.Add(CreateUser(2));
+
+        var moderator = new RoundRobinMatchModerator();
+
+        var exception = Assert.Throws<ValidationException>(() => moderator.GenerateMatchesForGame(game).ToList());
+
+        Assert.Equal("Game participants are incompatible with Team mode.", exception.Message);
+    }
+
+    [Fact]
+    public void SwissStage_GenerateMatchesForGame_KeepsIndividualParticipantsModeSafe()
+    {
+        var game = new Game("Bracket", BracketType.Swiss, GameFormat.BestOf1, GameFormat.BestOf3, ParticipationMode.Individual, "https://example.test");
+        game.Participants.Add(CreateUser(1));
+        game.Participants.Add(CreateUser(2));
+        game.Participants.Add(CreateUser(3));
+
+        var moderator = new SwissStageMatchModerator();
+
+        var matches = moderator.GenerateMatchesForGame(game).ToList();
+
+        Assert.NotEmpty(matches);
+        Assert.All(matches, match => Assert.Equal(ParticipationMode.Individual, match.ParticipationMode));
+        Assert.All(matches.SelectMany(GetAssignedParticipants), participant => Assert.IsType<User>(participant));
+    }
+
+    [Fact]
+    public void SwissStage_GenerateMatchesForGame_ThrowsValidationException_WhenParticipantsDoNotMatchMode()
+    {
+        var game = new Game("Bracket", BracketType.Swiss, GameFormat.BestOf1, GameFormat.BestOf3, ParticipationMode.Individual, "https://example.test");
+        game.Participants.Add(CreateUser(1));
+        game.Participants.Add(CreateTeam(2));
+
+        var moderator = new SwissStageMatchModerator();
+
+        var exception = Assert.Throws<ValidationException>(() => moderator.GenerateMatchesForGame(game).ToList());
+
+        Assert.Equal("Game participants are incompatible with Individual mode.", exception.Message);
+    }
+
     private static IEnumerable<Participant> GetAssignedParticipants(Match match)
     {
         if (match.Participant1 is not null)
@@ -61,14 +124,6 @@ public class MatchModeratorTests
 
         if (match.Loser is not null)
             yield return match.Loser;
-    }
-
-    private static Player CreatePlayer(int id)
-    {
-        return new Player($"user{id}", $"First{id}", $"Last{id}", $"user{id}@example.test", null, null, null)
-        {
-            Id = id
-        };
     }
 
     private static User CreateUser(int id)

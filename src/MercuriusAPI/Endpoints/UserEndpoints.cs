@@ -9,9 +9,14 @@ public static class UserEndpoints
 {
     public static RouteGroupBuilder MapUserEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("users")
+        var group = app.MapGroup("lan/users")
             .WithTags("Users")
             .RequireAuthorization(new AuthorizeAttribute { Roles = "admin" });
+
+        group.MapPost("/", async (CreateUserProfileRequest request, IUserService userService) =>
+        {
+            return await userService.CreateUserAsync(request);
+        });
 
         group.MapGet("/{id:int}", async (int id, IUserService userService) =>
         {
@@ -23,7 +28,17 @@ public static class UserEndpoints
             return await userService.GetAllUsersAsync();
         });
 
-        group.MapDelete("/{username}", async (string username, IUserService userService) =>
+        group.MapPatch("/{id:int}", async (int id, UpdateUserProfileRequest request, IUserService userService) =>
+        {
+            return await userService.UpdateUserAsync(id, request);
+        });
+
+        group.MapDelete("/{id:int}", async (int id, IUserService userService) =>
+        {
+            await userService.DeleteUserByIdAsync(id);
+        });
+
+        group.MapDelete("/{username}/account", async (string username, IUserService userService) =>
         {
             await userService.DeleteUserAsync(username);
         });

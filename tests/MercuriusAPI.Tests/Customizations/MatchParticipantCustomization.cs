@@ -24,12 +24,12 @@ public class MatchParticipantCustomization : ICustomization
                 if (match != null)
                 {
                     if (match.ParticipantType == ParticipantType.Player)
-                        return context.Resolve(typeof(Player));
+                        return context.Resolve(typeof(User));
                     else if (match.ParticipantType == ParticipantType.Team)
                         return context.Resolve(typeof(Team));
                 }
-                // Fallback: just return a Player
-                return context.Resolve(typeof(Player));
+                // Fallback: just return an individual-mode participant.
+                return context.Resolve(typeof(User));
             }
             return new NoSpecimen();
         }

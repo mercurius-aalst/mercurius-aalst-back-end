@@ -41,14 +41,14 @@ public static class GameEndpoints
             await gameService.DeleteGameAsync(id);
         });
 
-        group.MapPost("/{id}/players", async (int id, RegisterGamePlayerDTO registrationDTO, IGameService gameService) =>
+        group.MapPost("/{id}/users", async (int id, RegisterGameUserDTO registrationDTO, IGameService gameService) =>
         {
-            return await gameService.RegisterPlayerAsync(id, registrationDTO.PlayerId);
+            return await gameService.RegisterUserAsync(id, registrationDTO.UserId);
         });
 
-        group.MapDelete("/{id}/players/{playerId}", async (int id, int playerId, IGameService gameService) =>
+        group.MapDelete("/{id}/users/{userId}", async (int id, int userId, IGameService gameService) =>
         {
-            return await gameService.UnregisterPlayerAsync(id, playerId);
+            return await gameService.UnregisterUserAsync(id, userId);
         });
 
         group.MapPost("/{id}/teams", async (int id, RegisterGameTeamDTO registrationDTO, IGameService gameService) =>

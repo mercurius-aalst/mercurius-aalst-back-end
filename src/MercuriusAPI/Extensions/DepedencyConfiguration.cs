@@ -5,8 +5,6 @@ using Mercurius.LAN.API.Services.Files;
 using Mercurius.LAN.API.Services.GameServices;
 using Mercurius.LAN.API.Services.MatchServices;
 using Mercurius.LAN.API.Services.MatchServices.BracketTypes;
-using Mercurius.LAN.API.Services.ParticipantServices;
-using Mercurius.LAN.API.Services.PlayerServices;
 using Mercurius.LAN.API.Services.SponsorServices;
 using Mercurius.LAN.API.Services.TeamServices;
 using Mercurius.LAN.API.Services.UserServices;
@@ -38,11 +36,9 @@ public static class DepedencyConfiguration
 
     public static IServiceCollection AddServiceDependencies(this IServiceCollection services)
     {
-        services.AddTransient<IPlayerService, PlayerService>();
         services.AddTransient<ITeamService, TeamService>();
         services.AddTransient<IGameService, GameService>();
         services.AddTransient<IMatchService, MatchService>();
-        services.AddTransient<IParticipantService, ParticipantService>();
         services.AddTransient<ISponsorService, SponsorService>();
 
         services.AddTransient<IUserService, UserService>();

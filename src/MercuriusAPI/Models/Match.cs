@@ -46,7 +46,7 @@ public class Match
     public Match? WinnerNextMatch { get; set; }
     public Match? LoserNextMatch { get; set; }
 
-    public void SetParticipants(Player? participant1, Player? participant2)
+    public void SetParticipants(User? participant1, User? participant2)
     {
         ParticipationMode = ParticipationMode.Individual;
         SetParticipantsCore(participant1, participant2);
@@ -230,7 +230,7 @@ public class Match
 
         ParticipationMode = participant switch
         {
-            Player => ParticipationMode.Individual,
+            User => ParticipationMode.Individual,
             Team => ParticipationMode.Team,
             _ => ParticipationMode
         };
@@ -256,7 +256,7 @@ public class Match
 
         ParticipationMode = participant switch
         {
-            Player => ParticipationMode.Individual,
+            User => ParticipationMode.Individual,
             Team => ParticipationMode.Team,
             _ => ParticipationMode
         };
@@ -269,7 +269,7 @@ public class Match
 
         bool isCompatible = ParticipationMode switch
         {
-            ParticipationMode.Individual => participant is Player,
+            ParticipationMode.Individual => participant is User,
             ParticipationMode.Team => participant is Team,
             _ => false
         };

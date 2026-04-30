@@ -98,14 +98,14 @@ public class Game
         Placements.Clear();
     }
 
-    public void RegisterPlayer(Player player)
+    public void RegisterUser(User user)
     {
         EnsureScheduledRegistrationState();
         if (ParticipationMode != ParticipationMode.Individual)
             throw new ValidationException("This game only accepts individual registrations.");
-        if (Participants.Any(p => p.Id == player.Id))
-            throw new ValidationException("Player is already registered for this game.");
-        Participants.Add(player);
+        if (Participants.Any(p => p.Id == user.Id))
+            throw new ValidationException("User is already registered for this game.");
+        Participants.Add(user);
     }
 
     public void RegisterTeam(Team team)
@@ -118,15 +118,15 @@ public class Game
         Participants.Add(team);
     }
 
-    public void RemovePlayer(int playerId)
+    public void RemoveUser(int userId)
     {
         EnsureScheduledRegistrationState();
         if (ParticipationMode != ParticipationMode.Individual)
             throw new ValidationException("This game only accepts individual registrations.");
-        var player = Participants.OfType<Player>().FirstOrDefault(p => p.Id == playerId);
-        if (player is null)
-            throw new NotFoundException($"{nameof(Player)} not found for game {Name}");
-        Participants.Remove(player);
+        var user = Participants.OfType<User>().FirstOrDefault(p => p.Id == userId);
+        if (user is null)
+            throw new NotFoundException($"{nameof(User)} not found for game {Name}");
+        Participants.Remove(user);
     }
 
     public void RemoveTeam(int teamId)

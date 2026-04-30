@@ -116,7 +116,6 @@ public class Program
 
         app.MapGameEndpoints();
         app.MapMatchEndpoints();
-        app.MapPlayerEndpoints();
         app.MapTeamEndpoints();
         app.MapSponsorEndpoints();
         app.MapUserEndpoints();

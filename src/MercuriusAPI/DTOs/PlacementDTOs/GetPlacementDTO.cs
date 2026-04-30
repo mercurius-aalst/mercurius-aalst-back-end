@@ -1,5 +1,4 @@
 using Mercurius.LAN.API.DTOs.ParticipantDTOs;
-using Mercurius.LAN.API.DTOs.PlayerDTOs;
 using Mercurius.LAN.API.DTOs.TeamDTOs;
 using Mercurius.LAN.API.Models;
 
@@ -21,7 +20,7 @@ public class GetPlacementDTO
         switch (participantType)
         {
             case ParticipantType.Player:
-                Participants = placement.Participants.Select(p => new GetPlayerDTO((Player)p)).ToList();
+                Participants = placement.Participants.Select(p => new GetParticipantUserDTO((User)p)).ToList();
                 break;
             case ParticipantType.Team:
                 Participants = placement.Participants.Select(t => new GetTeamDTO((Team)t)).ToList();

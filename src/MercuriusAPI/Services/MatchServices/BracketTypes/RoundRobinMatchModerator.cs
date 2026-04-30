@@ -1,4 +1,5 @@
 using Mercurius.LAN.API.Models;
+using Mercurius.LAN.API.Services.MatchServices.Helpers;
 
 namespace Mercurius.LAN.API.Services.MatchServices.BracketTypes;
 
@@ -66,7 +67,8 @@ public class RoundRobinMatchModerator : IMatchModerator
     {
         var matches = new List<Match>();
 
-        var rotation = new List<Participant?>(game.Participants);
+        var participants = MatchModeParticipantHelper.GetParticipantsForBracket(game);
+        var rotation = new List<Participant?>(participants);
         bool isOdd = rotation.Count % 2 != 0;
         if (isOdd)
             rotation.Add(null);
@@ -94,10 +96,10 @@ public class RoundRobinMatchModerator : IMatchModerator
                     MatchNumber = matchNumber++,
                     BracketType = game.BracketType,
                     Format = game.Format,
-                    ParticipantType = game.ParticipantType,
-                    Participant1 = participant1,
-                    Participant2 = participant2
+                    ParticipationMode = game.ParticipationMode
                 });
+
+                MatchModeParticipantHelper.AssignParticipants(matches[^1], participant1, participant2);
             }
 
             var last = rotation[rotation.Count - 1];

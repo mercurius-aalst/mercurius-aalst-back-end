@@ -95,23 +95,23 @@ public class GameTests
     }
 
     [Fact]
-    public void RegisterPlayer_RegistersPlayer_WhenGameIsInIndividualMode()
+    public void RegisterUser_RegistersUser_WhenGameIsInIndividualMode()
     {
         var game = CreateGame();
-        var player = CreatePlayer(1);
+        var user = CreateUser(1);
 
-        game.RegisterPlayer(player);
+        game.RegisterUser(user);
 
         Assert.Single(game.Participants);
-        Assert.Same(player, game.Participants.Single());
+        Assert.Same(user, game.Participants.Single());
     }
 
     [Fact]
-    public void RegisterPlayer_Throws_WhenGameIsInTeamMode()
+    public void RegisterUser_Throws_WhenGameIsInTeamMode()
     {
         var game = CreateGame(participationMode: ParticipationMode.Team);
 
-        var ex = Assert.Throws<ValidationException>(() => game.RegisterPlayer(CreatePlayer(1)));
+        var ex = Assert.Throws<ValidationException>(() => game.RegisterUser(CreateUser(1)));
 
         Assert.Equal("This game only accepts individual registrations.", ex.Message);
     }
@@ -130,8 +130,8 @@ public class GameTests
     public void Start_SetsStatusAndStartTime_WhenScheduledAndEnoughParticipants()
     {
         var game = CreateGame();
-        game.RegisterPlayer(CreatePlayer(1));
-        game.RegisterPlayer(CreatePlayer(2));
+        game.RegisterUser(CreateUser(1));
+        game.RegisterUser(CreateUser(2));
 
         game.Start();
 
@@ -144,8 +144,8 @@ public class GameTests
     {
         var game = CreateGame();
         game.Status = GameStatus.InProgress;
-        game.Participants.Add(CreatePlayer(1));
-        game.Participants.Add(CreatePlayer(2));
+        game.Participants.Add(CreateUser(1));
+        game.Participants.Add(CreateUser(2));
 
         Assert.Throws<ValidationException>(() => game.Start());
     }
@@ -154,7 +154,7 @@ public class GameTests
     public void Start_ThrowsException_WhenNotEnoughParticipants()
     {
         var game = CreateGame();
-        game.RegisterPlayer(CreatePlayer(1));
+        game.RegisterUser(CreateUser(1));
 
         Assert.Throws<ValidationException>(() => game.Start());
     }
@@ -190,7 +190,7 @@ public class GameTests
         game.StartTime = DateTime.UtcNow;
         game.EndTime = DateTime.UtcNow;
         game.Matches.Add(new Match());
-        game.Participants.Add(CreatePlayer(1));
+        game.Participants.Add(CreateUser(1));
 
         game.Reset();
 
@@ -241,14 +241,6 @@ public class GameTests
         Assert.Contains(validationResults, r => r.MemberNames.Contains(nameof(CreateGameDTO.ParticipationMode)));
         Assert.Contains(validationResults, r => r.MemberNames.Contains(nameof(CreateGameDTO.Image)));
         Assert.Contains(validationResults, r => r.MemberNames.Contains(nameof(CreateGameDTO.RegisterFormUrl)));
-    }
-
-    private static Player CreatePlayer(int id)
-    {
-        return new Player("user" + id, "First", "Last", $"user{id}@example.com", null, null, null)
-        {
-            Id = id
-        };
     }
 
     private static User CreateUser(int id)

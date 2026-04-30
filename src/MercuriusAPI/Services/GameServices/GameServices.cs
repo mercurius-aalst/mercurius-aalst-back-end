@@ -120,15 +120,15 @@ public class GameService : IGameService
         await _dbContext.SaveChangesAsync();
     }
 
-    public async Task<GetGameDTO> RegisterPlayerAsync(int id, int playerId)
+    public async Task<GetGameDTO> RegisterUserAsync(int id, int userId)
     {
         var game = await GetGameByIdAsync(id);
         if (game.ParticipationMode != ParticipationMode.Individual)
-            throw new ValidationException("Players can only register for individual-mode games.");
-        var player = await _dbContext.Players.FindAsync(playerId);
-        if (player is null)
-            throw new NotFoundException($"{nameof(Player)} not found");
-        game.RegisterPlayer(player);
+            throw new ValidationException("Users can only register for individual-mode games.");
+        var user = await _dbContext.Users.FindAsync(userId);
+        if (user is null)
+            throw new NotFoundException($"{nameof(User)} not found");
+        game.RegisterUser(user);
         _dbContext.Games.Update(game);
         await _dbContext.SaveChangesAsync();
         return new GetGameDTO(game);
@@ -148,12 +148,12 @@ public class GameService : IGameService
         return new GetGameDTO(game);
     }
 
-    public async Task<GetGameDTO> UnregisterPlayerAsync(int id, int playerId)
+    public async Task<GetGameDTO> UnregisterUserAsync(int id, int userId)
     {
         var game = await GetGameByIdAsync(id);
         if (game.ParticipationMode != ParticipationMode.Individual)
-            throw new ValidationException("Players can only be removed from individual-mode games.");
-        game.RemovePlayer(playerId);
+            throw new ValidationException("Users can only be removed from individual-mode games.");
+        game.RemoveUser(userId);
         _dbContext.Games.Update(game);
         await _dbContext.SaveChangesAsync();
         return new GetGameDTO(game);

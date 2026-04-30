@@ -37,6 +37,14 @@ public partial class MercuriusDBContext : DbContext
 
         });
 
+        modelBuilder.Entity<User>(entity =>
+        {
+            entity.Property(e => e.Username).IsRequired();
+            entity.Property(e => e.Firstname).IsRequired();
+            entity.Property(e => e.Lastname).IsRequired();
+            entity.Property(e => e.Email).IsRequired();
+        });
+
         modelBuilder.Entity<Participant>().UseTptMappingStrategy();
         ;
         modelBuilder.Entity<Team>(entity =>

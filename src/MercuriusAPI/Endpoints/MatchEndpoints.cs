@@ -8,7 +8,8 @@ public static class MatchEndpoints
 {
     public static RouteGroupBuilder MapMatchEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("lan/matches")
+        var group = app.MapGroup("api/v{version:apiVersion}/lan/matches")
+            .WithGroupName("v1")
             .WithTags("Matches")
             .RequireAuthorization(new AuthorizeAttribute { Roles = "admin" });
 

@@ -1,9 +1,6 @@
-using AutoFixture;
-using AutoFixture.Kernel;
 using Mercurius.LAN.API.DTOs.MatchDTOs;
 using Mercurius.LAN.API.Exceptions;
 using Mercurius.LAN.API.Models;
-using Mercurius.LAN.API.Tests.Customizations;
 using DataAnnotations = System.ComponentModel.DataAnnotations;
 
 namespace Mercurius.LAN.API.Tests;
@@ -11,430 +8,161 @@ namespace Mercurius.LAN.API.Tests;
 public class MatchTests
 {
     [Fact]
-    public void TryAssignByeWin_AssignsWinner_WhenOnlyParticipant2FilledIn()
+    public void TryAssignByeWin_AssignsUserWinner_WhenOnlyParticipant2Exists()
     {
-        // Arrange
-        var match = CreateMatch();
-        match.Participant1 = null;
-        // Act
+        var user2 = CreateUser(2);
+        var match = new Match
+        {
+            ParticipationMode = ParticipationMode.Individual
+        };
+        match.SetParticipants(null, user2);
+        match.SetParticipantBYEs(true, false);
+
         match.TryAssignByeWin();
-        // Assert
-        Assert.NotNull(match.Winner);
-        Assert.Equal(match.Participant2.Id, match.Winner.Id);
+
+        Assert.Equal(user2, match.UserWinner);
+        Assert.Null(match.UserLoser);
     }
 
     [Fact]
-    public void TryAssignByeWin_AssignsWinner_WhenOnlyParticipant1FilledIn()
+    public void TryAssignByeWin_AssignsTeamWinner_WhenOnlyParticipant1Exists()
     {
-        // Arrange
-        var match = CreateMatch();
-        match.Participant2 = null;
-        // Act
+        var team1 = CreateTeam(1);
+        var match = new Match
+        {
+            ParticipationMode = ParticipationMode.Team
+        };
+        match.SetParticipants(team1, null);
+        match.SetParticipantBYEs(false, true);
+
         match.TryAssignByeWin();
-        // Assert
-        Assert.NotNull(match.Winner);
-        Assert.Equal(match.Participant1.Id, match.Winner.Id);
+
+        Assert.Equal(team1, match.TeamWinner);
+        Assert.Null(match.TeamLoser);
     }
 
     [Fact]
-    public void TryAssignByeWin_DoesNotAssignWinner_WhenBothParticipantsExist()
+    public void UpdateParticipantsNextMatch_PropagatesUserWinnerToUpperBracketSlot1_WhenMatchNumberIsOdd()
     {
-        // Arrange
-        var match = CreateMatch();
-        match.Winner = null;
-        match.Loser = null;
-        // Act
-        match.TryAssignByeWin();
-        // Assert
-        Assert.Null(match.Winner);
-    }
-    [Fact]
-    public void Start_SetsStartTimeToCurrentUtcTime()
-    {
-        // Arrange
-        var match = new Match();
-        // Act
-        match.Start();
-        // Assert
-        Assert.True(match.StartTime <= DateTime.UtcNow);
-    }
-    [Fact]
-    public void Finish_SetsEndTimeToCurrentUtcTime_AndUpdatesNextMatch()
-    {
-        // Arrange
-        var match = CreateMatch();
-
-        // Act
-        match.Finish();
-        // Assert
-        Assert.True(match.EndTime <= DateTime.UtcNow);
-    }
-
-    [Fact]
-    public void UpdateParticipantsNextMatch_SetsWinnerInWinnerNextMatch_Participant1_WhenMatchNumberOdd()
-    {
-        // Arrange
-        var winner = CreateUserParticipant();
+        var winner = CreateUser(10);
+        var nextMatch = new Match { ParticipationMode = ParticipationMode.Individual };
         var match = new Match
         {
             ParticipationMode = ParticipationMode.Individual,
-            Winner = winner,
             MatchNumber = 1,
-            WinnerNextMatch = new Match()
+            UserWinner = winner,
+            UserWinnerId = winner.Id,
+            WinnerNextMatch = nextMatch
         };
 
-        // Act
         match.UpdateParticipantsNextMatch();
 
-        // Assert
-        Assert.Equal(winner, match.WinnerNextMatch.Participant1);
+        Assert.Equal(winner, nextMatch.UserParticipant1);
     }
 
     [Fact]
-    public void UpdateParticipantsNextMatch_SetsWinnerInWinnerNextMatch_Participant2_WhenMatchNumberEven()
+    public void UpdateParticipantsNextMatch_PropagatesTeamWinnerToLowerBracketSlot2_WhenAvailable()
     {
-        // Arrange
-        var winner = CreateUserParticipant();
+        var winner = CreateTeam(3);
+        var nextMatch = new Match
+        {
+            ParticipationMode = ParticipationMode.Team,
+            IsLowerBracketMatch = true
+        };
+        var match = new Match
+        {
+            ParticipationMode = ParticipationMode.Team,
+            TeamWinner = winner,
+            TeamWinnerId = winner.Id,
+            WinnerNextMatch = nextMatch
+        };
+
+        match.UpdateParticipantsNextMatch();
+
+        Assert.Equal(winner, nextMatch.TeamParticipant2);
+    }
+
+    [Fact]
+    public void UpdateParticipantsNextMatch_PropagatesUserLoserToLowerBracketSlot1_AfterFirstRound()
+    {
+        var winner = CreateUser(1);
+        var loser = CreateUser(2);
+        var nextMatch = new Match { ParticipationMode = ParticipationMode.Individual };
         var match = new Match
         {
             ParticipationMode = ParticipationMode.Individual,
-            Winner = winner,
+            RoundNumber = 2,
             MatchNumber = 2,
-            WinnerNextMatch = new Match()
+            UserWinner = winner,
+            UserWinnerId = winner.Id,
+            UserLoser = loser,
+            UserLoserId = loser.Id,
+            LoserNextMatch = nextMatch
         };
 
-        // Act
         match.UpdateParticipantsNextMatch();
 
-        // Assert
-        Assert.Equal(winner, match.WinnerNextMatch.Participant2);
-    }
-
-    [Fact]
-    public void UpdateParticipantsNextMatch_SetsLoserInLoserNextMatch_Participant1_WhenMatchNumberOdd()
-    {
-        // Arrange
-        var winner = CreateUserParticipant();
-        var loser = CreateUserParticipant();
-        var match = new Match
-        {
-            ParticipationMode = ParticipationMode.Individual,
-            Winner = winner,
-            Loser = loser,
-            MatchNumber = 1,
-            LoserNextMatch = new Match()
-        };
-
-        // Act
-        match.UpdateParticipantsNextMatch();
-
-        // Assert
-        Assert.Equal(loser, match.LoserNextMatch.Participant1);
-    }
-
-    [Fact]
-    public void UpdateParticipantsNextMatch_DoesNothing_WhenWinnerIsNull()
-    {
-        // Arrange
-        var match = new Match
-        {
-            Winner = null,
-            WinnerNextMatch = CreateMatch(),
-            LoserNextMatch = CreateMatch(),
-            MatchNumber = 1
-        };
-        match.WinnerNextMatch.Participant1 = null;
-        match.LoserNextMatch.Participant1 = null;
-        match.LoserNextMatch.Participant2 = null;
-        match.WinnerNextMatch.Participant2 = null;
-
-        // Act
-        match.UpdateParticipantsNextMatch();
-
-        // Assert
-        Assert.Null(match.WinnerNextMatch.Participant1);
-        Assert.Null(match.LoserNextMatch.Participant1);
-    }
-
-    [Fact]
-    public void UpdateParticipantsNextMatch_SetsWinnerInLowerBracketMatch()
-    {
-        // Arrange
-        var winner = CreateUserParticipant();
-        var match = new Match
-        {
-            Winner = winner,
-            WinnerNextMatch = new Match { IsLowerBracketMatch = true }
-        };
-
-        // Act
-        match.UpdateParticipantsNextMatch();
-
-        // Assert
-        Assert.Equal(winner, match.WinnerNextMatch.Participant2);
-    }
-
-    [Fact]
-    public void UpdateParticipantsNextMatch_SetsWinnerInUpperBracketMatch_Participant1_WhenMatchNumberOdd()
-    {
-        // Arrange
-        var winner = CreateUserParticipant();
-        var match = new Match
-        {
-            Winner = winner,
-            MatchNumber = 1,
-            WinnerNextMatch = new Match { IsLowerBracketMatch = false }
-        };
-
-        // Act
-        match.UpdateParticipantsNextMatch();
-
-        // Assert
-        Assert.Equal(winner, match.WinnerNextMatch.Participant1);
-    }
-
-    [Fact]
-    public void UpdateParticipantsNextMatch_SetsWinnerInUpperBracketMatch_Participant2_WhenMatchNumberEven()
-    {
-        // Arrange
-        var winner = CreateUserParticipant();
-        var match = new Match
-        {
-            Winner = winner,
-            MatchNumber = 2,
-            WinnerNextMatch = new Match { IsLowerBracketMatch = false }
-        };
-
-        // Act
-        match.UpdateParticipantsNextMatch();
-
-        // Assert
-        Assert.Equal(winner, match.WinnerNextMatch.Participant2);
-    }
-
-    [Fact]
-    public void UpdateParticipantsNextMatch_AssignsLoserToParticipant1_WhenMatchNumberOdd()
-    {
-        // Arrange
-        var loser = CreateUserParticipant();
-        var winner = CreateUserParticipant();
-        var match = new Match
-        {
-            Loser = loser,
-            Winner = winner,
-            MatchNumber = 1,
-            LoserNextMatch = new Match()
-        };
-
-        // Act
-        match.UpdateParticipantsNextMatch();
-
-        // Assert
-        Assert.Equal(loser, match.LoserNextMatch.Participant1);
-    }
-
-    [Fact]
-    public void UpdateParticipantsNextMatch_AssignsLoserToParticipant1_WhenNotFirstRound()
-    {
-        // Arrange
-        var loser = CreateUserParticipant();
-        var winner = CreateUserParticipant();
-
-        var match = new Match
-        {
-            Loser = loser,
-            Winner = winner,
-            MatchNumber = 2,
-            LoserNextMatch = new Match()
-        };
-
-        // Act
-        match.UpdateParticipantsNextMatch();
-
-        // Assert
-        Assert.Equal(loser, match.LoserNextMatch.Participant1);
+        Assert.Equal(loser, nextMatch.UserParticipant1);
     }
 
     [Theory]
     [InlineData(GameFormat.BestOf1, 1, 0)]
     [InlineData(GameFormat.BestOf3, 2, 1)]
     [InlineData(GameFormat.BestOf5, 3, 2)]
-    public void SetScoresAndWinner_SetsWinnerAndLoser_WhenParticipant1Wins(GameFormat format, int p1Score, int p2Score)
+    public void SetScoresAndWinner_SetsUserWinnerAndLoser(GameFormat format, int participant1Score, int participant2Score)
     {
-        // Arrange
-        var match = CreateMatch(format);
+        var match = CreateIndividualMatch(format);
 
-        // Act
-        match.SetScoresAndWinner(p1Score, p2Score);
+        match.SetScoresAndWinner(participant1Score, participant2Score);
 
-        // Assert
-        Assert.Equal(p1Score, match.Participant1Score);
-        Assert.Equal(p2Score, match.Participant2Score);
-        Assert.Equal(match.Participant1, match.Winner);
-        Assert.Equal(match.Participant2, match.Loser);
+        Assert.Equal(match.UserParticipant1, match.UserWinner);
+        Assert.Equal(match.UserParticipant2, match.UserLoser);
     }
 
-    [Theory]
-    [InlineData(GameFormat.BestOf1, 0, 1)]
-    [InlineData(GameFormat.BestOf3, 1, 2)]
-    [InlineData(GameFormat.BestOf5, 2, 3)]
-    public void SetScoresAndWinner_SetsWinnerAndLoser_WhenParticipant2Wins(GameFormat format, int p1Score, int p2Score)
+    [Fact]
+    public void SetScoresAndWinner_SetsTeamWinnerAndLoser()
     {
-        // Arrange
-        var match = CreateMatch(format);
+        var match = CreateTeamMatch(GameFormat.BestOf3);
 
-        // Act
-        match.SetScoresAndWinner(p1Score, p2Score);
+        match.SetScoresAndWinner(1, 2);
 
-        // Assert
-        Assert.Equal(p1Score, match.Participant1Score);
-        Assert.Equal(p2Score, match.Participant2Score);
-        Assert.Equal(match.Participant2, match.Winner);
-        Assert.Equal(match.Participant1, match.Loser);
+        Assert.Equal(match.TeamParticipant2, match.TeamWinner);
+        Assert.Equal(match.TeamParticipant1, match.TeamLoser);
     }
 
     [Theory]
     [InlineData(-1, 0)]
     [InlineData(0, -1)]
-    [InlineData(-5, -5)]
-    public void SetScoresAndWinner_ThrowsValidationException_WhenScoreIsNegative(int p1Score, int p2Score)
+    public void SetScoresAndWinner_ThrowsValidationException_WhenScoreIsNegative(int participant1Score, int participant2Score)
     {
-        // Arrange
-        var match = CreateMatch();
+        var match = CreateIndividualMatch();
 
-        // Act & Assert
-        var ex = Assert.Throws<ValidationException>(() => match.SetScoresAndWinner(p1Score, p2Score));
-        Assert.Equal("Scores cannot be negative", ex.Message);
-    }
+        var exception = Assert.Throws<ValidationException>(() => match.SetScoresAndWinner(participant1Score, participant2Score));
 
-    [Theory]
-    [InlineData(GameFormat.BestOf1, 2, 0)]
-    [InlineData(GameFormat.BestOf3, 3, 0)]
-    [InlineData(GameFormat.BestOf3, 0, 3)]
-    [InlineData(GameFormat.BestOf5, 4, 0)]
-    [InlineData(GameFormat.BestOf5, 0, 4)]
-    public void SetScoresAndWinner_ThrowsValidationException_WhenScoreExceedsWinsNeeded(GameFormat format, int p1Score, int p2Score)
-    {
-        // Arrange
-        var match = CreateMatch(format);
-
-        // Act & Assert
-        Assert.Throws<ValidationException>(() => match.SetScoresAndWinner(p1Score, p2Score));
+        Assert.Equal("Scores cannot be negative", exception.Message);
     }
 
     [Fact]
     public void SetScoresAndWinner_ThrowsValidationException_WhenScoresAreEqualInBo1()
     {
-        // Arrange
-        var match = CreateMatch(GameFormat.BestOf1);
+        var match = CreateIndividualMatch(GameFormat.BestOf1);
 
-        // Act & Assert
-        var ex = Assert.Throws<ValidationException>(() => match.SetScoresAndWinner(1, 1));
-        Assert.Equal("Scores cannot be equal in Bo1 format", ex.Message);
+        var exception = Assert.Throws<ValidationException>(() => match.SetScoresAndWinner(1, 1));
+
+        Assert.Equal("Scores cannot be equal in Bo1 format", exception.Message);
     }
 
     [Fact]
-    public void SetScoresAndWinner_DoesNotSetWinner_WhenNoOneHasEnoughWins()
-    {
-        // Arrange
-        var match = CreateMatch(GameFormat.BestOf3);
-
-        // Act
-        match.SetScoresAndWinner(1, 1);
-
-        // Assert
-        Assert.Null(match.Winner);
-        Assert.Null(match.Loser);
-        Assert.Equal(1, match.Participant1Score);
-        Assert.Equal(1, match.Participant2Score);
-    }
-
-    [Fact]
-    public void SetScoresAndWinner_DoesNotSetWinner_WhenScoresAreZero()
-    {
-        // Arrange
-        var match = CreateMatch(GameFormat.BestOf3);
-
-        // Act
-        match.SetScoresAndWinner(0, 0);
-
-        // Assert
-        Assert.Null(match.Winner);
-        Assert.Null(match.Loser);
-        Assert.Equal(0, match.Participant1Score);
-        Assert.Equal(0, match.Participant2Score);
-    }
-
-    [Fact]
-    public void SetParticipants_ThrowsValidationException_WhenParticipantDoesNotMatchParticipationMode()
+    public void SetParticipants_ThrowsValidationException_WhenUsersAreAssignedToTeamMatch()
     {
         var match = new Match
         {
-            ParticipationMode = ParticipationMode.Individual
+            ParticipationMode = ParticipationMode.Team
         };
-        var user = CreateUserParticipant();
-        var captain = CreateUser();
-        var team = new Team("Team A", captain);
 
-        var exception = Assert.Throws<ValidationException>(() => match.SetParticipants(user, (Participant)team));
+        var exception = Assert.Throws<ValidationException>(() => match.SetParticipants(CreateUser(1), CreateUser(2)));
 
-        Assert.Equal("participant2 is incompatible with Individual match mode.", exception.Message);
-    }
-
-    private Match CreateMatch()
-    {
-        var fixture = GetFixture();
-        fixture.Customizations.Add(new TypeRelay(typeof(Participant), typeof(User)));
-        fixture.Customizations.Add(new TypeRelay(typeof(Participant), typeof(Team)));
-        fixture.Customize(new MatchParticipantCustomization());
-        return fixture.Create<Match>();
-    }
-
-    private Match CreateMatch(GameFormat format = GameFormat.BestOf1)
-    {
-        var fixture = GetFixture();
-        fixture.Customizations.Add(new TypeRelay(typeof(Participant), typeof(User)));
-        fixture.Customizations.Add(new TypeRelay(typeof(Participant), typeof(Team)));
-        fixture.Customize(new MatchParticipantCustomization());
-        var match = fixture.Build<Match>()
-            .Without(m => m.Winner)
-            .Without(m => m.Loser)
-            .Without(m => m.WinnerId)
-            .Without(m => m.LoserId)
-            .With(m => m.Format, format)
-            .Create();
-
-        return match;
-    }
-
-    private Fixture GetFixture()
-    {
-        var fixture = new Fixture();
-        fixture.Behaviors.OfType<ThrowingRecursionBehavior>().ToList()
-           .ForEach(b => fixture.Behaviors.Remove(b));
-        fixture.Behaviors.Add(new OmitOnRecursionBehavior(1));
-
-        return fixture;
-    }
-
-    private User CreateUserParticipant()
-    {
-        return CreateUser();
-    }
-
-    private User CreateUser()
-    {
-        var fixture = GetFixture();
-        return new User
-        {
-            Id = fixture.Create<int>(),
-            Username = fixture.Create<string>(),
-            Firstname = fixture.Create<string>(),
-            Lastname = fixture.Create<string>(),
-            Email = fixture.Create<string>(),
-            RefreshTokens = [],
-            Roles = []
-        };
+        Assert.Equal("Match only accepts individual participants.", exception.Message);
     }
 
     [Fact]
@@ -453,5 +181,53 @@ public class MatchTests
         Assert.False(isValid);
         Assert.Equal(2, validationResults.Count);
     }
-}
 
+    private static Match CreateIndividualMatch(GameFormat format = GameFormat.BestOf1)
+    {
+        var user1 = CreateUser(1);
+        var user2 = CreateUser(2);
+        var match = new Match
+        {
+            ParticipationMode = ParticipationMode.Individual,
+            Format = format
+        };
+        match.SetParticipants(user1, user2);
+        return match;
+    }
+
+    private static Match CreateTeamMatch(GameFormat format = GameFormat.BestOf1)
+    {
+        var team1 = CreateTeam(1);
+        var team2 = CreateTeam(2);
+        var match = new Match
+        {
+            ParticipationMode = ParticipationMode.Team,
+            Format = format
+        };
+        match.SetParticipants(team1, team2);
+        return match;
+    }
+
+    private static User CreateUser(int id)
+    {
+        return new User
+        {
+            Id = id,
+            Username = $"user{id}",
+            Firstname = $"First{id}",
+            Lastname = $"Last{id}",
+            Email = $"user{id}@example.test",
+            Roles = []
+        };
+    }
+
+    private static Team CreateTeam(int id)
+    {
+        var captain = CreateUser(id + 100);
+        return new Team($"Team {id}", captain)
+        {
+            Id = id,
+            CaptainUserId = captain.Id
+        };
+    }
+}

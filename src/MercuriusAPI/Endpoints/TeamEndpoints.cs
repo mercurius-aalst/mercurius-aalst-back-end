@@ -8,7 +8,8 @@ public static class TeamEndpoints
 {
     public static RouteGroupBuilder MapTeamEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("lan/teams")
+        var group = app.MapGroup("api/v{version:apiVersion}/lan/teams")
+            .WithGroupName("v1")
             .WithTags("Teams")
             .RequireAuthorization(new AuthorizeAttribute { Roles = "admin" });
 

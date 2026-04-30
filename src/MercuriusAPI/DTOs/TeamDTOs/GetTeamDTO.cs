@@ -1,14 +1,19 @@
-using Mercurius.LAN.API.DTOs.ParticipantDTOs;
 using Mercurius.LAN.API.Models;
 
 namespace Mercurius.LAN.API.DTOs.TeamDTOs;
 
-public class GetTeamDTO : GetParticipantDTO
+public class GetTeamDTO
 {
+    public int Id { get; set; }
     public string Name { get; set; }
     public int CaptainUserId { get; set; }
     public IEnumerable<GetTeamUserDTO> Members { get; set; } = [];
     public IEnumerable<TeamInviteDTO> TeamInvites { get; set; } = [];
+
+    public GetTeamDTO()
+    {
+    }
+
     public GetTeamDTO(Team team)
     {
         Id = team.Id;

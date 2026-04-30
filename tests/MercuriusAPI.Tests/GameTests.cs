@@ -32,7 +32,8 @@ public class GameTests
         Assert.Equal(ParticipationMode.Team, game.ParticipationMode);
         Assert.NotNull(game.Placements);
         Assert.NotNull(game.Matches);
-        Assert.NotNull(game.Participants);
+        Assert.NotNull(game.RegisteredUsers);
+        Assert.NotNull(game.RegisteredTeams);
     }
 
     [Fact]
@@ -102,8 +103,9 @@ public class GameTests
 
         game.RegisterUser(user);
 
-        Assert.Single(game.Participants);
-        Assert.Same(user, game.Participants.Single());
+        Assert.Single(game.RegisteredUsers);
+        Assert.Same(user, game.RegisteredUsers.Single());
+        Assert.Empty(game.RegisteredTeams);
     }
 
     [Fact]
@@ -144,8 +146,8 @@ public class GameTests
     {
         var game = CreateGame();
         game.Status = GameStatus.InProgress;
-        game.Participants.Add(CreateUser(1));
-        game.Participants.Add(CreateUser(2));
+        game.RegisteredUsers.Add(CreateUser(1));
+        game.RegisteredUsers.Add(CreateUser(2));
 
         Assert.Throws<ValidationException>(() => game.Start());
     }
@@ -190,7 +192,8 @@ public class GameTests
         game.StartTime = DateTime.UtcNow;
         game.EndTime = DateTime.UtcNow;
         game.Matches.Add(new Match());
-        game.Participants.Add(CreateUser(1));
+        game.RegisteredUsers.Add(CreateUser(1));
+        game.RegisteredTeams.Add(CreateTeam(2));
 
         game.Reset();
 
@@ -198,7 +201,8 @@ public class GameTests
         Assert.Equal(DateTime.MinValue, game.StartTime);
         Assert.Equal(DateTime.MinValue, game.EndTime);
         Assert.Empty(game.Matches);
-        Assert.Empty(game.Participants);
+        Assert.Empty(game.RegisteredUsers);
+        Assert.Empty(game.RegisteredTeams);
     }
 
     [Fact]

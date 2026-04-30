@@ -9,7 +9,8 @@ public static class SponsorEndpoints
 {
     public static RouteGroupBuilder MapSponsorEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("lan/sponsors")
+        var group = app.MapGroup("api/v{version:apiVersion}/lan/sponsors")
+            .WithGroupName("v1")
             .WithTags("Sponsors")
             .RequireAuthorization(new AuthorizeAttribute { Roles = "admin" });
 

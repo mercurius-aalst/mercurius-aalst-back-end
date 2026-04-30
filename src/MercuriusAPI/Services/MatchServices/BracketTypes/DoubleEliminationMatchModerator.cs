@@ -18,16 +18,20 @@ public class DoubleEliminationMatchModerator : IMatchModerator
     public IEnumerable<Match> GenerateMatchesForGame(Game game)
     {
         var matches = new List<Match>();
-        var participants = MatchModeParticipantHelper.GetParticipantsForBracket(game);
+        switch (game.ParticipationMode)
+        {
+            case ParticipationMode.Individual:
+                GenerateUpperBracketMatches(game, game.RegisteredUsers.ToList(), matches, (match, p1, p2) => match.SetParticipants(p1, p2));
+                break;
+            case ParticipationMode.Team:
+                GenerateUpperBracketMatches(game, game.RegisteredTeams.ToList(), matches, (match, p1, p2) => match.SetParticipants(p1, p2));
+                break;
+            default:
+                throw new ValidationException($"Unsupported participation mode {game.ParticipationMode}.");
+        }
 
-        // Generate upper and lower bracket matches
-        GenerateUpperBracketMatches(game, participants, matches);
         GenerateLowerBracketMatches(game, matches);
-
-        // Generate the grand final match
         GenerateGrandFinalMatch(game, matches);
-
-        // Assign next matches for double elimination and handle BYE winners
         int maxRoundNumber = matches.Max(x => x.RoundNumber);
         matches = AssignNextMatchesForDoubleElimination(matches, maxRoundNumber).ToList();
         matches.AssignByeWinnersNextMatch();
@@ -41,7 +45,8 @@ public class DoubleEliminationMatchModerator : IMatchModerator
     /// <param name="game">The game for which matches are to be generated.</param>
     /// <param name="participants">The participants in the tournament.</param>
     /// <param name="matches">The list to which generated matches will be added.</param>
-    private void GenerateUpperBracketMatches(Game game, IReadOnlyCollection<Participant> participants, List<Match> matches)
+    private void GenerateUpperBracketMatches<TParticipant>(Game game, IReadOnlyCollection<TParticipant> participants, List<Match> matches, Action<Match, TParticipant?, TParticipant?> assignParticipants)
+        where TParticipant : class
     {
         int participantCount = participants.Count;
         int nextPowerOfTwo = (int)Math.Pow(2, Math.Ceiling(Math.Log2(participantCount)));
@@ -67,7 +72,7 @@ public class DoubleEliminationMatchModerator : IMatchModerator
 
             if (i >= totalMatches - firstRoundMatchCount)
             {
-                AssignParticipantsToMatch(slots, match, i, totalMatches, firstRoundMatchCount);
+                AssignParticipantsToMatch(slots, match, i, totalMatches, firstRoundMatchCount, assignParticipants);
             }
 
             previousRound = round;
@@ -82,28 +87,26 @@ public class DoubleEliminationMatchModerator : IMatchModerator
     /// <param name="firstRoundMatchCount">The number of matches in the first round.</param>
     /// <param name="nextPowerOfTwo">The next power of two greater than or equal to the number of participants.</param>
     /// <returns>An array of participants assigned to slots.</returns>
-    private Participant?[] AssignParticipantsToSlots(IEnumerable<Participant> participants, int firstRoundMatchCount, int nextPowerOfTwo)
+    private TParticipant?[] AssignParticipantsToSlots<TParticipant>(IEnumerable<TParticipant> participants, int firstRoundMatchCount, int nextPowerOfTwo)
+        where TParticipant : class
     {
         var shuffled = participants.OrderBy(_ => Guid.NewGuid()).ToList();
         int[] slotOrder = SeedingHelper.GenerateBracketSlotOrder(nextPowerOfTwo);
-        var slots = new Participant?[firstRoundMatchCount * 2];
+        var slots = new TParticipant?[firstRoundMatchCount * 2];
 
-        // Assign participants to slots based on the shuffled list
         for (int i = 0; i < shuffled.Count; i++)
             slots[slotOrder[i]] = shuffled[i];
 
-        // Efficiently distribute BYEs to avoid BYE vs BYE matches
         for (int i = 0; i < slots.Length; i += 2)
         {
             if (slots[i] == null && slots[i + 1] == null)
             {
-                // Find a participant from a later slot to avoid BYE vs BYE
                 for (int j = i + 2; j < slots.Length; j++)
                 {
                     if (slots[j] != null)
                     {
-                        slots[i] = slots[j]; // Move the participant to the current slot
-                        slots[j] = null; // Clear the original slot to avoid duplication
+                        slots[i] = slots[j];
+                        slots[j] = null;
                         break;
                     }
                 }
@@ -152,13 +155,14 @@ public class DoubleEliminationMatchModerator : IMatchModerator
     /// <param name="matchIndex">The index of the match.</param>
     /// <param name="totalMatches">The total number of matches in the tournament.</param>
     /// <param name="firstRoundMatchCount">The number of matches in the first round.</param>
-    private void AssignParticipantsToMatch(Participant?[] slots, Match match, int matchIndex, int totalMatches, int firstRoundMatchCount)
+    private void AssignParticipantsToMatch<TParticipant>(TParticipant?[] slots, Match match, int matchIndex, int totalMatches, int firstRoundMatchCount, Action<Match, TParticipant?, TParticipant?> assignParticipants)
+        where TParticipant : class
     {
         int firstRoundStart = totalMatches - firstRoundMatchCount;
         int leafIndex = matchIndex - firstRoundStart;
-        MatchModeParticipantHelper.AssignParticipants(match, slots[leafIndex * 2], slots[leafIndex * 2 + 1]);
+        assignParticipants(match, slots[leafIndex * 2], slots[leafIndex * 2 + 1]);
 
-        match.SetParticipantBYEs(match.Participant1 is null, match.Participant2 is null);
+        match.SetParticipantBYEs(!match.HasParticipant1(), !match.HasParticipant2());
         match.TryAssignByeWin();
     }
 
@@ -234,15 +238,12 @@ public class DoubleEliminationMatchModerator : IMatchModerator
     /// <returns>A collection of matches with linked next matches.</returns>
     private IEnumerable<Match> AssignNextMatchesForDoubleElimination(List<Match> matches, int maxRoundNumber)
     {
-        // Separate matches and sort them in an ascending order for easier linking
         var uBMatches = matches.Where(m => !m.IsLowerBracketMatch && m.RoundNumber < maxRoundNumber).OrderBy(m => m.RoundNumber).ThenBy(m => m.MatchNumber).ToList();
         var lBMatches = matches.Where(m => m.IsLowerBracketMatch).OrderBy(m => m.RoundNumber).ThenBy(m => m.MatchNumber).ToList();
         var grandFinal = matches.Single(m => !m.IsLowerBracketMatch && m.RoundNumber == maxRoundNumber);
 
-        // Link Upper Bracket matches
         foreach (var currentUBMatch in uBMatches)
         {
-            // Find the match in the next UB round where the winner will go
             var nextUBMatch = uBMatches.FirstOrDefault(m =>
                 m.RoundNumber == currentUBMatch.RoundNumber + 1 &&
                 m.MatchNumber == (int)Math.Ceiling((double)currentUBMatch.MatchNumber / 2));
@@ -267,7 +268,6 @@ public class DoubleEliminationMatchModerator : IMatchModerator
             currentUBMatch.LoserNextMatch = nextLBMatch;
         }
 
-        // Link Lower Bracket matches
         foreach (var currentLBMatch in lBMatches)
         {
             int nextLBMatchNumber = (currentLBMatch.RoundNumber % 2 != 0)
@@ -280,14 +280,12 @@ public class DoubleEliminationMatchModerator : IMatchModerator
 
             currentLBMatch.WinnerNextMatch = nextLBMatch;
 
-            // Propagate BYE status for BYE vs BYE matches
             if (currentLBMatch.Participant1IsBYE && currentLBMatch.Participant2IsBYE && nextLBMatch != null)
             {
                 nextLBMatch.Participant2IsBYE = true;
             }
         }
 
-        // Link the Final matches
         LinkFinalMatches(uBMatches, lBMatches, grandFinal);
 
         return uBMatches.Concat(lBMatches).Append(grandFinal);
@@ -337,7 +335,6 @@ public class DoubleEliminationMatchModerator : IMatchModerator
             lbFinal.WinnerNextMatch = grandFinal;
         }
 
-        // Grand final has no next matches
         grandFinal.WinnerNextMatch = null;
         grandFinal.LoserNextMatch = null;
     }
@@ -349,32 +346,57 @@ public class DoubleEliminationMatchModerator : IMatchModerator
     public void DeterminePlacements(Game game)
     {
 
-        // 1. Grand final (last upper bracket match)
         var grandFinal = game.Matches
             .Where(m => !m.IsLowerBracketMatch)
             .OrderByDescending(m => m.RoundNumber)
             .ThenByDescending(m => m.MatchNumber)
             .FirstOrDefault();
 
-        if (grandFinal.Winner is null)
-            throw new ValidationException("Grand final match has no winner assigned. Cannot determine placements.");
-        if (grandFinal.Loser is null)
-            throw new ValidationException("Grand final match has no loser assigned. Cannot determine placements.");
+        if (grandFinal is null)
+            return;
 
-        game.Placements.Add(new Placement
+        switch (game.ParticipationMode)
         {
-            GameId = game.Id,
-            Participants = [grandFinal.Winner],
-            Place = 1
-        });
-        game.Placements.Add(new Placement
-        {
-            GameId = game.Id,
-            Participants = [grandFinal.Loser],
-            Place = 2
-        });
+            case ParticipationMode.Individual:
+                if (grandFinal.UserWinner is null)
+                    throw new ValidationException("Grand final match has no winner assigned. Cannot determine placements.");
+                if (grandFinal.UserLoser is null)
+                    throw new ValidationException("Grand final match has no loser assigned. Cannot determine placements.");
 
-        // 2. Lower bracket (after gf, it's simply ranking by elimination (after third place, placings can be grouped in front end: 4-5, 6-7,)
+                game.Placements.Add(new Placement
+                {
+                    GameId = game.Id,
+                    Users = [grandFinal.UserWinner],
+                    Place = 1
+                });
+                game.Placements.Add(new Placement
+                {
+                    GameId = game.Id,
+                    Users = [grandFinal.UserLoser],
+                    Place = 2
+                });
+                break;
+            case ParticipationMode.Team:
+                if (grandFinal.TeamWinner is null)
+                    throw new ValidationException("Grand final match has no winner assigned. Cannot determine placements.");
+                if (grandFinal.TeamLoser is null)
+                    throw new ValidationException("Grand final match has no loser assigned. Cannot determine placements.");
+
+                game.Placements.Add(new Placement
+                {
+                    GameId = game.Id,
+                    Teams = [grandFinal.TeamWinner],
+                    Place = 1
+                });
+                game.Placements.Add(new Placement
+                {
+                    GameId = game.Id,
+                    Teams = [grandFinal.TeamLoser],
+                    Place = 2
+                });
+                break;
+        }
+
         var lowerBracket = game.Matches
             .Where(m => m.IsLowerBracketMatch)
             .OrderByDescending(m => m.RoundNumber)
@@ -384,16 +406,34 @@ public class DoubleEliminationMatchModerator : IMatchModerator
         int place = 3;
         foreach (var roundGrouping in lowerBracket)
         {
-            var losersThisRound = roundGrouping.Where(m => m.LoserId != null).Select(m => m.Loser).ToList();
-            if (losersThisRound.Any())
+            switch (game.ParticipationMode)
             {
-                game.Placements.Add(new Placement
-                {
-                    Place = place,
-                    GameId = game.Id,
-                    Participants = losersThisRound
-                });
-                place += losersThisRound.Count;
+                case ParticipationMode.Individual:
+                    var userLosers = roundGrouping.Where(m => m.UserLoser != null).Select(m => m.UserLoser!).ToList();
+                    if (userLosers.Any())
+                    {
+                        game.Placements.Add(new Placement
+                        {
+                            Place = place,
+                            GameId = game.Id,
+                            Users = userLosers
+                        });
+                        place += userLosers.Count;
+                    }
+                    break;
+                case ParticipationMode.Team:
+                    var teamLosers = roundGrouping.Where(m => m.TeamLoser != null).Select(m => m.TeamLoser!).ToList();
+                    if (teamLosers.Any())
+                    {
+                        game.Placements.Add(new Placement
+                        {
+                            Place = place,
+                            GameId = game.Id,
+                            Teams = teamLosers
+                        });
+                        place += teamLosers.Count;
+                    }
+                    break;
             }
         }
     }

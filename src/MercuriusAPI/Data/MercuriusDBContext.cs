@@ -17,7 +17,6 @@ public partial class MercuriusDBContext : DbContext
     public DbSet<Team> Teams { get; set; }
     public DbSet<Match> Matches { get; set; }
     public DbSet<Game> Games { get; set; }
-    public DbSet<Participant> Participants { get; set; }
     public DbSet<TeamInvite> TeamInvites { get; set; }
     public DbSet<User> Users { get; set; }
     public DbSet<RefreshToken> RefreshTokens { get; set; }
@@ -35,8 +34,6 @@ public partial class MercuriusDBContext : DbContext
             entity.Property(e => e.Email).IsRequired();
         });
 
-        modelBuilder.Entity<Participant>().UseTptMappingStrategy();
-        ;
         modelBuilder.Entity<Team>(entity =>
         {
             entity.Property(e => e.Name).IsRequired();
@@ -63,21 +60,33 @@ public partial class MercuriusDBContext : DbContext
         modelBuilder.Entity<Match>(entity =>
         {
             entity.HasKey(e => e.Id);
-            entity.HasOne(e => e.Participant1)
+            entity.HasOne(e => e.UserParticipant1)
                   .WithMany()
-                  .HasForeignKey(e => e.Participant1Id).IsRequired(false);
-            entity.HasOne(e => e.Participant2)
+                  .HasForeignKey(e => e.UserParticipant1Id).IsRequired(false);
+            entity.HasOne(e => e.UserParticipant2)
                   .WithMany()
-                  .HasForeignKey(e => e.Participant2Id).IsRequired(false);
-            entity.HasOne(e => e.Winner)
+                  .HasForeignKey(e => e.UserParticipant2Id).IsRequired(false);
+            entity.HasOne(e => e.UserWinner)
                     .WithMany()
-                    .HasForeignKey(e => e.WinnerId).IsRequired(false);
+                    .HasForeignKey(e => e.UserWinnerId).IsRequired(false);
+            entity.HasOne(e => e.UserLoser)
+                    .WithMany()
+                    .HasForeignKey(e => e.UserLoserId).IsRequired(false);
+            entity.HasOne(e => e.TeamParticipant1)
+                  .WithMany()
+                  .HasForeignKey(e => e.TeamParticipant1Id).IsRequired(false);
+            entity.HasOne(e => e.TeamParticipant2)
+                  .WithMany()
+                  .HasForeignKey(e => e.TeamParticipant2Id).IsRequired(false);
+            entity.HasOne(e => e.TeamWinner)
+                    .WithMany()
+                    .HasForeignKey(e => e.TeamWinnerId).IsRequired(false);
+            entity.HasOne(e => e.TeamLoser)
+                    .WithMany()
+                    .HasForeignKey(e => e.TeamLoserId).IsRequired(false);
             entity.HasOne(e => e.Game)
                     .WithMany(e => e.Matches)
                     .HasForeignKey(e => e.GameId).OnDelete(DeleteBehavior.Cascade);
-            entity.HasOne(e => e.Loser)
-                    .WithMany()
-                    .HasForeignKey(e => e.LoserId).IsRequired(false);
             entity.HasOne(e => e.WinnerNextMatch)
                     .WithMany()
                     .HasForeignKey(e => e.WinnerNextMatchId).IsRequired(false);
@@ -92,8 +101,32 @@ public partial class MercuriusDBContext : DbContext
             entity.Property(e => e.Name).IsRequired();
             entity.Property(e => e.StartTime).IsRequired();
             entity.Property(e => e.EndTime).IsRequired();
-            entity.HasMany(e => e.Participants)
-                  .WithMany(e => e.Games);
+            entity.HasMany(e => e.RegisteredUsers)
+                  .WithMany()
+                  .UsingEntity<Dictionary<string, object>>(
+                      "GameUser",
+                      j => j.HasOne<User>()
+                          .WithMany()
+                          .HasForeignKey("UserId")
+                          .OnDelete(DeleteBehavior.Cascade),
+                      j => j.HasOne<Game>()
+                          .WithMany()
+                          .HasForeignKey("GameId")
+                          .OnDelete(DeleteBehavior.Cascade),
+                      j => j.HasKey("GameId", "UserId"));
+            entity.HasMany(e => e.RegisteredTeams)
+                  .WithMany()
+                  .UsingEntity<Dictionary<string, object>>(
+                      "GameTeam",
+                      j => j.HasOne<Team>()
+                          .WithMany()
+                          .HasForeignKey("TeamId")
+                          .OnDelete(DeleteBehavior.Cascade),
+                      j => j.HasOne<Game>()
+                          .WithMany()
+                          .HasForeignKey("GameId")
+                          .OnDelete(DeleteBehavior.Cascade),
+                      j => j.HasKey("GameId", "TeamId"));
 
         });
 
@@ -125,8 +158,32 @@ public partial class MercuriusDBContext : DbContext
         modelBuilder.Entity<Placement>(entity =>
         {
             entity.HasKey(e => e.Id);
-            entity.HasMany(e => e.Participants)
-                  .WithMany(); // No reverse navigation property in Participant
+            entity.HasMany(e => e.Users)
+                  .WithMany()
+                  .UsingEntity<Dictionary<string, object>>(
+                      "PlacementUser",
+                      j => j.HasOne<User>()
+                          .WithMany()
+                          .HasForeignKey("UserId")
+                          .OnDelete(DeleteBehavior.Cascade),
+                      j => j.HasOne<Placement>()
+                          .WithMany()
+                          .HasForeignKey("PlacementId")
+                          .OnDelete(DeleteBehavior.Cascade),
+                      j => j.HasKey("PlacementId", "UserId"));
+            entity.HasMany(e => e.Teams)
+                  .WithMany()
+                  .UsingEntity<Dictionary<string, object>>(
+                      "PlacementTeam",
+                      j => j.HasOne<Team>()
+                          .WithMany()
+                          .HasForeignKey("TeamId")
+                          .OnDelete(DeleteBehavior.Cascade),
+                      j => j.HasOne<Placement>()
+                          .WithMany()
+                          .HasForeignKey("PlacementId")
+                          .OnDelete(DeleteBehavior.Cascade),
+                      j => j.HasKey("PlacementId", "TeamId"));
             entity.HasOne(e => e.Game)
                   .WithMany(e => e.Placements)
                   .HasForeignKey(e => e.GameId)

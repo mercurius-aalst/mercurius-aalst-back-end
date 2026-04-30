@@ -10,7 +10,8 @@ public static class GameEndpoints
 {
     public static RouteGroupBuilder MapGameEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("lan/games")
+        var group = app.MapGroup("api/v{version:apiVersion}/lan/games")
+            .WithGroupName("v1")
             .WithTags("Games")
             .RequireAuthorization(new AuthorizeAttribute { Roles = "admin" });
 

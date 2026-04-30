@@ -8,7 +8,8 @@ public static class AuthEndpoints
 {
     public static RouteGroupBuilder MapAuthEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("auth")
+        var group = app.MapGroup("api/v{version:apiVersion}/auth")
+            .WithGroupName("v1")
             .WithTags("Auth")
             .RequireAuthorization();
 

@@ -28,6 +28,7 @@ public class Program
 
         builder.Services.ConfigureVersionedSwagger();
         builder.Services.AddServiceDependencies();
+        builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 
         builder.Services.ConfigureHttpJsonOptions(options =>
         {
@@ -72,11 +73,6 @@ public class Program
             });
         });
 
-
-        builder.Services.AddEndpointsApiExplorer();
-
-        builder.Services.AddSwaggerGen();
-
         var app = builder.Build();
         app.UseCors("AllowMercuriusAalst");
         // Apply pending migrations on startup
@@ -89,10 +85,7 @@ public class Program
             userService.SeedInitialUserAsync(app.Configuration).GetAwaiter().GetResult();
         }
 
-        app.UseSwagger();
-        app.UseSwaggerUI();
-
-        app.UseMiddleware<ExceptionHandlingMiddleware>();
+        app.UseExceptionHandler();
 
         app.UseHttpsRedirection();
 

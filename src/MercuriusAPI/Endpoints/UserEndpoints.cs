@@ -9,7 +9,8 @@ public static class UserEndpoints
 {
     public static RouteGroupBuilder MapUserEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("lan/users")
+        var group = app.MapGroup("api/v{version:apiVersion}/lan/users")
+            .WithGroupName("v1")
             .WithTags("Users")
             .RequireAuthorization(new AuthorizeAttribute { Roles = "admin" });
 

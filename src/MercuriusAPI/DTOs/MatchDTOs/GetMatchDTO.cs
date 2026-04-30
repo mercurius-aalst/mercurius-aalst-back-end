@@ -16,11 +16,16 @@ public class GetMatchDTO
     public bool IsLowerBracketMatch { get; set; }
 
     public int GameId { get; set; }
-    public int? Participant1Id { get; set; }
-    public int? Participant2Id { get; set; }
+    public int? UserParticipant1Id { get; set; }
+    public int? UserParticipant2Id { get; set; }
+    public int? TeamParticipant1Id { get; set; }
+    public int? TeamParticipant2Id { get; set; }
     public bool Participant1IsBYE { get; set; }
     public bool Participant2IsBYE { get; set; }
-    public int? WinnerId { get; set; }
+    public int? UserWinnerId { get; set; }
+    public int? UserLoserId { get; set; }
+    public int? TeamWinnerId { get; set; }
+    public int? TeamLoserId { get; set; }
     public int? Participant1Score { get; set; }
     public int? Participant2Score { get; set; }
     public int? WinnerNextMatchId { get; set; }
@@ -43,11 +48,16 @@ public class GetMatchDTO
         MatchNumber = match.MatchNumber;
         IsLowerBracketMatch = match.IsLowerBracketMatch;
         GameId = match.GameId;
-        Participant1Id = match.Participant1Id;
-        Participant2Id = match.Participant2Id;
+        UserParticipant1Id = match.UserParticipant1Id;
+        UserParticipant2Id = match.UserParticipant2Id;
+        TeamParticipant1Id = match.TeamParticipant1Id;
+        TeamParticipant2Id = match.TeamParticipant2Id;
         Participant1IsBYE = match.Participant1IsBYE;
         Participant2IsBYE = match.Participant2IsBYE;
-        WinnerId = match.WinnerId;
+        UserWinnerId = match.UserWinnerId;
+        UserLoserId = match.UserLoserId;
+        TeamWinnerId = match.TeamWinnerId;
+        TeamLoserId = match.TeamLoserId;
         Participant1Score = match.Participant1Score;
         Participant2Score = match.Participant2Score;
         WinnerNextMatchId = match.WinnerNextMatchId;

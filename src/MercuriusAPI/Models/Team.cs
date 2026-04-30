@@ -2,8 +2,9 @@ using Mercurius.LAN.API.Exceptions;
 
 namespace Mercurius.LAN.API.Models;
 
-public class Team : Participant
+public class Team
 {
+    public int Id { get; set; }
     public string Name { get; set; }
     public int CaptainUserId { get; set; }
     public User Captain { get; set; }
@@ -24,16 +25,17 @@ public class Team : Participant
         Members.Add(captain);
     }
 
-    public void Update(string? name, int? captainUserId)
+    public void UpdateName(string name)
     {
-        if (name is not null)
-            Name = name;
-        if (captainUserId is not null)
-        {
-            if (!Members.Any(m => m.Id == captainUserId))
-                throw new ValidationException($"New captain must be part of the team.");
-            CaptainUserId = captainUserId.Value;
-        }
+        Name = name;
+    }
+
+    public void ChangeCaptain(int captainUserId)
+    {
+        if (!Members.Any(m => m.Id == captainUserId))
+            throw new ValidationException($"New captain must be part of the team.");
+
+        CaptainUserId = captainUserId;
     }
 
     public void RemoveMember(int userId)

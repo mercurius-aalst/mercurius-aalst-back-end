@@ -21,57 +21,35 @@ public class TeamTests
     }
 
     [Fact]
-    public void Update_Team_Should_Update_Properties_Correctly()
+    public void UpdateName_ChangesTeamName()
     {
-        // Arrange
         var team = CreateTeam();
         var newName = "Updated Team Name";
+
+        team.UpdateName(newName);
+
+        Assert.Equal(newName, team.Name);
+    }
+
+    [Fact]
+    public void ChangeCaptain_ChangesCaptain_WhenUserIsTeamMember()
+    {
+        var team = CreateTeam();
         var newCaptain = CreateUser();
         team.Members.Add(newCaptain);
-        // Act
-        team.Update(newName, newCaptain.Id);
-        // Assert
-        Assert.Equal(newName, team.Name);
+
+        team.ChangeCaptain(newCaptain.Id);
+
         Assert.Equal(newCaptain.Id, team.CaptainUserId);
     }
 
     [Fact]
-    public void Update_Team_Should_Not_Update_When_New_Name_Is_Null()
+    public void ChangeCaptain_Throws_WhenUserIsNotTeamMember()
     {
-        // Arrange
         var team = CreateTeam();
-        var originalName = team.Name;
-        var originalCaptainUserId = team.CaptainUserId;
-        // Act
-        team.Update(null, null);
-        // Assert
-        Assert.Equal(originalName, team.Name);
-        Assert.Equal(originalCaptainUserId, team.CaptainUserId);
-    }
+        var outsider = CreateUser();
 
-    [Fact]
-    public void Update_Team_Should_Not_Update_CaptainUserId_When_New_CaptainUserId_Is_Null()
-    {
-        // Arrange
-        var team = CreateTeam();
-        var newName = "Updated Team Name";
-        // Act
-        team.Update(newName, null);
-        // Assert
-        Assert.Equal(newName, team.Name);
-        Assert.Equal(team.CaptainUserId, team.CaptainUserId);
-    }
-
-    [Fact]
-    public void Update_Team_Should_Not_Update_When_Both_Properties_Are_Null()
-    {
-        // Arrange
-        var team = CreateTeam();
-        // Act
-        team.Update(null, null);
-        // Assert
-        Assert.Equal(team.Name, team.Name);
-        Assert.Equal(team.CaptainUserId, team.CaptainUserId);
+        Assert.Throws<ValidationException>(() => team.ChangeCaptain(outsider.Id));
     }
 
     [Fact]

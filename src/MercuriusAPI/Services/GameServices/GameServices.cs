@@ -41,7 +41,15 @@ public class GameService : IGameService
     }
     public async Task<Game> GetGameByIdAsync(int gameId)
     {
-        var game = await _dbContext.Games.Include(g => g.Participants).Include(g => g.Matches).Include(g => g.Placements).ThenInclude(p => p.Participants).FirstOrDefaultAsync(g => g.Id == gameId);
+        var game = await _dbContext.Games
+            .Include(g => g.RegisteredUsers)
+            .Include(g => g.RegisteredTeams)
+            .Include(g => g.Matches)
+            .Include(g => g.Placements)
+                .ThenInclude(p => p.Users)
+            .Include(g => g.Placements)
+                .ThenInclude(p => p.Teams)
+            .FirstOrDefaultAsync(g => g.Id == gameId);
         if (game is null)
             throw new NotFoundException($"{nameof(Game)} not found");
         return game;
@@ -49,7 +57,12 @@ public class GameService : IGameService
 
     public IEnumerable<GetGameDTO> GetAllGames()
     {
-        return _dbContext.Games.Include(g => g.Participants).Include(g => g.Matches).ToList().Select(g => new GetGameDTO(g));
+        return _dbContext.Games
+            .Include(g => g.RegisteredUsers)
+            .Include(g => g.RegisteredTeams)
+            .Include(g => g.Matches)
+            .ToList()
+            .Select(g => new GetGameDTO(g));
     }
 
     public async Task<GetGameDTO> UpdateGameAsync(int id, UpdateGameDTO gameDTO)

@@ -1,3 +1,5 @@
+using Asp.Versioning;
+using Asp.Versioning.ApiExplorer;
 using Mercurius.LAN.API.Services.Auth;
 using Mercurius.LAN.API.Services.Auth.Login;
 using Mercurius.LAN.API.Services.Auth.Token;
@@ -17,11 +19,25 @@ public static class DepedencyConfiguration
     public static IServiceCollection ConfigureVersionedSwagger(this IServiceCollection services)
     {
         services.AddEndpointsApiExplorer();
+        services.AddApiVersioning(options =>
+        {
+            options.DefaultApiVersion = new ApiVersion(1, 0);
+            options.AssumeDefaultVersionWhenUnspecified = true;
+            options.ReportApiVersions = true;
+            options.ApiVersionReader = ApiVersionReader.Combine(new UrlSegmentApiVersionReader());
+        }).AddApiExplorer(options =>
+        {
+            options.GroupNameFormat = "'v'VVV";
+            options.SubstituteApiVersionInUrl = true;
+        });
+        services.ConfigureOptions<ConfigureSwaggerOptions>();
         return services;
     }
 
     public static void UseSecuredSwaggerUI(this WebApplication app)
     {
+        var apiVersionProvider = app.Services.GetRequiredService<IApiVersionDescriptionProvider>();
+
         app.UseStaticFiles(new StaticFileOptions
         {
             FileProvider = new PhysicalFileProvider(Path.Combine(AppContext.BaseDirectory, "staticfiles")),
@@ -30,6 +46,11 @@ public static class DepedencyConfiguration
             .UseSwagger()
             .UseSwaggerUI(options =>
             {
+                foreach (var description in apiVersionProvider.ApiVersionDescriptions)
+                {
+                    options.SwaggerEndpoint($"/swagger/{description.GroupName}/swagger.json", description.GroupName.ToUpperInvariant());
+                }
+
                 options.InjectJavascript("/staticfiles/swagger-custom.js");
             });
     }

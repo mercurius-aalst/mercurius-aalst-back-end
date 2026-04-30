@@ -16,10 +16,14 @@ public class Match
     public bool IsLowerBracketMatch { get; set; }
 
     public int GameId { get; set; }
-    public int? Participant1Id { get; set; }
-    public int? Participant2Id { get; set; }
-    public int? WinnerId { get; set; }
-    public int? LoserId { get; set; }
+    public int? UserParticipant1Id { get; set; }
+    public int? UserParticipant2Id { get; set; }
+    public int? UserWinnerId { get; set; }
+    public int? UserLoserId { get; set; }
+    public int? TeamParticipant1Id { get; set; }
+    public int? TeamParticipant2Id { get; set; }
+    public int? TeamWinnerId { get; set; }
+    public int? TeamLoserId { get; set; }
 
     public int? Participant1Score { get; set; }
     public int? Participant2Score { get; set; }
@@ -31,54 +35,62 @@ public class Match
     public bool Participant2IsBYE { get; set; }
 
     public Game Game { get; set; }
-    public Participant? Participant1 { get; set; }
-    public Participant? Participant2 { get; set; }
-    public Participant? Winner { get; set; }
-    public Participant? Loser { get; set; }
+    public User? UserParticipant1 { get; set; }
+    public User? UserParticipant2 { get; set; }
+    public User? UserWinner { get; set; }
+    public User? UserLoser { get; set; }
+    public Team? TeamParticipant1 { get; set; }
+    public Team? TeamParticipant2 { get; set; }
+    public Team? TeamWinner { get; set; }
+    public Team? TeamLoser { get; set; }
 
     public Match? WinnerNextMatch { get; set; }
     public Match? LoserNextMatch { get; set; }
 
     public void SetParticipants(User? participant1, User? participant2)
     {
-        ParticipationMode = ParticipationMode.Individual;
-        SetParticipantsCore(participant1, participant2);
+        EnsureParticipationMode(ParticipationMode.Individual);
+        ClearTeamAssignments();
+        UserParticipant1 = participant1;
+        UserParticipant2 = participant2;
+        UserParticipant1Id = participant1?.Id;
+        UserParticipant2Id = participant2?.Id;
     }
 
     public void SetParticipants(Team? participant1, Team? participant2)
     {
-        ParticipationMode = ParticipationMode.Team;
-        SetParticipantsCore(participant1, participant2);
-    }
-
-    public void SetParticipants(Participant? participant1, Participant? participant2)
-    {
-        EnsureParticipantMatchesMode(participant1, nameof(participant1));
-        EnsureParticipantMatchesMode(participant2, nameof(participant2));
-        SetParticipantsCore(participant1, participant2);
+        EnsureParticipationMode(ParticipationMode.Team);
+        ClearUserAssignments();
+        TeamParticipant1 = participant1;
+        TeamParticipant2 = participant2;
+        TeamParticipant1Id = participant1?.Id;
+        TeamParticipant2Id = participant2?.Id;
     }
 
     public void TryAssignByeWin()
     {
-        NormalizeParticipationModeFromAssignedParticipants();
+        if (!(Participant1IsBYE || Participant2IsBYE))
+            return;
 
-        if (Participant1IsBYE || Participant2IsBYE)
+        switch (ParticipationMode)
         {
-            if ((Participant1 == null && Participant2 != null))
-            {
-                AssignWinner(Participant2, isParticipant1Bye: true);
-            }
-            else if ((Participant2 == null && Participant1 != null))
-            {
-                AssignWinner(Participant1, isParticipant2Bye: true);
-            }
+            case ParticipationMode.Individual:
+                if (UserParticipant1 == null && UserParticipant2 != null)
+                    AssignWinner(UserParticipant2);
+                else if (UserParticipant2 == null && UserParticipant1 != null)
+                    AssignWinner(UserParticipant1);
+                break;
+            case ParticipationMode.Team:
+                if (TeamParticipant1 == null && TeamParticipant2 != null)
+                    AssignWinner(TeamParticipant2);
+                else if (TeamParticipant2 == null && TeamParticipant1 != null)
+                    AssignWinner(TeamParticipant1);
+                break;
         }
     }
 
     public void SetParticipantBYEs(bool participant1BYE, bool participant2BYE)
     {
-        NormalizeParticipationModeFromAssignedParticipants();
-
         if (RoundNumber != 1 && participant1BYE && participant2BYE)
             return;
 
@@ -86,10 +98,25 @@ public class Match
         Participant2IsBYE = Participant2IsBYE || participant2BYE;
     }
 
-    private void AssignWinner(Participant? winner, bool isParticipant1Bye = false, bool isParticipant2Bye = false)
+    private void AssignWinner(User? winner)
     {
-        Winner = winner;
-        Loser = null;
+        EnsureParticipationMode(ParticipationMode.Individual);
+        ClearTeamAssignments();
+        UserWinner = winner;
+        UserWinnerId = winner?.Id;
+        UserLoser = null;
+        UserLoserId = null;
+        UpdateParticipantsNextMatch();
+    }
+
+    private void AssignWinner(Team? winner)
+    {
+        EnsureParticipationMode(ParticipationMode.Team);
+        ClearUserAssignments();
+        TeamWinner = winner;
+        TeamWinnerId = winner?.Id;
+        TeamLoser = null;
+        TeamLoserId = null;
         UpdateParticipantsNextMatch();
     }
 
@@ -100,15 +127,12 @@ public class Match
 
     public void Finish()
     {
-        NormalizeParticipationModeFromAssignedParticipants();
         EndTime = DateTime.UtcNow;
         UpdateParticipantsNextMatch();
     }
 
     public void SetScoresAndWinner(int participant1Score, int participant2Score)
     {
-        NormalizeParticipationModeFromAssignedParticipants();
-
         if (participant1Score < 0 || participant2Score < 0)
             throw new ValidationException("Scores cannot be negative");
         int winsNeeded = Format switch
@@ -128,32 +152,45 @@ public class Match
 
         if (participant1Score == winsNeeded && participant1Score > participant2Score)
         {
-            SetWinnerAndLoser(Participant1, Participant2);
+            switch (ParticipationMode)
+            {
+                case ParticipationMode.Individual:
+                    SetWinnerAndLoser(UserParticipant1, UserParticipant2);
+                    break;
+                case ParticipationMode.Team:
+                    SetWinnerAndLoser(TeamParticipant1, TeamParticipant2);
+                    break;
+            }
             Finish();
         }
         else if (participant2Score == winsNeeded && participant2Score > participant1Score)
         {
-            SetWinnerAndLoser(Participant2, Participant1);
+            switch (ParticipationMode)
+            {
+                case ParticipationMode.Individual:
+                    SetWinnerAndLoser(UserParticipant2, UserParticipant1);
+                    break;
+                case ParticipationMode.Team:
+                    SetWinnerAndLoser(TeamParticipant2, TeamParticipant1);
+                    break;
+            }
             Finish();
         }
     }
 
     public void UpdateParticipantsNextMatch()
     {
-        NormalizeParticipationModeFromAssignedParticipants();
-
-        if (Winner == null)
+        if (!HasWinner())
             return;
 
-        // Assign Winner to the next match
         if (WinnerNextMatch != null)
         {
             if (WinnerNextMatch.IsLowerBracketMatch)
             {
-                if (WinnerNextMatch.Participant2 == null || WinnerNextMatch.Participant2?.Id == Winner.Id)
-                    WinnerNextMatch.SetParticipant2(Winner);
+                if (!WinnerNextMatch.HasParticipant2() || WinnerNextMatch.GetParticipant2Id() == GetWinnerId())
+                    AssignWinnerToParticipant2(WinnerNextMatch);
                 else
-                    WinnerNextMatch.SetParticipant1(Winner);
+                    AssignWinnerToParticipant1(WinnerNextMatch);
 
                 if (WinnerNextMatch.Participant1IsBYE || WinnerNextMatch.Participant2IsBYE)
                     WinnerNextMatch.TryAssignByeWin();
@@ -161,114 +198,223 @@ public class Match
             else
             {
                 if (MatchNumber % 2 != 0 && !IsLowerBracketMatch)
-                    WinnerNextMatch.SetParticipant1(Winner);
+                    AssignWinnerToParticipant1(WinnerNextMatch);
                 else
-                    WinnerNextMatch.SetParticipant2(Winner);
+                    AssignWinnerToParticipant2(WinnerNextMatch);
             }
         }
 
-        // Assign Loser to the next match
         if (LoserNextMatch != null)
         {
             if (RoundNumber == 1)
             {
                 if (MatchNumber % 2 != 0)
-                    LoserNextMatch.SetParticipant1(Loser);
+                    AssignLoserToParticipant1(LoserNextMatch);
                 else
-                    LoserNextMatch.SetParticipant2(Loser);
+                    AssignLoserToParticipant2(LoserNextMatch);
             }
             else
             {
-                LoserNextMatch.SetParticipant1(Loser);
+                AssignLoserToParticipant1(LoserNextMatch);
             }
+
             if (LoserNextMatch.Participant1IsBYE || LoserNextMatch.Participant2IsBYE)
                 LoserNextMatch.TryAssignByeWin();
         }
     }
 
-    public void SetParticipant1(Participant? participant)
+    public void SetParticipant1(User? participant)
     {
-        AdoptParticipationModeIfUnset(participant);
-        EnsureParticipantMatchesMode(participant, nameof(Participant1));
-        Participant1 = participant;
+        EnsureParticipationMode(ParticipationMode.Individual);
+        ClearTeamAssignments();
+        UserParticipant1 = participant;
+        UserParticipant1Id = participant?.Id;
     }
 
-    public void SetParticipant2(Participant? participant)
+    public void SetParticipant2(User? participant)
     {
-        AdoptParticipationModeIfUnset(participant);
-        EnsureParticipantMatchesMode(participant, nameof(Participant2));
-        Participant2 = participant;
+        EnsureParticipationMode(ParticipationMode.Individual);
+        ClearTeamAssignments();
+        UserParticipant2 = participant;
+        UserParticipant2Id = participant?.Id;
     }
 
-    private void SetParticipantsCore(Participant? participant1, Participant? participant2)
+    public void SetParticipant1(Team? participant)
     {
-        AdoptParticipationModeIfUnset(participant1 ?? participant2);
-        Participant1 = participant1;
-        Participant2 = participant2;
+        EnsureParticipationMode(ParticipationMode.Team);
+        ClearUserAssignments();
+        TeamParticipant1 = participant;
+        TeamParticipant1Id = participant?.Id;
     }
 
-    private void SetWinnerAndLoser(Participant? winner, Participant? loser)
+    public void SetParticipant2(Team? participant)
     {
-        AdoptParticipationModeIfUnset(winner ?? loser);
-        EnsureParticipantMatchesMode(winner, nameof(Winner));
-        EnsureParticipantMatchesMode(loser, nameof(Loser));
-        Winner = winner;
-        Loser = loser;
+        EnsureParticipationMode(ParticipationMode.Team);
+        ClearUserAssignments();
+        TeamParticipant2 = participant;
+        TeamParticipant2Id = participant?.Id;
     }
 
-    private void AdoptParticipationModeIfUnset(Participant? participant)
+    private void SetWinnerAndLoser(User? winner, User? loser)
     {
-        if (participant is null || HasResolvedMode())
-            return;
+        EnsureParticipationMode(ParticipationMode.Individual);
+        ClearTeamAssignments();
+        UserWinner = winner;
+        UserWinnerId = winner?.Id;
+        UserLoser = loser;
+        UserLoserId = loser?.Id;
+    }
 
-        ParticipationMode = participant switch
+    private void SetWinnerAndLoser(Team? winner, Team? loser)
+    {
+        EnsureParticipationMode(ParticipationMode.Team);
+        ClearUserAssignments();
+        TeamWinner = winner;
+        TeamWinnerId = winner?.Id;
+        TeamLoser = loser;
+        TeamLoserId = loser?.Id;
+    }
+
+    public bool HasParticipant1()
+    {
+        return ParticipationMode switch
         {
-            User => ParticipationMode.Individual,
-            Team => ParticipationMode.Team,
-            _ => ParticipationMode
-        };
-    }
-
-    private bool HasResolvedMode()
-    {
-        return Participant1 != null
-            || Participant2 != null
-            || Winner != null
-            || Loser != null
-            || Participant1Id.HasValue
-            || Participant2Id.HasValue
-            || WinnerId.HasValue
-            || LoserId.HasValue;
-    }
-
-    private void NormalizeParticipationModeFromAssignedParticipants()
-    {
-        var participant = Participant1 ?? Participant2 ?? Winner ?? Loser;
-        if (participant is null)
-            return;
-
-        ParticipationMode = participant switch
-        {
-            User => ParticipationMode.Individual,
-            Team => ParticipationMode.Team,
-            _ => ParticipationMode
-        };
-    }
-
-    private void EnsureParticipantMatchesMode(Participant? participant, string parameterName)
-    {
-        if (participant is null)
-            return;
-
-        bool isCompatible = ParticipationMode switch
-        {
-            ParticipationMode.Individual => participant is User,
-            ParticipationMode.Team => participant is Team,
+            ParticipationMode.Individual => UserParticipant1 != null,
+            ParticipationMode.Team => TeamParticipant1 != null,
             _ => false
         };
+    }
 
-        if (!isCompatible)
-            throw new ValidationException($"{parameterName} is incompatible with {ParticipationMode} match mode.");
+    public bool HasParticipant2()
+    {
+        return ParticipationMode switch
+        {
+            ParticipationMode.Individual => UserParticipant2 != null,
+            ParticipationMode.Team => TeamParticipant2 != null,
+            _ => false
+        };
+    }
+
+    public bool HasWinner()
+    {
+        return ParticipationMode switch
+        {
+            ParticipationMode.Individual => UserWinner != null,
+            ParticipationMode.Team => TeamWinner != null,
+            _ => false
+        };
+    }
+
+    public int? GetParticipant1Id()
+    {
+        return ParticipationMode switch
+        {
+            ParticipationMode.Individual => UserParticipant1Id,
+            ParticipationMode.Team => TeamParticipant1Id,
+            _ => null
+        };
+    }
+
+    public int? GetParticipant2Id()
+    {
+        return ParticipationMode switch
+        {
+            ParticipationMode.Individual => UserParticipant2Id,
+            ParticipationMode.Team => TeamParticipant2Id,
+            _ => null
+        };
+    }
+
+    public int? GetWinnerId()
+    {
+        return ParticipationMode switch
+        {
+            ParticipationMode.Individual => UserWinnerId,
+            ParticipationMode.Team => TeamWinnerId,
+            _ => null
+        };
+    }
+
+    private void AssignWinnerToParticipant1(Match targetMatch)
+    {
+        switch (ParticipationMode)
+        {
+            case ParticipationMode.Individual:
+                targetMatch.SetParticipant1(UserWinner);
+                break;
+            case ParticipationMode.Team:
+                targetMatch.SetParticipant1(TeamWinner);
+                break;
+        }
+    }
+
+    private void AssignWinnerToParticipant2(Match targetMatch)
+    {
+        switch (ParticipationMode)
+        {
+            case ParticipationMode.Individual:
+                targetMatch.SetParticipant2(UserWinner);
+                break;
+            case ParticipationMode.Team:
+                targetMatch.SetParticipant2(TeamWinner);
+                break;
+        }
+    }
+
+    private void AssignLoserToParticipant1(Match targetMatch)
+    {
+        switch (ParticipationMode)
+        {
+            case ParticipationMode.Individual:
+                targetMatch.SetParticipant1(UserLoser);
+                break;
+            case ParticipationMode.Team:
+                targetMatch.SetParticipant1(TeamLoser);
+                break;
+        }
+    }
+
+    private void AssignLoserToParticipant2(Match targetMatch)
+    {
+        switch (ParticipationMode)
+        {
+            case ParticipationMode.Individual:
+                targetMatch.SetParticipant2(UserLoser);
+                break;
+            case ParticipationMode.Team:
+                targetMatch.SetParticipant2(TeamLoser);
+                break;
+        }
+    }
+
+    private void EnsureParticipationMode(ParticipationMode expectedMode)
+    {
+        if (ParticipationMode != expectedMode)
+            throw new ValidationException($"Match only accepts {expectedMode.ToString().ToLowerInvariant()} participants.");
+    }
+
+    private void ClearUserAssignments()
+    {
+        UserParticipant1 = null;
+        UserParticipant2 = null;
+        UserWinner = null;
+        UserLoser = null;
+        UserParticipant1Id = null;
+        UserParticipant2Id = null;
+        UserWinnerId = null;
+        UserLoserId = null;
+    }
+
+    private void ClearTeamAssignments()
+    {
+        TeamParticipant1 = null;
+        TeamParticipant2 = null;
+        TeamWinner = null;
+        TeamLoser = null;
+        TeamParticipant1Id = null;
+        TeamParticipant2Id = null;
+        TeamWinnerId = null;
+        TeamLoserId = null;
     }
 }
 

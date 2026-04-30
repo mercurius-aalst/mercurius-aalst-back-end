@@ -1,7 +1,7 @@
 using Mercurius.LAN.API.DTOs.MatchDTOs;
-using Mercurius.LAN.API.DTOs.ParticipantDTOs;
 using Mercurius.LAN.API.DTOs.PlacementDTOs;
 using Mercurius.LAN.API.DTOs.TeamDTOs;
+using Mercurius.LAN.API.DTOs.Auth;
 using Mercurius.LAN.API.Models;
 
 namespace Mercurius.LAN.API.DTOs.GameDTOs;
@@ -23,7 +23,8 @@ public class GetGameDTO
     public IEnumerable<GetPlacementDTO> Placements { get; set; } = [];
 
     public IEnumerable<GetMatchDTO> Matches { get; set; } = [];
-    public IEnumerable<GetParticipantDTO> Participants { get; set; } = [];
+    public IEnumerable<GetUserDTO> Users { get; set; } = [];
+    public IEnumerable<GetTeamDTO> Teams { get; set; } = [];
 
     public GetGameDTO(Game game)
     {
@@ -43,10 +44,10 @@ public class GetGameDTO
         switch (ParticipationMode)
         {
             case ParticipationMode.Individual:
-                Participants = game.Participants.Select(p => new GetParticipantUserDTO((User)p)).ToList();
+                Users = game.RegisteredUsers.Select(user => new GetUserDTO(user)).ToList();
                 break;
             case ParticipationMode.Team:
-                Participants = game.Participants.Select(t => new GetTeamDTO((Team)t)).ToList();
+                Teams = game.RegisteredTeams.Select(team => new GetTeamDTO(team)).ToList();
                 break;
         }
     }

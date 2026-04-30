@@ -1,5 +1,4 @@
 using Mercurius.LAN.API.Models;
-using Mercurius.LAN.API.Services.MatchServices.Helpers;
 
 namespace Mercurius.LAN.API.Services.MatchServices.BracketTypes;
 
@@ -7,76 +6,96 @@ public class RoundRobinMatchModerator : IMatchModerator
 {
     public void DeterminePlacements(Game game)
     {
-        if (game.Participants.Count == 0)
-            throw new Exception("No participants in the game to determine placements.");
-
-        // Count wins for each participant
-        var winCounts = game.Participants.ToDictionary(
-            p => p.Id,
-            p => game.Matches.Count(m => m.WinnerId == p.Id)
-        );
-
-        // Get head-to-head all possible matches f
-        var headToHead = game.Matches
-            .Where(m => m.Participant1 != null && m.Participant2 != null && m.WinnerId.HasValue)
-            .ToDictionary(
-                m => (Math.Min(m.Participant1.Id, m.Participant2.Id), Math.Max(m.Participant1.Id, m.Participant2.Id)),
-                m => m.WinnerId.Value
-            );
-
-        // Sort participants by wins
-        var ordered = game.Participants
-            .OrderByDescending(p => winCounts[p.Id])
-            .ThenBy(p => p.Id)
-            .ToList();
-
-        // Apply head-to-head tiebreaker for ties
-        for (int i = 0; i < ordered.Count - 1; i++)
+        switch (game.ParticipationMode)
         {
-            for (int j = i + 1; j < ordered.Count; j++)
-            {
-                var p1 = ordered[i];
-                var p2 = ordered[j];
-                if (winCounts[p1.Id] == winCounts[p2.Id])
+            case ParticipationMode.Individual:
+                DeterminePlacements(game, game.RegisteredUsers.ToList(), participant => participant.Id, participant => new Placement
                 {
-                    var match = game.Matches.FirstOrDefault(m =>
-               ((m.Participant1?.Id == p1.Id && m.Participant2?.Id == p2.Id) ||
-                (m.Participant1?.Id == p2.Id && m.Participant2?.Id == p1.Id))
-               && m.WinnerId.HasValue);
-                    if (match is not null && match.WinnerId == p2.Id && i < j)
-                    {
-                        // Swap so winner comes first
-                        ordered[i] = p2;
-                        ordered[j] = p1;
-                    }
-                }
-            }
+                    GameId = game.Id,
+                    Users = [participant],
+                    Place = 0
+                });
+                break;
+            case ParticipationMode.Team:
+                DeterminePlacements(game, game.RegisteredTeams.ToList(), participant => participant.Id, participant => new Placement
+                {
+                    GameId = game.Id,
+                    Teams = [participant],
+                    Place = 0
+                });
+                break;
         }
-
-        // Assign placements
-        for (int i = 0; i < ordered.Count; i++)
-            game.Placements.Add(new Placement
-            {
-                GameId = game.Id,
-                Participants = [ordered[i]],
-                Place = i + 1
-            });
     }
 
     public IEnumerable<Match> GenerateMatchesForGame(Game game)
     {
-        var matches = new List<Match>();
+        return game.ParticipationMode switch
+        {
+            ParticipationMode.Individual => GenerateMatchesForGame(game, game.RegisteredUsers.ToList(), (match, p1, p2) => match.SetParticipants(p1, p2)),
+            ParticipationMode.Team => GenerateMatchesForGame(game, game.RegisteredTeams.ToList(), (match, p1, p2) => match.SetParticipants(p1, p2)),
+            _ => throw new InvalidOperationException($"Unsupported participation mode {game.ParticipationMode}.")
+        };
+    }
 
-        var participants = MatchModeParticipantHelper.GetParticipantsForBracket(game);
-        var rotation = new List<Participant?>(participants);
-        bool isOdd = rotation.Count % 2 != 0;
-        if (isOdd)
+    private void DeterminePlacements<TParticipant>(Game game, List<TParticipant> participants, Func<TParticipant, int> getId, Func<TParticipant, Placement> createPlacement)
+        where TParticipant : class
+    {
+        if (participants.Count == 0)
+            throw new Exception("No participants in the game to determine placements.");
+
+        var winCounts = participants.ToDictionary(
+            getId,
+            participant => game.Matches.Count(m => m.GetWinnerId() == getId(participant)));
+
+        var ordered = participants
+            .OrderByDescending(participant => winCounts[getId(participant)])
+            .ThenBy(getId)
+            .ToList();
+
+        for (int i = 0; i < ordered.Count - 1; i++)
+        {
+            for (int j = i + 1; j < ordered.Count; j++)
+            {
+                var participant1 = ordered[i];
+                var participant2 = ordered[j];
+                var participant1Id = getId(participant1);
+                var participant2Id = getId(participant2);
+
+                if (winCounts[participant1Id] != winCounts[participant2Id])
+                    continue;
+
+                var match = game.Matches.FirstOrDefault(m =>
+                    ((m.GetParticipant1Id() == participant1Id && m.GetParticipant2Id() == participant2Id) ||
+                     (m.GetParticipant1Id() == participant2Id && m.GetParticipant2Id() == participant1Id)) &&
+                    m.GetWinnerId().HasValue);
+
+                if (match is not null && match.GetWinnerId() == participant2Id && i < j)
+                {
+                    ordered[i] = participant2;
+                    ordered[j] = participant1;
+                }
+            }
+        }
+
+        for (int i = 0; i < ordered.Count; i++)
+        {
+            var placement = createPlacement(ordered[i]);
+            placement.Place = i + 1;
+            game.Placements.Add(placement);
+        }
+    }
+
+    private IEnumerable<Match> GenerateMatchesForGame<TParticipant>(Game game, List<TParticipant> participants, Action<Match, TParticipant, TParticipant> assignParticipants)
+        where TParticipant : class
+    {
+        var matches = new List<Match>();
+        var rotation = new List<TParticipant?>(participants);
+        if (rotation.Count % 2 != 0)
             rotation.Add(null);
 
         int totalParticipants = rotation.Count;
         int totalRounds = totalParticipants - 1;
         int matchesPerRound = totalParticipants / 2;
-
         int matchNumber = 0;
 
         for (int round = 1; round <= totalRounds; round++)
@@ -89,7 +108,7 @@ public class RoundRobinMatchModerator : IMatchModerator
                 if (participant1 == null || participant2 == null)
                     continue;
 
-                matches.Add(new Match
+                var match = new Match
                 {
                     GameId = game.Id,
                     RoundNumber = round,
@@ -97,9 +116,10 @@ public class RoundRobinMatchModerator : IMatchModerator
                     BracketType = game.BracketType,
                     Format = game.Format,
                     ParticipationMode = game.ParticipationMode
-                });
+                };
 
-                MatchModeParticipantHelper.AssignParticipants(matches[^1], participant1, participant2);
+                assignParticipants(match, participant1, participant2);
+                matches.Add(match);
             }
 
             var last = rotation[rotation.Count - 1];
@@ -107,7 +127,6 @@ public class RoundRobinMatchModerator : IMatchModerator
             rotation.Insert(1, last);
         }
 
-        //Winner and Loser next matches don't need to be linked, no binary tree here.
         return matches;
     }
 }

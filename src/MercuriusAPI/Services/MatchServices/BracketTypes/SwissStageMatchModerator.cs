@@ -1,5 +1,4 @@
 using Mercurius.LAN.API.Models;
-using Mercurius.LAN.API.Services.MatchServices.Helpers;
 
 namespace Mercurius.LAN.API.Services.MatchServices.BracketTypes;
 
@@ -23,39 +22,14 @@ public class SwissStageMatchModerator : IMatchModerator
 
     private void GenerateSwissMatches(Game game, List<Match> matches)
     {
-        var paddedParticipants = PadTo16(MatchModeParticipantHelper.GetParticipantsForBracket(game));
-        int matchCounter = 0;
-
-        for (int round = 1; round <= _maxRounds; round++)
+        switch (game.ParticipationMode)
         {
-            int matchCount = paddedParticipants.Count / 2;
-
-            for (int i = 0; i < matchCount; i++)
-            {
-                var match = new Match
-                {
-                    GameId = game.Id,
-                    RoundNumber = round,
-                    MatchNumber = matchCounter++,
-                    BracketType = BracketType.Swiss,
-                    Format = game.Format,
-                    ParticipationMode = game.ParticipationMode
-                };
-                if (round == 1)
-                {
-                    int p1Index = i * 2;
-                    int p2Index = p1Index + 1;
-
-                    MatchModeParticipantHelper.AssignParticipants(
-                        match,
-                        paddedParticipants[p1Index],
-                        p2Index < paddedParticipants.Count ? paddedParticipants[p2Index] : null);
-
-                    match.TryAssignByeWin();
-                }
-
-                matches.Add(match);
-            }
+            case ParticipationMode.Individual:
+                GenerateSwissMatches(game, matches, PadTo16(game.RegisteredUsers.ToList()), (match, p1, p2) => match.SetParticipants(p1, p2));
+                break;
+            case ParticipationMode.Team:
+                GenerateSwissMatches(game, matches, PadTo16(game.RegisteredTeams.ToList()), (match, p1, p2) => match.SetParticipants(p1, p2));
+                break;
         }
     }
     private void GeneratePlayoffMatches(Game game, List<Match> matches)
@@ -103,9 +77,44 @@ public class SwissStageMatchModerator : IMatchModerator
 
         matches.Add(grandFinalMatch);
     }
-    private List<Participant?> PadTo16(List<Participant> participants)
+    private void GenerateSwissMatches<TParticipant>(Game game, List<Match> matches, List<TParticipant?> paddedParticipants, Action<Match, TParticipant?, TParticipant?> assignParticipants)
+        where TParticipant : class
     {
-        var padded = new List<Participant?>(participants);
+        int matchCounter = 0;
+
+        for (int round = 1; round <= _maxRounds; round++)
+        {
+            int matchCount = paddedParticipants.Count / 2;
+
+            for (int i = 0; i < matchCount; i++)
+            {
+                var match = new Match
+                {
+                    GameId = game.Id,
+                    RoundNumber = round,
+                    MatchNumber = matchCounter++,
+                    BracketType = BracketType.Swiss,
+                    Format = game.Format,
+                    ParticipationMode = game.ParticipationMode
+                };
+
+                if (round == 1)
+                {
+                    int p1Index = i * 2;
+                    int p2Index = p1Index + 1;
+                    assignParticipants(match, paddedParticipants[p1Index], p2Index < paddedParticipants.Count ? paddedParticipants[p2Index] : null);
+                    match.TryAssignByeWin();
+                }
+
+                matches.Add(match);
+            }
+        }
+    }
+
+    private List<TParticipant?> PadTo16<TParticipant>(List<TParticipant> participants)
+        where TParticipant : class
+    {
+        var padded = new List<TParticipant?>(participants);
         while (padded.Count < _maxParticipants)
             padded.Add(null);
 

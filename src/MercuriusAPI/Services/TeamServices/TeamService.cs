@@ -69,7 +69,13 @@ public class TeamService : ITeamService
         var team = await GetTeamByIdAsync(id);
         if (teamDTO.Name != null && !team.Name.Equals(teamDTO.Name) && await CheckIfTeamNameExistsAsync(teamDTO.Name))
             throw new ValidationException($"Teamname {teamDTO.Name} already in use");
-        team.Update(teamDTO.Name, teamDTO.CaptainUserId);
+
+        if (teamDTO.Name != null)
+            team.UpdateName(teamDTO.Name);
+
+        if (teamDTO.CaptainUserId.HasValue)
+            team.ChangeCaptain(teamDTO.CaptainUserId.Value);
+
         _dbContext.Teams.Update(team);
         await _dbContext.SaveChangesAsync();
         return new GetTeamDTO(team);

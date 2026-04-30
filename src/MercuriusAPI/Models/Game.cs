@@ -17,7 +17,8 @@ public class Game
     public IList<Placement> Placements { get; set; } = [];
 
     public IList<Match> Matches { get; set; } = new List<Match>();
-    public IList<Participant> Participants { get; set; } = [];
+    public IList<User> RegisteredUsers { get; set; } = [];
+    public IList<Team> RegisteredTeams { get; set; } = [];
 
     public string RegisterFormUrl { get; set; }
     public string? ImageUrl { get; set; }
@@ -64,7 +65,7 @@ public class Game
     {
         if (Status != GameStatus.Scheduled)
             throw new ValidationException("Game has to be scheduled to be able to start");
-        if (Participants.Count < 2)
+        if (GetRegisteredParticipantCount() < 2)
             throw new ValidationException("At least 2 participants required.");
         StartTime = DateTime.UtcNow;
         Status = GameStatus.InProgress;
@@ -86,7 +87,8 @@ public class Game
         StartTime = DateTime.MinValue;
         EndTime = DateTime.MinValue;
         Matches.Clear();
-        Participants.Clear();
+        RegisteredUsers.Clear();
+        RegisteredTeams.Clear();
         Placements.Clear();
     }
 
@@ -95,9 +97,9 @@ public class Game
         EnsureScheduledRegistrationState();
         if (ParticipationMode != ParticipationMode.Individual)
             throw new ValidationException("This game only accepts individual registrations.");
-        if (Participants.Any(p => p.Id == user.Id))
+        if (RegisteredUsers.Any(p => p.Id == user.Id))
             throw new ValidationException("User is already registered for this game.");
-        Participants.Add(user);
+        RegisteredUsers.Add(user);
     }
 
     public void RegisterTeam(Team team)
@@ -105,9 +107,9 @@ public class Game
         EnsureScheduledRegistrationState();
         if (ParticipationMode != ParticipationMode.Team)
             throw new ValidationException("This game only accepts team registrations.");
-        if (Participants.Any(p => p.Id == team.Id))
+        if (RegisteredTeams.Any(t => t.Id == team.Id))
             throw new ValidationException("Team is already registered for this game.");
-        Participants.Add(team);
+        RegisteredTeams.Add(team);
     }
 
     public void RemoveUser(int userId)
@@ -115,10 +117,10 @@ public class Game
         EnsureScheduledRegistrationState();
         if (ParticipationMode != ParticipationMode.Individual)
             throw new ValidationException("This game only accepts individual registrations.");
-        var user = Participants.OfType<User>().FirstOrDefault(p => p.Id == userId);
+        var user = RegisteredUsers.FirstOrDefault(p => p.Id == userId);
         if (user is null)
             throw new NotFoundException($"{nameof(User)} not found for game {Name}");
-        Participants.Remove(user);
+        RegisteredUsers.Remove(user);
     }
 
     public void RemoveTeam(int teamId)
@@ -126,10 +128,20 @@ public class Game
         EnsureScheduledRegistrationState();
         if (ParticipationMode != ParticipationMode.Team)
             throw new ValidationException("This game only accepts team registrations.");
-        var team = Participants.OfType<Team>().FirstOrDefault(t => t.Id == teamId);
+        var team = RegisteredTeams.FirstOrDefault(t => t.Id == teamId);
         if (team is null)
             throw new NotFoundException($"{nameof(Team)} not found for game {Name}");
-        Participants.Remove(team);
+        RegisteredTeams.Remove(team);
+    }
+
+    public int GetRegisteredParticipantCount()
+    {
+        return ParticipationMode switch
+        {
+            ParticipationMode.Individual => RegisteredUsers.Count,
+            ParticipationMode.Team => RegisteredTeams.Count,
+            _ => 0
+        };
     }
 
     private void EnsureScheduledRegistrationState()

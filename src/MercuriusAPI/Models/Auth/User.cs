@@ -5,6 +5,7 @@ namespace Mercurius.LAN.API.Models;
 public class User
 {
     public int Id { get; set; }
+    public Guid PublicId { get; set; } = Guid.NewGuid();
     public string Username { get; set; } = string.Empty;
     public string Firstname { get; set; } = string.Empty;
     public string Lastname { get; set; } = string.Empty;
@@ -12,8 +13,8 @@ public class User
     public string? DiscordId { get; set; } = string.Empty;
     public string? SteamId { get; set; } = string.Empty;
     public string? RiotId { get; set; } = string.Empty;
-    public byte[] PasswordHash { get; set; } = [];
-    public byte[] Salt { get; set; } = [];
+    public byte[]? PasswordHash { get; set; }
+    public byte[]? Salt { get; set; }
     public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
     public ICollection<Role> Roles { get; set; } = new List<Role>();
 

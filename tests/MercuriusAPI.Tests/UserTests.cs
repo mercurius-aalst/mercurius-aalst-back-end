@@ -39,6 +39,7 @@ public class UserTests
         var user = new User
         {
             Id = 7,
+            PublicId = Guid.Parse("11111111-1111-1111-1111-111111111111"),
             Username = "playerone",
             Firstname = "Player",
             Lastname = "One",
@@ -52,6 +53,7 @@ public class UserTests
         var dto = new GetUserDTO(user);
 
         Assert.Equal(7, dto.Id);
+        Assert.Equal(Guid.Parse("11111111-1111-1111-1111-111111111111"), dto.PublicId);
         Assert.Equal("playerone", dto.Username);
         Assert.Equal("Player", dto.Firstname);
         Assert.Equal("One", dto.Lastname);
@@ -182,3 +184,18 @@ public class UserTests
         public Task RevokeRefreshTokenAsync(RevokeTokenRequest request) => Task.CompletedTask;
     }
 }
+
+
+    [Fact]
+    public void SocialFirstUser_HasNoLocalPasswordByDefault()
+    {
+        var user = new User
+        {
+            Username = "social-user",
+            Email = "social@test.com"
+        };
+
+        Assert.Null(user.PasswordHash);
+        Assert.Null(user.Salt);
+        Assert.NotEqual(Guid.Empty, user.PublicId);
+    }

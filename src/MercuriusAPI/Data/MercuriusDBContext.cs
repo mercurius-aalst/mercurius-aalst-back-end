@@ -32,6 +32,10 @@ public partial class MercuriusDBContext : DbContext
             entity.Property(e => e.Firstname).IsRequired();
             entity.Property(e => e.Lastname).IsRequired();
             entity.Property(e => e.Email).IsRequired();
+            entity.Property(e => e.PublicId).IsRequired();
+            entity.HasIndex(e => e.PublicId).IsUnique();
+            entity.Property(e => e.PasswordHash).IsRequired(false);
+            entity.Property(e => e.Salt).IsRequired(false);
         });
 
         modelBuilder.Entity<Team>(entity =>

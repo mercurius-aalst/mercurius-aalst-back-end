@@ -47,7 +47,8 @@ public class AuthService : IAuthService
             .Include(u => u.Roles)
             .FirstOrDefaultAsync(u => u.Username == normalizedUsername);
 
-        if (user == null || !PasswordHelper.VerifyPassword(request.Password, user.PasswordHash, user.Salt))
+        var hasLocalPassword = user?.PasswordHash is { Length: > 0 } && user.Salt is { Length: > 0 };
+        if (user == null || !hasLocalPassword || !PasswordHelper.VerifyPassword(request.Password, user.PasswordHash!, user.Salt!))
         {
             var attemptsLeft = _loginAttemptService.RegisterFailedAttempt(normalizedUsername, now);
             if (attemptsLeft == 0)

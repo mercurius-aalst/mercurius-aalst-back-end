@@ -12,8 +12,8 @@ public class User
     public string? DiscordId { get; set; } = string.Empty;
     public string? SteamId { get; set; } = string.Empty;
     public string? RiotId { get; set; } = string.Empty;
-    public byte[] PasswordHash { get; set; } = [];
-    public byte[] Salt { get; set; } = [];
+    public byte[]? PasswordHash { get; set; }
+    public byte[]? Salt { get; set; }
     public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
     public ICollection<Role> Roles { get; set; } = new List<Role>();
 

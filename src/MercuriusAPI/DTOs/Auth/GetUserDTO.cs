@@ -5,6 +5,7 @@ namespace Mercurius.LAN.API.DTOs.Auth;
 public class GetUserDTO
 {
     public int Id { get; set; }
+    public Guid PublicId { get; set; }
     public string Username { get; set; }
     public string Firstname { get; set; }
     public string Lastname { get; set; }
@@ -18,6 +19,7 @@ public class GetUserDTO
     public GetUserDTO(User user)
     {
         Id = user.Id;
+        PublicId = user.PublicId;
         Username = user.Username;
         Firstname = user.Firstname;
         Lastname = user.Lastname;

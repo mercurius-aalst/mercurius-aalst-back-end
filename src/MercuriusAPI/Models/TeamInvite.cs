@@ -11,10 +11,10 @@ public enum TeamInviteStatus
 
 public class TeamInvite
 {
-    public int Id { get; set; }
-    public int TeamId { get; set; }
+    public Guid Id { get; set; }
+    public Guid TeamId { get; set; }
     public Team Team { get; set; }
-    public int UserId { get; set; }
+    public Guid UserId { get; set; }
     public User User { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public TeamInviteStatus Status { get; set; } = TeamInviteStatus.Pending;

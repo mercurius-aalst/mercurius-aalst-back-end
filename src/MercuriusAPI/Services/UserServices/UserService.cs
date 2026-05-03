@@ -49,7 +49,7 @@ public class UserService : IUserService
         return new GetUserDTO(user);
     }
 
-    public async Task<GetUserDTO> GetUserByIdAsync(int id)
+    public async Task<GetUserDTO> GetUserByIdAsync(Guid id)
     {
         var user = await _dbContext.Users.Include(u => u.Roles).FirstOrDefaultAsync(u => u.Id == id);
         if (user == null)
@@ -57,7 +57,7 @@ public class UserService : IUserService
         return new GetUserDTO(user);
     }
 
-    public async Task<GetUserDTO> UpdateUserAsync(int id, UpdateUserProfileRequest request)
+    public async Task<GetUserDTO> UpdateUserAsync(Guid id, UpdateUserProfileRequest request)
     {
         var user = await _dbContext.Users.Include(u => u.Roles).FirstOrDefaultAsync(u => u.Id == id);
         if (user == null)
@@ -96,7 +96,7 @@ public class UserService : IUserService
         await _dbContext.SaveChangesAsync();
     }
 
-    public async Task DeleteUserByIdAsync(int id)
+    public async Task DeleteUserByIdAsync(Guid id)
     {
         var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == id);
         if (user == null)

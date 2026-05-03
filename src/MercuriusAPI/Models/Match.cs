@@ -4,7 +4,7 @@ namespace Mercurius.LAN.API.Models;
 
 public class Match
 {
-    public int Id { get; set; }
+    public Guid Id { get; set; }
     public DateTime StartTime { get; set; }
     public DateTime EndTime { get; set; }
     public BracketType BracketType { get; set; }
@@ -16,10 +16,10 @@ public class Match
     public bool IsLowerBracketMatch { get; set; }
 
     public int GameId { get; set; }
-    public int? UserParticipant1Id { get; set; }
-    public int? UserParticipant2Id { get; set; }
-    public int? UserWinnerId { get; set; }
-    public int? UserLoserId { get; set; }
+    public Guid? UserParticipant1Id { get; set; }
+    public Guid? UserParticipant2Id { get; set; }
+    public Guid? UserWinnerId { get; set; }
+    public Guid? UserLoserId { get; set; }
     public int? TeamParticipant1Id { get; set; }
     public int? TeamParticipant2Id { get; set; }
     public int? TeamWinnerId { get; set; }
@@ -144,7 +144,7 @@ public class Match
         };
         if (participant1Score > winsNeeded || participant2Score > winsNeeded)
             throw new ValidationException("Scores cannot exceed the required number of wins for the match format.");
-        if (participant1Score == participant2Score && participant1Score + participant2Score != 0 && winsNeeded == 1)
+        if (participant1Score == participant2Score && participant1Score + participant2Score != Guid.Empty && winsNeeded == 1)
             throw new ValidationException("Scores cannot be equal in Bo1 format");
 
         Participant1Score = participant1Score;
@@ -197,7 +197,7 @@ public class Match
             }
             else
             {
-                if (MatchNumber % 2 != 0 && !IsLowerBracketMatch)
+                if (MatchNumber % 2 != Guid.Empty && !IsLowerBracketMatch)
                     AssignWinnerToParticipant1(WinnerNextMatch);
                 else
                     AssignWinnerToParticipant2(WinnerNextMatch);
@@ -208,7 +208,7 @@ public class Match
         {
             if (RoundNumber == 1)
             {
-                if (MatchNumber % 2 != 0)
+                if (MatchNumber % 2 != Guid.Empty)
                     AssignLoserToParticipant1(LoserNextMatch);
                 else
                     AssignLoserToParticipant2(LoserNextMatch);

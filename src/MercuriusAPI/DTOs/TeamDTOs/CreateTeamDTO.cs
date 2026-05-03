@@ -8,6 +8,6 @@ public class CreateTeamDTO
     [StringLength(100, MinimumLength = 1)]
     public string Name { get; set; }
     [Range(1, int.MaxValue)]
-    public int CaptainUserId { get; set; }
+    public Guid CaptainUserId { get; set; }
 }
 

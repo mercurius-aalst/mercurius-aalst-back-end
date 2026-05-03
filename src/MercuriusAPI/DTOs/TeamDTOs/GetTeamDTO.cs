@@ -4,9 +4,9 @@ namespace Mercurius.LAN.API.DTOs.TeamDTOs;
 
 public class GetTeamDTO
 {
-    public int Id { get; set; }
+    public Guid Id { get; set; }
     public string Name { get; set; }
-    public int CaptainUserId { get; set; }
+    public Guid CaptainUserId { get; set; }
     public IEnumerable<GetTeamUserDTO> Members { get; set; } = [];
     public IEnumerable<TeamInviteDTO> TeamInvites { get; set; } = [];
 

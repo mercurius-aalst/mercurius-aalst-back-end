@@ -28,7 +28,7 @@ public class TeamService : ITeamService
         await _dbContext.SaveChangesAsync();
         return new GetTeamDTO(team);
     }
-    public async Task DeleteTeamAsync(int teamId)
+    public async Task DeleteTeamAsync(Guid teamId)
     {
         var team = await _dbContext.Teams.FindAsync(teamId);
         if (team is null)
@@ -43,7 +43,7 @@ public class TeamService : ITeamService
             .Include(t => t.TeamInvites)
             .Select(t => new GetTeamDTO(t));
     }
-    public async Task<Team> GetTeamByIdAsync(int teamId)
+    public async Task<Team> GetTeamByIdAsync(Guid teamId)
     {
         var team = await _dbContext.Teams
             .Include(t => t.Members)
@@ -54,7 +54,7 @@ public class TeamService : ITeamService
         return team;
     }
 
-    public async Task<GetTeamDTO> RemoveMemberAsync(int id, int userId)
+    public async Task<GetTeamDTO> RemoveMemberAsync(Guid id, Guid userId)
     {
         var team = await _dbContext.Teams.Include(t => t.Members).FirstOrDefaultAsync(t => t.Id == id);
         if (team is null)
@@ -64,7 +64,7 @@ public class TeamService : ITeamService
         return new GetTeamDTO(team);
     }
 
-    public async Task<GetTeamDTO> UpdateTeamAsync(int id, UpdateTeamDTO teamDTO)
+    public async Task<GetTeamDTO> UpdateTeamAsync(Guid id, UpdateTeamDTO teamDTO)
     {
         var team = await GetTeamByIdAsync(id);
         if (teamDTO.Name != null && !team.Name.Equals(teamDTO.Name) && await CheckIfTeamNameExistsAsync(teamDTO.Name))
@@ -81,7 +81,7 @@ public class TeamService : ITeamService
         return new GetTeamDTO(team);
     }
 
-    public async Task<TeamInviteDTO> InviteUserAsync(int teamId, int userId)
+    public async Task<TeamInviteDTO> InviteUserAsync(Guid teamId, Guid userId)
     {
         var team = await GetTeamByIdAsync(teamId);
         if (!await _dbContext.Users.AnyAsync(u => u.Id == userId))
@@ -91,7 +91,7 @@ public class TeamService : ITeamService
         return new TeamInviteDTO(invite);
     }
 
-    public async Task<TeamInviteDTO> RespondToInviteAsync(int teamId, int userId, bool accept)
+    public async Task<TeamInviteDTO> RespondToInviteAsync(Guid teamId, Guid userId, bool accept)
     {
         var invite = await _dbContext.TeamInvites
             .Include(ti => ti.User)
@@ -105,7 +105,7 @@ public class TeamService : ITeamService
         return new TeamInviteDTO(invite);
     }
 
-    public async Task<IEnumerable<TeamInviteDTO>> GetUserInvitesAsync(int userId)
+    public async Task<IEnumerable<TeamInviteDTO>> GetUserInvitesAsync(Guid userId)
     {
         var invites = await _dbContext.TeamInvites
             .Where(i => i.UserId == userId && i.Status == TeamInviteStatus.Pending)

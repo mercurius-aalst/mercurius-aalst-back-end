@@ -4,8 +4,7 @@ namespace Mercurius.LAN.API.Models;
 
 public class User
 {
-    public int Id { get; set; }
-    public Guid PublicId { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; }
     public string Username { get; set; } = string.Empty;
     public string Firstname { get; set; } = string.Empty;
     public string Lastname { get; set; } = string.Empty;

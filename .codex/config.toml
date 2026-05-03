@@ -1,0 +1,28 @@
+# Project-scoped Codex configuration for C#/.NET GitHub repositories.
+# Keep personal defaults in ~/.codex/config.toml and repo-specific behavior here.
+
+project_root_markers = [".git", "*.sln", "global.json"]
+
+# Safe default. Individual agents override this where needed.
+model = "gpt-5.4-mini"
+model_reasoning_effort = "medium"
+sandbox_mode = "read-only"
+approval_policy = "on-request"
+
+# Optional: enable only when installed/configured in your environment.
+# GitHub MCP: https://github.com/github/github-mcp-server
+# NuGet MCP: Microsoft NuGet MCP Server docs
+#
+# [mcp_servers.github]
+# command = "github-mcp-server"
+# args = ["stdio"]
+# env = { GITHUB_PERSONAL_ACCESS_TOKEN = "${GITHUB_PERSONAL_ACCESS_TOKEN}" }
+#
+# [mcp_servers.nuget]
+# command = "dnx"
+# args = ["Microsoft.NuGet.Mcp.Server"]
+
+# Optional docs MCP for fresh framework/library documentation.
+# [mcp_servers.context7]
+# command = "npx"
+# args = ["-y", "@upstash/context7-mcp"]

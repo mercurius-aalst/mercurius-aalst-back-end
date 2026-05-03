@@ -37,9 +37,9 @@ public class UserValidationService : IUserService
         return _inner.DeleteUserAsync(normalizedUsername);
     }
 
-    public Task DeleteUserByIdAsync(int id)
+    public Task DeleteUserByIdAsync(Guid id)
     {
-        if (id <= 0)
+        if (id == Guid.Empty)
             throw new ValidationException("Invalid user ID.");
 
         return _inner.DeleteUserByIdAsync(id);
@@ -66,9 +66,9 @@ public class UserValidationService : IUserService
         await _inner.ChangePasswordAsync(username, request);
     }
 
-    public Task<GetUserDTO> UpdateUserAsync(int id, UpdateUserProfileRequest request)
+    public Task<GetUserDTO> UpdateUserAsync(Guid id, UpdateUserProfileRequest request)
     {
-        if (id <= 0)
+        if (id == Guid.Empty)
             throw new ValidationException("Invalid user ID.");
 
         ValidateProfileRequest(request.Username, request.Firstname, request.Lastname, request.Email);
@@ -76,7 +76,7 @@ public class UserValidationService : IUserService
     }
 
     public Task<IEnumerable<GetUserDTO>> GetAllUsersAsync() => _inner.GetAllUsersAsync();
-    public Task<GetUserDTO> GetUserByIdAsync(int id) => _inner.GetUserByIdAsync(id);
+    public Task<GetUserDTO> GetUserByIdAsync(Guid id) => _inner.GetUserByIdAsync(id);
     public Task DeleteRoleFromUserAsync(string username, string roleName) => _inner.DeleteRoleFromUserAsync(username, roleName);
     public Task SeedInitialUserAsync(IConfiguration configuration) => _inner.SeedInitialUserAsync(configuration);
 

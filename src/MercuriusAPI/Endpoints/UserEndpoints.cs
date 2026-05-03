@@ -19,7 +19,7 @@ public static class UserEndpoints
             return await userService.CreateUserAsync(request);
         });
 
-        group.MapGet("/{id:int}", async (int id, IUserService userService) =>
+        group.MapGet("/{id:guid}", async (Guid id, IUserService userService) =>
         {
             return await userService.GetUserByIdAsync(id);
         });
@@ -29,12 +29,12 @@ public static class UserEndpoints
             return await userService.GetAllUsersAsync();
         });
 
-        group.MapPatch("/{id:int}", async (int id, UpdateUserProfileRequest request, IUserService userService) =>
+        group.MapPatch("/{id:guid}", async (Guid id, UpdateUserProfileRequest request, IUserService userService) =>
         {
             return await userService.UpdateUserAsync(id, request);
         });
 
-        group.MapDelete("/{id:int}", async (int id, IUserService userService) =>
+        group.MapDelete("/{id:guid}", async (Guid id, IUserService userService) =>
         {
             await userService.DeleteUserByIdAsync(id);
         });

@@ -39,7 +39,7 @@ public class GameService : IGameService
         await _dbContext.SaveChangesAsync();
         return new GetGameDTO(game);
     }
-    public async Task<Game> GetGameByIdAsync(int gameId)
+    public async Task<Game> GetGameByIdAsync(Guid gameId)
     {
         var game = await _dbContext.Games
             .Include(g => g.RegisteredUsers)
@@ -65,7 +65,7 @@ public class GameService : IGameService
             .Select(g => new GetGameDTO(g));
     }
 
-    public async Task<GetGameDTO> UpdateGameAsync(int id, UpdateGameDTO gameDTO)
+    public async Task<GetGameDTO> UpdateGameAsync(Guid id, UpdateGameDTO gameDTO)
     {
         var game = await GetGameByIdAsync(id);
         if (game.Name != gameDTO.Name && await CheckIfGameNameExistsInCurrentSeasonAsync(gameDTO.Name))
@@ -84,7 +84,7 @@ public class GameService : IGameService
         return new GetGameDTO(game);
     }
 
-    public async Task DeleteGameAsync(int id)
+    public async Task DeleteGameAsync(Guid id)
     {
         var game = await GetGameByIdAsync(id);
         if (game.Status == GameStatus.InProgress)
@@ -93,7 +93,7 @@ public class GameService : IGameService
         await _dbContext.SaveChangesAsync();
     }
 
-    public async Task CancelGameAsync(int id)
+    public async Task CancelGameAsync(Guid id)
     {
         var game = await GetGameByIdAsync(id);
         game.Cancel();
@@ -101,7 +101,7 @@ public class GameService : IGameService
         await _dbContext.SaveChangesAsync();
     }
 
-    public async Task StartGameAsync(int id)
+    public async Task StartGameAsync(Guid id)
     {
         var game = await GetGameByIdAsync(id);
         game.Start();
@@ -112,7 +112,7 @@ public class GameService : IGameService
         await _dbContext.SaveChangesAsync();
     }
 
-    public async Task<IEnumerable<GetPlacementDTO>> CompleteGameAsync(int id)
+    public async Task<IEnumerable<GetPlacementDTO>> CompleteGameAsync(Guid id)
     {
         var game = await GetGameByIdAsync(id);
         game.Complete();
@@ -125,7 +125,7 @@ public class GameService : IGameService
         return game.Placements.Select(p => new GetPlacementDTO(p, game.ParticipationMode));
     }
 
-    public async Task ResetGameAsync(int id)
+    public async Task ResetGameAsync(Guid id)
     {
         var game = await GetGameByIdAsync(id);
         game.Reset();
@@ -133,7 +133,7 @@ public class GameService : IGameService
         await _dbContext.SaveChangesAsync();
     }
 
-    public async Task<GetGameDTO> RegisterUserAsync(int id, int userId)
+    public async Task<GetGameDTO> RegisterUserAsync(Guid id, Guid userId)
     {
         var game = await GetGameByIdAsync(id);
         if (game.ParticipationMode != ParticipationMode.Individual)
@@ -147,7 +147,7 @@ public class GameService : IGameService
         return new GetGameDTO(game);
     }
 
-    public async Task<GetGameDTO> RegisterTeamAsync(int id, int teamId)
+    public async Task<GetGameDTO> RegisterTeamAsync(Guid id, Guid teamId)
     {
         var game = await GetGameByIdAsync(id);
         if (game.ParticipationMode != ParticipationMode.Team)
@@ -161,7 +161,7 @@ public class GameService : IGameService
         return new GetGameDTO(game);
     }
 
-    public async Task<GetGameDTO> UnregisterUserAsync(int id, int userId)
+    public async Task<GetGameDTO> UnregisterUserAsync(Guid id, Guid userId)
     {
         var game = await GetGameByIdAsync(id);
         if (game.ParticipationMode != ParticipationMode.Individual)
@@ -172,7 +172,7 @@ public class GameService : IGameService
         return new GetGameDTO(game);
     }
 
-    public async Task<GetGameDTO> UnregisterTeamAsync(int id, int teamId)
+    public async Task<GetGameDTO> UnregisterTeamAsync(Guid id, Guid teamId)
     {
         var game = await GetGameByIdAsync(id);
         if (game.ParticipationMode != ParticipationMode.Team)

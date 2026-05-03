@@ -4,9 +4,9 @@ namespace Mercurius.LAN.API.Models;
 
 public class Team
 {
-    public int Id { get; set; }
+    public Guid Id { get; set; }
     public string Name { get; set; }
-    public int CaptainUserId { get; set; }
+    public Guid CaptainUserId { get; set; }
     public User Captain { get; set; }
 
     public IList<User> Members { get; set; } = new List<User>();
@@ -38,7 +38,7 @@ public class Team
         CaptainUserId = captainUserId;
     }
 
-    public void RemoveMember(int userId)
+    public void RemoveMember(Guid userId)
     {
         var member = Members.FirstOrDefault(m => m.Id == userId);
         if (member is null)
@@ -48,7 +48,7 @@ public class Team
         Members.Remove(member);
     }
 
-    public TeamInvite InviteUser(int userId, int inviteResendCooldownDays)
+    public TeamInvite InviteUser(Guid userId, int inviteResendCooldownDays)
     {
         if (Members.Any(p => p.Id == userId))
             throw new ValidationException("User is already in the team");

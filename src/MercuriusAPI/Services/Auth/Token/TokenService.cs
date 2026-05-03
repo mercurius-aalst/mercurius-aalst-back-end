@@ -42,7 +42,7 @@ public class TokenService : ITokenService
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
-    public RefreshToken GenerateRefreshToken(int userId)
+    public RefreshToken GenerateRefreshToken(Guid userId)
     {
         var bytes = new byte[64];
         using var rng = System.Security.Cryptography.RandomNumberGenerator.Create();

@@ -6,5 +6,5 @@ namespace Mercurius.LAN.API.Services.Auth.Token;
 public interface ITokenService
 {
     string GenerateJwtToken(User user);
-    RefreshToken GenerateRefreshToken(int userId);
+    RefreshToken GenerateRefreshToken(Guid userId);
 }

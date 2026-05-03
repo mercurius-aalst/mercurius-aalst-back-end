@@ -63,7 +63,7 @@ jobs:
             --output ${{ env.IMAGE }}.tar
 
     - name: Vulnerability Scan
-      uses: aquasecurity/trivy-action@0.29.0
+      uses: aquasecurity/trivy-action@0.35.0
       with:
         input: ${{ env.IMAGE }}.tar
         severity: 'CRITICAL,HIGH,MEDIUM'

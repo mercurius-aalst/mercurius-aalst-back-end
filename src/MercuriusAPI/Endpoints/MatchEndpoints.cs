@@ -13,12 +13,12 @@ public static class MatchEndpoints
             .WithTags("Matches")
             .RequireAuthorization(new AuthorizeAttribute { Roles = "admin" });
 
-        group.MapPut("/{id}", async (int id, UpdateMatchDTO updateMatchDTO, IMatchService matchService) =>
+        group.MapPut("/{id}", async (Guid id, UpdateMatchDTO updateMatchDTO, IMatchService matchService) =>
         {
             return await matchService.UpdateMatchAsync(id, updateMatchDTO);
         });
 
-        group.MapGet("/{id}", async (int id, IMatchService matchService) =>
+        group.MapGet("/{id}", async (Guid id, IMatchService matchService) =>
         {
             return new GetMatchDTO(await matchService.GetMatchByIdAsync(id));
         })

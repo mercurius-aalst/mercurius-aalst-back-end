@@ -30,7 +30,7 @@ public class Team
         Name = name;
     }
 
-    public void ChangeCaptain(int captainUserId)
+    public void ChangeCaptain(Guid captainUserId)
     {
         if (!Members.Any(m => m.Id == captainUserId))
             throw new ValidationException($"New captain must be part of the team.");

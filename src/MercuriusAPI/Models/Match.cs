@@ -15,21 +15,21 @@ public class Match
     public int MatchNumber { get; set; }
     public bool IsLowerBracketMatch { get; set; }
 
-    public int GameId { get; set; }
+    public Guid GameId { get; set; }
     public Guid? UserParticipant1Id { get; set; }
     public Guid? UserParticipant2Id { get; set; }
     public Guid? UserWinnerId { get; set; }
     public Guid? UserLoserId { get; set; }
-    public int? TeamParticipant1Id { get; set; }
-    public int? TeamParticipant2Id { get; set; }
-    public int? TeamWinnerId { get; set; }
-    public int? TeamLoserId { get; set; }
+    public Guid? TeamParticipant1Id { get; set; }
+    public Guid? TeamParticipant2Id { get; set; }
+    public Guid? TeamWinnerId { get; set; }
+    public Guid? TeamLoserId { get; set; }
 
     public int? Participant1Score { get; set; }
     public int? Participant2Score { get; set; }
 
-    public int? WinnerNextMatchId { get; set; }
-    public int? LoserNextMatchId { get; set; }
+    public Guid? WinnerNextMatchId { get; set; }
+    public Guid? LoserNextMatchId { get; set; }
 
     public bool Participant1IsBYE { get; set; }
     public bool Participant2IsBYE { get; set; }
@@ -144,7 +144,7 @@ public class Match
         };
         if (participant1Score > winsNeeded || participant2Score > winsNeeded)
             throw new ValidationException("Scores cannot exceed the required number of wins for the match format.");
-        if (participant1Score == participant2Score && participant1Score + participant2Score != Guid.Empty && winsNeeded == 1)
+        if (participant1Score == participant2Score && participant1Score + participant2Score != 0 && winsNeeded == 1)
             throw new ValidationException("Scores cannot be equal in Bo1 format");
 
         Participant1Score = participant1Score;
@@ -197,7 +197,7 @@ public class Match
             }
             else
             {
-                if (MatchNumber % 2 != Guid.Empty && !IsLowerBracketMatch)
+                if (MatchNumber % 2 != 0 && !IsLowerBracketMatch)
                     AssignWinnerToParticipant1(WinnerNextMatch);
                 else
                     AssignWinnerToParticipant2(WinnerNextMatch);
@@ -208,7 +208,7 @@ public class Match
         {
             if (RoundNumber == 1)
             {
-                if (MatchNumber % 2 != Guid.Empty)
+                if (MatchNumber % 2 != 0)
                     AssignLoserToParticipant1(LoserNextMatch);
                 else
                     AssignLoserToParticipant2(LoserNextMatch);
@@ -305,7 +305,7 @@ public class Match
         };
     }
 
-    public int? GetParticipant1Id()
+    public Guid? GetParticipant1Id()
     {
         return ParticipationMode switch
         {
@@ -315,7 +315,7 @@ public class Match
         };
     }
 
-    public int? GetParticipant2Id()
+    public Guid? GetParticipant2Id()
     {
         return ParticipationMode switch
         {
@@ -325,7 +325,7 @@ public class Match
         };
     }
 
-    public int? GetWinnerId()
+    public Guid? GetWinnerId()
     {
         return ParticipationMode switch
         {

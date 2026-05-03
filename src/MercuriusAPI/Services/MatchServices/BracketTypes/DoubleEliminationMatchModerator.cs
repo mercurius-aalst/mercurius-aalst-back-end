@@ -203,7 +203,7 @@ public class DoubleEliminationMatchModerator : IMatchModerator
 
             // Adjust the match count for the next round.
             // The number of matches halves every two rounds (one entry round and one consolidation round).
-            if (round % 2 == Guid.Empty)
+            if (round % 2 == 0)
             {
                 matchesThisRound /= 2;
             }
@@ -270,7 +270,7 @@ public class DoubleEliminationMatchModerator : IMatchModerator
 
         foreach (var currentLBMatch in lBMatches)
         {
-            int nextLBMatchNumber = (currentLBMatch.RoundNumber % 2 != Guid.Empty)
+            int nextLBMatchNumber = (currentLBMatch.RoundNumber % 2 != 0)
                 ? currentLBMatch.MatchNumber
                 : (int)Math.Ceiling((double)currentLBMatch.MatchNumber / 2);
 
@@ -301,16 +301,16 @@ public class DoubleEliminationMatchModerator : IMatchModerator
     {
         if (currentUBMatch.Participant1IsBYE && currentUBMatch.Participant2IsBYE)
         {
-            nextLBMatch?.SetParticipantBYEs(nextLBMatch.MatchNumber % 2 != Guid.Empty, nextLBMatch.MatchNumber % 2 == Guid.Empty);
+            nextLBMatch?.SetParticipantBYEs(nextLBMatch.MatchNumber % 2 != 0, nextLBMatch.MatchNumber % 2 == 0);
             if (nextUBMatch != null)
             {
-                nextUBMatch.SetParticipantBYEs(currentUBMatch.MatchNumber % 2 != Guid.Empty, currentUBMatch.MatchNumber % 2 == Guid.Empty);
+                nextUBMatch.SetParticipantBYEs(currentUBMatch.MatchNumber % 2 != 0, currentUBMatch.MatchNumber % 2 == 0);
             }
         }
         else if (currentUBMatch.Participant1IsBYE || currentUBMatch.Participant2IsBYE)
         {
-            nextLBMatch?.SetParticipantBYEs(currentUBMatch.RoundNumber != 1 || currentUBMatch.MatchNumber % 2 != Guid.Empty,
-                                            currentUBMatch.RoundNumber == 1 && currentUBMatch.MatchNumber % 2 == Guid.Empty);
+            nextLBMatch?.SetParticipantBYEs(currentUBMatch.RoundNumber != 1 || currentUBMatch.MatchNumber % 2 != 0,
+                                            currentUBMatch.RoundNumber == 1 && currentUBMatch.MatchNumber % 2 == 0);
         }
     }
 

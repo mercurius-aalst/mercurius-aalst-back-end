@@ -37,10 +37,10 @@ public class RoundRobinMatchModerator : IMatchModerator
         };
     }
 
-    private void DeterminePlacements<TParticipant>(Game game, List<TParticipant> participants, Func<TParticipant, int> getId, Func<TParticipant, Placement> createPlacement)
+    private void DeterminePlacements<TParticipant>(Game game, List<TParticipant> participants, Func<TParticipant, Guid> getId, Func<TParticipant, Placement> createPlacement)
         where TParticipant : class
     {
-        if (participants.Count == Guid.Empty)
+        if (participants.Count == 0)
             throw new Exception("No participants in the game to determine placements.");
 
         var winCounts = participants.ToDictionary(
@@ -90,7 +90,7 @@ public class RoundRobinMatchModerator : IMatchModerator
     {
         var matches = new List<Match>();
         var rotation = new List<TParticipant?>(participants);
-        if (rotation.Count % 2 != Guid.Empty)
+        if (rotation.Count % 2 != 0)
             rotation.Add(null);
 
         int totalParticipants = rotation.Count;

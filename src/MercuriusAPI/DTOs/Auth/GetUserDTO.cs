@@ -18,7 +18,6 @@ public class GetUserDTO
     public GetUserDTO(User user)
     {
         Id = user.Id;
-        PublicId = user.PublicId;
         Username = user.Username;
         Firstname = user.Firstname;
         Lastname = user.Lastname;

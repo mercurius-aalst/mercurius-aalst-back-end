@@ -251,7 +251,7 @@ public class GameTests
     {
         return new User
         {
-            Id = id,
+            Id = Guid.NewGuid(),
             Username = "user" + id,
             Firstname = "First",
             Lastname = "Last",
@@ -264,7 +264,7 @@ public class GameTests
         var captain = CreateUser(id);
         return new Team($"Team {id}", captain)
         {
-            Id = id
+            Id = Guid.NewGuid()
         };
     }
 }

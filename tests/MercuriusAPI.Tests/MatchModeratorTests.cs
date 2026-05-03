@@ -90,7 +90,7 @@ public class MatchModeratorTests
     {
         return new User
         {
-            Id = id,
+            Id = Guid.NewGuid(),
             Username = $"user{id}",
             Firstname = $"First{id}",
             Lastname = $"Last{id}",
@@ -104,7 +104,7 @@ public class MatchModeratorTests
         var captain = CreateUser(id + 100);
         return new Team($"Team{id}", captain)
         {
-            Id = id,
+            Id = Guid.NewGuid(),
             CaptainUserId = captain.Id
         };
     }

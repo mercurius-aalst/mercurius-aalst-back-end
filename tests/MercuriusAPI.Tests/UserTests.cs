@@ -38,8 +38,7 @@ public class UserTests
     {
         var user = new User
         {
-            Id = 7,
-            PublicId = Guid.Parse("11111111-1111-1111-1111-111111111111"),
+            Id = Guid.NewGuid(),
             Username = "playerone",
             Firstname = "Player",
             Lastname = "One",
@@ -52,8 +51,7 @@ public class UserTests
 
         var dto = new GetUserDTO(user);
 
-        Assert.Equal(7, dto.Id);
-        Assert.Equal(Guid.Parse("11111111-1111-1111-1111-111111111111"), dto.PublicId);
+        Assert.Equal(user.Id, dto.Id);
         Assert.Equal("playerone", dto.Username);
         Assert.Equal("Player", dto.Firstname);
         Assert.Equal("One", dto.Lastname);
@@ -131,7 +129,7 @@ public class UserTests
             Email = "playerone@test.com"
         };
 
-        var exception = await Assert.ThrowsAsync<ValidationException>(() => service.UpdateUserAsync(3, request));
+        var exception = await Assert.ThrowsAsync<ValidationException>(() => service.UpdateUserAsync(Guid.NewGuid(), request));
 
         Assert.Contains("Username", exception.Message);
     }
@@ -141,7 +139,7 @@ public class UserTests
     {
         var service = new UserValidationService(new RecordingUserService(), new StubAuthService());
 
-        var exception = await Assert.ThrowsAsync<ValidationException>(() => service.DeleteUserByIdAsync(0));
+        var exception = await Assert.ThrowsAsync<ValidationException>(() => service.DeleteUserByIdAsync(Guid.Empty));
 
         Assert.Equal("Invalid user ID.", exception.Message);
     }
@@ -151,7 +149,7 @@ public class UserTests
         public CreateUserProfileRequest? LastCreateRequest { get; private set; }
         public GetUserDTO CreatedUser { get; } = new(new User
         {
-            Id = 11,
+            Id = Guid.NewGuid(),
             Username = "ValidUser",
             Firstname = "Player",
             Lastname = "One",
@@ -166,12 +164,12 @@ public class UserTests
         }
 
         public Task DeleteUserAsync(string username) => Task.CompletedTask;
-        public Task DeleteUserByIdAsync(int id) => Task.CompletedTask;
+        public Task DeleteUserByIdAsync(Guid id) => Task.CompletedTask;
         public Task AddRoleToUserAsync(string username, AddUserRoleRequest request) => Task.CompletedTask;
         public Task ChangePasswordAsync(string username, ChangePasswordRequest newPassword) => Task.CompletedTask;
         public Task<IEnumerable<GetUserDTO>> GetAllUsersAsync() => Task.FromResult<IEnumerable<GetUserDTO>>([]);
-        public Task<GetUserDTO> GetUserByIdAsync(int id) => Task.FromResult(CreatedUser);
-        public Task<GetUserDTO> UpdateUserAsync(int id, UpdateUserProfileRequest request) => Task.FromResult(CreatedUser);
+        public Task<GetUserDTO> GetUserByIdAsync(Guid id) => Task.FromResult(CreatedUser);
+        public Task<GetUserDTO> UpdateUserAsync(Guid id, UpdateUserProfileRequest request) => Task.FromResult(CreatedUser);
         public Task DeleteRoleFromUserAsync(string username, string roleName) => Task.CompletedTask;
         public Task SeedInitialUserAsync(IConfiguration configuration) => Task.CompletedTask;
     }
@@ -182,8 +180,8 @@ public class UserTests
         public Task<AuthTokenResponse> LoginAsync(LoginRequest request) => Task.FromResult(new AuthTokenResponse());
         public Task<AuthTokenResponse> RefreshTokenAsync(RefreshTokenRequest request) => Task.FromResult(new AuthTokenResponse());
         public Task RevokeRefreshTokenAsync(RevokeTokenRequest request) => Task.CompletedTask;
+
     }
-}
 
 
     [Fact]
@@ -197,5 +195,5 @@ public class UserTests
 
         Assert.Null(user.PasswordHash);
         Assert.Null(user.Salt);
-        Assert.NotEqual(Guid.Empty, user.PublicId);
     }
+}

@@ -16,7 +16,7 @@ public class SingleEliminationMatchModerator : IMatchModerator
     /// <param name="game">The game for which placements are to be determined.</param>
     public void DeterminePlacements(Game game)
     {
-        if (game.Matches.Count == Guid.Empty)
+        if (game.Matches.Count == 0)
             return;
 
         // Assign 1st place to the winner of the final match

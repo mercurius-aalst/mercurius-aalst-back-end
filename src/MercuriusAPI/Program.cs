@@ -1,15 +1,16 @@
 ﻿using Imageflow.Server;
-using MercuriusAPI.Data;
-using MercuriusAPI.Exceptions;
-using MercuriusAPI.Extensions;
-using MercuriusAPI.Services.UserServices;
+using Mercurius.LAN.API.Data;
+using Mercurius.LAN.API.Endpoints;
+using Mercurius.LAN.API.Extensions;
+using Mercurius.LAN.API.Middleware;
+using Mercurius.LAN.API.Services.UserServices;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using System.Text.Json.Serialization;
 
-namespace MercuriusAPI;
+namespace Mercurius.LAN.API;
 
 public class Program
 {
@@ -17,22 +18,21 @@ public class Program
     {
         var builder = WebApplication.CreateBuilder(args);
         builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
-                             .AddEnvironmentVariables("MercuriusApi_");
+                             .AddEnvironmentVariables("Mercurius.LAN.API_");
 
         builder.Services.AddDbContext<MercuriusDBContext>(options =>
             options.UseNpgsql(builder.Configuration.GetConnectionString("MercuriusDB")));
 
+        builder.Services.AddValidation();
+
 
         builder.Services.ConfigureVersionedSwagger();
         builder.Services.AddServiceDependencies();
+        builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 
-        builder.Services.AddControllers(options =>
+        builder.Services.ConfigureHttpJsonOptions(options =>
         {
-            options.EnableEndpointRouting = false;
-            options.Filters.Add<ExceptionFilter>();
-        }).AddJsonOptions(options =>
-        {
-            options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+            options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
         });
 
         // Add JWT authentication
@@ -73,11 +73,6 @@ public class Program
             });
         });
 
-
-        builder.Services.AddEndpointsApiExplorer();
-
-        builder.Services.AddSwaggerGen();
-
         var app = builder.Build();
         app.UseCors("AllowMercuriusAalst");
         // Apply pending migrations on startup
@@ -90,8 +85,7 @@ public class Program
             userService.SeedInitialUserAsync(app.Configuration).GetAwaiter().GetResult();
         }
 
-        app.UseSwagger();
-        app.UseSwaggerUI();
+        app.UseExceptionHandler();
 
         app.UseHttpsRedirection();
 
@@ -113,7 +107,12 @@ public class Program
 
         app.UseSecuredSwaggerUI();
 
-        app.MapControllers();
+        app.MapGameEndpoints();
+        app.MapMatchEndpoints();
+        app.MapTeamEndpoints();
+        app.MapSponsorEndpoints();
+        app.MapUserEndpoints();
+        app.MapAuthEndpoints();
 
         app.Run();
     }

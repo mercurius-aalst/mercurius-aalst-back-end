@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace MercuriusAPI.Services.Auth.Login;
+namespace Mercurius.LAN.API.Services.Auth.Login;
 
 public class LoginAttemptService : ILoginAttemptService
 {

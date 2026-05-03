@@ -2,7 +2,7 @@
 using Microsoft.AspNetCore.Mvc.Filters;
 using System.Net;
 
-namespace MercuriusAPI.Exceptions;
+namespace Mercurius.LAN.API.Exceptions;
 
 public class ExceptionFilter : IActionFilter
 {

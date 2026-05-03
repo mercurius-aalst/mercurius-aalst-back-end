@@ -3,7 +3,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
 using Swashbuckle.AspNetCore.SwaggerGen;
 
-namespace MercuriusAPI.Extensions;
+namespace Mercurius.LAN.API.Extensions;
 
 public class ConfigureSwaggerOptions
  : IConfigureNamedOptions<SwaggerGenOptions>

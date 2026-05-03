@@ -1,4 +1,4 @@
-namespace MercuriusAPI.DTOs.Auth;
+namespace Mercurius.LAN.API.DTOs.Auth;
 
 public class AddUserRoleRequest
 {

@@ -1,6 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore.Migrations;
 
-namespace MercuriusAPI.Migrations;
+namespace Mercurius.LAN.API.Migrations;
 
 public partial class AddTeamInvite : Migration
 {

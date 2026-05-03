@@ -3,7 +3,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace MercuriusAPI.Migrations;
+namespace Mercurius.LAN.API.Migrations;
 
 /// <inheritdoc />
 public partial class AddSponsorModel : Migration

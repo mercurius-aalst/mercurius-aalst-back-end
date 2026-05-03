@@ -1,5 +1,5 @@
 ﻿
-namespace MercuriusAPI.Extensions;
+namespace Mercurius.LAN.API.Extensions;
 
 /// <summary>
 /// Represents a builder for JWT (JSON Web Token) authentication configuration.

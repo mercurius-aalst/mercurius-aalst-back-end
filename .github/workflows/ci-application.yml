@@ -33,7 +33,7 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v3
       with:
-        dotnet-version: '8.x'
+        dotnet-version: '10.x'
 
     - name: Install dependencies
       run: dotnet restore
@@ -63,7 +63,7 @@ jobs:
             --output ${{ env.IMAGE }}.tar
 
     - name: Vulnerability Scan
-      uses: aquasecurity/trivy-action@0.29.0
+      uses: aquasecurity/trivy-action@0.35.0
       with:
         input: ${{ env.IMAGE }}.tar
         severity: 'CRITICAL,HIGH,MEDIUM'

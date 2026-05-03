@@ -1,37 +1,34 @@
-﻿using Asp.Versioning;
-using MercuriusAPI.Services.Auth;
-using MercuriusAPI.Services.Auth.Login;
-using MercuriusAPI.Services.Auth.Token;
-using MercuriusAPI.Services.Files;
-using MercuriusAPI.Services.LAN.GameServices;
-using MercuriusAPI.Services.LAN.MatchServices;
-using MercuriusAPI.Services.LAN.MatchServices.BracketTypes;
-using MercuriusAPI.Services.LAN.ParticipantServices;
-using MercuriusAPI.Services.LAN.PlayerServices;
-using MercuriusAPI.Services.LAN.SponsorServices;
-using MercuriusAPI.Services.LAN.TeamServices;
-using MercuriusAPI.Services.UserServices;
+using Asp.Versioning;
+using Asp.Versioning.ApiExplorer;
+using Mercurius.LAN.API.Services.Auth;
+using Mercurius.LAN.API.Services.Auth.Login;
+using Mercurius.LAN.API.Services.Auth.Token;
+using Mercurius.LAN.API.Services.Files;
+using Mercurius.LAN.API.Services.GameServices;
+using Mercurius.LAN.API.Services.MatchServices;
+using Mercurius.LAN.API.Services.MatchServices.BracketTypes;
+using Mercurius.LAN.API.Services.SponsorServices;
+using Mercurius.LAN.API.Services.TeamServices;
+using Mercurius.LAN.API.Services.UserServices;
 using Microsoft.Extensions.FileProviders;
 
-namespace MercuriusAPI.Extensions;
+namespace Mercurius.LAN.API.Extensions;
 
 public static class DepedencyConfiguration
 {
     public static IServiceCollection ConfigureVersionedSwagger(this IServiceCollection services)
     {
         services.AddEndpointsApiExplorer();
-
-        services.AddApiVersioning(opt =>
+        services.AddApiVersioning(options =>
         {
-            opt.DefaultApiVersion = new ApiVersion(1, 0);
-            opt.AssumeDefaultVersionWhenUnspecified = true;
-            opt.ReportApiVersions = true;
-            opt.ApiVersionReader = ApiVersionReader.Combine(new UrlSegmentApiVersionReader());
-        });
-        services.AddApiVersioning().AddApiExplorer(setup =>
+            options.DefaultApiVersion = new ApiVersion(1, 0);
+            options.AssumeDefaultVersionWhenUnspecified = true;
+            options.ReportApiVersions = true;
+            options.ApiVersionReader = ApiVersionReader.Combine(new UrlSegmentApiVersionReader());
+        }).AddApiExplorer(options =>
         {
-            setup.GroupNameFormat = "'v'VVV";
-            setup.SubstituteApiVersionInUrl = true;
+            options.GroupNameFormat = "'v'VVV";
+            options.SubstituteApiVersionInUrl = true;
         });
         services.ConfigureOptions<ConfigureSwaggerOptions>();
         return services;
@@ -39,6 +36,8 @@ public static class DepedencyConfiguration
 
     public static void UseSecuredSwaggerUI(this WebApplication app)
     {
+        var apiVersionProvider = app.Services.GetRequiredService<IApiVersionDescriptionProvider>();
+
         app.UseStaticFiles(new StaticFileOptions
         {
             FileProvider = new PhysicalFileProvider(Path.Combine(AppContext.BaseDirectory, "staticfiles")),
@@ -47,17 +46,20 @@ public static class DepedencyConfiguration
             .UseSwagger()
             .UseSwaggerUI(options =>
             {
+                foreach (var description in apiVersionProvider.ApiVersionDescriptions)
+                {
+                    options.SwaggerEndpoint($"/swagger/{description.GroupName}/swagger.json", description.GroupName.ToUpperInvariant());
+                }
+
                 options.InjectJavascript("/staticfiles/swagger-custom.js");
             });
     }
 
     public static IServiceCollection AddServiceDependencies(this IServiceCollection services)
     {
-        services.AddTransient<IPlayerService, PlayerService>();
         services.AddTransient<ITeamService, TeamService>();
         services.AddTransient<IGameService, GameService>();
         services.AddTransient<IMatchService, MatchService>();
-        services.AddTransient<IParticipantService, ParticipantService>();
         services.AddTransient<ISponsorService, SponsorService>();
 
         services.AddTransient<IUserService, UserService>();

@@ -1,7 +1,7 @@
-using MercuriusAPI.Models;
-using MercuriusAPI.Models.Auth;
+using Mercurius.LAN.API.Models;
+using Mercurius.LAN.API.Models.Auth;
 
-namespace MercuriusAPI.Services.Auth.Token;
+namespace Mercurius.LAN.API.Services.Auth.Token;
 
 public interface ITokenService
 {

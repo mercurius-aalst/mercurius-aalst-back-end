@@ -1,12 +1,12 @@
-using MercuriusAPI.Data;
-using MercuriusAPI.DTOs.Auth;
-using MercuriusAPI.Exceptions;
-using MercuriusAPI.Models.Auth;
+using Mercurius.LAN.API.Data;
+using Mercurius.LAN.API.DTOs.Auth;
+using Mercurius.LAN.API.Exceptions;
+using Mercurius.LAN.API.Models.Auth;
 using Microsoft.EntityFrameworkCore;
-using MercuriusAPI.Services.Auth;
-using MercuriusAPI.Models;
+using Mercurius.LAN.API.Services.Auth;
+using Mercurius.LAN.API.Models;
 
-namespace MercuriusAPI.Services.UserServices;
+namespace Mercurius.LAN.API.Services.UserServices;
 
 public class UserService : IUserService
 {
@@ -22,11 +22,66 @@ public class UserService : IUserService
         return await _dbContext.Users.Include(u => u.Roles).Select(u => new GetUserDTO(u)).ToListAsync();
     }
 
+    public async Task<GetUserDTO> CreateUserAsync(CreateUserProfileRequest request)
+    {
+        var normalizedUsername = request.Username.Normalize();
+
+        if (await _dbContext.Users.AnyAsync(u => u.Username == normalizedUsername))
+            throw new ValidationException("Username already exists");
+
+        if (await _dbContext.Users.AnyAsync(u => u.Email == request.Email))
+            throw new ValidationException("Email already exists");
+
+        PasswordHelper.CreatePasswordHash(request.Password, out var hash, out var salt);
+
+        var user = new User
+        {
+            Username = normalizedUsername,
+            PasswordHash = hash,
+            Salt = salt
+        };
+
+        user.UpdateProfile(request.Firstname, request.Lastname, request.Email, request.DiscordId, request.SteamId, request.RiotId);
+
+        _dbContext.Users.Add(user);
+        await _dbContext.SaveChangesAsync();
+
+        return new GetUserDTO(user);
+    }
+
     public async Task<GetUserDTO> GetUserByIdAsync(int id)
     {
         var user = await _dbContext.Users.Include(u => u.Roles).FirstOrDefaultAsync(u => u.Id == id);
         if (user == null)
             throw new NotFoundException($"User with ID {id} not found.");
+        return new GetUserDTO(user);
+    }
+
+    public async Task<GetUserDTO> UpdateUserAsync(int id, UpdateUserProfileRequest request)
+    {
+        var user = await _dbContext.Users.Include(u => u.Roles).FirstOrDefaultAsync(u => u.Id == id);
+        if (user == null)
+            throw new NotFoundException($"User with ID {id} not found.");
+
+        var normalizedUsername = request.Username.Normalize();
+
+        if (!string.Equals(user.Username, normalizedUsername, StringComparison.Ordinal) &&
+            await _dbContext.Users.AnyAsync(u => u.Username == normalizedUsername && u.Id != id))
+        {
+            throw new ValidationException("Username already exists");
+        }
+
+        if (!string.Equals(user.Email, request.Email, StringComparison.OrdinalIgnoreCase) &&
+            await _dbContext.Users.AnyAsync(u => u.Email == request.Email && u.Id != id))
+        {
+            throw new ValidationException("Email already exists");
+        }
+
+        user.Username = normalizedUsername;
+        user.UpdateProfile(request.Firstname, request.Lastname, request.Email, request.DiscordId, request.SteamId, request.RiotId);
+
+        await _dbContext.SaveChangesAsync();
+
         return new GetUserDTO(user);
     }
 
@@ -36,6 +91,16 @@ public class UserService : IUserService
         var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Username == normalizedUsername);
         if (user == null)
             throw new NotFoundException($"User '{username}' not found.");
+
+        _dbContext.Users.Remove(user);
+        await _dbContext.SaveChangesAsync();
+    }
+
+    public async Task DeleteUserByIdAsync(int id)
+    {
+        var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == id);
+        if (user == null)
+            throw new NotFoundException($"User with ID {id} not found.");
 
         _dbContext.Users.Remove(user);
         await _dbContext.SaveChangesAsync();

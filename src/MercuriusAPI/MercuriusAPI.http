@@ -1,6 +1,6 @@
-@MercuriusAPI_HostAddress = http://localhost:5258
+@Mercurius.LAN.API_HostAddress = http://localhost:5258
 
-GET {{MercuriusAPI_HostAddress}}/weatherforecast/
+GET {{Mercurius.LAN.API_HostAddress}}/weatherforecast/
 Accept: application/json
 
 ###

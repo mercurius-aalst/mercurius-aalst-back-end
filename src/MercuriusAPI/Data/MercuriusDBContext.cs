@@ -21,6 +21,7 @@ public partial class MercuriusDBContext : DbContext
     public DbSet<User> Users { get; set; }
     public DbSet<RefreshToken> RefreshTokens { get; set; }
     public DbSet<Role> Roles { get; set; }
+    public DbSet<ExternalIdentity> ExternalIdentities { get; set; }
     public DbSet<Placement> Placements { get; set; }
     public DbSet<Sponsor> Sponsors { get; set; }
 
@@ -157,6 +158,19 @@ public partial class MercuriusDBContext : DbContext
                   .OnDelete(DeleteBehavior.Cascade);
         });
 
+
+        modelBuilder.Entity<ExternalIdentity>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.ProviderSubject).HasMaxLength(256).IsRequired();
+            entity.HasIndex(e => new { e.Provider, e.ProviderSubject }).IsUnique();
+            entity.HasIndex(e => new { e.UserId, e.Provider }).IsUnique();
+            entity.HasOne(e => e.User)
+                  .WithMany(u => u.ExternalIdentities)
+                  .HasForeignKey(e => e.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<Placement>(entity =>
         {
             entity.HasKey(e => e.Id);
@@ -206,4 +220,3 @@ public partial class MercuriusDBContext : DbContext
     partial void OnModelCreatingPartial(ModelBuilder modelBuilder);
 
 }
-

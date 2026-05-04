@@ -16,6 +16,7 @@ public class User
     public byte[]? Salt { get; set; }
     public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
     public ICollection<Role> Roles { get; set; } = new List<Role>();
+    public ICollection<ExternalIdentity> ExternalIdentities { get; set; } = new List<ExternalIdentity>();
 
     public string DisplayName
     {

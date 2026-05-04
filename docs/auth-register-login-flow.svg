@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700">
+  <style>
+    .box { fill: #fff; stroke: #1f2937; stroke-width: 2; }
+    .txt { font: 14px Arial, sans-serif; fill: #111827; }
+    .small { font: 12px Arial, sans-serif; fill: #1f2937; }
+    .title { font: bold 20px Arial, sans-serif; }
+    .arrow { stroke: #374151; stroke-width: 2; fill: none; marker-end: url(#arrow); }
+  </style>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#374151"/>
+    </marker>
+  </defs>
+
+  <text x="600" y="40" text-anchor="middle" class="title">Register + Login Architecture Flows</text>
+
+  <rect x="40" y="100" width="170" height="70" class="box"/><text x="125" y="140" text-anchor="middle" class="txt">Front-end Web App</text>
+  <rect x="300" y="100" width="180" height="70" class="box"/><text x="390" y="140" text-anchor="middle" class="txt">API Endpoints</text>
+  <rect x="570" y="100" width="170" height="70" class="box"/><text x="655" y="140" text-anchor="middle" class="txt">Auth Service</text>
+  <rect x="840" y="100" width="250" height="70" class="box"/><text x="965" y="140" text-anchor="middle" class="txt">Persistence (Users/ExternalIdentity/RefreshToken)</text>
+
+  <rect x="40" y="430" width="220" height="70" class="box"/><text x="150" y="470" text-anchor="middle" class="txt">External Provider (Google/Facebook)</text>
+  <rect x="570" y="430" width="220" height="70" class="box"/><text x="680" y="470" text-anchor="middle" class="txt">Token Validation Layer</text>
+
+  <path d="M210 115 L300 115" class="arrow"/><text x="255" y="105" text-anchor="middle" class="small">POST /auth/register</text>
+  <path d="M480 115 L570 115" class="arrow"/><text x="525" y="105" text-anchor="middle" class="small">RegisterAsync(request)</text>
+  <path d="M740 115 L840 115" class="arrow"/><text x="790" y="105" text-anchor="middle" class="small">Create User</text>
+
+  <path d="M210 145 L300 145" class="arrow"/><text x="255" y="165" text-anchor="middle" class="small">POST /auth/login</text>
+  <path d="M480 145 L570 145" class="arrow"/><text x="525" y="165" text-anchor="middle" class="small">LoginAsync(request)</text>
+  <path d="M740 145 L840 145" class="arrow"/><text x="790" y="165" text-anchor="middle" class="small">Read User + Write RefreshToken</text>
+
+  <path d="M210 460 L300 220 L390 220" class="arrow"/><text x="290" y="255" class="small">Provider token returned to FE</text>
+  <path d="M150 430 L150 300 L300 300" class="arrow"/><text x="180" y="320" class="small">OAuth/OIDC UI flow</text>
+
+  <path d="M210 300 L300 300" class="arrow"/><text x="255" y="290" text-anchor="middle" class="small">POST /auth/external/login</text>
+  <path d="M480 300 L570 300" class="arrow"/><text x="525" y="290" text-anchor="middle" class="small">ExternalLoginAsync(request)</text>
+  <path d="M655 170 L655 430" class="arrow"/><text x="670" y="300" class="small">ValidateAsync(provider, token)</text>
+  <path d="M570 460 L260 460" class="arrow"/><text x="420" y="445" text-anchor="middle" class="small">Token/claims verification</text>
+  <path d="M740 300 L840 300" class="arrow"/><text x="790" y="290" text-anchor="middle" class="small">Read ExternalIdentity + Write RefreshToken</text>
+</svg>

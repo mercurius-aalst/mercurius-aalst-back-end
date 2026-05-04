@@ -8,4 +8,6 @@ public interface IAuthService
     Task<AuthTokenResponse> LoginAsync(LoginRequest request);
     Task<AuthTokenResponse> RefreshTokenAsync(RefreshTokenRequest request);
     Task RevokeRefreshTokenAsync(RevokeTokenRequest request);
+    Task<AuthTokenResponse> ExternalLoginAsync(ExternalAuthRequest request);
+    Task LinkExternalIdentityAsync(string username, ExternalAuthRequest request);
 }

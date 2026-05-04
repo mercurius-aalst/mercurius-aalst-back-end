@@ -180,6 +180,8 @@ public class UserTests
         public Task<AuthTokenResponse> LoginAsync(LoginRequest request) => Task.FromResult(new AuthTokenResponse());
         public Task<AuthTokenResponse> RefreshTokenAsync(RefreshTokenRequest request) => Task.FromResult(new AuthTokenResponse());
         public Task RevokeRefreshTokenAsync(RevokeTokenRequest request) => Task.CompletedTask;
+        public Task<AuthTokenResponse> ExternalLoginAsync(ExternalAuthRequest request) => Task.FromResult(new AuthTokenResponse());
+        public Task LinkExternalIdentityAsync(string username, ExternalAuthRequest request) => Task.CompletedTask;
 
     }
 

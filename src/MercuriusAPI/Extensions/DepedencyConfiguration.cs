@@ -3,6 +3,7 @@ using Asp.Versioning.ApiExplorer;
 using Mercurius.LAN.API.Services.Auth;
 using Mercurius.LAN.API.Services.Auth.Login;
 using Mercurius.LAN.API.Services.Auth.Token;
+using Mercurius.LAN.API.Services.Auth.External;
 using Mercurius.LAN.API.Services.Files;
 using Mercurius.LAN.API.Services.GameServices;
 using Mercurius.LAN.API.Services.MatchServices;
@@ -73,6 +74,8 @@ public static class DepedencyConfiguration
         services.AddSingleton<ILoginAttemptService>(provider =>
             new LoginAttemptService(5, TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(5)));
         services.AddSingleton<TokenService>();
+
+        services.AddTransient<IExternalTokenValidationService, ExternalTokenValidationService>();
 
         services.AddTransient<IAuthService, AuthService>();
         services.Decorate<IAuthService, AuthValidationService>();

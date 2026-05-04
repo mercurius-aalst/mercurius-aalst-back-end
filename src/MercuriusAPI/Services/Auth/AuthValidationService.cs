@@ -52,4 +52,20 @@ public class AuthValidationService : IAuthService
             throw new ValidationException("Refresh token is required.");
         return _inner.RevokeRefreshTokenAsync(request);
     }
+
+    public Task<AuthTokenResponse> ExternalLoginAsync(ExternalAuthRequest request)
+    {
+        if (request == null || string.IsNullOrWhiteSpace(request.ProviderToken))
+            throw new ValidationException("Provider token is required.");
+        return _inner.ExternalLoginAsync(request);
+    }
+
+    public Task LinkExternalIdentityAsync(string username, ExternalAuthRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(username))
+            throw new ValidationException("Authenticated username is required.");
+        if (request == null || string.IsNullOrWhiteSpace(request.ProviderToken))
+            throw new ValidationException("Provider token is required.");
+        return _inner.LinkExternalIdentityAsync(username, request);
+    }
 }

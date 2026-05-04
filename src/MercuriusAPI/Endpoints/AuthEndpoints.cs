@@ -36,6 +36,19 @@ public static class AuthEndpoints
             await authService.RevokeRefreshTokenAsync(request);
         });
 
+
+        group.MapPost("/external/login", async (ExternalAuthRequest request, IAuthService authService) =>
+        {
+            return await authService.ExternalLoginAsync(request);
+        })
+        .AllowAnonymous();
+
+        group.MapPost("/external/link", async (ExternalAuthRequest request, IAuthService authService, System.Security.Claims.ClaimsPrincipal user) =>
+        {
+            var username = user.Identity?.Name ?? string.Empty;
+            await authService.LinkExternalIdentityAsync(username, request);
+        });
+
         return group;
     }
 }

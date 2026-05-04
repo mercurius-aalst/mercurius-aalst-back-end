@@ -1,0 +1,28 @@
+flowchart LR
+    FE[Front-end Web App]
+    API[API Endpoints Layer]
+    SVC[Auth Service Layer]
+    EXT[External Token Validation Layer]
+    DB[(Persistence Layer: Users / ExternalIdentities / RefreshTokens)]
+    IDP[External Identity Provider\n(Google / Facebook)]
+
+    FE -->|POST /auth/register| API
+    API -->|RegisterAsync(request)| SVC
+    SVC -->|Create User| DB
+
+    FE -->|POST /auth/login| API
+    API -->|LoginAsync(request)| SVC
+    SVC -->|Read User + Password check + Write RefreshToken| DB
+    SVC -->|Return JWT + RefreshToken| API
+    API -->|HTTP 200 AuthTokenResponse| FE
+
+    FE -->|Provider UI flow (OAuth/OIDC)| IDP
+    IDP -->|Provider token returned to FE| FE
+    FE -->|POST /auth/external/login| API
+    API -->|ExternalLoginAsync(request)| SVC
+    SVC -->|ValidateAsync(provider, token)| EXT
+    EXT -->|Token/claims verification| IDP
+    EXT -->|Validated principal| SVC
+    SVC -->|Read ExternalIdentity + User + Write RefreshToken| DB
+    SVC -->|Return JWT + RefreshToken| API
+    API -->|HTTP 200 AuthTokenResponse| FE

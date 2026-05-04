@@ -2,67 +2,92 @@
 
 ## Updated direction
 
-Per latest product direction, user management remains internal to this API. The change is to add Google and Facebook as social login providers while improving security in login and registration flows.
+User management remains internal to this API. External providers (Google/Facebook) are authentication sources only.
 
 ## Goal
 
-Enable sign-in/sign-up via Google and Facebook, map them to internally managed user accounts, and harden authentication and registration security controls.
+Enable secure Google/Facebook sign-in while preserving internal user management as source of truth and hardening login/registration flows.
 
-## Acceptance criteria
+## Acceptance criteria (current status)
 
-1. Existing internal user management remains the source of truth for user records and profile data.
-2. Users can authenticate via Google and Facebook.
-3. Social identities are linked to a single internal user account model.
-4. Registration and login flows are hardened with explicit security controls (see below).
-5. Existing protected endpoints continue to enforce authorization correctly.
-6. Backward compatibility is preserved for existing non-social login users.
-
-## Security requirements for login/registration improvements
-
-- Strict token validation for external providers (issuer, audience, signature, expiry, nonce/state where applicable).
-- Verified-email handling policy for account creation/linking.
-- Safe account-linking rules to prevent accidental merges or account takeover.
-- Brute-force protection for local credential login (rate limiting/lockout policy aligned with current architecture).
-- Consistent error responses that do not leak account existence.
-- Audit logging for authentication and identity-link events.
-- CSRF/state protections for external auth callback flows.
+1. Internal user management remains source of truth — **Met**.
+2. Social auth via Google/Facebook — **Partially met** (provider-grade validation still needed).
+3. Social identities link to one internal account — **Partially met** (explicit linking exists; complete social-first matrix pending).
+4. Registration/login hardening — **Partially met**.
+5. Protected endpoint authorization remains intact — **Likely met** (regression verification still required).
+6. Backward compatibility for non-social users — **Met**.
 
 ## Scope
 
 - Keep internal user management and existing user entity lifecycle.
-- Integrate Google and Facebook auth provider handling.
-- Add/update identity-link persistence between provider identities and internal users.
-- Update login/registration flows to support secure social sign-in and linking.
-- Add/update validation and security checks in auth endpoints/services.
-- Add tests for happy paths and security edge cases.
+- Implement backend-owned OIDC integration for Google/Facebook.
+- Implement secure social-first login behavior (link/create/reject policy).
+- Harden external auth token validation and error behavior.
+- Add structured external-auth audit events.
+- Add/update tests for social login/link and abuse scenarios.
 
 ## Out of scope
 
 - Migrating user management to external IdP.
 - Adding providers beyond Google/Facebook in this issue.
-- Frontend-specific UX redesign beyond required API contract changes.
+- Frontend UX redesign outside of required API contracts.
+- Broad unrelated refactors in auth/user domains.
 
+## Required interaction model (backend-owned OIDC)
 
-## Additional requirements from review
+- Backend owns OIDC responsibilities: redirect, callback, code exchange, token validation.
+- Frontend initiates backend auth start endpoints and consumes backend-issued auth artifacts only.
 
-- Prefer non-sequential public user identifiers (GUID/UUID) for externally exposed user references to reduce enumeration risk.
-- Define clear lifecycle for `PasswordHash`/`PasswordSalt` when a user is created through social-first registration.
+### Register / first social sign-in flow
+1. Frontend calls backend `GET /auth/external/{provider}/start`.
+2. Backend generates correlation data (`state`, optional `nonce`) and redirects browser to provider.
+3. Provider redirects to backend callback with authorization code.
+4. Backend validates correlation data and exchanges code for provider tokens.
+5. Backend validates provider token and resolves `(Provider, Subject)` link.
+6. If link exists, sign in user and issue internal auth.
+7. If no link exists, execute social-first policy (auto-link/create/reject) and issue internal auth only on success.
+
+### Social-first auto-link policy
+- Auto-link by email allowed only when:
+  - provider token is valid,
+  - provider email is present and provider-verified,
+  - exactly one internal user matches normalized unique email.
+- Unverified/missing email must not auto-link.
+- Duplicate email matches are integrity/security anomalies (reject + audit + operator remediation).
+
+## Verification semantics clarification
+
+- Provider `email_verified` is external-provider evidence.
+- Internal user email verification lifecycle remains governed by internal policy unless explicitly designed otherwise.
 
 ## Risks and constraints
 
-- Account linking mistakes could create duplicate users or takeover risk.
-- Provider claim differences and missing verified-email claims can complicate linking.
-- Callback/state handling errors can introduce auth vulnerabilities.
-- Existing clients may depend on current response shapes and error semantics.
+- Incorrect provider token trust model can enable forged/invalid token acceptance.
+- Account linking mistakes can create takeover risk.
+- OIDC callback/correlation handling errors can create CSRF/session vulnerabilities.
+- Existing clients may depend on current error semantics and flow contracts.
+- Migration/snapshot drift may introduce unrelated schema churn.
 
-## Impacted areas (expected)
+## Impacted areas
 
-- ASP.NET Core authentication configuration.
-- Auth controller/service login and registration workflows.
-- User and external-identity persistence model.
-- Validation, rate-limiting/lockout hooks, and auth audit logging.
-- Integration/unit tests for auth flows and security cases.
+- Auth endpoint routing and OIDC callback handling.
+- Auth services (external login/link + policy engine).
+- External token validation abstraction/strategies.
+- External identity persistence and supporting constraints.
+- Audit logging, validation, and error mapping layers.
+- Unit/integration tests covering happy + abuse paths.
 
-## Next step in delivery flow
+## Test strategy (analysis-level)
 
-Create `ARCHITECTURE.md` for implementation design (provider integration, identity-link model, secure flow updates, migration/backward-compat plan, and test matrix), then route to `developer-senior` due to cross-cutting auth/security/data changes.
+- Unit tests for provider claim mapping and policy decisions.
+- Integration tests for:
+  - linked social login success,
+  - social-first verified unique-email auto-link,
+  - unverified/missing email rejection,
+  - duplicate email anomaly rejection,
+  - external link collision/takeover prevention,
+  - regression for local login + authorization behavior.
+
+## Next step
+
+Update/execute implementation plan in `ARCHITECTURE.md` and route implementation to `developer-senior` because of cross-cutting auth/security/data changes.

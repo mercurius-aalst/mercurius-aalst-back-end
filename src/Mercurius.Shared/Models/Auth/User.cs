@@ -1,6 +1,6 @@
-using Mercurius.LAN.API.Models.Auth;
+using Mercurius.Shared.Models.Auth;
 
-namespace Mercurius.LAN.API.Models;
+namespace Mercurius.Shared.Models.Auth;
 
 public class User
 {

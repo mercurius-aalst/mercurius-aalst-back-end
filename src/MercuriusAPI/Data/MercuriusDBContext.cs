@@ -1,10 +1,11 @@
 using Mercurius.LAN.API.Models;
 using Microsoft.EntityFrameworkCore;
-using Mercurius.LAN.API.Models.Auth;
+using Mercurius.Shared.Models.Auth;
+using Mercurius.Shared.Services.Auth;
 
 namespace Mercurius.LAN.API.Data;
 
-public partial class MercuriusDBContext : DbContext
+public partial class MercuriusDBContext : DbContext, IAuthDbContext
 {
     public MercuriusDBContext()
     {

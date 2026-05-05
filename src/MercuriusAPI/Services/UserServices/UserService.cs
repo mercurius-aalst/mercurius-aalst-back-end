@@ -1,7 +1,7 @@
 using Mercurius.LAN.API.Data;
 using Mercurius.LAN.API.DTOs.Auth;
 using Mercurius.LAN.API.Exceptions;
-using Mercurius.LAN.API.Models.Auth;
+using Mercurius.Shared.Models.Auth;
 using Microsoft.EntityFrameworkCore;
 using Mercurius.LAN.API.Services.Auth;
 using Mercurius.LAN.API.Models;

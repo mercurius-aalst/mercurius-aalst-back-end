@@ -39,4 +39,9 @@
 		<PackageReference Include="Swashbuckle.AspNetCore" Version="8.1.2" />
 		<PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.13.0" />
 	</ItemGroup>
+
+	<ItemGroup>
+	  <ProjectReference Include="..\Auth.Module\Auth.Module.csproj" />
+	  <ProjectReference Include="..\Mercurius.Shared\Mercurius.Shared.csproj" />
+	</ItemGroup>
 </Project>

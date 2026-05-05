@@ -1,5 +1,4 @@
-using Mercurius.LAN.API.Models;
-using Mercurius.LAN.API.Models.Auth;
+using Mercurius.Shared.Models.Auth;
 
 namespace Mercurius.LAN.API.Services.Auth.Token;
 

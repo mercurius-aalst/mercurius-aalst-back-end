@@ -1,7 +1,8 @@
-﻿using Imageflow.Server;
+using Mercurius.LAN.API.Extensions;
+using Auth.Module.Extensions;
+using Imageflow.Server;
 using Mercurius.LAN.API.Data;
 using Mercurius.LAN.API.Endpoints;
-using Mercurius.LAN.API.Extensions;
 using Mercurius.LAN.API.Middleware;
 using Mercurius.LAN.API.Services.UserServices;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -28,6 +29,7 @@ public class Program
 
         builder.Services.ConfigureVersionedSwagger();
         builder.Services.AddServiceDependencies();
+        builder.Services.AddAuthServices();
         builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 
         builder.Services.ConfigureHttpJsonOptions(options =>

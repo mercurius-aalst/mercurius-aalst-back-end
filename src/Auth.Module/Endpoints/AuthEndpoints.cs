@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Routing;
 using Mercurius.LAN.API.DTOs.Auth;
 using Mercurius.LAN.API.Services.Auth;
 using Microsoft.AspNetCore.Authorization;
@@ -10,7 +12,6 @@ public static class AuthEndpoints
     {
         var group = app.MapGroup("api/v{version:apiVersion}/auth")
             .WithGroupName("v1")
-            .WithTags("Auth")
             .RequireAuthorization();
 
         group.MapPost("/register", async (LoginRequest request, IAuthService authService) =>

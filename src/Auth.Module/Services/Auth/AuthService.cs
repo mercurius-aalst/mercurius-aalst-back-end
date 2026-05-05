@@ -1,20 +1,20 @@
-using Mercurius.LAN.API.Data;
 using Mercurius.LAN.API.DTOs.Auth;
 using Mercurius.LAN.API.Exceptions;
-using Mercurius.LAN.API.Models;
 using Mercurius.LAN.API.Services.Auth.Login;
 using Mercurius.LAN.API.Services.Auth.Token;
+using Mercurius.Shared.Services.Auth;
+using Mercurius.Shared.Models.Auth;
 using Microsoft.EntityFrameworkCore;
 
 namespace Mercurius.LAN.API.Services.Auth;
 
 public class AuthService : IAuthService
 {
-    private readonly MercuriusDBContext _dbContext;
+    private readonly IAuthDbContext _dbContext;
     private readonly ITokenService _tokenService;
     private readonly ILoginAttemptService _loginAttemptService;
 
-    public AuthService(MercuriusDBContext dbContext, ILoginAttemptService loginAttemptService, ITokenService tokenService)
+    public AuthService(IAuthDbContext dbContext, ILoginAttemptService loginAttemptService, ITokenService tokenService)
     {
         _dbContext = dbContext;
         _loginAttemptService = loginAttemptService;

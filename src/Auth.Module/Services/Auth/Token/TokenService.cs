@@ -2,8 +2,8 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Microsoft.IdentityModel.Tokens;
-using Mercurius.LAN.API.Models.Auth;
-using Mercurius.LAN.API.Models;
+using Mercurius.Shared.Models.Auth;
+using Microsoft.Extensions.Configuration;
 
 namespace Mercurius.LAN.API.Services.Auth.Token;
 

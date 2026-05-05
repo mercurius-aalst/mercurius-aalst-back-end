@@ -1,4 +1,4 @@
-namespace Mercurius.LAN.API.Models.Auth;
+namespace Mercurius.Shared.Models.Auth;
 
 public class Role
 {

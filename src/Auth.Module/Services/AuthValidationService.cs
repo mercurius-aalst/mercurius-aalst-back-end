@@ -1,5 +1,5 @@
-using System.ComponentModel.DataAnnotations;
 using Mercurius.Shared.DTOs.Auth;
+using Mercurius.Shared.Exceptions;
 
 namespace Auth.Module.Services;
 

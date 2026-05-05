@@ -1,10 +1,7 @@
 using Mercurius.LAN.API.DTOs.Auth;
 using Mercurius.LAN.API.Exceptions;
 using Mercurius.LAN.API.Models;
-using Mercurius.LAN.API.Models.Auth;
-using Mercurius.LAN.API.Services.Auth;
 using Mercurius.LAN.API.Services.UserServices;
-using Microsoft.Extensions.Configuration;
 
 namespace Mercurius.LAN.API.Tests;
 
@@ -45,8 +42,7 @@ public class UserTests
             Email = "playerone@test.com",
             DiscordId = "discord-1",
             SteamId = "steam-1",
-            RiotId = "riot-1",
-            Roles = [new Role { Name = "admin" }, new Role { Name = "captain" }]
+            RiotId = "riot-1"
         };
 
         var dto = new GetUserDTO(user);
@@ -60,7 +56,6 @@ public class UserTests
         Assert.Equal("steam-1", dto.SteamId);
         Assert.Equal("riot-1", dto.RiotId);
         Assert.Equal("Player One", dto.DisplayName);
-        Assert.Equal(["admin", "captain"], dto.Roles);
     }
 
     [Fact]
@@ -80,11 +75,11 @@ public class UserTests
     public async Task CreateUserAsync_ForwardsValidProfileRequest()
     {
         var inner = new RecordingUserService();
-        var service = new UserValidationService(inner, new StubAuthService());
+        var service = new UserValidationService(inner);
         var request = new CreateUserProfileRequest
         {
+            Auth0Subject = "auth0|123",
             Username = "ValidUser",
-            Password = "Strong!123",
             Firstname = "Player",
             Lastname = "One",
             Email = "playerone@test.com",
@@ -100,13 +95,13 @@ public class UserTests
     }
 
     [Fact]
-    public async Task CreateUserAsync_RejectsWeakPassword()
+    public async Task CreateUserAsync_RejectsMissingAuth0Subject()
     {
-        var service = new UserValidationService(new RecordingUserService(), new StubAuthService());
+        var service = new UserValidationService(new RecordingUserService());
         var request = new CreateUserProfileRequest
         {
+            Auth0Subject = "",
             Username = "ValidUser",
-            Password = "weak",
             Firstname = "Player",
             Lastname = "One",
             Email = "playerone@test.com"
@@ -114,13 +109,33 @@ public class UserTests
 
         var exception = await Assert.ThrowsAsync<ValidationException>(() => service.CreateUserAsync(request));
 
-        Assert.Contains("Password", exception.Message);
+        Assert.Contains("Auth0 subject", exception.Message);
+    }
+
+    [Fact]
+    public async Task CompleteProfileAsync_ForwardsSubjectAndProfileRequest()
+    {
+        var inner = new RecordingUserService();
+        var service = new UserValidationService(inner);
+        var request = new CompleteUserProfileRequest
+        {
+            Username = "ValidUser",
+            Firstname = "Player",
+            Lastname = "One",
+            Email = "playerone@test.com"
+        };
+
+        var result = await service.CompleteProfileAsync("auth0|123", request);
+
+        Assert.Same(inner.CreatedUser, result);
+        Assert.Equal("auth0|123", inner.LastCompleteSubject);
+        Assert.Same(request, inner.LastCompleteRequest);
     }
 
     [Fact]
     public async Task UpdateUserAsync_RejectsInvalidIdentityPayload()
     {
-        var service = new UserValidationService(new RecordingUserService(), new StubAuthService());
+        var service = new UserValidationService(new RecordingUserService());
         var request = new UpdateUserProfileRequest
         {
             Username = "x",
@@ -137,7 +152,7 @@ public class UserTests
     [Fact]
     public async Task DeleteUserByIdAsync_RejectsNonPositiveIds()
     {
-        var service = new UserValidationService(new RecordingUserService(), new StubAuthService());
+        var service = new UserValidationService(new RecordingUserService());
 
         var exception = await Assert.ThrowsAsync<ValidationException>(() => service.DeleteUserByIdAsync(Guid.Empty));
 
@@ -147,14 +162,16 @@ public class UserTests
     private sealed class RecordingUserService : IUserService
     {
         public CreateUserProfileRequest? LastCreateRequest { get; private set; }
+        public string? LastCompleteSubject { get; private set; }
+        public CompleteUserProfileRequest? LastCompleteRequest { get; private set; }
         public GetUserDTO CreatedUser { get; } = new(new User
         {
             Id = Guid.NewGuid(),
+            Auth0Subject = "auth0|123",
             Username = "ValidUser",
             Firstname = "Player",
             Lastname = "One",
-            Email = "playerone@test.com",
-            Roles = []
+            Email = "playerone@test.com"
         });
 
         public Task<GetUserDTO> CreateUserAsync(CreateUserProfileRequest request)
@@ -163,37 +180,36 @@ public class UserTests
             return Task.FromResult(CreatedUser);
         }
 
+        public Task<GetUserDTO> CompleteProfileAsync(string auth0Subject, CompleteUserProfileRequest request)
+        {
+            LastCompleteSubject = auth0Subject;
+            LastCompleteRequest = request;
+            return Task.FromResult(CreatedUser);
+        }
+
+        public Task<CurrentUserProfileResponse> GetCurrentUserAsync(string auth0Subject)
+        {
+            return Task.FromResult(new CurrentUserProfileResponse(true, CreatedUser));
+        }
+
         public Task DeleteUserAsync(string username) => Task.CompletedTask;
         public Task DeleteUserByIdAsync(Guid id) => Task.CompletedTask;
-        public Task AddRoleToUserAsync(string username, AddUserRoleRequest request) => Task.CompletedTask;
-        public Task ChangePasswordAsync(string username, ChangePasswordRequest newPassword) => Task.CompletedTask;
         public Task<IEnumerable<GetUserDTO>> GetAllUsersAsync() => Task.FromResult<IEnumerable<GetUserDTO>>([]);
         public Task<GetUserDTO> GetUserByIdAsync(Guid id) => Task.FromResult(CreatedUser);
         public Task<GetUserDTO> UpdateUserAsync(Guid id, UpdateUserProfileRequest request) => Task.FromResult(CreatedUser);
-        public Task DeleteRoleFromUserAsync(string username, string roleName) => Task.CompletedTask;
-        public Task SeedInitialUserAsync(IConfiguration configuration) => Task.CompletedTask;
-    }
-
-    private sealed class StubAuthService : IAuthService
-    {
-        public Task RegisterAsync(LoginRequest request) => Task.CompletedTask;
-        public Task<AuthTokenResponse> LoginAsync(LoginRequest request) => Task.FromResult(new AuthTokenResponse());
-        public Task<AuthTokenResponse> RefreshTokenAsync(RefreshTokenRequest request) => Task.FromResult(new AuthTokenResponse());
-        public Task RevokeRefreshTokenAsync(RevokeTokenRequest request) => Task.CompletedTask;
-
     }
 
 
     [Fact]
-    public void SocialFirstUser_HasNoLocalPasswordByDefault()
+    public void Auth0LinkedUser_StoresExternalSubject()
     {
         var user = new User
         {
+            Auth0Subject = "auth0|social-user",
             Username = "social-user",
             Email = "social@test.com"
         };
 
-        Assert.Null(user.PasswordHash);
-        Assert.Null(user.Salt);
+        Assert.Equal("auth0|social-user", user.Auth0Subject);
     }
 }

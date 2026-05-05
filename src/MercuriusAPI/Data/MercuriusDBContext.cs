@@ -1,6 +1,5 @@
 using Mercurius.LAN.API.Models;
 using Microsoft.EntityFrameworkCore;
-using Mercurius.LAN.API.Models.Auth;
 
 namespace Mercurius.LAN.API.Data;
 
@@ -19,8 +18,6 @@ public partial class MercuriusDBContext : DbContext
     public DbSet<Game> Games { get; set; }
     public DbSet<TeamInvite> TeamInvites { get; set; }
     public DbSet<User> Users { get; set; }
-    public DbSet<RefreshToken> RefreshTokens { get; set; }
-    public DbSet<Role> Roles { get; set; }
     public DbSet<Placement> Placements { get; set; }
     public DbSet<Sponsor> Sponsors { get; set; }
 
@@ -28,12 +25,12 @@ public partial class MercuriusDBContext : DbContext
     {
         modelBuilder.Entity<User>(entity =>
         {
+            entity.HasIndex(e => e.Auth0Subject).IsUnique();
+            entity.Property(e => e.Auth0Subject).IsRequired();
             entity.Property(e => e.Username).IsRequired();
             entity.Property(e => e.Firstname).IsRequired();
             entity.Property(e => e.Lastname).IsRequired();
             entity.Property(e => e.Email).IsRequired();
-            entity.Property(e => e.PasswordHash).IsRequired(false);
-            entity.Property(e => e.Salt).IsRequired(false);
         });
 
         modelBuilder.Entity<Team>(entity =>
@@ -145,16 +142,6 @@ public partial class MercuriusDBContext : DbContext
                   .OnDelete(DeleteBehavior.Cascade);
             entity.Property(e => e.Status).IsRequired();
             entity.Property(e => e.CreatedAt).IsRequired();
-        });
-
-        modelBuilder.Entity<RefreshToken>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Token).IsRequired();
-            entity.HasOne(e => e.User)
-                  .WithMany(u => u.RefreshTokens)
-                  .HasForeignKey(e => e.UserId)
-                  .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<Placement>(entity =>

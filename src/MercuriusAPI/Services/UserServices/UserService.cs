@@ -1,10 +1,9 @@
 using Mercurius.LAN.API.Data;
 using Mercurius.LAN.API.DTOs.Auth;
 using Mercurius.LAN.API.Exceptions;
-using Mercurius.LAN.API.Models.Auth;
 using Microsoft.EntityFrameworkCore;
-using Mercurius.LAN.API.Services.Auth;
 using Mercurius.LAN.API.Models;
+using Mercurius.LAN.API.Extensions;
 
 namespace Mercurius.LAN.API.Services.UserServices;
 
@@ -19,39 +18,50 @@ public class UserService : IUserService
 
     public async Task<IEnumerable<GetUserDTO>> GetAllUsersAsync()
     {
-        return await _dbContext.Users.Include(u => u.Roles).Select(u => new GetUserDTO(u)).ToListAsync();
+        return await _dbContext.Users.Select(u => new GetUserDTO(u)).ToListAsync();
     }
 
     public async Task<GetUserDTO> CreateUserAsync(CreateUserProfileRequest request)
     {
-        var normalizedUsername = request.Username.Normalize();
+        return await CreateUserAsync(
+            request.Auth0Subject,
+            request.Username,
+            request.Firstname,
+            request.Lastname,
+            request.Email,
+            request.DiscordId,
+            request.SteamId,
+            request.RiotId);
+    }
 
-        if (await _dbContext.Users.AnyAsync(u => u.Username == normalizedUsername))
-            throw new ValidationException("Username already exists");
+    public async Task<GetUserDTO> CompleteProfileAsync(string auth0Subject, CompleteUserProfileRequest request)
+    {
+        if (await _dbContext.Users.AnyAsync(u => u.Auth0Subject == auth0Subject.Trim()))
+            throw new ValidationException("Profile already completed.");
 
-        if (await _dbContext.Users.AnyAsync(u => u.Email == request.Email))
-            throw new ValidationException("Email already exists");
+        return await CreateUserAsync(
+            auth0Subject,
+            request.Username,
+            request.Firstname,
+            request.Lastname,
+            request.Email,
+            request.DiscordId,
+            request.SteamId,
+            request.RiotId);
+    }
 
-        PasswordHelper.CreatePasswordHash(request.Password, out var hash, out var salt);
-
-        var user = new User
-        {
-            Username = normalizedUsername,
-            PasswordHash = hash,
-            Salt = salt
-        };
-
-        user.UpdateProfile(request.Firstname, request.Lastname, request.Email, request.DiscordId, request.SteamId, request.RiotId);
-
-        _dbContext.Users.Add(user);
-        await _dbContext.SaveChangesAsync();
-
-        return new GetUserDTO(user);
+    public async Task<CurrentUserProfileResponse> GetCurrentUserAsync(string auth0Subject)
+    {
+        var subject = NormalizeAuth0Subject(auth0Subject);
+        var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Auth0Subject == subject);
+        return user == null
+            ? new CurrentUserProfileResponse(false, null)
+            : new CurrentUserProfileResponse(true, new GetUserDTO(user));
     }
 
     public async Task<GetUserDTO> GetUserByIdAsync(Guid id)
     {
-        var user = await _dbContext.Users.Include(u => u.Roles).FirstOrDefaultAsync(u => u.Id == id);
+        var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == id);
         if (user == null)
             throw new NotFoundException($"User with ID {id} not found.");
         return new GetUserDTO(user);
@@ -59,11 +69,12 @@ public class UserService : IUserService
 
     public async Task<GetUserDTO> UpdateUserAsync(Guid id, UpdateUserProfileRequest request)
     {
-        var user = await _dbContext.Users.Include(u => u.Roles).FirstOrDefaultAsync(u => u.Id == id);
+        var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == id);
         if (user == null)
             throw new NotFoundException($"User with ID {id} not found.");
 
         var normalizedUsername = request.Username.Normalize();
+        var normalizedEmail = NormalizeEmail(request.Email);
 
         if (!string.Equals(user.Username, normalizedUsername, StringComparison.Ordinal) &&
             await _dbContext.Users.AnyAsync(u => u.Username == normalizedUsername && u.Id != id))
@@ -72,13 +83,13 @@ public class UserService : IUserService
         }
 
         if (!string.Equals(user.Email, request.Email, StringComparison.OrdinalIgnoreCase) &&
-            await _dbContext.Users.AnyAsync(u => u.Email == request.Email && u.Id != id))
+            await _dbContext.Users.AnyAsync(u => u.Email.ToLower() == normalizedEmail && u.Id != id))
         {
             throw new ValidationException("Email already exists");
         }
 
         user.Username = normalizedUsername;
-        user.UpdateProfile(request.Firstname, request.Lastname, request.Email, request.DiscordId, request.SteamId, request.RiotId);
+        user.UpdateProfile(request.Firstname.Trim(), request.Lastname.Trim(), request.Email.Trim(), request.DiscordId, request.SteamId, request.RiotId);
 
         await _dbContext.SaveChangesAsync();
 
@@ -106,81 +117,50 @@ public class UserService : IUserService
         await _dbContext.SaveChangesAsync();
     }
 
-    public async Task AddRoleToUserAsync(string username, AddUserRoleRequest request)
+    private async Task<GetUserDTO> CreateUserAsync(
+        string auth0Subject,
+        string username,
+        string firstname,
+        string lastname,
+        string email,
+        string? discordId,
+        string? steamId,
+        string? riotId)
     {
+        var normalizedAuth0Subject = NormalizeAuth0Subject(auth0Subject);
         var normalizedUsername = username.Normalize();
-        var user = await _dbContext.Users.Include(u => u.Roles).FirstOrDefaultAsync(u => u.Username == normalizedUsername);
-        if (user == null)
-            throw new NotFoundException($"User '{username}' not found.");
-        var role = await _dbContext.Roles.FirstOrDefaultAsync(r => r.Name == request.RoleName);
-        if (role == null)
-        {
-            role = new Role { Name = request.RoleName };
-            _dbContext.Roles.Add(role);
-            await _dbContext.SaveChangesAsync();
-        }
-        if (!user.Roles.Contains(role))
-        {
-            user.Roles.Add(role);
-            await _dbContext.SaveChangesAsync();
-        }
-    }
+        var normalizedEmail = NormalizeEmail(email);
 
-    public async Task DeleteRoleFromUserAsync(string username, string roleName)
-    {
-        var normalizedUsername = username.Normalize();
-        var user = await _dbContext.Users.Include(u => u.Roles).FirstOrDefaultAsync(u => u.Username == normalizedUsername);
-        if (user == null)
-            throw new NotFoundException($"User '{username}' not found.");
-        var role = user.Roles.FirstOrDefault(r => r.Name == roleName);
-        if (role == null)
-            throw new NotFoundException($"Role '{roleName}' not found for user '{username}'.");
-        user.Roles.Remove(role);
-        await _dbContext.SaveChangesAsync();
-    }
+        if (await _dbContext.Users.AnyAsync(u => u.Auth0Subject == normalizedAuth0Subject))
+            throw new ValidationException("Auth0 subject already exists");
 
-    public Task ChangePasswordAsync(string username, ChangePasswordRequest request)
-    {
-        var normalizedUsername = username.Normalize();
-        var user = _dbContext.Users.FirstOrDefault(u => u.Username == normalizedUsername);
-        if (user == null)
-            throw new NotFoundException($"User '{username}' not found.");
-        PasswordHelper.CreatePasswordHash(request.NewPassword, out var hash, out var salt);
-        user.PasswordHash = hash;
-        user.Salt = salt;
-        _dbContext.Users.Update(user);
-        return _dbContext.SaveChangesAsync();
-    }
+        if (await _dbContext.Users.AnyAsync(u => u.Username == normalizedUsername))
+            throw new ValidationException("Username already exists");
 
-    public async Task SeedInitialUserAsync(IConfiguration configuration)
-    {
-        // Only seed if there are no users in the database
-        if (await _dbContext.Users.AnyAsync())
-            return;
-        var initialUserSection = configuration.GetSection("InitialUser");
-        var username = initialUserSection["Username"];
-        var password = initialUserSection["Password"];
-        var roleName = initialUserSection["Role"];
-        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password) || string.IsNullOrWhiteSpace(roleName))
-            return;
-        var normalizedUsername = username.Normalize();
-        PasswordHelper.CreatePasswordHash(password, out var hash, out var salt);
+        if (await _dbContext.Users.AnyAsync(u => u.Email.ToLower() == normalizedEmail))
+            throw new ValidationException("Email already exists");
+
         var user = new User
         {
-            Username = normalizedUsername,
-            PasswordHash = hash,
-            Salt = salt,
-            Roles = new List<Role>()
+            Auth0Subject = normalizedAuth0Subject,
+            Username = normalizedUsername
         };
-        var role = await _dbContext.Roles.FirstOrDefaultAsync(r => r.Name == roleName);
-        if (role == null)
-        {
-            role = new Role { Name = roleName };
-            _dbContext.Roles.Add(role);
-            await _dbContext.SaveChangesAsync();
-        }
-        user.Roles.Add(role);
+
+        user.UpdateProfile(firstname.Trim(), lastname.Trim(), email.Trim(), discordId, steamId, riotId);
+
         _dbContext.Users.Add(user);
         await _dbContext.SaveChangesAsync();
+
+        return new GetUserDTO(user);
     }
+
+    private static string NormalizeAuth0Subject(string auth0Subject)
+    {
+        if (string.IsNullOrWhiteSpace(auth0Subject))
+            throw new ValidationException("Auth0 subject is required.");
+
+        return auth0Subject.Trim();
+    }
+
+    private static string NormalizeEmail(string email) => email.Trim().ToLowerInvariant();
 }

@@ -2,12 +2,8 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Mercurius.LAN.API.DTOs.Auth;
 
-public class CreateUserProfileRequest
+public class CompleteUserProfileRequest
 {
-    [Required]
-    [StringLength(200, MinimumLength = 1)]
-    public string Auth0Subject { get; set; }
-
     [Required]
     [StringLength(100, MinimumLength = 1)]
     public string Username { get; set; }

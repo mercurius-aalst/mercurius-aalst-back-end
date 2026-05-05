@@ -13,7 +13,6 @@ public class GetUserDTO
     public string? SteamId { get; set; }
     public string? RiotId { get; set; }
     public string DisplayName { get; set; }
-    public IEnumerable<string> Roles { get; set; }
 
     public GetUserDTO(User user)
     {
@@ -26,6 +25,5 @@ public class GetUserDTO
         SteamId = user.SteamId;
         RiotId = user.RiotId;
         DisplayName = user.DisplayName;
-        Roles = user.Roles.Select(r => r.Name);
     }
 }

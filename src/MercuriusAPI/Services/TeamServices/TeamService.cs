@@ -2,6 +2,7 @@ using Mercurius.LAN.API.Data;
 using Mercurius.LAN.API.DTOs.TeamDTOs;
 using Mercurius.LAN.API.Exceptions;
 using Mercurius.LAN.API.Models;
+using Mercurius.Shared.Exceptions;
 using Microsoft.EntityFrameworkCore;
 
 namespace Mercurius.LAN.API.Services.TeamServices;

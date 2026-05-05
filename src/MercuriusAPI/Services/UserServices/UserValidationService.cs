@@ -3,6 +3,7 @@ using Mercurius.LAN.API.Exceptions;
 using Auth.Module.Services;
 using Mercurius.Shared.Services.Auth;
 using Mercurius.Shared.DTOs.Auth;
+using Mercurius.Shared.Exceptions;
 
 namespace Mercurius.LAN.API.Services.UserServices;
 

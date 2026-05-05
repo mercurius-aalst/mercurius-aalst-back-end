@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Mercurius.LAN.API.Models;
 using Auth.Module.Services;
 using Mercurius.Shared.DTOs.Auth;
+using Mercurius.Shared.Exceptions;
 
 namespace Mercurius.LAN.API.Services.UserServices;
 

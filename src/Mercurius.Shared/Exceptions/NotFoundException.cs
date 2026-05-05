@@ -1,4 +1,4 @@
-﻿namespace Auth.Module.Exceptions;
+﻿namespace Mercurius.Shared.Exceptions;
 
 public class NotFoundException : Exception
 {

@@ -2,6 +2,7 @@ using Mercurius.LAN.API.Exceptions;
 using Mercurius.LAN.API.Extensions;
 using Mercurius.LAN.API.Models;
 using Mercurius.LAN.API.Services.MatchServices.Helpers;
+using Mercurius.Shared.Exceptions;
 
 namespace Mercurius.LAN.API.Services.MatchServices.BracketTypes;
 

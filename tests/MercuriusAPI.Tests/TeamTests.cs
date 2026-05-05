@@ -1,4 +1,3 @@
-using Auth.Module.Exceptions;
 using Mercurius.LAN.API.Models;
 using Mercurius.Shared.Exceptions;
 

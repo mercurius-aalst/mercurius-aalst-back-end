@@ -1,4 +1,5 @@
 using Mercurius.LAN.API.Exceptions;
+using Mercurius.Shared.Exceptions;
 
 namespace Mercurius.LAN.API.Models;
 

@@ -5,6 +5,7 @@ using Mercurius.LAN.API.Exceptions;
 using Mercurius.LAN.API.Models;
 using Mercurius.LAN.API.Services.Files;
 using Mercurius.LAN.API.Services.MatchServices;
+using Mercurius.Shared.Exceptions;
 using Microsoft.EntityFrameworkCore;
 
 namespace Mercurius.LAN.API.Services.GameServices;

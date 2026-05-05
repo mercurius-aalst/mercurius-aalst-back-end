@@ -1,6 +1,8 @@
 using System.Text;
+using Auth.Module.Exceptions;
 using Mercurius.LAN.API.Exceptions;
 using Mercurius.LAN.API.Middleware;
+using Mercurius.Shared.Exceptions;
 using Microsoft.AspNetCore.Http;
 
 namespace Mercurius.LAN.API.Tests;

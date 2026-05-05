@@ -1,13 +1,11 @@
-using Mercurius.LAN.API.DTOs.Auth;
+using Auth.Module.Endpoints;
+using Auth.Module.Models;
+using Auth.Module.Services;
+using Auth.Module.Services.External;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
-using Mercurius.Shared.Services.Auth;
-using Auth.Module.Services;
-using Mercurius.Shared.DTOs.Auth;
-using Auth.Module.Endpoints;
 
 namespace Mercurius.LAN.API.Tests;
 
@@ -26,10 +24,15 @@ public class AuthEndpointMappingTests
         Assert.Contains("api/v{version:apiVersion}/auth/login", routes);
         Assert.Contains("api/v{version:apiVersion}/auth/refresh", routes);
         Assert.Contains("api/v{version:apiVersion}/auth/revoke", routes);
+        Assert.Contains("api/v{version:apiVersion}/auth/external/google/start", routes);
+        Assert.Contains("api/v{version:apiVersion}/auth/external/google/callback", routes);
+        Assert.Contains("api/v{version:apiVersion}/auth/external/google/link/start", routes);
+        Assert.Contains("api/v{version:apiVersion}/auth/external/google/link/callback", routes);
+        Assert.Contains("api/v{version:apiVersion}/auth/external/{provider}/unlink", routes);
     }
 
     [Fact]
-    public void MapAuthEndpoints_OnlyLoginAndRefreshAreAnonymous()
+    public void MapAuthEndpoints_LoginRefreshAndGoogleEndpointsAreAnonymous()
     {
         var app = CreateApp();
         app.MapAuthEndpoints();
@@ -38,6 +41,11 @@ public class AuthEndpointMappingTests
 
         Assert.True(HasAllowAnonymous(endpoints["api/v{version:apiVersion}/auth/login"]));
         Assert.True(HasAllowAnonymous(endpoints["api/v{version:apiVersion}/auth/refresh"]));
+        Assert.True(HasAllowAnonymous(endpoints["api/v{version:apiVersion}/auth/external/google/start"]));
+        Assert.True(HasAllowAnonymous(endpoints["api/v{version:apiVersion}/auth/external/google/callback"]));
+        Assert.False(HasAllowAnonymous(endpoints["api/v{version:apiVersion}/auth/external/google/link/start"]));
+        Assert.False(HasAllowAnonymous(endpoints["api/v{version:apiVersion}/auth/external/google/link/callback"]));
+        Assert.False(HasAllowAnonymous(endpoints["api/v{version:apiVersion}/auth/external/{provider}/unlink"]));
         Assert.False(HasAllowAnonymous(endpoints["api/v{version:apiVersion}/auth/register"]));
         Assert.False(HasAllowAnonymous(endpoints["api/v{version:apiVersion}/auth/revoke"]));
     }
@@ -61,6 +69,7 @@ public class AuthEndpointMappingTests
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddAuthorization();
         builder.Services.AddSingleton<IAuthService, FakeAuthService>();
+        builder.Services.AddSingleton<IExternalAuthService, FakeExternalAuthService>();
         return builder.Build();
     }
 
@@ -81,4 +90,22 @@ file sealed class FakeAuthService : IAuthService
     public Task<AuthTokenResponse> LoginAsync(LoginRequest request) => Task.FromResult(new AuthTokenResponse());
     public Task<AuthTokenResponse> RefreshTokenAsync(RefreshTokenRequest request) => Task.FromResult(new AuthTokenResponse());
     public Task RevokeRefreshTokenAsync(RevokeTokenRequest request) => Task.CompletedTask;
+}
+
+file sealed class FakeExternalAuthService : IExternalAuthService
+{
+    public Task<GoogleAuthStartResponse> StartGoogleAuthAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(new GoogleAuthStartResponse());
+
+    public Task<AuthTokenResponse> CompleteGoogleAuthAsync(GoogleAuthCallbackRequest request, CancellationToken cancellationToken = default) =>
+        Task.FromResult(new AuthTokenResponse());
+
+    public Task<GoogleAuthStartResponse> StartGoogleLinkAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(new GoogleAuthStartResponse());
+
+    public Task CompleteGoogleLinkAsync(Guid userId, GoogleAuthCallbackRequest request, CancellationToken cancellationToken = default) =>
+        Task.CompletedTask;
+
+    public Task UnlinkExternalIdentityAsync(Guid userId, string provider, CancellationToken cancellationToken = default) =>
+        Task.CompletedTask;
 }

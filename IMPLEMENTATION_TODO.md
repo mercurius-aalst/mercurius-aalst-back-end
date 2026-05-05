@@ -21,12 +21,14 @@
 - [x] Added project readme docs for module boundaries.
 
 ### Not completed yet
-- [ ] Auth endpoint mapping is still in API project.
-- [ ] Auth DI registration is still in API project.
-- [x] User/auth entities extracted to shared library and wired in API/Module.
-- [ ] `ExternalIdentity` model/migration not implemented.
-- [ ] OIDC external flow not implemented.
-- [ ] Link/unlink provider flows not implemented.
+- [x] Auth endpoint mapping is in `Auth.Module`.
+- [x] Auth DI registration is in `Auth.Module`.
+- [x] Auth user lifecycle is exposed via `IAuthUserService`.
+- [x] User/profile CRUD now lives in `MercuriusAPI`.
+- [x] `Auth.Module` no longer contains profile DTOs/endpoints/store abstractions.
+- [x] `ExternalIdentity` model/migration implemented.
+- [x] Google OIDC external flow implemented.
+- [x] Link/unlink provider flows implemented.
 
 ---
 
@@ -78,21 +80,39 @@ Extract cohesive auth/user entities into `Mercurius.Shared` for reuse by API + m
 
 ---
 
+## Phase 2.5 — Complete auth/business separation
+
+### Goal
+Make `Auth.Module` auth-only and move business/profile concerns back to the API host.
+
+### Steps
+1. [x] Remove duplicate/stale auth DTOs from `Mercurius.Shared`.
+2. [x] Extract `IAuthUserService` in `Auth.Module` for auth-user lifecycle operations.
+3. [x] Move profile DTOs, user service, validation, and user endpoint mapping to `MercuriusAPI`.
+4. [x] Remove profile DTOs/endpoints/store abstractions from `Auth.Module`.
+5. [x] Run build/test/format verification after the split.
+
+### Exit criteria
+- [x] `Auth.Module` contains only auth concerns.
+- [x] `MercuriusAPI` owns user/profile CRUD.
+
+---
+
 ## Phase 3 — ExternalIdentity persistence and linking primitives
 
 ### Goal
 Introduce minimal external identity model for auth/linking.
 
 ### Steps
-1. [ ] Add `ExternalIdentity` entity with minimal fields:
+1. [x] Add `ExternalIdentity` entity with minimal fields:
    - Provider
    - ProviderSubject
    - Email
    - EmailVerified
    - LinkedAtUtc
    - LastLoginAtUtc
-2. [ ] Add unique constraint on `(Provider, ProviderSubject)` and index on `UserId`.
-3. [ ] Add migration + tests for uniqueness/linking constraints.
+2. [x] Add unique constraint on `(Provider, ProviderSubject)` and index on `UserId`.
+3. [x] Add migration + tests for uniqueness/linking constraints.
 
 ### Exit criteria
 - Schema supports safe external identity linking with enforced uniqueness.
@@ -105,14 +125,14 @@ Introduce minimal external identity model for auth/linking.
 Implement external authentication via API-managed OIDC flow.
 
 ### Steps
-1. [ ] Implement auth start endpoint (`state`, `nonce`, `pkce` generation + storage).
-2. [ ] Implement callback endpoint (code exchange, token validation, claim extraction).
-3. [ ] Apply linking policy:
+1. [x] Implement auth start endpoint (`state`, `nonce`, `pkce` generation + storage).
+2. [x] Implement callback endpoint (code exchange, token validation, claim extraction).
+3. [x] Apply linking policy:
    1. provider subject match,
    2. verified-email fallback,
-   3. deterministic create/fail behavior.
-4. [ ] Issue internal JWT + refresh token after successful external auth.
-5. [ ] Add integration tests for success/failure paths.
+   3. auto-create minimal profile when no match exists.
+4. [x] Issue internal JWT + refresh token after successful external auth.
+5. [ ] Add deeper success/failure path tests beyond endpoint/state model coverage.
 
 ### Exit criteria
 - Users can authenticate via Google and receive internal tokens.
@@ -125,9 +145,9 @@ Implement external authentication via API-managed OIDC flow.
 Support account linking lifecycle and prevent account duplication.
 
 ### Steps
-1. [ ] Implement provider link start/callback for authenticated users.
-2. [ ] Enforce one external account -> one internal user.
-3. [ ] Implement unlink with safety guard (cannot remove last viable login method).
+1. [x] Implement provider link start/callback for authenticated users.
+2. [x] Enforce one external account -> one internal user.
+3. [x] Implement unlink with safety guard (cannot remove last viable login method).
 4. [ ] Add tests for duplicate link rejection and unlink guardrails.
 
 ### Exit criteria
@@ -141,15 +161,15 @@ Support account linking lifecycle and prevent account duplication.
 Finalize security/operational readiness.
 
 ### Steps
-1. [ ] Add structured audit logs for login/link/unlink outcomes.
-2. [ ] Verify redirect allow-list, state/nonce expiration, token validation edge cases.
-3. [ ] Review config/secrets handling for provider credentials.
-4. [ ] Run full verification:
+1. [x] Add structured audit logs for login/link/unlink outcomes.
+2. [x] Verify state/nonce expiration and token validation edge cases. Redirect handling uses a fixed configured Google redirect URI rather than caller-supplied redirects.
+3. [x] Review config/secrets handling for provider credentials.
+4. [x] Run full verification:
    - `dotnet restore`
    - `dotnet build --no-restore`
    - `dotnet test --no-build`
    - `dotnet format --verify-no-changes`
-5. [ ] Update implementation notes and review checklist.
+5. [x] Update implementation notes and review checklist.
 
 ### Exit criteria
 - Change is production-ready with documented risks and mitigations.
@@ -164,3 +184,8 @@ Finalize security/operational readiness.
 - 2026-05-05: Moved auth DI registration to Auth.Module, wired Program to AddAuthServices(), and validated regression tests/build.
 
 - 2026-05-05: Phase 2 checklist completed (shared User/Role/RefreshToken, IAuthDbContext abstraction, auth services + DI moved to Auth.Module).
+- 2026-05-05: Phase 2.5A completed (removed duplicate `Mercurius.Shared` auth DTOs, fixed stale references, and aligned exception handling/tests).
+- 2026-05-05: Phase 2.5B completed (extracted `IAuthUserService` and auth-only user lifecycle logic inside `Auth.Module`).
+- 2026-05-05: Phase 2.5C completed (moved user profile DTOs/services/endpoints to `MercuriusAPI` and removed profile concerns from `Auth.Module`).
+- 2026-05-05: Phase 3 completed (`ExternalIdentity` entity, EF mapping, migration, and model tests added).
+- 2026-05-05: Phase 4/5 implemented (Google OIDC login start/callback, auto-provisioning minimal profiles, provider link/unlink endpoints, and last-sign-in-method guard).

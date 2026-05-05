@@ -1,5 +1,7 @@
 using Auth.Module.Services;
-using Mercurius.Shared.DTOs.Auth;
+using Auth.Module.Models;
+using Auth.Module.Services.External;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
@@ -37,6 +39,42 @@ public static class AuthEndpoints
             await authService.RevokeRefreshTokenAsync(request);
         });
 
+        group.MapPost("/external/google/start", async (IExternalAuthService externalAuthService) =>
+        {
+            return await externalAuthService.StartGoogleAuthAsync();
+        })
+        .AllowAnonymous();
+
+        group.MapPost("/external/google/callback", async (GoogleAuthCallbackRequest request, IExternalAuthService externalAuthService) =>
+        {
+            return await externalAuthService.CompleteGoogleAuthAsync(request);
+        })
+        .AllowAnonymous();
+
+        group.MapPost("/external/google/link/start", async (IExternalAuthService externalAuthService) =>
+        {
+            return await externalAuthService.StartGoogleLinkAsync();
+        });
+
+        group.MapPost("/external/google/link/callback", async (GoogleAuthCallbackRequest request, ClaimsPrincipal user, IExternalAuthService externalAuthService) =>
+        {
+            await externalAuthService.CompleteGoogleLinkAsync(GetCurrentUserId(user), request);
+        });
+
+        group.MapDelete("/external/{provider}/unlink", async (string provider, ClaimsPrincipal user, IExternalAuthService externalAuthService) =>
+        {
+            await externalAuthService.UnlinkExternalIdentityAsync(GetCurrentUserId(user), provider);
+        });
+
         return group;
+    }
+
+    private static Guid GetCurrentUserId(ClaimsPrincipal user)
+    {
+        var userIdValue = user.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(userIdValue, out var userId))
+            throw new UnauthorizedAccessException("Authenticated user identifier is missing.");
+
+        return userId;
     }
 }

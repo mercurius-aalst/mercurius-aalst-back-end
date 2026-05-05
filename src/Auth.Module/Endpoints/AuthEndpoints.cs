@@ -39,31 +39,31 @@ public static class AuthEndpoints
             await authService.RevokeRefreshTokenAsync(request);
         });
 
-        group.MapPost("/external/google/start", async (IExternalAuthService externalAuthService) =>
+        group.MapPost("/external/{provider}/start", async (string provider, IExternalAuthService externalAuthService) =>
         {
-            return await externalAuthService.StartGoogleAuthAsync();
+            return await externalAuthService.StartAuthAsync(provider);
         })
         .AllowAnonymous();
 
-        group.MapPost("/external/google/callback", async (GoogleAuthCallbackRequest request, IExternalAuthService externalAuthService) =>
+        group.MapPost("/external/{provider}/callback", async (string provider, OidcCallbackRequest request, IExternalAuthService externalAuthService) =>
         {
-            return await externalAuthService.CompleteGoogleAuthAsync(request);
+            return await externalAuthService.CompleteAuthAsync(provider, request);
         })
         .AllowAnonymous();
 
-        group.MapPost("/external/google/link/start", async (IExternalAuthService externalAuthService) =>
+        group.MapPost("/external/{provider}/link/start", async (string provider, IExternalAuthService externalAuthService) =>
         {
-            return await externalAuthService.StartGoogleLinkAsync();
+            return await externalAuthService.StartLinkAsync(provider);
         });
 
-        group.MapPost("/external/google/link/callback", async (GoogleAuthCallbackRequest request, ClaimsPrincipal user, IExternalAuthService externalAuthService) =>
+        group.MapPost("/external/{provider}/link/callback", async (string provider, OidcCallbackRequest request, ClaimsPrincipal user, IExternalAuthService externalAuthService) =>
         {
-            await externalAuthService.CompleteGoogleLinkAsync(GetCurrentUserId(user), request);
+            await externalAuthService.CompleteLinkAsync(provider, GetCurrentUserId(user), request);
         });
 
         group.MapDelete("/external/{provider}/unlink", async (string provider, ClaimsPrincipal user, IExternalAuthService externalAuthService) =>
         {
-            await externalAuthService.UnlinkExternalIdentityAsync(GetCurrentUserId(user), provider);
+            await externalAuthService.UnlinkAsync(GetCurrentUserId(user), provider);
         });
 
         return group;

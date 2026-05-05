@@ -10,6 +10,7 @@ public class OidcStateStoreTests
         var store = new OidcStateStore();
         var entry = new OidcStateEntry
         {
+            Provider = "google",
             State = "state-1",
             Nonce = "nonce-1",
             CodeVerifier = "verifier-1",
@@ -22,6 +23,7 @@ public class OidcStateStoreTests
         var secondRead = await store.TakeAsync(entry.State);
 
         Assert.NotNull(firstRead);
+        Assert.Equal(entry.Provider, firstRead!.Provider);
         Assert.Null(secondRead);
     }
 
@@ -31,6 +33,7 @@ public class OidcStateStoreTests
         var store = new OidcStateStore();
         await store.StoreAsync(new OidcStateEntry
         {
+            Provider = "google",
             State = "expired",
             Nonce = "nonce",
             CodeVerifier = "verifier",

@@ -4,9 +4,9 @@ namespace Auth.Module.Services.External;
 
 public interface IExternalAuthService
 {
-    Task<GoogleAuthStartResponse> StartGoogleAuthAsync(CancellationToken cancellationToken = default);
-    Task<AuthTokenResponse> CompleteGoogleAuthAsync(GoogleAuthCallbackRequest request, CancellationToken cancellationToken = default);
-    Task<GoogleAuthStartResponse> StartGoogleLinkAsync(CancellationToken cancellationToken = default);
-    Task CompleteGoogleLinkAsync(Guid userId, GoogleAuthCallbackRequest request, CancellationToken cancellationToken = default);
-    Task UnlinkExternalIdentityAsync(Guid userId, string provider, CancellationToken cancellationToken = default);
+    Task<OidcAuthStartResponse> StartAuthAsync(string provider, CancellationToken cancellationToken = default);
+    Task<AuthTokenResponse> CompleteAuthAsync(string provider, OidcCallbackRequest request, CancellationToken cancellationToken = default);
+    Task<OidcAuthStartResponse> StartLinkAsync(string provider, CancellationToken cancellationToken = default);
+    Task CompleteLinkAsync(string provider, Guid userId, OidcCallbackRequest request, CancellationToken cancellationToken = default);
+    Task UnlinkAsync(Guid userId, string provider, CancellationToken cancellationToken = default);
 }

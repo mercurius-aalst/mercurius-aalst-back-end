@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using Mercurius.LAN.API.DTOs.GameDTOs;
 using Mercurius.LAN.API.DTOs.PlacementDTOs;
 using Mercurius.LAN.API.Services.GameServices;
@@ -10,8 +11,14 @@ public static class GameEndpoints
 {
     public static RouteGroupBuilder MapGameEndpoints(this WebApplication app)
     {
+        var apiVersionSet = app.NewApiVersionSet()
+                .HasApiVersion(new ApiVersion(1, 0))
+                .ReportApiVersions()
+                .Build();
+
         var group = app.MapGroup("api/v{version:apiVersion}/lan/games")
-            .WithGroupName("v1")
+            .WithApiVersionSet(apiVersionSet)
+            .MapToApiVersion(new ApiVersion(1, 0))
             .WithTags("Games")
             .RequireAuthorization(new AuthorizeAttribute { Roles = "admin" });
 

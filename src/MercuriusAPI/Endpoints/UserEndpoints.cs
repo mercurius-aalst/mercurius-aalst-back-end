@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using Mercurius.LAN.API.DTOs.Auth;
 using Mercurius.LAN.API.Services.UserServices;
 using Microsoft.AspNetCore.Authorization;
@@ -9,9 +10,15 @@ public static class UserEndpoints
 {
     public static RouteGroupBuilder MapUserEndpoints(this WebApplication app)
     {
+        var apiVersionSet = app.NewApiVersionSet()
+        .HasApiVersion(new ApiVersion(1, 0))
+        .ReportApiVersions()
+        .Build();
+
         var group = app.MapGroup("api/v{version:apiVersion}/lan/users")
-            .WithGroupName("v1")
-            .WithTags("Users");
+                .WithApiVersionSet(apiVersionSet)
+                .MapToApiVersion(new ApiVersion(1, 0))
+                .WithTags("Users");
 
         group.MapGet("/me", async (ClaimsPrincipal user, IUserService userService) =>
         {

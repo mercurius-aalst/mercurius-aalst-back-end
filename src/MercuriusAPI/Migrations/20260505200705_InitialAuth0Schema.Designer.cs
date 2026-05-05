@@ -12,15 +12,15 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Mercurius.LAN.API.Migrations
 {
     [DbContext(typeof(MercuriusDBContext))]
-    [Migration("20260505192247_AddAuth0ProfileLinkage")]
-    partial class AddAuth0ProfileLinkage
+    [Migration("20260505200705_InitialAuth0Schema")]
+    partial class InitialAuth0Schema
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.2")
+                .HasAnnotation("ProductVersion", "10.0.4")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);

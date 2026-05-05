@@ -26,6 +26,7 @@ public class Program
 
         builder.Services.ConfigureVersionedSwagger();
         builder.Services.AddServiceDependencies();
+        builder.Services.AddProblemDetails();
         builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 
         builder.Services.ConfigureHttpJsonOptions(options =>
@@ -34,14 +35,7 @@ public class Program
         });
 
         var auth0Settings = builder.Configuration.GetSection("Auth0");
-        var auth0Domain = auth0Settings["Domain"]?.TrimEnd('/');
         var auth0Authority = auth0Settings["Authority"]?.TrimEnd('/');
-        if (string.IsNullOrWhiteSpace(auth0Authority) && !string.IsNullOrWhiteSpace(auth0Domain))
-        {
-            auth0Authority = auth0Domain.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
-                ? auth0Domain
-                : $"https://{auth0Domain}";
-        }
 
         builder.Services.AddAuthentication(options =>
         {
@@ -61,10 +55,11 @@ public class Program
                 ValidateIssuerSigningKey = true,
                 RequireSignedTokens = true,
                 NameClaimType = "sub",
-                RoleClaimType = auth0Settings["RoleClaimType"] ?? "https://mercurius-aalst.be/roles",
+                RoleClaimType = auth0Settings["RoleClaimType"],
                 ValidAlgorithms = [SecurityAlgorithms.RsaSha256]
             };
         });
+        builder.Services.AddAuthorization();
 
         var jwtBuilder = new JWTBuilder(builder);
         jwtBuilder.AddJWTSecuredSwaggerGen(options =>

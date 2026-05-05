@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using Mercurius.LAN.API.DTOs.MatchDTOs;
 using Mercurius.LAN.API.Services.MatchServices;
 using Microsoft.AspNetCore.Authorization;
@@ -8,8 +9,13 @@ public static class MatchEndpoints
 {
     public static RouteGroupBuilder MapMatchEndpoints(this WebApplication app)
     {
+        var apiVersionSet = app.NewApiVersionSet()
+        .HasApiVersion(new ApiVersion(1, 0))
+        .ReportApiVersions()
+        .Build();
         var group = app.MapGroup("api/v{version:apiVersion}/lan/matches")
-            .WithGroupName("v1")
+            .WithApiVersionSet(apiVersionSet)
+            .MapToApiVersion(new ApiVersion(1, 0))
             .WithTags("Matches")
             .RequireAuthorization(new AuthorizeAttribute { Roles = "admin" });
 

@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using Mercurius.LAN.API.DTOs.SponsorDTOs;
 using Mercurius.LAN.API.Services.SponsorServices;
 using Microsoft.AspNetCore.Authorization;
@@ -9,8 +10,14 @@ public static class SponsorEndpoints
 {
     public static RouteGroupBuilder MapSponsorEndpoints(this WebApplication app)
     {
+        var apiVersionSet = app.NewApiVersionSet()
+        .HasApiVersion(new ApiVersion(1, 0))
+        .ReportApiVersions()
+        .Build();
+
         var group = app.MapGroup("api/v{version:apiVersion}/lan/sponsors")
-            .WithGroupName("v1")
+            .WithApiVersionSet(apiVersionSet)
+            .MapToApiVersion(new ApiVersion(1, 0))
             .WithTags("Sponsors")
             .RequireAuthorization(new AuthorizeAttribute { Roles = "admin" });
 

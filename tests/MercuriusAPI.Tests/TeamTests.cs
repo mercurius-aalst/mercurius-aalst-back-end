@@ -1,5 +1,6 @@
-using Mercurius.LAN.API.Exceptions;
+using Auth.Module.Exceptions;
 using Mercurius.LAN.API.Models;
+using Mercurius.Shared.Exceptions;
 
 namespace Mercurius.LAN.API.Tests;
 

@@ -1,4 +1,3 @@
-using Mercurius.LAN.API.Endpoints;
 using Mercurius.LAN.API.DTOs.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
@@ -8,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Mercurius.Shared.Services.Auth;
 using Auth.Module.Services;
 using Mercurius.Shared.DTOs.Auth;
+using Auth.Module.Endpoints;
 
 namespace Mercurius.LAN.API.Tests;
 

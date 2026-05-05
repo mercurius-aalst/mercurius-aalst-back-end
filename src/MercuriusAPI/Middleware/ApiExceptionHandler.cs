@@ -1,4 +1,5 @@
-using Mercurius.LAN.API.Exceptions;
+using Auth.Module.Exceptions;
+using Mercurius.Shared.Exceptions;
 using Microsoft.AspNetCore.Diagnostics;
 
 namespace Mercurius.LAN.API.Middleware;

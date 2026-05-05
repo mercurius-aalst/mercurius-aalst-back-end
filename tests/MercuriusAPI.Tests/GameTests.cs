@@ -1,6 +1,6 @@
 using Mercurius.LAN.API.DTOs.GameDTOs;
-using Mercurius.LAN.API.Exceptions;
 using Mercurius.LAN.API.Models;
+using Mercurius.Shared.Exceptions;
 using DataAnnotations = System.ComponentModel.DataAnnotations;
 
 namespace Mercurius.LAN.API.Tests;

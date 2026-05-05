@@ -1,7 +1,6 @@
 using Auth.Module.Services;
 using Auth.Module.Services.Login;
 using Auth.Module.Services.Token;
-using Mercurius.Shared.Services.Auth;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Auth.Module.Extensions;

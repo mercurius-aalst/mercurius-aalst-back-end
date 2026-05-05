@@ -1,11 +1,10 @@
+using Auth.Module.Services;
+using Mercurius.Shared.DTOs.Auth;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
-using Mercurius.LAN.API.DTOs.Auth;
-using Microsoft.AspNetCore.Authorization;
-using Mercurius.Shared.Services.Auth;
-using Auth.Module.Services;
 
-namespace Mercurius.LAN.API.Endpoints;
+namespace Auth.Module.Endpoints;
 
 public static class AuthEndpoints
 {

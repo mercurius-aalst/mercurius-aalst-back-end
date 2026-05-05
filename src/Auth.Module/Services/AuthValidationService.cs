@@ -1,5 +1,4 @@
-using Mercurius.LAN.API.DTOs.Auth;
-using Mercurius.LAN.API.Exceptions;
+using System.ComponentModel.DataAnnotations;
 using Mercurius.Shared.DTOs.Auth;
 
 namespace Auth.Module.Services;

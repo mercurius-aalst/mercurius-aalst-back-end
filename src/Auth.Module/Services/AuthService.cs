@@ -1,11 +1,11 @@
-using Mercurius.LAN.API.DTOs.Auth;
-using Mercurius.LAN.API.Exceptions;
-using Mercurius.Shared.Services.Auth;
-using Mercurius.Shared.Models.Auth;
-using Microsoft.EntityFrameworkCore;
+using Auth.Module.Exceptions;
 using Auth.Module.Services.Login;
 using Auth.Module.Services.Token;
 using Mercurius.Shared.DTOs.Auth;
+using Mercurius.Shared.Exceptions;
+using Mercurius.Shared.Models.Auth;
+using Mercurius.Shared.Services.Auth;
+using Microsoft.EntityFrameworkCore;
 
 namespace Auth.Module.Services;
 

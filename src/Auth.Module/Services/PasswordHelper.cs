@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 
-namespace Mercurius.LAN.API.Services.Auth;
+namespace Auth.Module.Services;
 
 public static class PasswordHelper
 {

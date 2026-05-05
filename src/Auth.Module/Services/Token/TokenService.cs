@@ -5,7 +5,7 @@ using Microsoft.IdentityModel.Tokens;
 using Mercurius.Shared.Models.Auth;
 using Microsoft.Extensions.Configuration;
 
-namespace Mercurius.LAN.API.Services.Auth.Token;
+namespace Auth.Module.Services.Token;
 
 public class TokenService : ITokenService
 {

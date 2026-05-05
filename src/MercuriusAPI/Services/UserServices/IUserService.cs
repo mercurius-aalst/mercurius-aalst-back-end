@@ -1,4 +1,5 @@
 using Mercurius.LAN.API.DTOs.Auth;
+using Mercurius.Shared.DTOs.Auth;
 
 namespace Mercurius.LAN.API.Services.UserServices;
 

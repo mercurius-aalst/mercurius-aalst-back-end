@@ -1,6 +1,7 @@
-using Mercurius.LAN.API.DTOs.Auth;
 
-namespace Mercurius.LAN.API.Services.Auth;
+using Mercurius.Shared.DTOs.Auth;
+
+namespace Auth.Module.Services;
 
 public interface IAuthService
 {

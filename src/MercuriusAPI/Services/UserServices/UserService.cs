@@ -3,8 +3,9 @@ using Mercurius.LAN.API.DTOs.Auth;
 using Mercurius.LAN.API.Exceptions;
 using Mercurius.Shared.Models.Auth;
 using Microsoft.EntityFrameworkCore;
-using Mercurius.LAN.API.Services.Auth;
 using Mercurius.LAN.API.Models;
+using Auth.Module.Services;
+using Mercurius.Shared.DTOs.Auth;
 
 namespace Mercurius.LAN.API.Services.UserServices;
 

@@ -1,6 +1,6 @@
 using Mercurius.Shared.Models.Auth;
 
-namespace Mercurius.LAN.API.Services.Auth.Token;
+namespace Auth.Module.Services.Token;
 
 public interface ITokenService
 {

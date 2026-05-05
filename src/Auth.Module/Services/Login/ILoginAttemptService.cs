@@ -1,4 +1,4 @@
-namespace Mercurius.LAN.API.Services.Auth.Login;
+namespace Auth.Module.Services.Login;
 
 public interface ILoginAttemptService
 {

@@ -1,12 +1,13 @@
 using Mercurius.LAN.API.DTOs.Auth;
 using Mercurius.LAN.API.Exceptions;
-using Mercurius.LAN.API.Services.Auth.Login;
-using Mercurius.LAN.API.Services.Auth.Token;
 using Mercurius.Shared.Services.Auth;
 using Mercurius.Shared.Models.Auth;
 using Microsoft.EntityFrameworkCore;
+using Auth.Module.Services.Login;
+using Auth.Module.Services.Token;
+using Mercurius.Shared.DTOs.Auth;
 
-namespace Mercurius.LAN.API.Services.Auth;
+namespace Auth.Module.Services;
 
 public class AuthService : IAuthService
 {

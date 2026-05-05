@@ -1,8 +1,9 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Mercurius.LAN.API.DTOs.Auth;
-using Mercurius.LAN.API.Services.Auth;
 using Microsoft.AspNetCore.Authorization;
+using Mercurius.Shared.Services.Auth;
+using Auth.Module.Services;
 
 namespace Mercurius.LAN.API.Endpoints;
 

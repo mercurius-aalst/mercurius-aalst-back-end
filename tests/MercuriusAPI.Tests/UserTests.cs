@@ -2,9 +2,11 @@ using Mercurius.LAN.API.DTOs.Auth;
 using Mercurius.LAN.API.Exceptions;
 using Mercurius.LAN.API.Models;
 using Mercurius.Shared.Models.Auth;
-using Mercurius.LAN.API.Services.Auth;
 using Mercurius.LAN.API.Services.UserServices;
 using Microsoft.Extensions.Configuration;
+using Mercurius.Shared.Services.Auth;
+using Auth.Module.Services;
+using Mercurius.Shared.DTOs.Auth;
 
 namespace Mercurius.LAN.API.Tests;
 

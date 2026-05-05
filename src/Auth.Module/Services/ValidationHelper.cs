@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace Mercurius.LAN.API.Services.Auth;
+namespace Auth.Module.Services;
 
 public static class ValidationHelper
 {

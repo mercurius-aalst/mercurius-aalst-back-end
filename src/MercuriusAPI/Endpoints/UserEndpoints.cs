@@ -1,8 +1,7 @@
-using Mercurius.LAN.API.DTOs.Auth;
-using Mercurius.LAN.API.Services.UserServices;
-using Mercurius.Shared.DTOs.Auth;
-using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
+using Mercurius.LAN.API.DTOs.UserDTOs;
+using Mercurius.LAN.API.Services.UserServices;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Mercurius.LAN.API.Endpoints;
 

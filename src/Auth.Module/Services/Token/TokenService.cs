@@ -1,8 +1,8 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using Auth.Module.Models;
 using Microsoft.IdentityModel.Tokens;
-using Mercurius.Shared.Models.Auth;
 using Microsoft.Extensions.Configuration;
 
 namespace Auth.Module.Services.Token;
@@ -17,13 +17,14 @@ public class TokenService : ITokenService
         _configuration = configuration;
     }
 
-    public string GenerateJwtToken(User user)
+    public string GenerateJwtToken(AuthUser user)
     {
         var jwtSettings = _configuration.GetSection("Jwt");
         var jwtKey = jwtSettings["Key"];
         var claims = new List<Claim>
         {
-            new Claim(ClaimTypes.Name, user.Username)
+            new Claim(ClaimTypes.Name, user.Username),
+            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString())
         };
         if (user.Roles != null)
         {

@@ -1,1 +1,1 @@
-global using User = Mercurius.Shared.Models.Auth.User;
+global using User = Mercurius.LAN.API.Models.User;

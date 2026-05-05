@@ -1,188 +1,139 @@
+using Auth.Module.Exceptions;
+using Auth.Module.Services.Users;
 using Mercurius.LAN.API.Data;
-using Mercurius.LAN.API.DTOs.Auth;
-using Mercurius.LAN.API.Exceptions;
-using Mercurius.Shared.Models.Auth;
+using Mercurius.LAN.API.DTOs.UserDTOs;
 using Microsoft.EntityFrameworkCore;
-using Mercurius.LAN.API.Models;
-using Auth.Module.Services;
-using Mercurius.Shared.DTOs.Auth;
-using Mercurius.Shared.Exceptions;
+using Microsoft.Extensions.Configuration;
+using MercuriusNotFoundException = Mercurius.Shared.Exceptions.NotFoundException;
+using MercuriusValidationException = Mercurius.Shared.Exceptions.ValidationException;
 
 namespace Mercurius.LAN.API.Services.UserServices;
 
 public class UserService : IUserService
 {
     private readonly MercuriusDBContext _dbContext;
+    private readonly UserProfileStore _userProfileStore;
+    private readonly IAuthUserService _authUserService;
 
-    public UserService(MercuriusDBContext dbContext)
+    public UserService(MercuriusDBContext dbContext, UserProfileStore userProfileStore, IAuthUserService authUserService)
     {
         _dbContext = dbContext;
+        _userProfileStore = userProfileStore;
+        _authUserService = authUserService;
     }
 
-    public async Task<IEnumerable<GetUserDTO>> GetAllUsersAsync()
-    {
-        return await _dbContext.Users.Include(u => u.Roles).Select(u => new GetUserDTO(u)).ToListAsync();
-    }
+    public Task<IEnumerable<GetUserDTO>> GetAllUsersAsync() => _userProfileStore.GetAllAsync();
 
     public async Task<GetUserDTO> CreateUserAsync(CreateUserProfileRequest request)
     {
-        var normalizedUsername = request.Username.Normalize();
+        if (await _userProfileStore.EmailExistsAsync(request.Email))
+            throw new MercuriusValidationException("Email already exists");
 
-        if (await _dbContext.Users.AnyAsync(u => u.Username == normalizedUsername))
-            throw new ValidationException("Username already exists");
+        var userId = await _authUserService.CreateAuthUserAsync(request.Username, request.Password);
+        await _userProfileStore.CreateAsync(request, userId);
 
-        if (await _dbContext.Users.AnyAsync(u => u.Email == request.Email))
-            throw new ValidationException("Email already exists");
-
-        PasswordHelper.CreatePasswordHash(request.Password, out var hash, out var salt);
-
-        var user = new User
-        {
-            Username = normalizedUsername,
-            PasswordHash = hash,
-            Salt = salt
-        };
-
-        user.UpdateProfile(request.Firstname, request.Lastname, request.Email, request.DiscordId, request.SteamId, request.RiotId);
-
-        _dbContext.Users.Add(user);
-        await _dbContext.SaveChangesAsync();
-
-        return new GetUserDTO(user);
+        return await _userProfileStore.GetByIdAsync(userId)
+            ?? throw new MercuriusNotFoundException($"User with ID {userId} not found.");
     }
 
     public async Task<GetUserDTO> GetUserByIdAsync(Guid id)
     {
-        var user = await _dbContext.Users.Include(u => u.Roles).FirstOrDefaultAsync(u => u.Id == id);
-        if (user == null)
-            throw new NotFoundException($"User with ID {id} not found.");
-        return new GetUserDTO(user);
+        return await _userProfileStore.GetByIdAsync(id)
+            ?? throw new MercuriusNotFoundException($"User with ID {id} not found.");
     }
 
     public async Task<GetUserDTO> UpdateUserAsync(Guid id, UpdateUserProfileRequest request)
     {
-        var user = await _dbContext.Users.Include(u => u.Roles).FirstOrDefaultAsync(u => u.Id == id);
+        var user = await _userProfileStore.GetByIdAsync(id);
         if (user == null)
-            throw new NotFoundException($"User with ID {id} not found.");
-
-        var normalizedUsername = request.Username.Normalize();
-
-        if (!string.Equals(user.Username, normalizedUsername, StringComparison.Ordinal) &&
-            await _dbContext.Users.AnyAsync(u => u.Username == normalizedUsername && u.Id != id))
-        {
-            throw new ValidationException("Username already exists");
-        }
+            throw new MercuriusNotFoundException($"User with ID {id} not found.");
 
         if (!string.Equals(user.Email, request.Email, StringComparison.OrdinalIgnoreCase) &&
-            await _dbContext.Users.AnyAsync(u => u.Email == request.Email && u.Id != id))
+            await _userProfileStore.EmailExistsAsync(request.Email, id))
         {
-            throw new ValidationException("Email already exists");
+            throw new MercuriusValidationException("Email already exists");
         }
 
-        user.Username = normalizedUsername;
-        user.UpdateProfile(request.Firstname, request.Lastname, request.Email, request.DiscordId, request.SteamId, request.RiotId);
+        await _authUserService.UpdateUsernameAsync(id, request.Username);
+        await _userProfileStore.UpdateAsync(id, request);
 
-        await _dbContext.SaveChangesAsync();
-
-        return new GetUserDTO(user);
+        return await _userProfileStore.GetByIdAsync(id)
+            ?? throw new MercuriusNotFoundException($"User with ID {id} not found.");
     }
 
     public async Task DeleteUserAsync(string username)
     {
         var normalizedUsername = username.Normalize();
-        var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Username == normalizedUsername);
+        var user = await _dbContext.AuthUsers.AsNoTracking().FirstOrDefaultAsync(authUser => authUser.Username == normalizedUsername);
         if (user == null)
-            throw new NotFoundException($"User '{username}' not found.");
+            throw new Auth.Module.Exceptions.NotFoundException($"User '{username}' not found.");
 
-        _dbContext.Users.Remove(user);
-        await _dbContext.SaveChangesAsync();
+        await _userProfileStore.DeleteAsync(user.Id);
+        await _authUserService.DeleteAuthUserAsync(user.Id);
     }
 
     public async Task DeleteUserByIdAsync(Guid id)
     {
-        var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == id);
-        if (user == null)
-            throw new NotFoundException($"User with ID {id} not found.");
-
-        _dbContext.Users.Remove(user);
-        await _dbContext.SaveChangesAsync();
+        await _userProfileStore.DeleteAsync(id);
+        await _authUserService.DeleteAuthUserAsync(id);
     }
 
     public async Task AddRoleToUserAsync(string username, AddUserRoleRequest request)
     {
         var normalizedUsername = username.Normalize();
-        var user = await _dbContext.Users.Include(u => u.Roles).FirstOrDefaultAsync(u => u.Username == normalizedUsername);
+        var user = await _dbContext.AuthUsers.AsNoTracking().FirstOrDefaultAsync(authUser => authUser.Username == normalizedUsername);
         if (user == null)
-            throw new NotFoundException($"User '{username}' not found.");
-        var role = await _dbContext.Roles.FirstOrDefaultAsync(r => r.Name == request.RoleName);
-        if (role == null)
-        {
-            role = new Role { Name = request.RoleName };
-            _dbContext.Roles.Add(role);
-            await _dbContext.SaveChangesAsync();
-        }
-        if (!user.Roles.Contains(role))
-        {
-            user.Roles.Add(role);
-            await _dbContext.SaveChangesAsync();
-        }
+            throw new Auth.Module.Exceptions.NotFoundException($"User '{username}' not found.");
+
+        await _authUserService.AddRoleToUserAsync(user.Id, request.RoleName);
     }
 
     public async Task DeleteRoleFromUserAsync(string username, string roleName)
     {
         var normalizedUsername = username.Normalize();
-        var user = await _dbContext.Users.Include(u => u.Roles).FirstOrDefaultAsync(u => u.Username == normalizedUsername);
+        var user = await _dbContext.AuthUsers.AsNoTracking().FirstOrDefaultAsync(authUser => authUser.Username == normalizedUsername);
         if (user == null)
-            throw new NotFoundException($"User '{username}' not found.");
-        var role = user.Roles.FirstOrDefault(r => r.Name == roleName);
-        if (role == null)
-            throw new NotFoundException($"Role '{roleName}' not found for user '{username}'.");
-        user.Roles.Remove(role);
-        await _dbContext.SaveChangesAsync();
+            throw new Auth.Module.Exceptions.NotFoundException($"User '{username}' not found.");
+
+        await _authUserService.RemoveRoleFromUserAsync(user.Id, roleName);
     }
 
-    public Task ChangePasswordAsync(string username, ChangePasswordRequest request)
+    public async Task ChangePasswordAsync(string username, ChangePasswordRequest request)
     {
         var normalizedUsername = username.Normalize();
-        var user = _dbContext.Users.FirstOrDefault(u => u.Username == normalizedUsername);
+        var user = await _dbContext.AuthUsers.AsNoTracking().FirstOrDefaultAsync(authUser => authUser.Username == normalizedUsername);
         if (user == null)
-            throw new NotFoundException($"User '{username}' not found.");
-        PasswordHelper.CreatePasswordHash(request.NewPassword, out var hash, out var salt);
-        user.PasswordHash = hash;
-        user.Salt = salt;
-        _dbContext.Users.Update(user);
-        return _dbContext.SaveChangesAsync();
+            throw new Auth.Module.Exceptions.NotFoundException($"User '{username}' not found.");
+
+        await _authUserService.ChangePasswordAsync(user.Id, request.CurrentPassword, request.NewPassword);
     }
 
     public async Task SeedInitialUserAsync(IConfiguration configuration)
     {
-        // Only seed if there are no users in the database
-        if (await _dbContext.Users.AnyAsync())
-            return;
+        await _authUserService.SeedInitialUserAsync(configuration);
+
         var initialUserSection = configuration.GetSection("InitialUser");
         var username = initialUserSection["Username"];
-        var password = initialUserSection["Password"];
-        var roleName = initialUserSection["Role"];
-        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password) || string.IsNullOrWhiteSpace(roleName))
+        if (string.IsNullOrWhiteSpace(username))
             return;
+
         var normalizedUsername = username.Normalize();
-        PasswordHelper.CreatePasswordHash(password, out var hash, out var salt);
-        var user = new User
+        var password = initialUserSection["Password"] ?? string.Empty;
+        var existingUser = await _dbContext.AuthUsers.AsNoTracking().FirstOrDefaultAsync(authUser => authUser.Username == normalizedUsername);
+        if (existingUser == null)
+            return;
+
+        var existingProfile = await _userProfileStore.GetByIdAsync(existingUser.Id);
+        if (existingProfile != null)
+            return;
+
+        await _userProfileStore.CreateAsync(new CreateUserProfileRequest
         {
             Username = normalizedUsername,
-            PasswordHash = hash,
-            Salt = salt,
-            Roles = new List<Role>()
-        };
-        var role = await _dbContext.Roles.FirstOrDefaultAsync(r => r.Name == roleName);
-        if (role == null)
-        {
-            role = new Role { Name = roleName };
-            _dbContext.Roles.Add(role);
-            await _dbContext.SaveChangesAsync();
-        }
-        user.Roles.Add(role);
-        _dbContext.Users.Add(user);
-        await _dbContext.SaveChangesAsync();
+            Password = password,
+            Firstname = normalizedUsername,
+            Lastname = normalizedUsername,
+            Email = $"{normalizedUsername}@local.invalid"
+        }, existingUser.Id);
     }
 }

@@ -1,5 +1,5 @@
-using Mercurius.LAN.API.DTOs.Auth;
-using Mercurius.Shared.DTOs.Auth;
+using Mercurius.LAN.API.DTOs.UserDTOs;
+using Microsoft.Extensions.Configuration;
 
 namespace Mercurius.LAN.API.Services.UserServices;
 

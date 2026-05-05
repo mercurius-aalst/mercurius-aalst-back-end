@@ -216,8 +216,7 @@ public class MatchTests
             Username = $"user{id}",
             Firstname = $"First{id}",
             Lastname = $"Last{id}",
-            Email = $"user{id}@example.test",
-            Roles = []
+            Email = $"user{id}@example.test"
         };
     }
 

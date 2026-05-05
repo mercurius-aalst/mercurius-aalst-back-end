@@ -2,4 +2,8 @@
 
 Shared domain models and contracts that are cohesive across modules.
 
-The immediate follow-up step is moving auth/user related entities to this project so both the API host and `Auth.Module` can depend on a common model layer.
+Current contents are intentionally small:
+
+- shared exception types used across the API and auth module
+
+Profile DTOs and auth models now live with the module that owns them.

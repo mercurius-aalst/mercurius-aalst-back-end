@@ -1,24 +1,17 @@
-using Mercurius.LAN.API.DTOs.Auth;
-using Mercurius.LAN.API.Exceptions;
 using Auth.Module.Services;
-using Mercurius.Shared.Services.Auth;
-using Mercurius.Shared.DTOs.Auth;
+using Mercurius.LAN.API.DTOs.UserDTOs;
+using Microsoft.Extensions.Configuration;
 using Mercurius.Shared.Exceptions;
 
 namespace Mercurius.LAN.API.Services.UserServices;
 
-/// <summary>
-/// Decorator for IUserService that performs input validation before delegating to the actual business logic.
-/// </summary>
 public class UserValidationService : IUserService
 {
     private readonly IUserService _inner;
-    private readonly IAuthService _authService;
 
-    public UserValidationService(IUserService inner, IAuthService authService)
+    public UserValidationService(IUserService inner)
     {
         _inner = inner;
-        _authService = authService;
     }
 
     public Task<GetUserDTO> CreateUserAsync(CreateUserProfileRequest request)
@@ -36,8 +29,7 @@ public class UserValidationService : IUserService
         if (string.IsNullOrWhiteSpace(username) || !ValidationHelper.IsUsernameValid(username))
             throw new ValidationException("Invalid username.");
 
-        var normalizedUsername = username.Normalize();
-        return _inner.DeleteUserAsync(normalizedUsername);
+        return _inner.DeleteUserAsync(username.Normalize());
     }
 
     public Task DeleteUserByIdAsync(Guid id)
@@ -52,22 +44,33 @@ public class UserValidationService : IUserService
     {
         if (request == null || string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(request.RoleName))
             throw new ValidationException("Username and role name are required.");
+
         if (!ValidationHelper.IsUsernameValid(username))
             throw new ValidationException("Username must be 3-32 alphanumeric characters.");
 
-        var normalizedUsername = username.Normalize();
-        return _inner.AddRoleToUserAsync(normalizedUsername, request);
+        return _inner.AddRoleToUserAsync(username.Normalize(), request);
     }
 
-    public async Task ChangePasswordAsync(string username, ChangePasswordRequest request)
+    public Task ChangePasswordAsync(string username, ChangePasswordRequest request)
     {
-        await _authService.LoginAsync(new LoginRequest { Password = request.CurrentPassword, Username = username });
+        if (string.IsNullOrWhiteSpace(username) || !ValidationHelper.IsUsernameValid(username))
+            throw new ValidationException("Invalid username.");
+
+        if (string.IsNullOrWhiteSpace(request.CurrentPassword))
+            throw new ValidationException("Current password is required.");
+
         if (!ValidationHelper.IsPasswordStrong(request.NewPassword))
             throw new ValidationException("Password must be at least 8 characters and include upper, lower, digit, and special character.");
+
         if (ValidationHelper.IsPasswordSame(request.CurrentPassword, request.NewPassword))
             throw new ValidationException("New password must be different from the old password.");
-        await _inner.ChangePasswordAsync(username, request);
+
+        return _inner.ChangePasswordAsync(username.Normalize(), request);
     }
+
+    public Task<IEnumerable<GetUserDTO>> GetAllUsersAsync() => _inner.GetAllUsersAsync();
+
+    public Task<GetUserDTO> GetUserByIdAsync(Guid id) => _inner.GetUserByIdAsync(id);
 
     public Task<GetUserDTO> UpdateUserAsync(Guid id, UpdateUserProfileRequest request)
     {
@@ -78,9 +81,17 @@ public class UserValidationService : IUserService
         return _inner.UpdateUserAsync(id, request);
     }
 
-    public Task<IEnumerable<GetUserDTO>> GetAllUsersAsync() => _inner.GetAllUsersAsync();
-    public Task<GetUserDTO> GetUserByIdAsync(Guid id) => _inner.GetUserByIdAsync(id);
-    public Task DeleteRoleFromUserAsync(string username, string roleName) => _inner.DeleteRoleFromUserAsync(username, roleName);
+    public Task DeleteRoleFromUserAsync(string username, string roleName)
+    {
+        if (string.IsNullOrWhiteSpace(username) || !ValidationHelper.IsUsernameValid(username))
+            throw new ValidationException("Invalid username.");
+
+        if (string.IsNullOrWhiteSpace(roleName))
+            throw new ValidationException("Role name is required.");
+
+        return _inner.DeleteRoleFromUserAsync(username.Normalize(), roleName);
+    }
+
     public Task SeedInitialUserAsync(IConfiguration configuration) => _inner.SeedInitialUserAsync(configuration);
 
     private static void ValidateProfileRequest(string username, string firstname, string lastname, string email)

@@ -1,12 +1,8 @@
-using Mercurius.LAN.API.DTOs.Auth;
-using Mercurius.LAN.API.Models;
-using Mercurius.Shared.Models.Auth;
+using Auth.Module.Models;
+using Mercurius.LAN.API.DTOs.UserDTOs;
 using Mercurius.LAN.API.Services.UserServices;
-using Microsoft.Extensions.Configuration;
-using Mercurius.Shared.Services.Auth;
-using Auth.Module.Services;
-using Mercurius.Shared.DTOs.Auth;
 using Mercurius.Shared.Exceptions;
+using Microsoft.Extensions.Configuration;
 
 namespace Mercurius.LAN.API.Tests;
 
@@ -47,11 +43,10 @@ public class UserTests
             Email = "playerone@test.com",
             DiscordId = "discord-1",
             SteamId = "steam-1",
-            RiotId = "riot-1",
-            Roles = [new Role { Name = "admin" }, new Role { Name = "captain" }]
+            RiotId = "riot-1"
         };
 
-        var dto = new GetUserDTO(user);
+        var dto = new GetUserDTO(user, ["admin", "captain"]);
 
         Assert.Equal(user.Id, dto.Id);
         Assert.Equal("playerone", dto.Username);
@@ -82,7 +77,7 @@ public class UserTests
     public async Task CreateUserAsync_ForwardsValidProfileRequest()
     {
         var inner = new RecordingUserService();
-        var service = new UserValidationService(inner, new StubAuthService());
+        var service = new UserValidationService(inner);
         var request = new CreateUserProfileRequest
         {
             Username = "ValidUser",
@@ -104,7 +99,7 @@ public class UserTests
     [Fact]
     public async Task CreateUserAsync_RejectsWeakPassword()
     {
-        var service = new UserValidationService(new RecordingUserService(), new StubAuthService());
+        var service = new UserValidationService(new RecordingUserService());
         var request = new CreateUserProfileRequest
         {
             Username = "ValidUser",
@@ -122,7 +117,7 @@ public class UserTests
     [Fact]
     public async Task UpdateUserAsync_RejectsInvalidIdentityPayload()
     {
-        var service = new UserValidationService(new RecordingUserService(), new StubAuthService());
+        var service = new UserValidationService(new RecordingUserService());
         var request = new UpdateUserProfileRequest
         {
             Username = "x",
@@ -139,7 +134,7 @@ public class UserTests
     [Fact]
     public async Task DeleteUserByIdAsync_RejectsNonPositiveIds()
     {
-        var service = new UserValidationService(new RecordingUserService(), new StubAuthService());
+        var service = new UserValidationService(new RecordingUserService());
 
         var exception = await Assert.ThrowsAsync<ValidationException>(() => service.DeleteUserByIdAsync(Guid.Empty));
 
@@ -155,9 +150,8 @@ public class UserTests
             Username = "ValidUser",
             Firstname = "Player",
             Lastname = "One",
-            Email = "playerone@test.com",
-            Roles = []
-        });
+            Email = "playerone@test.com"
+        }, []);
 
         public Task<GetUserDTO> CreateUserAsync(CreateUserProfileRequest request)
         {
@@ -176,23 +170,13 @@ public class UserTests
         public Task SeedInitialUserAsync(IConfiguration configuration) => Task.CompletedTask;
     }
 
-    private sealed class StubAuthService : IAuthService
-    {
-        public Task RegisterAsync(LoginRequest request) => Task.CompletedTask;
-        public Task<AuthTokenResponse> LoginAsync(LoginRequest request) => Task.FromResult(new AuthTokenResponse());
-        public Task<AuthTokenResponse> RefreshTokenAsync(RefreshTokenRequest request) => Task.FromResult(new AuthTokenResponse());
-        public Task RevokeRefreshTokenAsync(RevokeTokenRequest request) => Task.CompletedTask;
-
-    }
-
 
     [Fact]
     public void SocialFirstUser_HasNoLocalPasswordByDefault()
     {
-        var user = new User
+        var user = new AuthUser
         {
-            Username = "social-user",
-            Email = "social@test.com"
+            Username = "social-user"
         };
 
         Assert.Null(user.PasswordHash);

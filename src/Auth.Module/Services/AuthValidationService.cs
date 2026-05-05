@@ -1,5 +1,5 @@
-using Mercurius.Shared.DTOs.Auth;
-using Mercurius.Shared.Exceptions;
+using Auth.Module.Models;
+using Auth.Module.Exceptions;
 
 namespace Auth.Module.Services;
 

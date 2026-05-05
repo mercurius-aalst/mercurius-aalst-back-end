@@ -3,6 +3,10 @@ using Mercurius.Shared.Exceptions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using System.Net;
+using AuthNotFoundException = Auth.Module.Exceptions.NotFoundException;
+using AuthValidationException = Auth.Module.Exceptions.ValidationException;
+using SharedNotFoundException = Mercurius.Shared.Exceptions.NotFoundException;
+using SharedValidationException = Mercurius.Shared.Exceptions.ValidationException;
 
 namespace Mercurius.LAN.API.Exceptions;
 
@@ -10,17 +14,17 @@ public class ExceptionFilter : IActionFilter
 {
     public void OnActionExecuted(ActionExecutedContext context)
     {
-        if (context.Exception is NotFoundException entityNotFoundException)
+        if (context.Exception is AuthNotFoundException or SharedNotFoundException)
         {
-            context.Result = new ObjectResult(entityNotFoundException.Message)
+            context.Result = new ObjectResult(context.Exception.Message)
             {
                 StatusCode = (int)HttpStatusCode.NotFound
             };
             context.ExceptionHandled = true;
         }
-        else if (context.Exception is ValidationException validationException)
+        else if (context.Exception is AuthValidationException or SharedValidationException)
         {
-            context.Result = new ObjectResult(validationException.Message)
+            context.Result = new ObjectResult(context.Exception.Message)
             {
                 StatusCode = (int)HttpStatusCode.BadRequest
             };

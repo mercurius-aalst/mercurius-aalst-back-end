@@ -1,7 +1,7 @@
+using Auth.Module.Models;
 using Mercurius.LAN.API.Models;
 using Microsoft.EntityFrameworkCore;
-using Mercurius.Shared.Models.Auth;
-using Mercurius.Shared.Services.Auth;
+using Auth.Module.Persistence;
 
 namespace Mercurius.LAN.API.Data;
 
@@ -20,6 +20,8 @@ public partial class MercuriusDBContext : DbContext, IAuthDbContext
     public DbSet<Game> Games { get; set; }
     public DbSet<TeamInvite> TeamInvites { get; set; }
     public DbSet<User> Users { get; set; }
+    public DbSet<AuthUser> AuthUsers { get; set; }
+    public DbSet<ExternalIdentity> ExternalIdentities { get; set; }
     public DbSet<RefreshToken> RefreshTokens { get; set; }
     public DbSet<Role> Roles { get; set; }
     public DbSet<Placement> Placements { get; set; }
@@ -33,8 +35,31 @@ public partial class MercuriusDBContext : DbContext, IAuthDbContext
             entity.Property(e => e.Firstname).IsRequired();
             entity.Property(e => e.Lastname).IsRequired();
             entity.Property(e => e.Email).IsRequired();
+        });
+
+        modelBuilder.Entity<AuthUser>(entity =>
+        {
+            entity.ToTable("AuthUsers");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Username).IsRequired();
             entity.Property(e => e.PasswordHash).IsRequired(false);
             entity.Property(e => e.Salt).IsRequired(false);
+        });
+
+        modelBuilder.Entity<ExternalIdentity>(entity =>
+        {
+            entity.ToTable("ExternalIdentities");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Provider).IsRequired();
+            entity.Property(e => e.ProviderSubject).IsRequired();
+            entity.Property(e => e.Email).IsRequired(false);
+            entity.Property(e => e.LinkedAtUtc).IsRequired();
+            entity.HasIndex(e => new { e.Provider, e.ProviderSubject }).IsUnique();
+            entity.HasIndex(e => e.UserId);
+            entity.HasOne(e => e.User)
+                  .WithMany(user => user.ExternalIdentities)
+                  .HasForeignKey(e => e.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<Team>(entity =>
@@ -156,6 +181,12 @@ public partial class MercuriusDBContext : DbContext, IAuthDbContext
                   .WithMany(u => u.RefreshTokens)
                   .HasForeignKey(e => e.UserId)
                   .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Role>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).IsRequired();
         });
 
         modelBuilder.Entity<Placement>(entity =>

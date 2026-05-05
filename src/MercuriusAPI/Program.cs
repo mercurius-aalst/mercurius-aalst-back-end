@@ -4,13 +4,14 @@ using Imageflow.Server;
 using Mercurius.LAN.API.Data;
 using Mercurius.LAN.API.Endpoints;
 using Mercurius.LAN.API.Middleware;
-using Mercurius.LAN.API.Services.UserServices;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using System.Text.Json.Serialization;
 using Auth.Module.Endpoints;
+using Auth.Module.Persistence;
+using Mercurius.LAN.API.Services.UserServices;
 
 namespace Mercurius.LAN.API;
 
@@ -24,6 +25,7 @@ public class Program
 
         builder.Services.AddDbContext<MercuriusDBContext>(options =>
             options.UseNpgsql(builder.Configuration.GetConnectionString("MercuriusDB")));
+        builder.Services.AddScoped<IAuthDbContext>(serviceProvider => serviceProvider.GetRequiredService<MercuriusDBContext>());
 
         builder.Services.AddValidation();
 

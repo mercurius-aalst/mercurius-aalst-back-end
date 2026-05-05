@@ -1,13 +1,14 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace Mercurius.Shared.DTOs.Auth;
+namespace Auth.Module.Models;
 
 public class LoginRequest
 {
     [Required]
     [StringLength(100, MinimumLength = 1)]
-    public string Username { get; set; }
+    public string Username { get; set; } = string.Empty;
+
     [Required]
     [StringLength(200, MinimumLength = 1)]
-    public string Password { get; set; }
+    public string Password { get; set; } = string.Empty;
 }

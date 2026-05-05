@@ -1,10 +1,8 @@
 using Auth.Module.Exceptions;
+using Auth.Module.Models;
+using Auth.Module.Persistence;
 using Auth.Module.Services.Login;
 using Auth.Module.Services.Token;
-using Mercurius.Shared.DTOs.Auth;
-using Mercurius.Shared.Exceptions;
-using Mercurius.Shared.Models.Auth;
-using Mercurius.Shared.Services.Auth;
 using Microsoft.EntityFrameworkCore;
 
 namespace Auth.Module.Services;
@@ -26,12 +24,12 @@ public class AuthService : IAuthService
     {
         var normalizedUsername = request.Username.Normalize();
 
-        if (await _dbContext.Users.AnyAsync(u => u.Username == normalizedUsername))
+        if (await _dbContext.AuthUsers.AnyAsync(u => u.Username == normalizedUsername))
             throw new ValidationException("Username already exists");
 
         PasswordHelper.CreatePasswordHash(request.Password, out var hash, out var salt);
-        var user = new User { Username = normalizedUsername, PasswordHash = hash, Salt = salt };
-        _dbContext.Users.Add(user);
+        var user = new AuthUser { Username = normalizedUsername, PasswordHash = hash, Salt = salt };
+        _dbContext.AuthUsers.Add(user);
         await _dbContext.SaveChangesAsync();
     }
 
@@ -43,7 +41,7 @@ public class AuthService : IAuthService
         if (_loginAttemptService.IsLockedOut(normalizedUsername, now))
             throw new LockoutException();
 
-        var user = await _dbContext.Users
+        var user = await _dbContext.AuthUsers
             .Include(u => u.RefreshTokens)
             .Include(u => u.Roles)
             .FirstOrDefaultAsync(u => u.Username == normalizedUsername);

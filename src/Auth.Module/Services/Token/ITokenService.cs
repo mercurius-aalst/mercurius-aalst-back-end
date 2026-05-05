@@ -1,9 +1,9 @@
-using Mercurius.Shared.Models.Auth;
+using Auth.Module.Models;
 
 namespace Auth.Module.Services.Token;
 
 public interface ITokenService
 {
-    string GenerateJwtToken(User user);
+    string GenerateJwtToken(AuthUser user);
     RefreshToken GenerateRefreshToken(Guid userId);
 }

@@ -1,5 +1,4 @@
-
-using Mercurius.Shared.DTOs.Auth;
+using Auth.Module.Models;
 
 namespace Auth.Module.Services;
 

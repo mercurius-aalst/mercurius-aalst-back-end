@@ -1,6 +1,6 @@
-using Mercurius.Shared.Models.Auth;
+using Mercurius.Shared.Exceptions;
 
-namespace Mercurius.Shared.Models.Auth;
+namespace Mercurius.LAN.API.Models;
 
 public class User
 {
@@ -12,10 +12,6 @@ public class User
     public string? DiscordId { get; set; } = string.Empty;
     public string? SteamId { get; set; } = string.Empty;
     public string? RiotId { get; set; } = string.Empty;
-    public byte[]? PasswordHash { get; set; }
-    public byte[]? Salt { get; set; }
-    public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
-    public ICollection<Role> Roles { get; set; } = new List<Role>();
 
     public string DisplayName
     {
@@ -28,6 +24,10 @@ public class User
 
     public void UpdateProfile(string firstname, string lastname, string email, string? discordId, string? steamId, string? riotId)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(firstname);
+        ArgumentException.ThrowIfNullOrWhiteSpace(lastname);
+        ArgumentException.ThrowIfNullOrWhiteSpace(email);
+
         Firstname = firstname;
         Lastname = lastname;
         Email = email;

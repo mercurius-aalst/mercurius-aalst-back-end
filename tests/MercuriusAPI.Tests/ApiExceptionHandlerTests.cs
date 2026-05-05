@@ -28,8 +28,8 @@ public class ApiExceptionHandlerTests
 
     public static IEnumerable<object[]> KnownExceptions()
     {
-        yield return [new ValidationException("Validation failed."), StatusCodes.Status400BadRequest];
-        yield return [new NotFoundException("Missing."), StatusCodes.Status404NotFound];
+        yield return [new Auth.Module.Exceptions.ValidationException("Validation failed."), StatusCodes.Status400BadRequest];
+        yield return [new Auth.Module.Exceptions.NotFoundException("Missing."), StatusCodes.Status404NotFound];
         yield return [new InvalidCredentialsException("Nope."), StatusCodes.Status401Unauthorized];
         yield return [new LockoutException(), StatusCodes.Status423Locked];
         yield return [new UnauthorizedAccessException("Denied."), StatusCodes.Status401Unauthorized];

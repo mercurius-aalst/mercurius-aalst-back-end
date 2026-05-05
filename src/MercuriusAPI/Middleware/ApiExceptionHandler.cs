@@ -1,6 +1,10 @@
 using Auth.Module.Exceptions;
 using Mercurius.Shared.Exceptions;
 using Microsoft.AspNetCore.Diagnostics;
+using AuthNotFoundException = Auth.Module.Exceptions.NotFoundException;
+using AuthValidationException = Auth.Module.Exceptions.ValidationException;
+using SharedNotFoundException = Mercurius.Shared.Exceptions.NotFoundException;
+using SharedValidationException = Mercurius.Shared.Exceptions.ValidationException;
 
 namespace Mercurius.LAN.API.Middleware;
 
@@ -10,8 +14,8 @@ public sealed class ApiExceptionHandler : IExceptionHandler
     {
         var statusCode = exception switch
         {
-            NotFoundException => StatusCodes.Status404NotFound,
-            ValidationException => StatusCodes.Status400BadRequest,
+            AuthNotFoundException or SharedNotFoundException => StatusCodes.Status404NotFound,
+            AuthValidationException or SharedValidationException => StatusCodes.Status400BadRequest,
             InvalidCredentialsException => StatusCodes.Status401Unauthorized,
             LockoutException => StatusCodes.Status423Locked,
             UnauthorizedAccessException => StatusCodes.Status401Unauthorized,

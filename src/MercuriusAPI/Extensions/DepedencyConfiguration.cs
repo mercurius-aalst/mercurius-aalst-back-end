@@ -1,5 +1,7 @@
+using Auth.Module.Persistence;
 using Asp.Versioning;
 using Asp.Versioning.ApiExplorer;
+using Mercurius.LAN.API.Data;
 using Mercurius.LAN.API.Services.Files;
 using Mercurius.LAN.API.Services.GameServices;
 using Mercurius.LAN.API.Services.MatchServices;
@@ -54,13 +56,15 @@ public static class DepedencyConfiguration
 
     public static IServiceCollection AddServiceDependencies(this IServiceCollection services)
     {
+        services.AddScoped<UserProfileStore>();
+        services.AddScoped<IExternalUserProfileProvisioner, ExternalUserProfileProvisioner>();
+        services.AddTransient<IUserService, UserService>();
+        services.Decorate<IUserService, UserValidationService>();
+
         services.AddTransient<ITeamService, TeamService>();
         services.AddTransient<IGameService, GameService>();
         services.AddTransient<IMatchService, MatchService>();
         services.AddTransient<ISponsorService, SponsorService>();
-
-        services.AddTransient<IUserService, UserService>();
-        services.Decorate<IUserService, UserValidationService>();
 
         services.AddTransient<IFileService, FileService>();
         services.Decorate<IFileService, FileValidationService>();

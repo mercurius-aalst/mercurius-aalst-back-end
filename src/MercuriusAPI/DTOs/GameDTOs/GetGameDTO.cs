@@ -1,7 +1,7 @@
 using Mercurius.LAN.API.DTOs.MatchDTOs;
 using Mercurius.LAN.API.DTOs.PlacementDTOs;
 using Mercurius.LAN.API.DTOs.TeamDTOs;
-using Mercurius.LAN.API.DTOs.Auth;
+using Mercurius.LAN.API.DTOs.UserDTOs;
 using Mercurius.LAN.API.Models;
 
 namespace Mercurius.LAN.API.DTOs.GameDTOs;

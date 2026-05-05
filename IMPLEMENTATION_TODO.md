@@ -4,7 +4,7 @@
 > 
 > This plan re-aligns implementation with the previously agreed analysis/architecture direction:
 > - API remains source of truth for users/roles/permissions.
-> - External auth via OIDC (Google first), API-managed flow.
+> - External auth via OIDC, API-managed flow with reusable provider strategies.
 > - Internal JWT + refresh tokens remain in use.
 > - Move auth endpoints + auth DI registration into `Auth.Module`.
 > - Keep user/profile data in `User`; keep `ExternalIdentity` minimal for linking/auth.
@@ -27,7 +27,7 @@
 - [x] User/profile CRUD now lives in `MercuriusAPI`.
 - [x] `Auth.Module` no longer contains profile DTOs/endpoints/store abstractions.
 - [x] `ExternalIdentity` model/migration implemented.
-- [x] Google OIDC external flow implemented.
+- [x] OIDC external flow generalized to reusable provider strategies.
 - [x] Link/unlink provider flows implemented.
 
 ---
@@ -119,7 +119,7 @@ Introduce minimal external identity model for auth/linking.
 
 ---
 
-## Phase 4 — Google OIDC login (API-managed) + internal token issuance
+## Phase 4 — OIDC login (API-managed) + internal token issuance
 
 ### Goal
 Implement external authentication via API-managed OIDC flow.
@@ -135,7 +135,7 @@ Implement external authentication via API-managed OIDC flow.
 5. [ ] Add deeper success/failure path tests beyond endpoint/state model coverage.
 
 ### Exit criteria
-- Users can authenticate via Google and receive internal tokens.
+- Users can authenticate via configured OIDC providers and receive internal tokens.
 
 ---
 
@@ -162,7 +162,7 @@ Finalize security/operational readiness.
 
 ### Steps
 1. [x] Add structured audit logs for login/link/unlink outcomes.
-2. [x] Verify state/nonce expiration and token validation edge cases. Redirect handling uses a fixed configured Google redirect URI rather than caller-supplied redirects.
+2. [x] Verify state/nonce expiration and token validation edge cases. Redirect handling uses fixed configured provider redirect URIs rather than caller-supplied redirects.
 3. [x] Review config/secrets handling for provider credentials.
 4. [x] Run full verification:
    - `dotnet restore`
@@ -189,3 +189,4 @@ Finalize security/operational readiness.
 - 2026-05-05: Phase 2.5C completed (moved user profile DTOs/services/endpoints to `MercuriusAPI` and removed profile concerns from `Auth.Module`).
 - 2026-05-05: Phase 3 completed (`ExternalIdentity` entity, EF mapping, migration, and model tests added).
 - 2026-05-05: Phase 4/5 implemented (Google OIDC login start/callback, auto-provisioning minimal profiles, provider link/unlink endpoints, and last-sign-in-method guard).
+- 2026-05-05: Generalized external auth to strategy-backed OIDC providers with config-driven provider discovery, reusable `/external/{provider}/...` endpoints, and provider registry/provider tests.

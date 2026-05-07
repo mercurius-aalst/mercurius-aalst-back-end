@@ -13,7 +13,7 @@ public static class MatchEndpoints
         .HasApiVersion(new ApiVersion(1, 0))
         .ReportApiVersions()
         .Build();
-        var group = app.MapGroup("api/v{version:apiVersion}/lan/matches")
+        var group = app.MapGroup("v{version:apiVersion}/lan/matches")
             .WithApiVersionSet(apiVersionSet)
             .MapToApiVersion(new ApiVersion(1, 0))
             .WithTags("Matches")

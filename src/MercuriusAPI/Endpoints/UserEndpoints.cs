@@ -15,7 +15,7 @@ public static class UserEndpoints
         .ReportApiVersions()
         .Build();
 
-        var group = app.MapGroup("api/v{version:apiVersion}/lan/users")
+        var group = app.MapGroup("v{version:apiVersion}/lan/users")
                 .WithApiVersionSet(apiVersionSet)
                 .MapToApiVersion(new ApiVersion(1, 0))
                 .WithTags("Users");

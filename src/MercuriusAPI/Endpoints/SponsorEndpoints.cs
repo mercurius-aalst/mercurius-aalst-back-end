@@ -15,7 +15,7 @@ public static class SponsorEndpoints
         .ReportApiVersions()
         .Build();
 
-        var group = app.MapGroup("api/v{version:apiVersion}/lan/sponsors")
+        var group = app.MapGroup("v{version:apiVersion}/lan/sponsors")
             .WithApiVersionSet(apiVersionSet)
             .MapToApiVersion(new ApiVersion(1, 0))
             .WithTags("Sponsors")

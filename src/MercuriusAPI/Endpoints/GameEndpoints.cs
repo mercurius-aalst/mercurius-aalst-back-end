@@ -16,7 +16,7 @@ public static class GameEndpoints
                 .ReportApiVersions()
                 .Build();
 
-        var group = app.MapGroup("api/v{version:apiVersion}/lan/games")
+        var group = app.MapGroup("v{version:apiVersion}/lan/games")
             .WithApiVersionSet(apiVersionSet)
             .MapToApiVersion(new ApiVersion(1, 0))
             .WithTags("Games")

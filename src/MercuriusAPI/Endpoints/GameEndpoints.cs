@@ -37,12 +37,12 @@ public static class GameEndpoints
         group.MapPost("/", async ([FromForm] CreateGameDTO createGameDTO, IGameService gameService) =>
         {
             return await gameService.CreateGameAsync(createGameDTO);
-        });
+        }).DisableAntiforgery();
 
         group.MapPatch("/{id}", async (Guid id, [FromForm] UpdateGameDTO updateGameDTO, IGameService gameService) =>
         {
             return await gameService.UpdateGameAsync(id, updateGameDTO);
-        });
+        }).DisableAntiforgery();
 
         group.MapDelete("/{id}", async (Guid id, IGameService gameService) =>
         {

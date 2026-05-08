@@ -36,12 +36,12 @@ public static class SponsorEndpoints
         group.MapPost("/", async ([FromForm] CreateSponsorDTO sponsorDTO, ISponsorService sponsorService) =>
         {
             return await sponsorService.CreateSponsorAsync(sponsorDTO);
-        });
+        }).DisableAntiforgery();
 
         group.MapPatch("/{id}", async (int id, [FromForm] UpdateSponsorDTO value, ISponsorService sponsorService) =>
         {
             return await sponsorService.UpdateSponsorAsync(id, value);
-        });
+        }).DisableAntiforgery();
 
         group.MapDelete("/{id}", async (int id, ISponsorService sponsorService) =>
         {

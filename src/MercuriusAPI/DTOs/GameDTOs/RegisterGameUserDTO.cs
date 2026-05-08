@@ -4,6 +4,6 @@ namespace Mercurius.LAN.API.DTOs.GameDTOs;
 
 public class RegisterGameUserDTO
 {
-    [Range(1, int.MaxValue)]
+    [Required]
     public Guid UserId { get; set; }
 }

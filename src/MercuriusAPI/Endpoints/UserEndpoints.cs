@@ -22,13 +22,43 @@ public static class UserEndpoints
 
         group.MapGet("/me", async (ClaimsPrincipal user, IUserService userService) =>
         {
-            return await userService.GetCurrentUserAsync(GetAuth0Subject(user));
+            return await userService.GetCurrentUserAsync(GetAuth0UserId(user));
+        })
+        .RequireAuthorization();
+
+        group.MapPatch("/me", async (UpdateUserProfileRequest request, ClaimsPrincipal user, IUserService userService) =>
+        {
+            return await userService.UpdateCurrentUserAsync(GetAuth0UserId(user), request);
         })
         .RequireAuthorization();
 
         group.MapPost("/me/complete-profile", async (CompleteUserProfileRequest request, ClaimsPrincipal user, IUserService userService) =>
         {
-            return await userService.CompleteProfileAsync(GetAuth0Subject(user), request);
+            return await userService.CompleteProfileAsync(GetAuth0UserId(user), request);
+        })
+        .RequireAuthorization();
+
+        group.MapGet("/me/username-availability", async (string username, ClaimsPrincipal user, IUserService userService) =>
+        {
+            return await userService.CheckUsernameAvailabilityAsync(GetAuth0UserId(user), username);
+        })
+        .RequireAuthorization();
+
+        group.MapPost("/me/resend-verification-email", async (ClaimsPrincipal user, IUserService userService) =>
+        {
+            return await userService.ResendVerificationEmailAsync(GetAuth0UserId(user));
+        })
+        .RequireAuthorization();
+
+        group.MapPost("/me/password-reset", async (ClaimsPrincipal user, IUserService userService) =>
+        {
+            return await userService.SendPasswordResetEmailAsync(GetAuth0UserId(user));
+        })
+        .RequireAuthorization();
+
+        group.MapDelete("/me", async (ClaimsPrincipal user, IUserService userService) =>
+        {
+            return await userService.AnonymizeCurrentUserAsync(GetAuth0UserId(user));
         })
         .RequireAuthorization();
 
@@ -68,11 +98,11 @@ public static class UserEndpoints
         return group;
     }
 
-    private static string GetAuth0Subject(ClaimsPrincipal user)
+    private static string GetAuth0UserId(ClaimsPrincipal user)
     {
         var subject = user.FindFirstValue("sub") ?? user.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrWhiteSpace(subject))
-            throw new UnauthorizedAccessException("Authenticated user subject is missing.");
+            throw new UnauthorizedAccessException("Authenticated user id is missing.");
 
         return subject;
     }

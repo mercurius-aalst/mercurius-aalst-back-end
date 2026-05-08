@@ -5,7 +5,7 @@ namespace Mercurius.LAN.API.DTOs.Auth;
 public class CompleteUserProfileRequest
 {
     [Required]
-    [StringLength(100, MinimumLength = 1)]
+    [StringLength(32, MinimumLength = 3)]
     public string Username { get; set; }
 
     [Required]
@@ -15,11 +15,6 @@ public class CompleteUserProfileRequest
     [Required]
     [StringLength(100, MinimumLength = 1)]
     public string Lastname { get; set; }
-
-    [Required]
-    [EmailAddress]
-    [StringLength(254)]
-    public string Email { get; set; }
 
     [StringLength(100)]
     public string? DiscordId { get; set; }

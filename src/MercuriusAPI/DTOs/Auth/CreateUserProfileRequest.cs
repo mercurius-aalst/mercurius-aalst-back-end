@@ -4,12 +4,11 @@ namespace Mercurius.LAN.API.DTOs.Auth;
 
 public class CreateUserProfileRequest
 {
-    [Required]
     [StringLength(200, MinimumLength = 1)]
-    public string Auth0Subject { get; set; }
+    public string Auth0UserId { get; set; } = string.Empty;
 
     [Required]
-    [StringLength(100, MinimumLength = 1)]
+    [StringLength(32, MinimumLength = 3)]
     public string Username { get; set; }
 
     [Required]
@@ -20,10 +19,11 @@ public class CreateUserProfileRequest
     [StringLength(100, MinimumLength = 1)]
     public string Lastname { get; set; }
 
-    [Required]
     [EmailAddress]
     [StringLength(254)]
-    public string Email { get; set; }
+    public string? Email { get; set; }
+
+    public bool EmailVerified { get; set; }
 
     [StringLength(100)]
     public string? DiscordId { get; set; }
@@ -33,4 +33,6 @@ public class CreateUserProfileRequest
 
     [StringLength(100)]
     public string? RiotId { get; set; }
+
+    public string EffectiveAuth0UserId => Auth0UserId;
 }

@@ -25,12 +25,21 @@ public partial class MercuriusDBContext : DbContext
     {
         modelBuilder.Entity<User>(entity =>
         {
-            entity.HasIndex(e => e.Auth0Subject).IsUnique();
-            entity.Property(e => e.Auth0Subject).IsRequired();
-            entity.Property(e => e.Username).IsRequired();
-            entity.Property(e => e.Firstname).IsRequired();
-            entity.Property(e => e.Lastname).IsRequired();
-            entity.Property(e => e.Email).IsRequired();
+            entity.HasIndex(e => e.Auth0UserId).IsUnique();
+            entity.HasIndex(e => e.NormalizedUsername)
+                  .IsUnique()
+                  .HasFilter("\"NormalizedUsername\" IS NOT NULL AND \"IsDeleted\" = false");
+            entity.Property(e => e.Auth0UserId).IsRequired().HasMaxLength(200);
+            entity.Property(e => e.Username).HasMaxLength(32);
+            entity.Property(e => e.NormalizedUsername).HasMaxLength(32);
+            entity.Property(e => e.Firstname).HasMaxLength(100);
+            entity.Property(e => e.Lastname).HasMaxLength(100);
+            entity.Property(e => e.Email).HasMaxLength(254);
+            entity.Property(e => e.DiscordId).HasMaxLength(100);
+            entity.Property(e => e.SteamId).HasMaxLength(100);
+            entity.Property(e => e.RiotId).HasMaxLength(100);
+            entity.Property(e => e.CreatedAtUtc).IsRequired();
+            entity.Property(e => e.UpdatedAtUtc).IsRequired();
         });
 
         modelBuilder.Entity<Team>(entity =>

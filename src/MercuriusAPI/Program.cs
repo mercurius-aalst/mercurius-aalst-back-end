@@ -3,6 +3,8 @@ using Mercurius.LAN.API.Data;
 using Mercurius.LAN.API.Endpoints;
 using Mercurius.LAN.API.Extensions;
 using Mercurius.LAN.API.Middleware;
+using Mercurius.LAN.API.Options;
+using Mercurius.LAN.API.Services.Auth0;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -26,6 +28,8 @@ public class Program
 
         builder.Services.ConfigureVersionedSwagger();
         builder.Services.AddServiceDependencies();
+        builder.Services.Configure<Auth0ManagementOptions>(builder.Configuration.GetSection(Auth0ManagementOptions.SectionName));
+        builder.Services.AddHttpClient<IAuth0ManagementService, Auth0ManagementService>();
         builder.Services.AddProblemDetails();
         builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 

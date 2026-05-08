@@ -1,11 +1,82 @@
 using System.Text.RegularExpressions;
+using Mercurius.LAN.API.Exceptions;
 
 namespace Mercurius.LAN.API.Services.UserServices;
 
 public static class UserProfileValidationHelper
 {
+    private static readonly Regex UsernameRegex = new("^[a-zA-Z0-9]{3,32}$", RegexOptions.Compiled);
+    private static readonly HashSet<string> ReservedUsernames = new(StringComparer.Ordinal)
+    {
+        "account",
+        "accounts",
+        "admin",
+        "administrator",
+        "api",
+        "auth",
+        "completeprofile",
+        "deleted",
+        "deleteduser",
+        "login",
+        "logout",
+        "me",
+        "mercurius",
+        "profile",
+        "root",
+        "support",
+        "system",
+        "user",
+        "users"
+    };
+
     public static bool IsUsernameValid(string username)
     {
-        return Regex.IsMatch(username, "^[a-zA-Z0-9]{3,32}$");
+        return UsernameRegex.IsMatch((username ?? string.Empty).Trim());
+    }
+
+    public static bool IsReservedUsername(string username)
+    {
+        var normalizedUsername = NormalizeUsername(username);
+        return ReservedUsernames.Contains(normalizedUsername);
+    }
+
+    public static string NormalizeUsername(string username)
+    {
+        if (string.IsNullOrWhiteSpace(username))
+            return string.Empty;
+
+        return username.Trim().ToLowerInvariant();
+    }
+
+    public static string NormalizeRequiredText(string value, string fieldName)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            throw new ValidationException($"{fieldName} is required.");
+
+        var normalized = value.Trim();
+        if (ContainsControlCharacters(normalized))
+            throw new ValidationException($"{fieldName} cannot contain control characters.");
+
+        return normalized;
+    }
+
+    public static string? NormalizeOptionalPlatformId(string? value, string fieldName)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+
+        var normalized = value.Trim();
+        if (normalized.Length > 100)
+            throw new ValidationException($"{fieldName} cannot exceed 100 characters.");
+
+        if (ContainsControlCharacters(normalized))
+            throw new ValidationException($"{fieldName} cannot contain control characters.");
+
+        return normalized;
+    }
+
+    private static bool ContainsControlCharacters(string value)
+    {
+        return value.Any(char.IsControl);
     }
 }

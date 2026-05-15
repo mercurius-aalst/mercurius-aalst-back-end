@@ -1,5 +1,6 @@
 using Mercurius.LAN.API.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace Mercurius.LAN.API.Data;
 
@@ -20,9 +21,13 @@ public partial class MercuriusDBContext : DbContext
     public DbSet<User> Users { get; set; }
     public DbSet<Placement> Placements { get; set; }
     public DbSet<Sponsor> Sponsors { get; set; }
+    public DbSet<GameSponsorPlacement> GameSponsorPlacements { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        var sponsorTierConverter = new EnumToStringConverter<SponsorTier>();
+        var sponsorContextConverter = new EnumToStringConverter<SponsorContext>();
+
         modelBuilder.Entity<User>(entity =>
         {
             entity.HasIndex(e => e.Auth0UserId).IsUnique();
@@ -109,6 +114,10 @@ public partial class MercuriusDBContext : DbContext
             entity.Property(e => e.Name).IsRequired();
             entity.Property(e => e.StartTime).IsRequired();
             entity.Property(e => e.EndTime).IsRequired();
+            entity.HasMany(e => e.SponsorPlacements)
+                  .WithOne(e => e.Game)
+                  .HasForeignKey(e => e.GameId)
+                  .OnDelete(DeleteBehavior.Cascade);
             entity.HasMany(e => e.RegisteredUsers)
                   .WithMany()
                   .UsingEntity<Dictionary<string, object>>(
@@ -194,7 +203,34 @@ public partial class MercuriusDBContext : DbContext
             entity.Property(e => e.Name).IsRequired();
             entity.Property(e => e.LogoUrl).IsRequired();
             entity.Property(e => e.InfoUrl).IsRequired();
-            entity.Property(e => e.SponsorTier).IsRequired();
+            entity.Property(e => e.Description).HasMaxLength(1200);
+            entity.Property(e => e.SponsorTier)
+                  .HasConversion(sponsorTierConverter)
+                  .IsRequired();
+            entity.HasMany(e => e.GameSponsorPlacements)
+                  .WithOne(e => e.Sponsor)
+                  .HasForeignKey(e => e.SponsorId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<GameSponsorPlacement>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Context)
+                  .HasConversion(sponsorContextConverter)
+                  .IsRequired();
+            entity.Property(e => e.Headline).HasMaxLength(160);
+            entity.Property(e => e.SupportLine).HasMaxLength(220);
+            entity.Property(e => e.DisplayOrder).IsRequired();
+            entity.HasOne(e => e.Game)
+                  .WithMany(e => e.SponsorPlacements)
+                  .HasForeignKey(e => e.GameId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Sponsor)
+                  .WithMany(e => e.GameSponsorPlacements)
+                  .HasForeignKey(e => e.SponsorId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(e => new { e.GameId, e.Context, e.DisplayOrder, e.Id });
         });
 
         OnModelCreatingPartial(modelBuilder);

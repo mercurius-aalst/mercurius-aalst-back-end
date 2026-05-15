@@ -15,6 +15,7 @@ public class Game
     public ParticipationMode ParticipationMode { get; set; }
 
     public IList<Placement> Placements { get; set; } = [];
+    public IList<GameSponsorPlacement> SponsorPlacements { get; set; } = [];
 
     public IList<Match> Matches { get; set; } = new List<Match>();
     public IList<User> RegisteredUsers { get; set; } = [];

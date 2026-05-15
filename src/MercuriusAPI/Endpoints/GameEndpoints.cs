@@ -49,6 +49,11 @@ public static class GameEndpoints
             await gameService.DeleteGameAsync(id);
         });
 
+        group.MapPut("/{id}/sponsors", async (Guid id, ReplaceGameSponsorsDTO sponsorDTO, IGameService gameService) =>
+        {
+            return await gameService.ReplaceSponsorPlacementsAsync(id, sponsorDTO);
+        });
+
         group.MapPost("/{id}/users", async (Guid id, RegisterGameUserDTO registrationDTO, IGameService gameService) =>
         {
             return await gameService.RegisterUserAsync(id, registrationDTO.UserId);

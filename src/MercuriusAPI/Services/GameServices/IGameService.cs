@@ -6,17 +6,18 @@ namespace Mercurius.LAN.API.Services.GameServices;
 
 public interface IGameService
 {
-    Task CancelGameAsync(int id);
-    Task<IEnumerable<GetPlacementDTO>> CompleteGameAsync(int id);
+    Task CancelGameAsync(Guid id);
+    Task<IEnumerable<GetPlacementDTO>> CompleteGameAsync(Guid id);
     Task<GetGameDTO> CreateGameAsync(CreateGameDTO createGameDTO);
-    Task DeleteGameAsync(int id);
+    Task DeleteGameAsync(Guid id);
     IEnumerable<GetGameDTO> GetAllGames();
-    Task<Game> GetGameByIdAsync(int gameId);
-    Task<GetGameDTO> RegisterUserAsync(int id, int userId);
-    Task<GetGameDTO> RegisterTeamAsync(int id, int teamId);
-    Task ResetGameAsync(int id);
-    Task StartGameAsync(int id);
-    Task<GetGameDTO> UnregisterUserAsync(int id, int userId);
-    Task<GetGameDTO> UnregisterTeamAsync(int id, int teamId);
-    Task<GetGameDTO> UpdateGameAsync(int id, UpdateGameDTO gameDTO);
+    Task<Game> GetGameByIdAsync(Guid gameId);
+    Task<GetGameDTO> RegisterUserAsync(Guid id, Guid userId);
+    Task<GetGameDTO> RegisterTeamAsync(Guid id, Guid teamId);
+    Task<GetGameDTO> ReplaceSponsorPlacementsAsync(Guid id, ReplaceGameSponsorsDTO sponsorDTO);
+    Task ResetGameAsync(Guid id);
+    Task StartGameAsync(Guid id);
+    Task<GetGameDTO> UnregisterUserAsync(Guid id, Guid userId);
+    Task<GetGameDTO> UnregisterTeamAsync(Guid id, Guid teamId);
+    Task<GetGameDTO> UpdateGameAsync(Guid id, UpdateGameDTO gameDTO);
 }

@@ -8,7 +8,7 @@ namespace Mercurius.LAN.API.DTOs.GameDTOs;
 
 public class GetGameDTO
 {
-    public int Id { get; set; }
+    public Guid Id { get; set; }
     public string Name { get; set; }
     public DateTime StartTime { get; set; }
     public DateTime EndTime { get; set; }
@@ -21,6 +21,7 @@ public class GetGameDTO
 
     public string RegisterFormUrl { get; set; }
     public IEnumerable<GetPlacementDTO> Placements { get; set; } = [];
+    public GetGameSponsorPlacementDTO? SponsorPlacement { get; set; }
 
     public IEnumerable<GetMatchDTO> Matches { get; set; } = [];
     public IEnumerable<GetUserDTO> Users { get; set; } = [];
@@ -40,6 +41,9 @@ public class GetGameDTO
         RegisterFormUrl = game.RegisterFormUrl;
         ParticipationMode = game.ParticipationMode;
         Placements = game.Placements.Select(p => new GetPlacementDTO(p, game.ParticipationMode));
+        SponsorPlacement = game.SponsorPlacement is null
+            ? null
+            : new GetGameSponsorPlacementDTO(game.SponsorPlacement);
         Matches = game.Matches.Select(m => new GetMatchDTO(m));
         switch (ParticipationMode)
         {

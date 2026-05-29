@@ -37,7 +37,7 @@ public class RoundRobinMatchModerator : IMatchModerator
         };
     }
 
-    private void DeterminePlacements<TParticipant>(Game game, List<TParticipant> participants, Func<TParticipant, int> getId, Func<TParticipant, Placement> createPlacement)
+    private void DeterminePlacements<TParticipant>(Game game, List<TParticipant> participants, Func<TParticipant, Guid> getId, Func<TParticipant, Placement> createPlacement)
         where TParticipant : class
     {
         if (participants.Count == 0)

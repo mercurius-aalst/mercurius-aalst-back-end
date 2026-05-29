@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using Mercurius.LAN.API.DTOs.Auth;
 using Mercurius.LAN.API.Services.UserServices;
 using Microsoft.AspNetCore.Authorization;
@@ -9,61 +10,100 @@ public static class UserEndpoints
 {
     public static RouteGroupBuilder MapUserEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("api/v{version:apiVersion}/lan/users")
-            .WithGroupName("v1")
-            .WithTags("Users")
+        var apiVersionSet = app.NewApiVersionSet()
+        .HasApiVersion(new ApiVersion(1, 0))
+        .ReportApiVersions()
+        .Build();
+
+        var group = app.MapGroup("v{version:apiVersion}/lan/users")
+                .WithApiVersionSet(apiVersionSet)
+                .MapToApiVersion(new ApiVersion(1, 0))
+                .WithTags("Users");
+
+        group.MapGet("/me", async (ClaimsPrincipal user, IUserService userService) =>
+        {
+            return await userService.GetCurrentUserAsync(GetAuth0UserId(user));
+        })
+        .RequireAuthorization();
+
+        group.MapPatch("/me", async (UpdateUserProfileRequest request, ClaimsPrincipal user, IUserService userService) =>
+        {
+            return await userService.UpdateCurrentUserAsync(GetAuth0UserId(user), request);
+        })
+        .RequireAuthorization();
+
+        group.MapPost("/me/complete-profile", async (CompleteUserProfileRequest request, ClaimsPrincipal user, IUserService userService) =>
+        {
+            return await userService.CompleteProfileAsync(GetAuth0UserId(user), request);
+        })
+        .RequireAuthorization();
+
+        group.MapGet("/me/username-availability", async (string username, ClaimsPrincipal user, IUserService userService) =>
+        {
+            return await userService.CheckUsernameAvailabilityAsync(GetAuth0UserId(user), username);
+        })
+        .RequireAuthorization();
+
+        group.MapPost("/me/resend-verification-email", async (ClaimsPrincipal user, IUserService userService) =>
+        {
+            return await userService.ResendVerificationEmailAsync(GetAuth0UserId(user));
+        })
+        .RequireAuthorization();
+
+        group.MapPost("/me/password-reset", async (ClaimsPrincipal user, IUserService userService) =>
+        {
+            return await userService.SendPasswordResetEmailAsync(GetAuth0UserId(user));
+        })
+        .RequireAuthorization();
+
+        group.MapDelete("/me", async (ClaimsPrincipal user, IUserService userService) =>
+        {
+            return await userService.AnonymizeCurrentUserAsync(GetAuth0UserId(user));
+        })
+        .RequireAuthorization();
+
+        var adminGroup = group.MapGroup("")
             .RequireAuthorization(new AuthorizeAttribute { Roles = "admin" });
 
-        group.MapPost("/", async (CreateUserProfileRequest request, IUserService userService) =>
+        adminGroup.MapPost("/", async (CreateUserProfileRequest request, IUserService userService) =>
         {
             return await userService.CreateUserAsync(request);
         });
 
-        group.MapGet("/{id:int}", async (int id, IUserService userService) =>
+        adminGroup.MapGet("/{id:guid}", async (Guid id, IUserService userService) =>
         {
             return await userService.GetUserByIdAsync(id);
         });
 
-        group.MapGet("/", async (IUserService userService) =>
+        adminGroup.MapGet("/", async (IUserService userService) =>
         {
             return await userService.GetAllUsersAsync();
         });
 
-        group.MapPatch("/{id:int}", async (int id, UpdateUserProfileRequest request, IUserService userService) =>
+        adminGroup.MapPatch("/{id:guid}", async (Guid id, UpdateUserProfileRequest request, IUserService userService) =>
         {
             return await userService.UpdateUserAsync(id, request);
         });
 
-        group.MapDelete("/{id:int}", async (int id, IUserService userService) =>
+        adminGroup.MapDelete("/{id:guid}", async (Guid id, IUserService userService) =>
         {
             await userService.DeleteUserByIdAsync(id);
         });
 
-        group.MapDelete("/{username}/account", async (string username, IUserService userService) =>
+        adminGroup.MapDelete("/{username}/account", async (string username, IUserService userService) =>
         {
             await userService.DeleteUserAsync(username);
         });
 
-        group.MapPost("/{username}/roles", async (string username, AddUserRoleRequest request, IUserService userService) =>
-        {
-            await userService.AddRoleToUserAsync(username, request);
-        });
-
-        group.MapDelete("/{username}/roles/{role}", async (string username, string role, IUserService userService) =>
-        {
-            await userService.DeleteRoleFromUserAsync(username, role);
-        });
-
-        group.MapPatch("/{username}/password", async (string username, ChangePasswordRequest request, ClaimsPrincipal user, IUserService userService) =>
-        {
-            var authenticatedUsername = user.FindFirstValue(ClaimTypes.Name);
-
-            if (authenticatedUsername == null || !authenticatedUsername.Equals(username, StringComparison.OrdinalIgnoreCase))
-                throw new UnauthorizedAccessException("You are not authorized to change this user's password.");
-
-            await userService.ChangePasswordAsync(username, request);
-        });
-
         return group;
+    }
+
+    private static string GetAuth0UserId(ClaimsPrincipal user)
+    {
+        var subject = user.FindFirstValue("sub") ?? user.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(subject))
+            throw new UnauthorizedAccessException("Authenticated user id is missing.");
+
+        return subject;
     }
 }

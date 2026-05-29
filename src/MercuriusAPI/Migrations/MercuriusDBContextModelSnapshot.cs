@@ -17,18 +17,18 @@ namespace Mercurius.LAN.API.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.0")
+                .HasAnnotation("ProductVersion", "10.0.4")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
             modelBuilder.Entity("GameTeam", b =>
                 {
-                    b.Property<int>("GameId")
-                        .HasColumnType("integer");
+                    b.Property<Guid>("GameId")
+                        .HasColumnType("uuid");
 
-                    b.Property<int>("TeamId")
-                        .HasColumnType("integer");
+                    b.Property<Guid>("TeamId")
+                        .HasColumnType("uuid");
 
                     b.HasKey("GameId", "TeamId");
 
@@ -39,11 +39,11 @@ namespace Mercurius.LAN.API.Migrations
 
             modelBuilder.Entity("GameUser", b =>
                 {
-                    b.Property<int>("GameId")
-                        .HasColumnType("integer");
+                    b.Property<Guid>("GameId")
+                        .HasColumnType("uuid");
 
-                    b.Property<int>("UserId")
-                        .HasColumnType("integer");
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
 
                     b.HasKey("GameId", "UserId");
 
@@ -52,55 +52,11 @@ namespace Mercurius.LAN.API.Migrations
                     b.ToTable("GameUser");
                 });
 
-            modelBuilder.Entity("Mercurius.LAN.API.Models.Auth.RefreshToken", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("Expires")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Token")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("RefreshTokens");
-                });
-
-            modelBuilder.Entity("Mercurius.LAN.API.Models.Auth.Role", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("Roles");
-                });
-
             modelBuilder.Entity("Mercurius.LAN.API.Models.Game", b =>
                 {
-                    b.Property<int>("Id")
+                    b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+                        .HasColumnType("uuid");
 
                     b.Property<int>("BracketType")
                         .HasColumnType("integer");
@@ -139,13 +95,50 @@ namespace Mercurius.LAN.API.Migrations
                     b.ToTable("Games");
                 });
 
-            modelBuilder.Entity("Mercurius.LAN.API.Models.Match", b =>
+            modelBuilder.Entity("Mercurius.LAN.API.Models.GameSponsorPlacement", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Context")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("GameId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Headline")
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<int>("SponsorId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SupportLine")
+                        .HasMaxLength(220)
+                        .HasColumnType("character varying(220)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SponsorId");
+
+                    b.HasIndex("GameId")
+                        .IsUnique();
+
+                    b.ToTable("GameSponsorPlacements");
+                });
+
+            modelBuilder.Entity("Mercurius.LAN.API.Models.Match", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
 
                     b.Property<int>("BracketType")
                         .HasColumnType("integer");
@@ -156,14 +149,14 @@ namespace Mercurius.LAN.API.Migrations
                     b.Property<int>("Format")
                         .HasColumnType("integer");
 
-                    b.Property<int>("GameId")
-                        .HasColumnType("integer");
+                    b.Property<Guid>("GameId")
+                        .HasColumnType("uuid");
 
                     b.Property<bool>("IsLowerBracketMatch")
                         .HasColumnType("boolean");
 
-                    b.Property<int?>("LoserNextMatchId")
-                        .HasColumnType("integer");
+                    b.Property<Guid?>("LoserNextMatchId")
+                        .HasColumnType("uuid");
 
                     b.Property<int>("MatchNumber")
                         .HasColumnType("integer");
@@ -189,32 +182,32 @@ namespace Mercurius.LAN.API.Migrations
                     b.Property<DateTime>("StartTime")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<int?>("TeamLoserId")
-                        .HasColumnType("integer");
+                    b.Property<Guid?>("TeamLoserId")
+                        .HasColumnType("uuid");
 
-                    b.Property<int?>("TeamParticipant1Id")
-                        .HasColumnType("integer");
+                    b.Property<Guid?>("TeamParticipant1Id")
+                        .HasColumnType("uuid");
 
-                    b.Property<int?>("TeamParticipant2Id")
-                        .HasColumnType("integer");
+                    b.Property<Guid?>("TeamParticipant2Id")
+                        .HasColumnType("uuid");
 
-                    b.Property<int?>("TeamWinnerId")
-                        .HasColumnType("integer");
+                    b.Property<Guid?>("TeamWinnerId")
+                        .HasColumnType("uuid");
 
-                    b.Property<int?>("UserLoserId")
-                        .HasColumnType("integer");
+                    b.Property<Guid?>("UserLoserId")
+                        .HasColumnType("uuid");
 
-                    b.Property<int?>("UserParticipant1Id")
-                        .HasColumnType("integer");
+                    b.Property<Guid?>("UserParticipant1Id")
+                        .HasColumnType("uuid");
 
-                    b.Property<int?>("UserParticipant2Id")
-                        .HasColumnType("integer");
+                    b.Property<Guid?>("UserParticipant2Id")
+                        .HasColumnType("uuid");
 
-                    b.Property<int?>("UserWinnerId")
-                        .HasColumnType("integer");
+                    b.Property<Guid?>("UserWinnerId")
+                        .HasColumnType("uuid");
 
-                    b.Property<int?>("WinnerNextMatchId")
-                        .HasColumnType("integer");
+                    b.Property<Guid?>("WinnerNextMatchId")
+                        .HasColumnType("uuid");
 
                     b.HasKey("Id");
 
@@ -245,14 +238,12 @@ namespace Mercurius.LAN.API.Migrations
 
             modelBuilder.Entity("Mercurius.LAN.API.Models.Placement", b =>
                 {
-                    b.Property<int>("Id")
+                    b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
+                        .HasColumnType("uuid");
 
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("GameId")
-                        .HasColumnType("integer");
+                    b.Property<Guid>("GameId")
+                        .HasColumnType("uuid");
 
                     b.Property<int>("Place")
                         .HasColumnType("integer");
@@ -272,6 +263,10 @@ namespace Mercurius.LAN.API.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("Description")
+                        .HasMaxLength(1200)
+                        .HasColumnType("character varying(1200)");
+
                     b.Property<string>("InfoUrl")
                         .IsRequired()
                         .HasColumnType("text");
@@ -284,8 +279,9 @@ namespace Mercurius.LAN.API.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<int>("SponsorTier")
-                        .HasColumnType("integer");
+                    b.Property<string>("SponsorTier")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.HasKey("Id");
 
@@ -294,14 +290,12 @@ namespace Mercurius.LAN.API.Migrations
 
             modelBuilder.Entity("Mercurius.LAN.API.Models.Team", b =>
                 {
-                    b.Property<int>("Id")
+                    b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
+                        .HasColumnType("uuid");
 
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("CaptainUserId")
-                        .HasColumnType("integer");
+                    b.Property<Guid>("CaptainUserId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -316,11 +310,9 @@ namespace Mercurius.LAN.API.Migrations
 
             modelBuilder.Entity("Mercurius.LAN.API.Models.TeamInvite", b =>
                 {
-                    b.Property<int>("Id")
+                    b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -331,11 +323,11 @@ namespace Mercurius.LAN.API.Migrations
                     b.Property<int>("Status")
                         .HasColumnType("integer");
 
-                    b.Property<int>("TeamId")
-                        .HasColumnType("integer");
+                    b.Property<Guid>("TeamId")
+                        .HasColumnType("uuid");
 
-                    b.Property<int>("UserId")
-                        .HasColumnType("integer");
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
 
                     b.HasKey("Id");
 
@@ -348,57 +340,81 @@ namespace Mercurius.LAN.API.Migrations
 
             modelBuilder.Entity("Mercurius.LAN.API.Models.User", b =>
                 {
-                    b.Property<int>("Id")
+                    b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
+                        .HasColumnType("uuid");
 
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+                    b.Property<string>("Auth0UserId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DiscordId")
-                        .HasColumnType("text");
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
 
                     b.Property<string>("Email")
-                        .IsRequired()
-                        .HasColumnType("text");
+                        .HasMaxLength(254)
+                        .HasColumnType("character varying(254)");
+
+                    b.Property<bool>("EmailVerified")
+                        .HasColumnType("boolean");
 
                     b.Property<string>("Firstname")
-                        .IsRequired()
-                        .HasColumnType("text");
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
 
                     b.Property<string>("Lastname")
-                        .IsRequired()
-                        .HasColumnType("text");
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
 
-                    b.Property<byte[]>("PasswordHash")
-                        .IsRequired()
-                        .HasColumnType("bytea");
+                    b.Property<string>("NormalizedUsername")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
 
                     b.Property<string>("RiotId")
-                        .HasColumnType("text");
-
-                    b.Property<byte[]>("Salt")
-                        .IsRequired()
-                        .HasColumnType("bytea");
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
 
                     b.Property<string>("SteamId")
-                        .HasColumnType("text");
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Username")
-                        .IsRequired()
-                        .HasColumnType("text");
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Auth0UserId")
+                        .IsUnique();
+
+                    b.HasIndex("NormalizedUsername")
+                        .IsUnique()
+                        .HasFilter("\"NormalizedUsername\" IS NOT NULL AND \"IsDeleted\" = false");
 
                     b.ToTable("Users");
                 });
 
             modelBuilder.Entity("PlacementTeam", b =>
                 {
-                    b.Property<int>("PlacementId")
-                        .HasColumnType("integer");
+                    b.Property<Guid>("PlacementId")
+                        .HasColumnType("uuid");
 
-                    b.Property<int>("TeamId")
-                        .HasColumnType("integer");
+                    b.Property<Guid>("TeamId")
+                        .HasColumnType("uuid");
 
                     b.HasKey("PlacementId", "TeamId");
 
@@ -409,11 +425,11 @@ namespace Mercurius.LAN.API.Migrations
 
             modelBuilder.Entity("PlacementUser", b =>
                 {
-                    b.Property<int>("PlacementId")
-                        .HasColumnType("integer");
+                    b.Property<Guid>("PlacementId")
+                        .HasColumnType("uuid");
 
-                    b.Property<int>("UserId")
-                        .HasColumnType("integer");
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
 
                     b.HasKey("PlacementId", "UserId");
 
@@ -422,28 +438,13 @@ namespace Mercurius.LAN.API.Migrations
                     b.ToTable("PlacementUser");
                 });
 
-            modelBuilder.Entity("RoleUser", b =>
-                {
-                    b.Property<int>("RolesId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("UsersId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("RolesId", "UsersId");
-
-                    b.HasIndex("UsersId");
-
-                    b.ToTable("RoleUser");
-                });
-
             modelBuilder.Entity("TeamUser", b =>
                 {
-                    b.Property<int>("TeamId")
-                        .HasColumnType("integer");
+                    b.Property<Guid>("TeamId")
+                        .HasColumnType("uuid");
 
-                    b.Property<int>("UserId")
-                        .HasColumnType("integer");
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
 
                     b.HasKey("TeamId", "UserId");
 
@@ -482,15 +483,23 @@ namespace Mercurius.LAN.API.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Mercurius.LAN.API.Models.Auth.RefreshToken", b =>
+            modelBuilder.Entity("Mercurius.LAN.API.Models.GameSponsorPlacement", b =>
                 {
-                    b.HasOne("Mercurius.LAN.API.Models.User", "User")
-                        .WithMany("RefreshTokens")
-                        .HasForeignKey("UserId")
+                    b.HasOne("Mercurius.LAN.API.Models.Game", "Game")
+                        .WithOne("SponsorPlacement")
+                        .HasForeignKey("Mercurius.LAN.API.Models.GameSponsorPlacement", "GameId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("User");
+                    b.HasOne("Mercurius.LAN.API.Models.Sponsor", "Sponsor")
+                        .WithMany("GameSponsorPlacements")
+                        .HasForeignKey("SponsorId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Game");
+
+                    b.Navigation("Sponsor");
                 });
 
             modelBuilder.Entity("Mercurius.LAN.API.Models.Match", b =>
@@ -635,21 +644,6 @@ namespace Mercurius.LAN.API.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("RoleUser", b =>
-                {
-                    b.HasOne("Mercurius.LAN.API.Models.Auth.Role", null)
-                        .WithMany()
-                        .HasForeignKey("RolesId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("Mercurius.LAN.API.Models.User", null)
-                        .WithMany()
-                        .HasForeignKey("UsersId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("TeamUser", b =>
                 {
                     b.HasOne("Mercurius.LAN.API.Models.Team", null)
@@ -670,16 +664,18 @@ namespace Mercurius.LAN.API.Migrations
                     b.Navigation("Matches");
 
                     b.Navigation("Placements");
+
+                    b.Navigation("SponsorPlacement");
+                });
+
+            modelBuilder.Entity("Mercurius.LAN.API.Models.Sponsor", b =>
+                {
+                    b.Navigation("GameSponsorPlacements");
                 });
 
             modelBuilder.Entity("Mercurius.LAN.API.Models.Team", b =>
                 {
                     b.Navigation("TeamInvites");
-                });
-
-            modelBuilder.Entity("Mercurius.LAN.API.Models.User", b =>
-                {
-                    b.Navigation("RefreshTokens");
                 });
 #pragma warning restore 612, 618
         }

@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using Mercurius.LAN.API.DTOs.TeamDTOs;
 using Mercurius.LAN.API.Services.TeamServices;
 using Microsoft.AspNetCore.Authorization;
@@ -8,8 +9,14 @@ public static class TeamEndpoints
 {
     public static RouteGroupBuilder MapTeamEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("api/v{version:apiVersion}/lan/teams")
-            .WithGroupName("v1")
+        var apiVersionSet = app.NewApiVersionSet()
+        .HasApiVersion(new ApiVersion(1, 0))
+        .ReportApiVersions()
+        .Build();
+
+        var group = app.MapGroup("v{version:apiVersion}/lan/teams")
+            .WithApiVersionSet(apiVersionSet)
+            .MapToApiVersion(new ApiVersion(1, 0))
             .WithTags("Teams")
             .RequireAuthorization(new AuthorizeAttribute { Roles = "admin" });
 
@@ -19,7 +26,7 @@ public static class TeamEndpoints
         })
         .AllowAnonymous();
 
-        group.MapGet("/{id}", async (int id, ITeamService teamService) =>
+        group.MapGet("/{id}", async (Guid id, ITeamService teamService) =>
         {
             return new GetTeamDTO(await teamService.GetTeamByIdAsync(id));
         })
@@ -30,32 +37,32 @@ public static class TeamEndpoints
             return await teamService.CreateTeamAsync(createTeamDTO);
         });
 
-        group.MapDelete("/{id}/users/{userId}", async (int id, int userId, ITeamService teamService) =>
+        group.MapDelete("/{id}/users/{userId}", async (Guid id, Guid userId, ITeamService teamService) =>
         {
             return await teamService.RemoveMemberAsync(id, userId);
         });
 
-        group.MapPut("/{id}", async (int id, UpdateTeamDTO updateTeamDTO, ITeamService teamService) =>
+        group.MapPut("/{id}", async (Guid id, UpdateTeamDTO updateTeamDTO, ITeamService teamService) =>
         {
             return await teamService.UpdateTeamAsync(id, updateTeamDTO);
         });
 
-        group.MapDelete("/{id}", async (int id, ITeamService teamService) =>
+        group.MapDelete("/{id}", async (Guid id, ITeamService teamService) =>
         {
             await teamService.DeleteTeamAsync(id);
         });
 
-        group.MapPost("/{id}/users/invite/{userId}", async (int id, int userId, ITeamService teamService) =>
+        group.MapPost("/{id}/users/invite/{userId}", async (Guid id, Guid userId, ITeamService teamService) =>
         {
             return await teamService.InviteUserAsync(id, userId);
         });
 
-        group.MapPut("/{id}/users/invite/{userId}", async (int id, int userId, RespondTeamInviteDTO dto, ITeamService teamService) =>
+        group.MapPut("/{id}/users/invite/{userId}", async (Guid id, Guid userId, RespondTeamInviteDTO dto, ITeamService teamService) =>
         {
             return await teamService.RespondToInviteAsync(id, userId, dto.Accept);
         });
 
-        group.MapGet("/users/{userId}/invites", async (int userId, ITeamService teamService) =>
+        group.MapGet("/users/{userId}/invites", async (Guid userId, ITeamService teamService) =>
         {
             return await teamService.GetUserInvitesAsync(userId);
         });

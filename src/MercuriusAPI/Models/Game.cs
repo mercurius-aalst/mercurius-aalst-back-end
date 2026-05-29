@@ -4,7 +4,7 @@ namespace Mercurius.LAN.API.Models;
 
 public class Game
 {
-    public int Id { get; set; }
+    public Guid Id { get; set; }
     public string Name { get; set; }
     public DateTime StartTime { get; set; }
     public DateTime EndTime { get; set; }
@@ -15,6 +15,7 @@ public class Game
     public ParticipationMode ParticipationMode { get; set; }
 
     public IList<Placement> Placements { get; set; } = [];
+    public GameSponsorPlacement? SponsorPlacement { get; set; }
 
     public IList<Match> Matches { get; set; } = new List<Match>();
     public IList<User> RegisteredUsers { get; set; } = [];
@@ -112,7 +113,7 @@ public class Game
         RegisteredTeams.Add(team);
     }
 
-    public void RemoveUser(int userId)
+    public void RemoveUser(Guid userId)
     {
         EnsureScheduledRegistrationState();
         if (ParticipationMode != ParticipationMode.Individual)
@@ -123,7 +124,7 @@ public class Game
         RegisteredUsers.Remove(user);
     }
 
-    public void RemoveTeam(int teamId)
+    public void RemoveTeam(Guid teamId)
     {
         EnsureScheduledRegistrationState();
         if (ParticipationMode != ParticipationMode.Team)

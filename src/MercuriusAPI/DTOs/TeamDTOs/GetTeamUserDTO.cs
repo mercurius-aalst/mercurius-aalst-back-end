@@ -4,7 +4,7 @@ namespace Mercurius.LAN.API.DTOs.TeamDTOs;
 
 public class GetTeamUserDTO
 {
-    public int Id { get; set; }
+    public Guid Id { get; set; }
     public string Username { get; set; }
     public string DisplayName { get; set; }
     public string Firstname { get; set; }
@@ -23,14 +23,14 @@ public class GetTeamUserDTO
     public GetTeamUserDTO(User user)
     {
         Id = user.Id;
-        Username = user.Username;
+        Username = user.Username ?? user.DisplayName;
         DisplayName = user.DisplayName;
-        Firstname = user.Firstname;
-        Lastname = user.Lastname;
+        Firstname = user.Firstname ?? string.Empty;
+        Lastname = user.Lastname ?? string.Empty;
         DiscordId = user.DiscordId;
         SteamId = user.SteamId;
         RiotId = user.RiotId;
-        Email = user.Email;
+        Email = user.Email ?? string.Empty;
     }
 }
 

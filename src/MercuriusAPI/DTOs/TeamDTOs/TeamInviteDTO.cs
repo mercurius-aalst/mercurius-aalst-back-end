@@ -5,9 +5,9 @@ namespace Mercurius.LAN.API.DTOs.TeamDTOs;
 
 public class TeamInviteDTO
 {
-    public int Id { get; set; }
-    public int TeamId { get; set; }
-    public int UserId { get; set; }
+    public Guid Id { get; set; }
+    public Guid TeamId { get; set; }
+    public Guid UserId { get; set; }
     public string Status { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? RespondedAt { get; set; }
@@ -31,9 +31,9 @@ public class TeamInviteDTO
 public class CreateTeamInviteDTO
 {
     [Required]
-    public int TeamId { get; set; }
+    public Guid TeamId { get; set; }
     [Required]
-    public int UserId { get; set; }
+    public Guid UserId { get; set; }
 }
 
 public class RespondTeamInviteDTO

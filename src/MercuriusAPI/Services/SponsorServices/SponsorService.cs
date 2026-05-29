@@ -41,9 +41,10 @@ public class SponsorService : ISponsorService
         var sponsor = new Sponsor
         {
             Name = sponsorDTO.Name,
-            SponsorTier = (int)sponsorDTO.SponsorTier,
+            SponsorTier = sponsorDTO.SponsorTier,
             LogoUrl = logoUrl,
-            InfoUrl = sponsorDTO.InfoUrl
+            InfoUrl = sponsorDTO.InfoUrl,
+            Description = sponsorDTO.Description
         };
         _dbContext.Sponsors.Add(sponsor);
         await _dbContext.SaveChangesAsync();
@@ -64,7 +65,8 @@ public class SponsorService : ISponsorService
             sponsor.LogoUrl = logoUrl;
         }
         sponsor.InfoUrl = sponsorDTO.InfoUrl;
-        sponsor.SponsorTier = (int)sponsorDTO.SponsorTier; // Explicitly cast enum to int
+        sponsor.SponsorTier = sponsorDTO.SponsorTier;
+        sponsor.Description = sponsorDTO.Description;
         _dbContext.Sponsors.Update(sponsor);
         await _dbContext.SaveChangesAsync();
 

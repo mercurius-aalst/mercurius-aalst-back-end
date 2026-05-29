@@ -201,7 +201,7 @@ public class TeamTests
         var id = Interlocked.Increment(ref _nextId);
         return new User
         {
-            Id = id,
+            Id = Guid.NewGuid(),
             Username = $"user{id}",
             Firstname = $"First{id}",
             Lastname = $"Last{id}",
@@ -217,7 +217,7 @@ public class TeamTests
         var captain = CreateUser();
         return new Team("Test Team", captain)
         {
-            Id = Interlocked.Increment(ref _nextId)
+            Id = Guid.NewGuid()
         };
     }
 }

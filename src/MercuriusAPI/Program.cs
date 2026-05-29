@@ -3,11 +3,11 @@ using Mercurius.LAN.API.Data;
 using Mercurius.LAN.API.Endpoints;
 using Mercurius.LAN.API.Extensions;
 using Mercurius.LAN.API.Middleware;
-using Mercurius.LAN.API.Services.UserServices;
+using Mercurius.LAN.API.Options;
+using Mercurius.LAN.API.Services.Auth0;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using System.Text;
 using System.Text.Json.Serialization;
 
 namespace Mercurius.LAN.API;
@@ -28,6 +28,9 @@ public class Program
 
         builder.Services.ConfigureVersionedSwagger();
         builder.Services.AddServiceDependencies();
+        builder.Services.Configure<Auth0ManagementOptions>(builder.Configuration.GetSection(Auth0ManagementOptions.SectionName));
+        builder.Services.AddHttpClient<IAuth0ManagementService, Auth0ManagementService>();
+        builder.Services.AddProblemDetails();
         builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 
         builder.Services.ConfigureHttpJsonOptions(options =>
@@ -35,8 +38,9 @@ public class Program
             options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
         });
 
-        // Add JWT authentication
-        var jwtSettings = builder.Configuration.GetSection("Jwt");
+        var auth0Settings = builder.Configuration.GetSection("Auth0");
+        var auth0Authority = auth0Settings["Authority"]?.TrimEnd('/');
+
         builder.Services.AddAuthentication(options =>
         {
             options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -44,17 +48,22 @@ public class Program
         })
         .AddJwtBearer(options =>
         {
+            options.Authority = auth0Authority;
+            options.Audience = auth0Settings["Audience"];
+            options.MapInboundClaims = false;
             options.TokenValidationParameters = new TokenValidationParameters
             {
                 ValidateIssuer = true,
                 ValidateAudience = true,
                 ValidateLifetime = true,
                 ValidateIssuerSigningKey = true,
-                ValidIssuer = jwtSettings["Issuer"],
-                ValidAudience = jwtSettings["Audience"],
-                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings["Key"]!))
+                RequireSignedTokens = true,
+                NameClaimType = "sub",
+                RoleClaimType = auth0Settings["RoleClaimType"],
+                ValidAlgorithms = [SecurityAlgorithms.RsaSha256]
             };
         });
+        builder.Services.AddAuthorization();
 
         var jwtBuilder = new JWTBuilder(builder);
         jwtBuilder.AddJWTSecuredSwaggerGen(options =>
@@ -80,9 +89,6 @@ public class Program
         {
             var dbContext = scope.ServiceProvider.GetRequiredService<MercuriusDBContext>();
             dbContext.Database.Migrate();
-            // Seed initial user
-            var userService = scope.ServiceProvider.GetRequiredService<IUserService>();
-            userService.SeedInitialUserAsync(app.Configuration).GetAwaiter().GetResult();
         }
 
         app.UseExceptionHandler();
@@ -112,7 +118,6 @@ public class Program
         app.MapTeamEndpoints();
         app.MapSponsorEndpoints();
         app.MapUserEndpoints();
-        app.MapAuthEndpoints();
 
         app.Run();
     }

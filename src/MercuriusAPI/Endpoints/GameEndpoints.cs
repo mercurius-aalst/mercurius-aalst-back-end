@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using Mercurius.LAN.API.DTOs.GameDTOs;
 using Mercurius.LAN.API.DTOs.PlacementDTOs;
 using Mercurius.LAN.API.Services.GameServices;
@@ -10,8 +11,14 @@ public static class GameEndpoints
 {
     public static RouteGroupBuilder MapGameEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("api/v{version:apiVersion}/lan/games")
-            .WithGroupName("v1")
+        var apiVersionSet = app.NewApiVersionSet()
+                .HasApiVersion(new ApiVersion(1, 0))
+                .ReportApiVersions()
+                .Build();
+
+        var group = app.MapGroup("v{version:apiVersion}/lan/games")
+            .WithApiVersionSet(apiVersionSet)
+            .MapToApiVersion(new ApiVersion(1, 0))
             .WithTags("Games")
             .RequireAuthorization(new AuthorizeAttribute { Roles = "admin" });
 
@@ -21,7 +28,7 @@ public static class GameEndpoints
         })
         .AllowAnonymous();
 
-        group.MapGet("/{id}", async (int id, IGameService gameService) =>
+        group.MapGet("/{id}", async (Guid id, IGameService gameService) =>
         {
             return new GetGameDTO(await gameService.GetGameByIdAsync(id));
         })
@@ -30,54 +37,59 @@ public static class GameEndpoints
         group.MapPost("/", async ([FromForm] CreateGameDTO createGameDTO, IGameService gameService) =>
         {
             return await gameService.CreateGameAsync(createGameDTO);
-        });
+        }).DisableAntiforgery();
 
-        group.MapPatch("/{id}", async (int id, [FromForm] UpdateGameDTO updateGameDTO, IGameService gameService) =>
+        group.MapPatch("/{id}", async (Guid id, [FromForm] UpdateGameDTO updateGameDTO, IGameService gameService) =>
         {
             return await gameService.UpdateGameAsync(id, updateGameDTO);
-        });
+        }).DisableAntiforgery();
 
-        group.MapDelete("/{id}", async (int id, IGameService gameService) =>
+        group.MapDelete("/{id}", async (Guid id, IGameService gameService) =>
         {
             await gameService.DeleteGameAsync(id);
         });
 
-        group.MapPost("/{id}/users", async (int id, RegisterGameUserDTO registrationDTO, IGameService gameService) =>
+        group.MapPut("/{id}/sponsors", async (Guid id, ReplaceGameSponsorsDTO sponsorDTO, IGameService gameService) =>
+        {
+            return await gameService.ReplaceSponsorPlacementsAsync(id, sponsorDTO);
+        });
+
+        group.MapPost("/{id}/users", async (Guid id, RegisterGameUserDTO registrationDTO, IGameService gameService) =>
         {
             return await gameService.RegisterUserAsync(id, registrationDTO.UserId);
         });
 
-        group.MapDelete("/{id}/users/{userId}", async (int id, int userId, IGameService gameService) =>
+        group.MapDelete("/{id}/users/{userId}", async (Guid id, Guid userId, IGameService gameService) =>
         {
             return await gameService.UnregisterUserAsync(id, userId);
         });
 
-        group.MapPost("/{id}/teams", async (int id, RegisterGameTeamDTO registrationDTO, IGameService gameService) =>
+        group.MapPost("/{id}/teams", async (Guid id, RegisterGameTeamDTO registrationDTO, IGameService gameService) =>
         {
             return await gameService.RegisterTeamAsync(id, registrationDTO.TeamId);
         });
 
-        group.MapDelete("/{id}/teams/{teamId}", async (int id, int teamId, IGameService gameService) =>
+        group.MapDelete("/{id}/teams/{teamId}", async (Guid id, Guid teamId, IGameService gameService) =>
         {
             return await gameService.UnregisterTeamAsync(id, teamId);
         });
 
-        group.MapPost("/{id}/start", async (int id, IGameService gameService) =>
+        group.MapPost("/{id}/start", async (Guid id, IGameService gameService) =>
         {
             await gameService.StartGameAsync(id);
         });
 
-        group.MapPost("/{id}/reset", async (int id, IGameService gameService) =>
+        group.MapPost("/{id}/reset", async (Guid id, IGameService gameService) =>
         {
             await gameService.ResetGameAsync(id);
         });
 
-        group.MapPost("/{id}/complete", async (int id, IGameService gameService) =>
+        group.MapPost("/{id}/complete", async (Guid id, IGameService gameService) =>
         {
             return await gameService.CompleteGameAsync(id);
         });
 
-        group.MapPost("/{id}/cancel", async (int id, IGameService gameService) =>
+        group.MapPost("/{id}/cancel", async (Guid id, IGameService gameService) =>
         {
             await gameService.CancelGameAsync(id);
         });

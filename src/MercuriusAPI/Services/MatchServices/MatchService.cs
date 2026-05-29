@@ -15,7 +15,7 @@ public class MatchService : IMatchService
         _dbContext = dbContext;
     }
 
-    public async Task<GetMatchDTO> UpdateMatchAsync(int id, UpdateMatchDTO updateMatchDTO)
+    public async Task<GetMatchDTO> UpdateMatchAsync(Guid id, UpdateMatchDTO updateMatchDTO)
     {
         var match = await GetMatchByIdForUpdateAsync(id);
         match.SetScoresAndWinner(updateMatchDTO.Participant1Score, updateMatchDTO.Participant2Score);
@@ -24,7 +24,7 @@ public class MatchService : IMatchService
         return new GetMatchDTO(match);
     }
 
-    public async Task<Match> GetMatchByIdForUpdateAsync(int id)
+    public async Task<Match> GetMatchByIdForUpdateAsync(Guid id)
     {
         var match = await _dbContext.Matches
             .Include(m => m.WinnerNextMatch)
@@ -63,7 +63,7 @@ public class MatchService : IMatchService
         return match;
     }
 
-    public async Task<Match> GetMatchByIdAsync(int id)
+    public async Task<Match> GetMatchByIdAsync(Guid id)
     {
         var match = await _dbContext.Matches
             .Include(m => m.UserParticipant1)

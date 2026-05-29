@@ -37,11 +37,11 @@ public class GameService : IGameService
 
         _dbContext.Games.Add(game);
         await _dbContext.SaveChangesAsync();
-        return new GetGameDTO(game);
+        return new GetGameDTO(await GetGameByIdAsync(game.Id));
     }
-    public async Task<Game> GetGameByIdAsync(int gameId)
+    public async Task<Game> GetGameByIdAsync(Guid gameId)
     {
-        var game = await _dbContext.Games
+        var game = await CreateDetailedGameQuery()
             .Include(g => g.RegisteredUsers)
             .Include(g => g.RegisteredTeams)
             .Include(g => g.Matches)
@@ -49,6 +49,8 @@ public class GameService : IGameService
                 .ThenInclude(p => p.Users)
             .Include(g => g.Placements)
                 .ThenInclude(p => p.Teams)
+            .Include(g => g.SponsorPlacement)
+                .ThenInclude(placement => placement!.Sponsor)
             .FirstOrDefaultAsync(g => g.Id == gameId);
         if (game is null)
             throw new NotFoundException($"{nameof(Game)} not found");
@@ -57,15 +59,17 @@ public class GameService : IGameService
 
     public IEnumerable<GetGameDTO> GetAllGames()
     {
-        return _dbContext.Games
+        return CreateDetailedGameQuery()
             .Include(g => g.RegisteredUsers)
             .Include(g => g.RegisteredTeams)
             .Include(g => g.Matches)
+            .Include(g => g.SponsorPlacement)
+                .ThenInclude(placement => placement!.Sponsor)
             .ToList()
             .Select(g => new GetGameDTO(g));
     }
 
-    public async Task<GetGameDTO> UpdateGameAsync(int id, UpdateGameDTO gameDTO)
+    public async Task<GetGameDTO> UpdateGameAsync(Guid id, UpdateGameDTO gameDTO)
     {
         var game = await GetGameByIdAsync(id);
         if (game.Name != gameDTO.Name && await CheckIfGameNameExistsInCurrentSeasonAsync(gameDTO.Name))
@@ -81,10 +85,10 @@ public class GameService : IGameService
 
         _dbContext.Games.Update(game);
         await _dbContext.SaveChangesAsync();
-        return new GetGameDTO(game);
+        return new GetGameDTO(await GetGameByIdAsync(game.Id));
     }
 
-    public async Task DeleteGameAsync(int id)
+    public async Task DeleteGameAsync(Guid id)
     {
         var game = await GetGameByIdAsync(id);
         if (game.Status == GameStatus.InProgress)
@@ -93,7 +97,7 @@ public class GameService : IGameService
         await _dbContext.SaveChangesAsync();
     }
 
-    public async Task CancelGameAsync(int id)
+    public async Task CancelGameAsync(Guid id)
     {
         var game = await GetGameByIdAsync(id);
         game.Cancel();
@@ -101,7 +105,7 @@ public class GameService : IGameService
         await _dbContext.SaveChangesAsync();
     }
 
-    public async Task StartGameAsync(int id)
+    public async Task StartGameAsync(Guid id)
     {
         var game = await GetGameByIdAsync(id);
         game.Start();
@@ -112,7 +116,7 @@ public class GameService : IGameService
         await _dbContext.SaveChangesAsync();
     }
 
-    public async Task<IEnumerable<GetPlacementDTO>> CompleteGameAsync(int id)
+    public async Task<IEnumerable<GetPlacementDTO>> CompleteGameAsync(Guid id)
     {
         var game = await GetGameByIdAsync(id);
         game.Complete();
@@ -125,7 +129,7 @@ public class GameService : IGameService
         return game.Placements.Select(p => new GetPlacementDTO(p, game.ParticipationMode));
     }
 
-    public async Task ResetGameAsync(int id)
+    public async Task ResetGameAsync(Guid id)
     {
         var game = await GetGameByIdAsync(id);
         game.Reset();
@@ -133,7 +137,7 @@ public class GameService : IGameService
         await _dbContext.SaveChangesAsync();
     }
 
-    public async Task<GetGameDTO> RegisterUserAsync(int id, int userId)
+    public async Task<GetGameDTO> RegisterUserAsync(Guid id, Guid userId)
     {
         var game = await GetGameByIdAsync(id);
         if (game.ParticipationMode != ParticipationMode.Individual)
@@ -144,10 +148,10 @@ public class GameService : IGameService
         game.RegisterUser(user);
         _dbContext.Games.Update(game);
         await _dbContext.SaveChangesAsync();
-        return new GetGameDTO(game);
+        return new GetGameDTO(await GetGameByIdAsync(game.Id));
     }
 
-    public async Task<GetGameDTO> RegisterTeamAsync(int id, int teamId)
+    public async Task<GetGameDTO> RegisterTeamAsync(Guid id, Guid teamId)
     {
         var game = await GetGameByIdAsync(id);
         if (game.ParticipationMode != ParticipationMode.Team)
@@ -158,10 +162,10 @@ public class GameService : IGameService
         game.RegisterTeam(team);
         _dbContext.Games.Update(game);
         await _dbContext.SaveChangesAsync();
-        return new GetGameDTO(game);
+        return new GetGameDTO(await GetGameByIdAsync(game.Id));
     }
 
-    public async Task<GetGameDTO> UnregisterUserAsync(int id, int userId)
+    public async Task<GetGameDTO> UnregisterUserAsync(Guid id, Guid userId)
     {
         var game = await GetGameByIdAsync(id);
         if (game.ParticipationMode != ParticipationMode.Individual)
@@ -169,10 +173,10 @@ public class GameService : IGameService
         game.RemoveUser(userId);
         _dbContext.Games.Update(game);
         await _dbContext.SaveChangesAsync();
-        return new GetGameDTO(game);
+        return new GetGameDTO(await GetGameByIdAsync(game.Id));
     }
 
-    public async Task<GetGameDTO> UnregisterTeamAsync(int id, int teamId)
+    public async Task<GetGameDTO> UnregisterTeamAsync(Guid id, Guid teamId)
     {
         var game = await GetGameByIdAsync(id);
         if (game.ParticipationMode != ParticipationMode.Team)
@@ -180,12 +184,71 @@ public class GameService : IGameService
         game.RemoveTeam(teamId);
         _dbContext.Games.Update(game);
         await _dbContext.SaveChangesAsync();
-        return new GetGameDTO(game);
+        return new GetGameDTO(await GetGameByIdAsync(game.Id));
+    }
+
+    public async Task<GetGameDTO> ReplaceSponsorPlacementsAsync(Guid id, ReplaceGameSponsorsDTO sponsorDTO)
+    {
+        var game = await GetGameByIdAsync(id);
+        var placements = sponsorDTO.SponsorPlacements ?? [];
+        if (placements.Count > 1)
+            throw new ValidationException("A game can only have one sponsor.");
+
+        var sponsorIds = placements.Select(placement => placement.SponsorId).Distinct().ToList();
+        var sponsorsById = sponsorIds.Count == 0
+            ? new Dictionary<int, Sponsor>()
+            : await _dbContext.Sponsors
+                .Where(sponsor => sponsorIds.Contains(sponsor.Id))
+                .ToDictionaryAsync(sponsor => sponsor.Id);
+
+        var missingSponsorIds = sponsorIds.Where(sponsorId => !sponsorsById.ContainsKey(sponsorId)).ToList();
+        if (missingSponsorIds.Count != 0)
+            throw new NotFoundException($"Sponsor with ID {missingSponsorIds[0]} not found");
+
+        var placement = placements.SingleOrDefault();
+        if (placement is null)
+        {
+            if (game.SponsorPlacement is not null)
+                _dbContext.GameSponsorPlacements.Remove(game.SponsorPlacement);
+
+            game.SponsorPlacement = null;
+        }
+        else if (game.SponsorPlacement is null)
+        {
+            var gameSponsorPlacement = new GameSponsorPlacement();
+            ApplySponsorPlacement(gameSponsorPlacement, placement, game.Id);
+            game.SponsorPlacement = gameSponsorPlacement;
+            _dbContext.GameSponsorPlacements.Add(gameSponsorPlacement);
+        }
+        else
+        {
+            ApplySponsorPlacement(game.SponsorPlacement, placement, game.Id);
+        }
+        await _dbContext.SaveChangesAsync();
+
+        return new GetGameDTO(await GetGameByIdAsync(game.Id));
     }
 
     private async Task<bool> CheckIfGameNameExistsInCurrentSeasonAsync(string name)
     {
         return await _dbContext.Games.AnyAsync(g => g.Name == name);
+    }
+
+    private IQueryable<Game> CreateDetailedGameQuery()
+    {
+        return _dbContext.Games
+            .Include(g => g.Placements)
+            .Include(g => g.SponsorPlacement);
+    }
+
+    private static void ApplySponsorPlacement(GameSponsorPlacement gameSponsorPlacement, GameSponsorPlacementInputDTO placement, Guid gameId)
+    {
+        gameSponsorPlacement.GameId = gameId;
+        gameSponsorPlacement.SponsorId = placement.SponsorId;
+        gameSponsorPlacement.Context = placement.Context;
+        gameSponsorPlacement.Headline = placement.Headline;
+        gameSponsorPlacement.SupportLine = placement.SupportLine;
+        gameSponsorPlacement.DisplayOrder = placement.DisplayOrder;
     }
 }
 

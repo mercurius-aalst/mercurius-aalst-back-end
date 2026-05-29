@@ -23,6 +23,21 @@ public class MatchContractTests
         JsonContractAssertions.AssertHasProperty(json, "format");
         JsonContractAssertions.AssertHasProperty(json, "bracketType");
         JsonContractAssertions.AssertHasProperty(json, "participationMode");
+        AssertSchedulePropertiesWhenAvailable(json);
+    }
+
+    [Fact]
+    public void UpdateMatchDto_ContainsScoreUpdateContractFields()
+    {
+        var dto = new UpdateMatchDTO
+        {
+            Participant1Score = 2,
+            Participant2Score = 1
+        };
+        var json = JsonContractAssertions.SerializeToElement(dto);
+
+        JsonContractAssertions.AssertHasProperty(json, "participant1Score");
+        JsonContractAssertions.AssertHasProperty(json, "participant2Score");
     }
 
     [Fact]
@@ -37,5 +52,14 @@ public class MatchContractTests
         JsonContractAssertions.AssertDoesNotHaveProperty(json, "userParticipant2");
         JsonContractAssertions.AssertDoesNotHaveProperty(json, "teamParticipant1");
         JsonContractAssertions.AssertDoesNotHaveProperty(json, "teamParticipant2");
+    }
+
+    private static void AssertSchedulePropertiesWhenAvailable(System.Text.Json.JsonElement json)
+    {
+        if (typeof(GetMatchDTO).GetProperty("EstimatedStartTime") is null)
+            return;
+
+        JsonContractAssertions.AssertHasProperty(json, "estimatedStartTime");
+        JsonContractAssertions.AssertHasProperty(json, "estimatedEndTime");
     }
 }

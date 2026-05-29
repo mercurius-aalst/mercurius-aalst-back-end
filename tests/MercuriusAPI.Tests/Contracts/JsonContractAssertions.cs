@@ -22,6 +22,18 @@ internal static class JsonContractAssertions
             throw new XunitException($"JSON property '{propertyName}' should not be present.");
     }
 
+    public static void AssertDoesNotContainProperty(JsonElement json, string propertyName)
+    {
+        if (ContainsPropertyDeep(json, propertyName))
+            throw new XunitException($"JSON property '{propertyName}' should not be present anywhere in the payload.");
+    }
+
+    public static void AssertContainsProperty(JsonElement json, string propertyName)
+    {
+        if (!ContainsPropertyDeep(json, propertyName))
+            throw new XunitException($"Expected JSON property '{propertyName}' was not found anywhere in the payload.");
+    }
+
     private static bool ContainsProperty(JsonElement json, string propertyName)
     {
         if (json.ValueKind != JsonValueKind.Object)
@@ -34,5 +46,25 @@ internal static class JsonContractAssertions
         }
 
         return false;
+    }
+
+    private static bool ContainsPropertyDeep(JsonElement json, string propertyName)
+    {
+        switch (json.ValueKind)
+        {
+            case JsonValueKind.Object:
+                foreach (var property in json.EnumerateObject())
+                {
+                    if (string.Equals(property.Name, propertyName, StringComparison.OrdinalIgnoreCase))
+                        return true;
+                    if (ContainsPropertyDeep(property.Value, propertyName))
+                        return true;
+                }
+                return false;
+            case JsonValueKind.Array:
+                return json.EnumerateArray().Any(item => ContainsPropertyDeep(item, propertyName));
+            default:
+                return false;
+        }
     }
 }

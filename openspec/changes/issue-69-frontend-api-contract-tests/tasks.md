@@ -1,7 +1,7 @@
 ## 1. Test Infrastructure
 
-- [ ] 1.1 Add reusable fixture builders for users, teams, games, matches, sponsors, and placements.
-- [ ] 1.2 Add serialized response assertion helpers for required and forbidden fields.
+- [x] 1.1 Add reusable fixture builders for users, teams, games, matches, sponsors, and placements.
+- [x] 1.2 Add serialized response assertion helpers for required and forbidden fields.
 - [ ] 1.3 Add a minimal route-level test harness if needed for authorization, status codes, and route precedence.
 
 ## 2. Contract Coverage

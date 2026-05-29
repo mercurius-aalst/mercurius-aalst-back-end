@@ -2,6 +2,7 @@ using Asp.Versioning;
 using Mercurius.LAN.API.DTOs.TeamDTOs;
 using Mercurius.LAN.API.Services.TeamServices;
 using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
 
 namespace Mercurius.LAN.API.Endpoints;
 
@@ -20,15 +21,25 @@ public static class TeamEndpoints
             .WithTags("Teams")
             .RequireAuthorization(new AuthorizeAttribute { Roles = "admin" });
 
-        group.MapGet("/", (ITeamService teamService) =>
+        group.MapGet("/", (ClaimsPrincipal user, ITeamService teamService) =>
         {
-            return teamService.GetAllTeams();
+            var teams = teamService.GetAllTeams().ToList();
+            if (IsAdmin(user))
+                return Results.Ok(teams);
+
+            var includePlatformIds = user.Identity?.IsAuthenticated == true;
+            return Results.Ok(teams.Select(team => new GetPublicTeamDTO(team, includePlatformIds)));
         })
         .AllowAnonymous();
 
-        group.MapGet("/{id}", async (Guid id, ITeamService teamService) =>
+        group.MapGet("/{id}", async (Guid id, ClaimsPrincipal user, ITeamService teamService) =>
         {
-            return new GetTeamDTO(await teamService.GetTeamByIdAsync(id));
+            var team = await teamService.GetTeamByIdAsync(id);
+            if (IsAdmin(user))
+                return Results.Ok(new GetTeamDTO(team));
+
+            var includePlatformIds = user.Identity?.IsAuthenticated == true;
+            return Results.Ok(new GetPublicTeamDTO(team, includePlatformIds));
         })
         .AllowAnonymous();
 
@@ -68,5 +79,10 @@ public static class TeamEndpoints
         });
 
         return group;
+    }
+
+    private static bool IsAdmin(ClaimsPrincipal user)
+    {
+        return user.Identity?.IsAuthenticated == true && user.IsInRole("admin");
     }
 }

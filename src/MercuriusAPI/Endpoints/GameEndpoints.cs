@@ -1,9 +1,9 @@
 using Asp.Versioning;
 using Mercurius.LAN.API.DTOs.GameDTOs;
-using Mercurius.LAN.API.DTOs.PlacementDTOs;
 using Mercurius.LAN.API.Services.GameServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace Mercurius.LAN.API.Endpoints;
 
@@ -22,15 +22,25 @@ public static class GameEndpoints
             .WithTags("Games")
             .RequireAuthorization(new AuthorizeAttribute { Roles = "admin" });
 
-        group.MapGet("/", (IGameService gameService) =>
+        group.MapGet("/", (ClaimsPrincipal user, IGameService gameService) =>
         {
-            return gameService.GetAllGames();
+            var games = gameService.GetAllGames().ToList();
+            if (IsAdmin(user))
+                return Results.Ok(games);
+
+            var includePlatformIds = user.Identity?.IsAuthenticated == true;
+            return Results.Ok(games.Select(game => new GetPublicGameDTO(game, includePlatformIds)));
         })
         .AllowAnonymous();
 
-        group.MapGet("/{id}", async (Guid id, IGameService gameService) =>
+        group.MapGet("/{id}", async (Guid id, ClaimsPrincipal user, IGameService gameService) =>
         {
-            return new GetGameDTO(await gameService.GetGameByIdAsync(id));
+            var game = await gameService.GetGameByIdAsync(id);
+            if (IsAdmin(user))
+                return Results.Ok(new GetGameDTO(game));
+
+            var includePlatformIds = user.Identity?.IsAuthenticated == true;
+            return Results.Ok(new GetPublicGameDTO(game, includePlatformIds));
         })
         .AllowAnonymous();
 
@@ -95,5 +105,10 @@ public static class GameEndpoints
         });
 
         return group;
+    }
+
+    private static bool IsAdmin(ClaimsPrincipal user)
+    {
+        return user.Identity?.IsAuthenticated == true && user.IsInRole("admin");
     }
 }

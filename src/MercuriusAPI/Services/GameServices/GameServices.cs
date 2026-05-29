@@ -29,7 +29,16 @@ public class GameService : IGameService
         if (createGameDTO.Image == null)
             throw new ValidationException("A game banner/ image is required.");
 
-        var game = new Game(createGameDTO.Name, createGameDTO.BracketType, createGameDTO.Format, createGameDTO.FinalsFormat, createGameDTO.ParticipationMode!.Value, createGameDTO.RegisterFormUrl);
+        var game = new Game(
+            createGameDTO.Name,
+            createGameDTO.BracketType,
+            createGameDTO.Format,
+            createGameDTO.FinalsFormat,
+            createGameDTO.ParticipationMode!.Value,
+            createGameDTO.RegisterFormUrl,
+            createGameDTO.PlannedStartTime,
+            createGameDTO.AverageGameDurationMinutes,
+            createGameDTO.RoundBreakDurationMinutes);
 
         var bannerPath = await _fileService.SaveImageAsync(createGameDTO.Image);
         game.ImageUrl = bannerPath;
@@ -75,7 +84,16 @@ public class GameService : IGameService
         if (game.Name != gameDTO.Name && await CheckIfGameNameExistsInCurrentSeasonAsync(gameDTO.Name))
             throw new ValidationException($"Game {gameDTO.Name} already exists");
 
-        game.Update(gameDTO.Name, gameDTO.BracketType, gameDTO.Format, gameDTO.FinalsFormat, gameDTO.ParticipationMode!.Value, gameDTO.RegisterFormUrl);
+        game.Update(
+            gameDTO.Name,
+            gameDTO.BracketType,
+            gameDTO.Format,
+            gameDTO.FinalsFormat,
+            gameDTO.ParticipationMode!.Value,
+            gameDTO.RegisterFormUrl,
+            gameDTO.PlannedStartTime,
+            gameDTO.AverageGameDurationMinutes,
+            gameDTO.RoundBreakDurationMinutes);
 
         if (gameDTO.Image != null)
         {
@@ -111,6 +129,7 @@ public class GameService : IGameService
         game.Start();
         var matchGenerator = _matchGeneratorFactory.GetMatchModerator(game.BracketType);
         game.Matches = matchGenerator.GenerateMatchesForGame(game).ToList();
+        AssignEstimatedSchedule(game);
 
         _dbContext.Games.Update(game);
         await _dbContext.SaveChangesAsync();
@@ -249,6 +268,55 @@ public class GameService : IGameService
         gameSponsorPlacement.Headline = placement.Headline;
         gameSponsorPlacement.SupportLine = placement.SupportLine;
         gameSponsorPlacement.DisplayOrder = placement.DisplayOrder;
+    }
+
+    private static void AssignEstimatedSchedule(Game game)
+    {
+        if (game.Matches.Count == 0)
+        {
+            game.EstimatedEndTime = null;
+            return;
+        }
+
+        var currentRoundStart = game.PlannedStartTime;
+        DateTime? latestEnd = null;
+
+        foreach (var round in game.Matches
+                     .GroupBy(match => match.RoundNumber)
+                     .OrderBy(group => group.Key))
+        {
+            var roundDuration = TimeSpan.Zero;
+            var orderedMatches = round.OrderBy(match => match.MatchNumber).ToList();
+
+            foreach (var match in orderedMatches)
+            {
+                var matchDuration = TimeSpan.FromMinutes(game.AverageGameDurationMinutes * GetDurationMultiplier(match.Format));
+                var estimatedEnd = currentRoundStart.Add(matchDuration);
+                match.SetEstimatedWindow(currentRoundStart, estimatedEnd);
+
+                if (matchDuration > roundDuration)
+                    roundDuration = matchDuration;
+                if (!latestEnd.HasValue || estimatedEnd > latestEnd.Value)
+                    latestEnd = estimatedEnd;
+            }
+
+            currentRoundStart = currentRoundStart
+                .Add(roundDuration)
+                .Add(TimeSpan.FromMinutes(game.RoundBreakDurationMinutes));
+        }
+
+        game.EstimatedEndTime = latestEnd;
+    }
+
+    private static int GetDurationMultiplier(GameFormat format)
+    {
+        return format switch
+        {
+            GameFormat.BestOf1 => 1,
+            GameFormat.BestOf3 => 3,
+            GameFormat.BestOf5 => 5,
+            _ => 1
+        };
     }
 }
 

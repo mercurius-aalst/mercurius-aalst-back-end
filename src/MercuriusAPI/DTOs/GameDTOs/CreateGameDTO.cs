@@ -18,5 +18,11 @@ public class CreateGameDTO
     [Required]
     [StringLength(500, MinimumLength = 1)]
     public string RegisterFormUrl { get; set; }
+    [Required]
+    public DateTime PlannedStartTime { get; set; }
+    [Range(1, 1440)]
+    public int AverageGameDurationMinutes { get; set; }
+    [Range(1, 240)]
+    public int RoundBreakDurationMinutes { get; set; }
 }
 

@@ -8,6 +8,10 @@ public class Game
     public string Name { get; set; }
     public DateTime StartTime { get; set; }
     public DateTime EndTime { get; set; }
+    public DateTime PlannedStartTime { get; set; }
+    public int AverageGameDurationMinutes { get; set; }
+    public int RoundBreakDurationMinutes { get; set; }
+    public DateTime? EstimatedEndTime { get; set; }
     public GameStatus Status { get; set; }
     public BracketType BracketType { get; set; }
     public GameFormat Format { get; set; }
@@ -24,7 +28,16 @@ public class Game
     public string RegisterFormUrl { get; set; }
     public string? ImageUrl { get; set; }
 
-    public Game(string name, BracketType bracketType, GameFormat format, GameFormat finalsFormat, ParticipationMode participationMode, string registerFormUrl)
+    public Game(
+        string name,
+        BracketType bracketType,
+        GameFormat format,
+        GameFormat finalsFormat,
+        ParticipationMode participationMode,
+        string registerFormUrl,
+        DateTime plannedStartTime,
+        int averageGameDurationMinutes,
+        int roundBreakDurationMinutes)
     {
         Name = name;
         BracketType = bracketType;
@@ -33,7 +46,13 @@ public class Game
         Status = GameStatus.Scheduled;
         ParticipationMode = participationMode;
         RegisterFormUrl = registerFormUrl;
+        SetScheduleConfiguration(plannedStartTime, averageGameDurationMinutes, roundBreakDurationMinutes);
         Placements = new List<Placement>();
+    }
+
+    public Game(string name, BracketType bracketType, GameFormat format, GameFormat finalsFormat, ParticipationMode participationMode, string registerFormUrl)
+        : this(name, bracketType, format, finalsFormat, participationMode, registerFormUrl, DateTime.UtcNow, 30, 10)
+    {
     }
 
 
@@ -42,18 +61,39 @@ public class Game
     {
     }
 
-    public void Update(string name, BracketType bracketType, GameFormat format, GameFormat finalsFormat, ParticipationMode participationMode, string registerFormUrl)
+    public void Update(
+        string name,
+        BracketType bracketType,
+        GameFormat format,
+        GameFormat finalsFormat,
+        ParticipationMode participationMode,
+        string registerFormUrl,
+        DateTime plannedStartTime,
+        int averageGameDurationMinutes,
+        int roundBreakDurationMinutes)
     {
         if (Status == GameStatus.InProgress || Status == GameStatus.Completed)
             throw new ValidationException("Game cannot be updated when it's in progress or completed.");
         if (ParticipationMode != participationMode && Matches.Any())
             throw new ValidationException("Participation mode cannot be changed once match generation has started.");
+        if (Matches.Any() && ScheduleConfigurationChanged(plannedStartTime, averageGameDurationMinutes, roundBreakDurationMinutes))
+            throw new ValidationException("Schedule configuration cannot be changed once match generation has started.");
         Name = name;
         BracketType = bracketType;
         Format = format;
         FinalsFormat = finalsFormat;
         ParticipationMode = participationMode;
         RegisterFormUrl = registerFormUrl;
+        SetScheduleConfiguration(plannedStartTime, averageGameDurationMinutes, roundBreakDurationMinutes);
+    }
+
+    public void Update(string name, BracketType bracketType, GameFormat format, GameFormat finalsFormat, ParticipationMode participationMode, string registerFormUrl)
+    {
+        var plannedStart = PlannedStartTime == DateTime.MinValue ? DateTime.UtcNow : PlannedStartTime;
+        var averageMinutes = AverageGameDurationMinutes <= 0 ? 30 : AverageGameDurationMinutes;
+        var breakMinutes = RoundBreakDurationMinutes <= 0 ? 10 : RoundBreakDurationMinutes;
+
+        Update(name, bracketType, format, finalsFormat, participationMode, registerFormUrl, plannedStart, averageMinutes, breakMinutes);
     }
     public void Cancel()
     {
@@ -87,6 +127,7 @@ public class Game
         Status = GameStatus.Scheduled;
         StartTime = DateTime.MinValue;
         EndTime = DateTime.MinValue;
+        EstimatedEndTime = null;
         Matches.Clear();
         RegisteredUsers.Clear();
         RegisteredTeams.Clear();
@@ -149,5 +190,26 @@ public class Game
     {
         if (Status != GameStatus.Scheduled)
             throw new ValidationException("Game must be scheduled for registrations.");
+    }
+
+    private void SetScheduleConfiguration(DateTime plannedStartTime, int averageGameDurationMinutes, int roundBreakDurationMinutes)
+    {
+        if (plannedStartTime == DateTime.MinValue)
+            throw new ValidationException("Planned tournament start time is required.");
+        if (averageGameDurationMinutes <= 0)
+            throw new ValidationException("Average game duration must be greater than zero.");
+        if (roundBreakDurationMinutes <= 0)
+            throw new ValidationException("Round break duration must be greater than zero.");
+
+        PlannedStartTime = plannedStartTime;
+        AverageGameDurationMinutes = averageGameDurationMinutes;
+        RoundBreakDurationMinutes = roundBreakDurationMinutes;
+    }
+
+    private bool ScheduleConfigurationChanged(DateTime plannedStartTime, int averageGameDurationMinutes, int roundBreakDurationMinutes)
+    {
+        return PlannedStartTime != plannedStartTime
+               || AverageGameDurationMinutes != averageGameDurationMinutes
+               || RoundBreakDurationMinutes != roundBreakDurationMinutes;
     }
 }

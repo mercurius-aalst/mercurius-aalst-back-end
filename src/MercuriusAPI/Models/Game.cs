@@ -4,6 +4,9 @@ namespace Mercurius.LAN.API.Models;
 
 public class Game
 {
+    private const int MaxAverageGameDurationMinutes = 1440;
+    private const int MaxRoundBreakDurationMinutes = 240;
+
     public Guid Id { get; set; }
     public string Name { get; set; }
     public DateTime StartTime { get; set; }
@@ -198,8 +201,12 @@ public class Game
             throw new ValidationException("Planned tournament start time is required.");
         if (averageGameDurationMinutes <= 0)
             throw new ValidationException("Average game duration must be greater than zero.");
+        if (averageGameDurationMinutes > MaxAverageGameDurationMinutes)
+            throw new ValidationException($"Average game duration cannot exceed {MaxAverageGameDurationMinutes} minutes.");
         if (roundBreakDurationMinutes <= 0)
             throw new ValidationException("Round break duration must be greater than zero.");
+        if (roundBreakDurationMinutes > MaxRoundBreakDurationMinutes)
+            throw new ValidationException($"Round break duration cannot exceed {MaxRoundBreakDurationMinutes} minutes.");
 
         PlannedStartTime = plannedStartTime;
         AverageGameDurationMinutes = averageGameDurationMinutes;

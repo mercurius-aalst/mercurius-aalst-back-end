@@ -280,6 +280,7 @@ public class GameService : IGameService
 
         var currentRoundStart = game.PlannedStartTime;
         DateTime? latestEnd = null;
+        var finalRoundNumber = game.Matches.Max(match => match.RoundNumber);
 
         foreach (var round in game.Matches
                      .GroupBy(match => match.RoundNumber)
@@ -290,7 +291,8 @@ public class GameService : IGameService
 
             foreach (var match in orderedMatches)
             {
-                var matchDuration = TimeSpan.FromMinutes(game.AverageGameDurationMinutes * GetDurationMultiplier(match.Format));
+                var format = match.RoundNumber == finalRoundNumber ? game.FinalsFormat : match.Format;
+                var matchDuration = TimeSpan.FromMinutes(game.AverageGameDurationMinutes * GetDurationMultiplier(format));
                 var estimatedEnd = currentRoundStart.Add(matchDuration);
                 match.SetEstimatedWindow(currentRoundStart, estimatedEnd);
 

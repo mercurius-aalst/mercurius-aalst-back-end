@@ -49,8 +49,8 @@ public class GameService : IGameService
                 .ThenInclude(p => p.Users)
             .Include(g => g.Placements)
                 .ThenInclude(p => p.Teams)
-            .Include(g => g.SponsorPlacements)
-                .ThenInclude(placement => placement.Sponsor)
+            .Include(g => g.SponsorPlacement)
+                .ThenInclude(placement => placement!.Sponsor)
             .FirstOrDefaultAsync(g => g.Id == gameId);
         if (game is null)
             throw new NotFoundException($"{nameof(Game)} not found");
@@ -63,8 +63,8 @@ public class GameService : IGameService
             .Include(g => g.RegisteredUsers)
             .Include(g => g.RegisteredTeams)
             .Include(g => g.Matches)
-            .Include(g => g.SponsorPlacements)
-                .ThenInclude(placement => placement.Sponsor)
+            .Include(g => g.SponsorPlacement)
+                .ThenInclude(placement => placement!.Sponsor)
             .ToList()
             .Select(g => new GetGameDTO(g));
     }
@@ -191,6 +191,9 @@ public class GameService : IGameService
     {
         var game = await GetGameByIdAsync(id);
         var placements = sponsorDTO.SponsorPlacements ?? [];
+        if (placements.Count > 1)
+            throw new ValidationException("A game can only have one sponsor.");
+
         var sponsorIds = placements.Select(placement => placement.SponsorId).Distinct().ToList();
         var sponsorsById = sponsorIds.Count == 0
             ? new Dictionary<int, Sponsor>()
@@ -202,21 +205,25 @@ public class GameService : IGameService
         if (missingSponsorIds.Count != 0)
             throw new NotFoundException($"Sponsor with ID {missingSponsorIds[0]} not found");
 
-        _dbContext.GameSponsorPlacements.RemoveRange(game.SponsorPlacements);
+        var placement = placements.SingleOrDefault();
+        if (placement is null)
+        {
+            if (game.SponsorPlacement is not null)
+                _dbContext.GameSponsorPlacements.Remove(game.SponsorPlacement);
 
-        game.SponsorPlacements = placements
-            .Select(placement => new GameSponsorPlacement
-            {
-                GameId = game.Id,
-                SponsorId = placement.SponsorId,
-                Context = placement.Context,
-                Headline = placement.Headline,
-                SupportLine = placement.SupportLine,
-                DisplayOrder = placement.DisplayOrder
-            })
-            .ToList();
-
-        _dbContext.GameSponsorPlacements.AddRange(game.SponsorPlacements);
+            game.SponsorPlacement = null;
+        }
+        else if (game.SponsorPlacement is null)
+        {
+            var gameSponsorPlacement = new GameSponsorPlacement();
+            ApplySponsorPlacement(gameSponsorPlacement, placement, game.Id);
+            game.SponsorPlacement = gameSponsorPlacement;
+            _dbContext.GameSponsorPlacements.Add(gameSponsorPlacement);
+        }
+        else
+        {
+            ApplySponsorPlacement(game.SponsorPlacement, placement, game.Id);
+        }
         await _dbContext.SaveChangesAsync();
 
         return new GetGameDTO(await GetGameByIdAsync(game.Id));
@@ -231,7 +238,17 @@ public class GameService : IGameService
     {
         return _dbContext.Games
             .Include(g => g.Placements)
-            .Include(g => g.SponsorPlacements);
+            .Include(g => g.SponsorPlacement);
+    }
+
+    private static void ApplySponsorPlacement(GameSponsorPlacement gameSponsorPlacement, GameSponsorPlacementInputDTO placement, Guid gameId)
+    {
+        gameSponsorPlacement.GameId = gameId;
+        gameSponsorPlacement.SponsorId = placement.SponsorId;
+        gameSponsorPlacement.Context = placement.Context;
+        gameSponsorPlacement.Headline = placement.Headline;
+        gameSponsorPlacement.SupportLine = placement.SupportLine;
+        gameSponsorPlacement.DisplayOrder = placement.DisplayOrder;
     }
 }
 

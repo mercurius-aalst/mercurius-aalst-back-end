@@ -66,21 +66,20 @@ public class SponsorFeatureTests
     }
 
     [Fact]
-    public async Task ReplaceSponsorPlacementsAsync_ReplacesExistingPlacementsAndReturnsSponsorData()
+    public async Task ReplaceSponsorPlacementsAsync_ReplacesExistingPlacementAndReturnsSponsorData()
     {
         await using var dbContext = CreateDbContext();
         var game = CreateGame();
         var presentingSponsor = CreateSponsor(1, "Mercurius Tech", SponsorTier.Presenting);
-        var prizeSponsor = CreateSponsor(2, "Campus Fiber", SponsorTier.Gold);
-        dbContext.Games.Add(game);
-        dbContext.Sponsors.AddRange(presentingSponsor, prizeSponsor);
-        dbContext.GameSponsorPlacements.Add(new GameSponsorPlacement
+        game.SponsorPlacement = new GameSponsorPlacement
         {
-            GameId = game.Id,
             SponsorId = presentingSponsor.Id,
             Context = SponsorContext.CateringPartner,
             DisplayOrder = 99
-        });
+        };
+
+        dbContext.Games.Add(game);
+        dbContext.Sponsors.Add(presentingSponsor);
         await dbContext.SaveChangesAsync();
 
         var service = new GameService(dbContext, new StubMatchModeratorFactory(), new StubFileService());
@@ -95,37 +94,56 @@ public class SponsorFeatureTests
                     Headline = "Presented by Mercurius Tech",
                     SupportLine = "Main stage and stream support",
                     DisplayOrder = 1
+                }
+            ]
+        });
+
+        Assert.NotNull(updatedGame.SponsorPlacement);
+        Assert.Equal(SponsorContext.TournamentPartner, updatedGame.SponsorPlacement.Context);
+        Assert.Equal("Mercurius Tech", updatedGame.SponsorPlacement.SponsorName);
+        Assert.Equal(SponsorTier.Presenting, updatedGame.SponsorPlacement.SponsorTier);
+        Assert.Equal("Presented by Mercurius Tech", updatedGame.SponsorPlacement.Headline);
+
+        var storedPlacements = await dbContext.GameSponsorPlacements
+            .OrderBy(placement => placement.DisplayOrder)
+            .ToListAsync();
+        Assert.Single(storedPlacements);
+        Assert.DoesNotContain(storedPlacements, placement => placement.Context == SponsorContext.CateringPartner);
+    }
+
+    [Fact]
+    public async Task ReplaceSponsorPlacementsAsync_ThrowsWhenMoreThanOneSponsorIsProvided()
+    {
+        await using var dbContext = CreateDbContext();
+        var game = CreateGame();
+        var presentingSponsor = CreateSponsor(1, "Mercurius Tech", SponsorTier.Presenting);
+        var prizeSponsor = CreateSponsor(2, "Campus Fiber", SponsorTier.Gold);
+        dbContext.Games.Add(game);
+        dbContext.Sponsors.AddRange(presentingSponsor, prizeSponsor);
+        await dbContext.SaveChangesAsync();
+
+        var service = new GameService(dbContext, new StubMatchModeratorFactory(), new StubFileService());
+
+        var exception = await Assert.ThrowsAsync<ValidationException>(() => service.ReplaceSponsorPlacementsAsync(game.Id, new ReplaceGameSponsorsDTO
+        {
+            SponsorPlacements =
+            [
+                new GameSponsorPlacementInputDTO
+                {
+                    SponsorId = presentingSponsor.Id,
+                    Context = SponsorContext.TournamentPartner,
+                    DisplayOrder = 1
                 },
                 new GameSponsorPlacementInputDTO
                 {
                     SponsorId = prizeSponsor.Id,
                     Context = SponsorContext.PrizePartner,
-                    SupportLine = "Providing the grand final prizes",
                     DisplayOrder = 2
                 }
             ]
-        });
+        }));
 
-        Assert.Collection(updatedGame.SponsorPlacements,
-            placement =>
-            {
-                Assert.Equal(SponsorContext.TournamentPartner, placement.Context);
-                Assert.Equal("Mercurius Tech", placement.SponsorName);
-                Assert.Equal(SponsorTier.Presenting, placement.SponsorTier);
-                Assert.Equal("Presented by Mercurius Tech", placement.Headline);
-            },
-            placement =>
-            {
-                Assert.Equal(SponsorContext.PrizePartner, placement.Context);
-                Assert.Equal("Campus Fiber", placement.SponsorName);
-                Assert.Equal("Providing the grand final prizes", placement.SupportLine);
-            });
-
-        var storedPlacements = await dbContext.GameSponsorPlacements
-            .OrderBy(placement => placement.DisplayOrder)
-            .ToListAsync();
-        Assert.Equal(2, storedPlacements.Count);
-        Assert.DoesNotContain(storedPlacements, placement => placement.Context == SponsorContext.CateringPartner);
+        Assert.Equal("A game can only have one sponsor.", exception.Message);
     }
 
     [Fact]

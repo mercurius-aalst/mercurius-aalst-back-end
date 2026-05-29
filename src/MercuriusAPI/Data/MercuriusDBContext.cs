@@ -114,9 +114,9 @@ public partial class MercuriusDBContext : DbContext
             entity.Property(e => e.Name).IsRequired();
             entity.Property(e => e.StartTime).IsRequired();
             entity.Property(e => e.EndTime).IsRequired();
-            entity.HasMany(e => e.SponsorPlacements)
+            entity.HasOne(e => e.SponsorPlacement)
                   .WithOne(e => e.Game)
-                  .HasForeignKey(e => e.GameId)
+                  .HasForeignKey<GameSponsorPlacement>(e => e.GameId)
                   .OnDelete(DeleteBehavior.Cascade);
             entity.HasMany(e => e.RegisteredUsers)
                   .WithMany()
@@ -222,15 +222,11 @@ public partial class MercuriusDBContext : DbContext
             entity.Property(e => e.Headline).HasMaxLength(160);
             entity.Property(e => e.SupportLine).HasMaxLength(220);
             entity.Property(e => e.DisplayOrder).IsRequired();
-            entity.HasOne(e => e.Game)
-                  .WithMany(e => e.SponsorPlacements)
-                  .HasForeignKey(e => e.GameId)
-                  .OnDelete(DeleteBehavior.Cascade);
             entity.HasOne(e => e.Sponsor)
                   .WithMany(e => e.GameSponsorPlacements)
                   .HasForeignKey(e => e.SponsorId)
                   .OnDelete(DeleteBehavior.Cascade);
-            entity.HasIndex(e => new { e.GameId, e.Context, e.DisplayOrder, e.Id });
+            entity.HasIndex(e => e.GameId).IsUnique();
         });
 
         OnModelCreatingPartial(modelBuilder);

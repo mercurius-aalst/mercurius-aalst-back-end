@@ -128,7 +128,8 @@ namespace Mercurius.LAN.API.Migrations
 
                     b.HasIndex("SponsorId");
 
-                    b.HasIndex("GameId", "Context", "DisplayOrder", "Id");
+                    b.HasIndex("GameId")
+                        .IsUnique();
 
                     b.ToTable("GameSponsorPlacements");
                 });
@@ -485,8 +486,8 @@ namespace Mercurius.LAN.API.Migrations
             modelBuilder.Entity("Mercurius.LAN.API.Models.GameSponsorPlacement", b =>
                 {
                     b.HasOne("Mercurius.LAN.API.Models.Game", "Game")
-                        .WithMany("SponsorPlacements")
-                        .HasForeignKey("GameId")
+                        .WithOne("SponsorPlacement")
+                        .HasForeignKey("Mercurius.LAN.API.Models.GameSponsorPlacement", "GameId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -664,7 +665,7 @@ namespace Mercurius.LAN.API.Migrations
 
                     b.Navigation("Placements");
 
-                    b.Navigation("SponsorPlacements");
+                    b.Navigation("SponsorPlacement");
                 });
 
             modelBuilder.Entity("Mercurius.LAN.API.Models.Sponsor", b =>

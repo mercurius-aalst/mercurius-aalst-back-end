@@ -61,9 +61,10 @@ namespace Mercurius.LAN.API.Migrations
                 });
 
             migrationBuilder.CreateIndex(
-                name: "IX_GameSponsorPlacements_GameId_Context_DisplayOrder_Id",
+                name: "IX_GameSponsorPlacements_GameId",
                 table: "GameSponsorPlacements",
-                columns: new[] { "GameId", "Context", "DisplayOrder", "Id" });
+                column: "GameId",
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_GameSponsorPlacements_SponsorId",

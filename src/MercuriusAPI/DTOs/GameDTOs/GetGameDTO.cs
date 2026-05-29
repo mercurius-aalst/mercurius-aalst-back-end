@@ -21,7 +21,7 @@ public class GetGameDTO
 
     public string RegisterFormUrl { get; set; }
     public IEnumerable<GetPlacementDTO> Placements { get; set; } = [];
-    public IEnumerable<GetGameSponsorPlacementDTO> SponsorPlacements { get; set; } = [];
+    public GetGameSponsorPlacementDTO? SponsorPlacement { get; set; }
 
     public IEnumerable<GetMatchDTO> Matches { get; set; } = [];
     public IEnumerable<GetUserDTO> Users { get; set; } = [];
@@ -41,12 +41,9 @@ public class GetGameDTO
         RegisterFormUrl = game.RegisterFormUrl;
         ParticipationMode = game.ParticipationMode;
         Placements = game.Placements.Select(p => new GetPlacementDTO(p, game.ParticipationMode));
-        SponsorPlacements = game.SponsorPlacements
-            .OrderBy(placement => placement.Context)
-            .ThenBy(placement => placement.DisplayOrder)
-            .ThenBy(placement => placement.Sponsor.Name)
-            .Select(placement => new GetGameSponsorPlacementDTO(placement))
-            .ToList();
+        SponsorPlacement = game.SponsorPlacement is null
+            ? null
+            : new GetGameSponsorPlacementDTO(game.SponsorPlacement);
         Matches = game.Matches.Select(m => new GetMatchDTO(m));
         switch (ParticipationMode)
         {

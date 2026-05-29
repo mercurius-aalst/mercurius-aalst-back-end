@@ -2,8 +2,10 @@ using Mercurius.LAN.API.Exceptions;
 using Mercurius.LAN.API.Data;
 using Mercurius.LAN.API.DTOs.TeamDTOs;
 using Mercurius.LAN.API.Models;
+using Mercurius.LAN.API.Migrations;
 using Mercurius.LAN.API.Services.TeamServices;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Microsoft.Extensions.Configuration;
 
 namespace Mercurius.LAN.API.Tests;
@@ -81,6 +83,107 @@ public class TeamTests
         }));
 
         Assert.Contains("already in use", exception.Message);
+    }
+
+    [Fact]
+    public async Task CreateTeamAsync_ThrowsValidation_When_DatabaseUniqueConstraintFails()
+    {
+        await using var dbContext = CreateUniqueConstraintDbContext();
+        var captain = CreateUser();
+
+        dbContext.Users.Add(captain);
+        await dbContext.SaveChangesAsync();
+        dbContext.ThrowTeamNameUniqueConstraint = true;
+
+        var teamService = CreateTeamService(dbContext);
+
+        var exception = await Assert.ThrowsAsync<ValidationException>(() => teamService.CreateTeamAsync(new CreateTeamDTO
+        {
+            Name = "Alpha Squad",
+            CaptainUserId = captain.Id
+        }));
+
+        Assert.Contains("already in use", exception.Message);
+    }
+
+    [Fact]
+    public async Task GetTeamByNameAsync_ReturnsTeam_When_CasingDiffers()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var team = new Team("Alpha Squad", captain) { Id = Guid.NewGuid() };
+
+        dbContext.Users.Add(captain);
+        dbContext.Teams.Add(team);
+        await dbContext.SaveChangesAsync();
+
+        var teamService = CreateTeamService(dbContext);
+
+        var result = await teamService.GetTeamByNameAsync("ALPHA SQUAD");
+
+        Assert.Equal(team.Id, result.Id);
+    }
+
+    [Fact]
+    public async Task SearchTeamsByNameAsync_ReturnsMatches_When_QueryCasingDiffers()
+    {
+        await using var dbContext = CreateDbContext();
+        var alphaCaptain = CreateUser();
+        var alpineCaptain = CreateUser();
+        var betaCaptain = CreateUser();
+
+        dbContext.Users.AddRange(alphaCaptain, alpineCaptain, betaCaptain);
+        dbContext.Teams.AddRange(
+            new Team("Alpha Squad", alphaCaptain) { Id = Guid.NewGuid() },
+            new Team("Alpine Club", alpineCaptain) { Id = Guid.NewGuid() },
+            new Team("Beta Squad", betaCaptain) { Id = Guid.NewGuid() });
+        await dbContext.SaveChangesAsync();
+
+        var teamService = CreateTeamService(dbContext);
+
+        var results = (await teamService.SearchTeamsByNameAsync("ALP")).ToList();
+
+        Assert.Contains(results, team => team.Name == "Alpha Squad");
+        Assert.Contains(results, team => team.Name == "Alpine Club");
+        Assert.DoesNotContain(results, team => team.Name == "Beta Squad");
+    }
+
+    [Fact]
+    public void NormalizeName_ThrowsValidation_When_NameIsInvalid()
+    {
+        Assert.Throws<ValidationException>(() => Team.NormalizeName("   "));
+        Assert.Throws<ValidationException>(() => Team.NormalizeName(new string('a', 101)));
+    }
+
+    [Fact]
+    public void TeamNameNormalizationMigration_BackfillsNormalizedNamesBeforeUniqueIndex()
+    {
+        var migration = new TeamNameNormalization();
+        var operations = migration.UpOperations.ToList();
+
+        var addColumnIndex = operations.FindIndex(operation =>
+            operation is AddColumnOperation addColumn &&
+            addColumn.Table == "Teams" &&
+            addColumn.Name == "NormalizedName" &&
+            addColumn.IsNullable);
+        var backfillIndex = operations.FindIndex(operation =>
+            operation is SqlOperation sqlOperation &&
+            sqlOperation.Sql.Contains("lower(btrim(\"Name\"))", StringComparison.Ordinal));
+        var alterColumnIndex = operations.FindIndex(operation =>
+            operation is AlterColumnOperation alterColumn &&
+            alterColumn.Table == "Teams" &&
+            alterColumn.Name == "NormalizedName" &&
+            !alterColumn.IsNullable);
+        var uniqueIndexIndex = operations.FindIndex(operation =>
+            operation is CreateIndexOperation createIndex &&
+            createIndex.Table == "Teams" &&
+            createIndex.Name == "IX_Teams_NormalizedName" &&
+            createIndex.IsUnique);
+
+        Assert.True(addColumnIndex >= 0);
+        Assert.True(addColumnIndex < backfillIndex);
+        Assert.True(backfillIndex < alterColumnIndex);
+        Assert.True(alterColumnIndex < uniqueIndexIndex);
     }
 
     [Fact]
@@ -282,6 +385,15 @@ public class TeamTests
         return new MercuriusDBContext(options);
     }
 
+    private static UniqueConstraintDbContext CreateUniqueConstraintDbContext()
+    {
+        var options = new DbContextOptionsBuilder<MercuriusDBContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        return new UniqueConstraintDbContext(options);
+    }
+
     private static TeamService CreateTeamService(MercuriusDBContext dbContext)
     {
         var configuration = new ConfigurationBuilder()
@@ -292,6 +404,21 @@ public class TeamTests
             .Build();
 
         return new TeamService(dbContext, configuration);
+    }
+
+    private sealed class UniqueConstraintDbContext(DbContextOptions<MercuriusDBContext> options) : MercuriusDBContext(options)
+    {
+        public bool ThrowTeamNameUniqueConstraint { get; set; }
+
+        public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            if (ThrowTeamNameUniqueConstraint)
+                throw new DbUpdateException(
+                    "Unique constraint violation.",
+                    new InvalidOperationException("IX_Teams_NormalizedName"));
+
+            return base.SaveChangesAsync(cancellationToken);
+        }
     }
 }
 

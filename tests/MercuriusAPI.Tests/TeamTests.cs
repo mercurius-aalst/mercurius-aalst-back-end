@@ -1,5 +1,10 @@
 using Mercurius.LAN.API.Exceptions;
+using Mercurius.LAN.API.Data;
+using Mercurius.LAN.API.DTOs.TeamDTOs;
 using Mercurius.LAN.API.Models;
+using Mercurius.LAN.API.Services.TeamServices;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 
 namespace Mercurius.LAN.API.Tests;
 
@@ -16,6 +21,7 @@ public class TeamTests
         var team = new Team(teamName, captain);
         // Act & Assert
         Assert.Equal(teamName, team.Name);
+        Assert.Equal("test team", team.NormalizedName);
         Assert.Equal(captain.Id, team.CaptainUserId);
         Assert.Contains(captain, team.Members);
     }
@@ -29,6 +35,52 @@ public class TeamTests
         team.UpdateName(newName);
 
         Assert.Equal(newName, team.Name);
+        Assert.Equal("updated team name", team.NormalizedName);
+    }
+
+    [Fact]
+    public async Task CreateTeamAsync_Throws_When_Name_Exists_With_Different_Casing()
+    {
+        await using var dbContext = CreateDbContext();
+        var existingCaptain = CreateUser();
+        var newCaptain = CreateUser();
+
+        dbContext.Users.AddRange(existingCaptain, newCaptain);
+        dbContext.Teams.Add(new Team("Alpha Squad", existingCaptain) { Id = Guid.NewGuid() });
+        await dbContext.SaveChangesAsync();
+
+        var teamService = CreateTeamService(dbContext);
+
+        var exception = await Assert.ThrowsAsync<ValidationException>(() => teamService.CreateTeamAsync(new CreateTeamDTO
+        {
+            Name = "alpha squad",
+            CaptainUserId = newCaptain.Id
+        }));
+
+        Assert.Contains("already in use", exception.Message);
+    }
+
+    [Fact]
+    public async Task UpdateTeamAsync_Throws_When_Name_Exists_With_Different_Casing()
+    {
+        await using var dbContext = CreateDbContext();
+        var firstCaptain = CreateUser();
+        var secondCaptain = CreateUser();
+        var firstTeam = new Team("Alpha Squad", firstCaptain) { Id = Guid.NewGuid() };
+        var secondTeam = new Team("Beta Squad", secondCaptain) { Id = Guid.NewGuid() };
+
+        dbContext.Users.AddRange(firstCaptain, secondCaptain);
+        dbContext.Teams.AddRange(firstTeam, secondTeam);
+        await dbContext.SaveChangesAsync();
+
+        var teamService = CreateTeamService(dbContext);
+
+        var exception = await Assert.ThrowsAsync<ValidationException>(() => teamService.UpdateTeamAsync(secondTeam.Id, new UpdateTeamDTO
+        {
+            Name = "ALPHA SQUAD"
+        }));
+
+        Assert.Contains("already in use", exception.Message);
     }
 
     [Fact]
@@ -219,6 +271,27 @@ public class TeamTests
         {
             Id = Guid.NewGuid()
         };
+    }
+
+    private static MercuriusDBContext CreateDbContext()
+    {
+        var options = new DbContextOptionsBuilder<MercuriusDBContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        return new MercuriusDBContext(options);
+    }
+
+    private static TeamService CreateTeamService(MercuriusDBContext dbContext)
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["TeamInvite:ResendCooldownDays"] = "7"
+            })
+            .Build();
+
+        return new TeamService(dbContext, configuration);
     }
 }
 

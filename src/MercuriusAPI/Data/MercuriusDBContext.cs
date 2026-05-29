@@ -49,7 +49,9 @@ public partial class MercuriusDBContext : DbContext
 
         modelBuilder.Entity<Team>(entity =>
         {
-            entity.Property(e => e.Name).IsRequired();
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.NormalizedName).IsRequired().HasMaxLength(100);
+            entity.HasIndex(e => e.NormalizedName).IsUnique();
             entity.HasMany(e => e.Members)
                   .WithMany()
                   .UsingEntity<Dictionary<string, object>>(

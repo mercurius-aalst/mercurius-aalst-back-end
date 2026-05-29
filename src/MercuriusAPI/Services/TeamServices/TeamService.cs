@@ -18,7 +18,8 @@ public class TeamService : ITeamService
 
     public async Task<GetTeamDTO> CreateTeamAsync(CreateTeamDTO teamDTO)
     {
-        if (await CheckIfTeamNameExistsAsync(teamDTO.Name))
+        var normalizedTeamName = Team.NormalizeName(teamDTO.Name);
+        if (await CheckIfTeamNameExistsAsync(normalizedTeamName))
             throw new ValidationException($"Teamname {teamDTO.Name} already in use");
         var captain = await _dbContext.Users.FindAsync(teamDTO.CaptainUserId);
         if (captain is null)
@@ -67,11 +68,17 @@ public class TeamService : ITeamService
     public async Task<GetTeamDTO> UpdateTeamAsync(Guid id, UpdateTeamDTO teamDTO)
     {
         var team = await GetTeamByIdAsync(id);
-        if (teamDTO.Name != null && !team.Name.Equals(teamDTO.Name) && await CheckIfTeamNameExistsAsync(teamDTO.Name))
-            throw new ValidationException($"Teamname {teamDTO.Name} already in use");
-
         if (teamDTO.Name != null)
+        {
+            var normalizedTeamName = Team.NormalizeName(teamDTO.Name);
+            if (!string.Equals(team.NormalizedName, normalizedTeamName, StringComparison.Ordinal) &&
+                await CheckIfTeamNameExistsAsync(normalizedTeamName, id))
+            {
+                throw new ValidationException($"Teamname {teamDTO.Name} already in use");
+            }
+
             team.UpdateName(teamDTO.Name);
+        }
 
         if (teamDTO.CaptainUserId.HasValue)
             team.ChangeCaptain(teamDTO.CaptainUserId.Value);
@@ -120,9 +127,11 @@ public class TeamService : ITeamService
         });
     }
 
-    private Task<bool> CheckIfTeamNameExistsAsync(string name)
+    private Task<bool> CheckIfTeamNameExistsAsync(string normalizedName, Guid? excludedTeamId = null)
     {
-        return _dbContext.Teams.AnyAsync(t => t.Name.Equals(name));
+        return _dbContext.Teams.AnyAsync(t =>
+            t.NormalizedName == normalizedName &&
+            (!excludedTeamId.HasValue || t.Id != excludedTeamId.Value));
     }
 }
 

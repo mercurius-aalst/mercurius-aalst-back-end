@@ -90,6 +90,11 @@ public static class UserEndpoints
             await userService.DeleteUserByIdAsync(id);
         });
 
+        adminGroup.MapDelete("/{username}", async (string username, IUserService userService) =>
+        {
+            await userService.DeleteUserAsync(username);
+        });
+
         adminGroup.MapDelete("/{username}/account", async (string username, IUserService userService) =>
         {
             await userService.DeleteUserAsync(username);

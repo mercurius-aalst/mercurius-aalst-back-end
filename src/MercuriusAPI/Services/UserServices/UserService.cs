@@ -59,6 +59,41 @@ public class UserService : IUserService
         return new CurrentUserProfileResponse(user.IsComplete, new GetUserDTO(user));
     }
 
+    public async Task<PublicUserProfileDTO> GetPublicUserProfileByUsernameAsync(string username, bool includePlatformIds)
+    {
+        var normalizedUsername = UserProfileValidationHelper.NormalizeUsername(username);
+        var trimmedUsername = username?.Trim() ?? string.Empty;
+
+        var profile = await _dbContext.Users
+            .AsNoTracking()
+            .Where(u =>
+                u.NormalizedUsername == normalizedUsername &&
+                !u.IsDeleted &&
+                u.Username != null &&
+                u.NormalizedUsername != null &&
+                u.Firstname != null &&
+                u.Lastname != null &&
+                u.Username != string.Empty &&
+                u.NormalizedUsername != string.Empty &&
+                u.Firstname != string.Empty &&
+                u.Lastname != string.Empty)
+            .Select(u => new PublicUserProfileDTO
+            {
+                Username = u.Username!,
+                Firstname = u.Firstname!,
+                Lastname = u.Lastname!,
+                DiscordId = includePlatformIds ? u.DiscordId : null,
+                SteamId = includePlatformIds ? u.SteamId : null,
+                RiotId = includePlatformIds ? u.RiotId : null
+            })
+            .FirstOrDefaultAsync();
+
+        if (profile == null)
+            throw new NotFoundException($"User '{trimmedUsername}' not found.");
+
+        return profile;
+    }
+
     public async Task<GetUserDTO> UpdateCurrentUserAsync(string auth0UserId, UpdateUserProfileRequest request)
     {
         var user = await GetRequiredCurrentUserAsync(auth0UserId);

@@ -89,6 +89,22 @@ public class UserTests
     }
 
     [Fact]
+    public void PublicUserProfileDTO_DoesNotExposePrivateFields()
+    {
+        var properties = typeof(PublicUserProfileDTO)
+            .GetProperties()
+            .Select(property => property.Name)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        Assert.DoesNotContain("Email", properties);
+        Assert.DoesNotContain("EmailVerified", properties);
+        Assert.DoesNotContain("Auth0UserId", properties);
+        Assert.DoesNotContain("IsDeleted", properties);
+        Assert.DoesNotContain("CreatedAtUtc", properties);
+        Assert.DoesNotContain("UpdatedAtUtc", properties);
+    }
+
+    [Fact]
     public void DisplayName_FallsBackToUsername_WhenNameIsMissing()
     {
         var user = new User
@@ -272,6 +288,30 @@ public class UserTests
     }
 
     [Fact]
+    public async Task GetPublicUserProfileByUsernameAsync_ForwardsNormalizedUsername()
+    {
+        var inner = new RecordingUserService();
+        var service = new UserValidationService(inner);
+
+        var result = await service.GetPublicUserProfileByUsernameAsync(" ValidUser ", includePlatformIds: true);
+
+        Assert.Same(inner.PublicUser, result);
+        Assert.Equal("validuser", inner.LastPublicProfileUsername);
+        Assert.True(inner.LastIncludePlatformIds);
+    }
+
+    [Fact]
+    public async Task GetPublicUserProfileByUsernameAsync_RejectsInvalidUsername()
+    {
+        var service = new UserValidationService(new RecordingUserService());
+
+        var exception = await Assert.ThrowsAsync<ValidationException>(() =>
+            service.GetPublicUserProfileByUsernameAsync("x", includePlatformIds: false));
+
+        Assert.Contains("Username must be 3-32 alphanumeric characters.", exception.Message);
+    }
+
+    [Fact]
     public async Task DeleteUserByIdAsync_RejectsEmptyIds()
     {
         var service = new UserValidationService(new RecordingUserService());
@@ -329,6 +369,115 @@ public class UserTests
         Assert.Equal("shared@example.com", auth0ManagementService.LastPasswordResetEmail);
     }
 
+    [Fact]
+    public async Task GetPublicUserProfileByUsernameAsync_HidesPlatformIds_ForAnonymousCallers()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = CreateStoredUser("auth0|123", "public@example.com");
+        user.DiscordId = "discord-1";
+        user.SteamId = "steam-1";
+        user.RiotId = "riot-1";
+        dbContext.Users.Add(user);
+        await dbContext.SaveChangesAsync();
+
+        var service = new UserService(
+            dbContext,
+            new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("public@example.com", true, true)));
+
+        var profile = await service.GetPublicUserProfileByUsernameAsync("playerone", includePlatformIds: false);
+
+        Assert.Equal("PlayerOne", profile.Username);
+        Assert.Equal("Player", profile.Firstname);
+        Assert.Equal("One", profile.Lastname);
+        Assert.Null(profile.DiscordId);
+        Assert.Null(profile.SteamId);
+        Assert.Null(profile.RiotId);
+    }
+
+    [Fact]
+    public async Task GetPublicUserProfileByUsernameAsync_IncludesPlatformIds_ForAuthenticatedCallers()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = CreateStoredUser("auth0|123", "public@example.com");
+        user.DiscordId = "discord-1";
+        user.SteamId = "steam-1";
+        user.RiotId = "riot-1";
+        dbContext.Users.Add(user);
+        await dbContext.SaveChangesAsync();
+
+        var service = new UserService(
+            dbContext,
+            new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("public@example.com", true, true)));
+
+        var profile = await service.GetPublicUserProfileByUsernameAsync("playerone", includePlatformIds: true);
+
+        Assert.Equal("discord-1", profile.DiscordId);
+        Assert.Equal("steam-1", profile.SteamId);
+        Assert.Equal("riot-1", profile.RiotId);
+    }
+
+    [Fact]
+    public async Task GetPublicUserProfileByUsernameAsync_IsCaseInsensitive()
+    {
+        await using var dbContext = CreateDbContext();
+        dbContext.Users.Add(CreateStoredUser("auth0|123", "public@example.com"));
+        await dbContext.SaveChangesAsync();
+
+        var service = new UserService(
+            dbContext,
+            new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("public@example.com", true, true)));
+
+        var profile = await service.GetPublicUserProfileByUsernameAsync("PlAyErOnE", includePlatformIds: false);
+
+        Assert.Equal("PlayerOne", profile.Username);
+    }
+
+    [Fact]
+    public async Task GetPublicUserProfileByUsernameAsync_ThrowsNotFound_ForMissingUser()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = new UserService(
+            dbContext,
+            new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("public@example.com", true, true)));
+
+        await Assert.ThrowsAsync<NotFoundException>(() =>
+            service.GetPublicUserProfileByUsernameAsync("playerone", includePlatformIds: false));
+    }
+
+    [Fact]
+    public async Task GetPublicUserProfileByUsernameAsync_ThrowsNotFound_ForDeletedUser()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = CreateStoredUser("auth0|123", "public@example.com");
+        user.Anonymize(DateTime.UtcNow);
+        dbContext.Users.Add(user);
+        await dbContext.SaveChangesAsync();
+
+        var service = new UserService(
+            dbContext,
+            new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("public@example.com", true, true)));
+
+        await Assert.ThrowsAsync<NotFoundException>(() =>
+            service.GetPublicUserProfileByUsernameAsync("playerone", includePlatformIds: false));
+    }
+
+    [Fact]
+    public async Task GetPublicUserProfileByUsernameAsync_ThrowsNotFound_ForIncompleteUser()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = CreateStoredUser("auth0|123", "public@example.com");
+        user.Lastname = null;
+        dbContext.Users.Add(user);
+        await dbContext.SaveChangesAsync();
+
+        var service = new UserService(
+            dbContext,
+            new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("public@example.com", true, true)));
+
+        await Assert.ThrowsAsync<NotFoundException>(() =>
+            service.GetPublicUserProfileByUsernameAsync("playerone", includePlatformIds: false));
+    }
+
     private static MercuriusDBContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<MercuriusDBContext>()
@@ -363,6 +512,8 @@ public class UserTests
         public CompleteUserProfileRequest? LastCompleteRequest { get; private set; }
         public string? LastUpdateCurrentSubject { get; private set; }
         public UpdateUserProfileRequest? LastUpdateCurrentRequest { get; private set; }
+        public string? LastPublicProfileUsername { get; private set; }
+        public bool? LastIncludePlatformIds { get; private set; }
         public GetUserDTO CreatedUser { get; } = new(new User
         {
             Id = Guid.NewGuid(),
@@ -373,6 +524,15 @@ public class UserTests
             Lastname = "One",
             Email = "playerone@test.com"
         });
+        public PublicUserProfileDTO PublicUser { get; } = new()
+        {
+            Username = "ValidUser",
+            Firstname = "Valid",
+            Lastname = "User",
+            DiscordId = "discord-2",
+            SteamId = "steam-2",
+            RiotId = "riot-2"
+        };
 
         public Task<GetUserDTO> CreateUserAsync(CreateUserProfileRequest request)
         {
@@ -390,6 +550,13 @@ public class UserTests
         public Task<CurrentUserProfileResponse> GetCurrentUserAsync(string auth0UserId)
         {
             return Task.FromResult(new CurrentUserProfileResponse(true, CreatedUser));
+        }
+
+        public Task<PublicUserProfileDTO> GetPublicUserProfileByUsernameAsync(string username, bool includePlatformIds)
+        {
+            LastPublicProfileUsername = username;
+            LastIncludePlatformIds = includePlatformIds;
+            return Task.FromResult(PublicUser);
         }
 
         public Task<GetUserDTO> UpdateCurrentUserAsync(string auth0UserId, UpdateUserProfileRequest request)

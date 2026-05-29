@@ -118,6 +118,7 @@ public class Program
         app.MapTeamEndpoints();
         app.MapSponsorEndpoints();
         app.MapUserEndpoints();
+        app.MapSearchEndpoints();
 
         app.Run();
     }

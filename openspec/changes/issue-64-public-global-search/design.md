@@ -18,9 +18,10 @@ The API has separate game, team, and user route groups but no cross-entity searc
 ## Decisions
 
 - Add a dedicated `SearchEndpoints` route group at `v{version}/lan/search`.
-- Add a result DTO with `type`, `displayLabel`, `supportingText`, and one navigation field: `username`, `teamName`, or `gameId`.
+- Add a search response DTO with `results`, `nextCursor`, and `totalCount` or equivalent count metadata. Each result has `type`, `displayLabel`, `supportingText`, and one navigation field: `username`, `teamName`, or `gameId`.
 - Trim and normalize the query once. For queries shorter than three characters, return an empty result list instead of leaking validation details.
-- Apply a maximum input length and a maximum total result count, with optional per-type limits for predictable UI behavior.
+- Apply a maximum input length and a maximum page size for predictable performance. Return results in deterministic relevance order: exact matches first, prefix matches next, then a stable display-label and stable tie-breaker ordering.
+- Support cursor-based continuation so clients can load every matching result page for a valid query without requiring the user to know more than the minimum query length.
 - Query users by normalized username and completion/deleted filters. Query teams by normalized name once the team normalization capability exists; until then, keep implementation structured so it can be switched to the indexed column.
 - Project directly into DTOs to avoid loading full entities and private fields.
 

@@ -13,7 +13,23 @@ The API MUST expose `GET /v1/lan/search?query={query}` for anonymous public sear
 
 #### Scenario: Bounded result count
 - **WHEN** many entities match a query
-- **THEN** the response is limited to a sensible maximum number of results
+- **THEN** each response page is limited to a configured maximum number of results
+- **AND** results are returned in deterministic relevance order
+- **AND** the response includes a continuation cursor when additional matches exist
+
+### Requirement: Search response DTO shape
+The search response MUST include a bounded `results` collection and pagination metadata that lets clients retrieve additional matching results without changing the query.
+
+#### Scenario: Search response shape
+- **WHEN** a valid search request is processed
+- **THEN** the response includes `results`
+- **AND** the response includes `nextCursor`
+- **AND** the response includes total-count metadata or an equivalent way to indicate more matches exist
+
+#### Scenario: Continue broad search
+- **WHEN** more entities match a valid query than fit in the first response page
+- **THEN** the client can use the returned continuation cursor to request the next page with the same query
+- **AND** all matching entities are reachable through repeated continuation requests
 
 ### Requirement: Search result DTO shape
 Each search result MUST identify its type, display label, supporting text, and exactly the navigation field relevant to that type.

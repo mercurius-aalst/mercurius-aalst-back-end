@@ -43,6 +43,14 @@ public class TeamService : ITeamService
             .Include(t => t.TeamInvites)
             .Select(t => new GetTeamDTO(t));
     }
+
+    public IEnumerable<GetPublicTeamDTO> GetAllPublicTeams(bool includePlatformIds)
+    {
+        return CreatePublicTeamQuery()
+            .ToList()
+            .Select(team => new GetPublicTeamDTO(team, includePlatformIds));
+    }
+
     public async Task<Team> GetTeamByIdAsync(Guid teamId)
     {
         var team = await _dbContext.Teams
@@ -52,6 +60,16 @@ public class TeamService : ITeamService
         if (team is null)
             throw new NotFoundException($"{nameof(Team)} not found");
         return team;
+    }
+
+    public async Task<GetPublicTeamDTO> GetPublicTeamByIdAsync(Guid teamId, bool includePlatformIds)
+    {
+        var team = await CreatePublicTeamQuery()
+            .FirstOrDefaultAsync(t => t.Id == teamId);
+        if (team is null)
+            throw new NotFoundException($"{nameof(Team)} not found");
+
+        return new GetPublicTeamDTO(team, includePlatformIds);
     }
 
     public async Task<GetTeamDTO> RemoveMemberAsync(Guid id, Guid userId)
@@ -123,6 +141,13 @@ public class TeamService : ITeamService
     private Task<bool> CheckIfTeamNameExistsAsync(string name)
     {
         return _dbContext.Teams.AnyAsync(t => t.Name.Equals(name));
+    }
+
+    private IQueryable<Team> CreatePublicTeamQuery()
+    {
+        return _dbContext.Teams
+            .AsNoTracking()
+            .Include(t => t.Members);
     }
 }
 

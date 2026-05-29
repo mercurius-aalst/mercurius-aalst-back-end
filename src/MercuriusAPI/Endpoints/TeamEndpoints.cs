@@ -23,23 +23,21 @@ public static class TeamEndpoints
 
         group.MapGet("/", (ClaimsPrincipal user, ITeamService teamService) =>
         {
-            var teams = teamService.GetAllTeams().ToList();
             if (IsAdmin(user))
-                return Results.Ok(teams);
+                return Results.Ok(teamService.GetAllTeams().ToList());
 
             var includePlatformIds = user.Identity?.IsAuthenticated == true;
-            return Results.Ok(teams.Select(team => new GetPublicTeamDTO(team, includePlatformIds)));
+            return Results.Ok(teamService.GetAllPublicTeams(includePlatformIds).ToList());
         })
         .AllowAnonymous();
 
         group.MapGet("/{id}", async (Guid id, ClaimsPrincipal user, ITeamService teamService) =>
         {
-            var team = await teamService.GetTeamByIdAsync(id);
             if (IsAdmin(user))
-                return Results.Ok(new GetTeamDTO(team));
+                return Results.Ok(new GetTeamDTO(await teamService.GetTeamByIdAsync(id)));
 
             var includePlatformIds = user.Identity?.IsAuthenticated == true;
-            return Results.Ok(new GetPublicTeamDTO(team, includePlatformIds));
+            return Results.Ok(await teamService.GetPublicTeamByIdAsync(id, includePlatformIds));
         })
         .AllowAnonymous();
 

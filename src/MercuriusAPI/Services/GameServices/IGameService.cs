@@ -11,7 +11,9 @@ public interface IGameService
     Task<GetGameDTO> CreateGameAsync(CreateGameDTO createGameDTO);
     Task DeleteGameAsync(Guid id);
     IEnumerable<GetGameDTO> GetAllGames();
+    IEnumerable<GetPublicGameDTO> GetAllPublicGames(bool includePlatformIds);
     Task<Game> GetGameByIdAsync(Guid gameId);
+    Task<GetPublicGameDTO> GetPublicGameByIdAsync(Guid gameId, bool includePlatformIds);
     Task<GetGameDTO> RegisterUserAsync(Guid id, Guid userId);
     Task<GetGameDTO> RegisterTeamAsync(Guid id, Guid teamId);
     Task<GetGameDTO> ReplaceSponsorPlacementsAsync(Guid id, ReplaceGameSponsorsDTO sponsorDTO);

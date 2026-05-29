@@ -9,7 +9,7 @@
 
 - [x] 2.1 Review anonymous `AllowAnonymous` routes and ensure each selects the correct public DTO.
 - [x] 2.2 Add explicit authenticated-public visibility handling for platform IDs where allowed.
-- [ ] 2.3 Tighten public projections/includes to avoid loading unnecessary private user data.
+- [x] 2.3 Tighten public projections/includes to avoid loading unnecessary private user data.
 
 ## 3. Regression Coverage
 

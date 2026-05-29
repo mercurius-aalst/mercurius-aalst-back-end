@@ -24,23 +24,21 @@ public static class GameEndpoints
 
         group.MapGet("/", (ClaimsPrincipal user, IGameService gameService) =>
         {
-            var games = gameService.GetAllGames().ToList();
             if (IsAdmin(user))
-                return Results.Ok(games);
+                return Results.Ok(gameService.GetAllGames().ToList());
 
             var includePlatformIds = user.Identity?.IsAuthenticated == true;
-            return Results.Ok(games.Select(game => new GetPublicGameDTO(game, includePlatformIds)));
+            return Results.Ok(gameService.GetAllPublicGames(includePlatformIds).ToList());
         })
         .AllowAnonymous();
 
         group.MapGet("/{id}", async (Guid id, ClaimsPrincipal user, IGameService gameService) =>
         {
-            var game = await gameService.GetGameByIdAsync(id);
             if (IsAdmin(user))
-                return Results.Ok(new GetGameDTO(game));
+                return Results.Ok(new GetGameDTO(await gameService.GetGameByIdAsync(id)));
 
             var includePlatformIds = user.Identity?.IsAuthenticated == true;
-            return Results.Ok(new GetPublicGameDTO(game, includePlatformIds));
+            return Results.Ok(await gameService.GetPublicGameByIdAsync(id, includePlatformIds));
         })
         .AllowAnonymous();
 

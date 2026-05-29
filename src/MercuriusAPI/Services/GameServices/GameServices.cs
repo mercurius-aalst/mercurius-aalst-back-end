@@ -69,6 +69,23 @@ public class GameService : IGameService
             .Select(g => new GetGameDTO(g));
     }
 
+    public IEnumerable<GetPublicGameDTO> GetAllPublicGames(bool includePlatformIds)
+    {
+        return CreatePublicGameQuery(includePlacements: false)
+            .ToList()
+            .Select(game => new GetPublicGameDTO(game, includePlatformIds));
+    }
+
+    public async Task<GetPublicGameDTO> GetPublicGameByIdAsync(Guid gameId, bool includePlatformIds)
+    {
+        var game = await CreatePublicGameQuery(includePlacements: true)
+            .FirstOrDefaultAsync(g => g.Id == gameId);
+        if (game is null)
+            throw new NotFoundException($"{nameof(Game)} not found");
+
+        return new GetPublicGameDTO(game, includePlatformIds);
+    }
+
     public async Task<GetGameDTO> UpdateGameAsync(Guid id, UpdateGameDTO gameDTO)
     {
         var game = await GetGameByIdAsync(id);
@@ -239,6 +256,28 @@ public class GameService : IGameService
         return _dbContext.Games
             .Include(g => g.Placements)
             .Include(g => g.SponsorPlacement);
+    }
+
+    private IQueryable<Game> CreatePublicGameQuery(bool includePlacements)
+    {
+        var query = _dbContext.Games
+            .AsNoTracking()
+            .Include(g => g.RegisteredUsers)
+            .Include(g => g.RegisteredTeams)
+                .ThenInclude(team => team.Members)
+            .Include(g => g.Matches)
+            .Include(g => g.SponsorPlacement)
+                .ThenInclude(placement => placement!.Sponsor);
+
+        if (!includePlacements)
+            return query;
+
+        return query
+            .Include(g => g.Placements)
+                .ThenInclude(placement => placement.Users)
+            .Include(g => g.Placements)
+                .ThenInclude(placement => placement.Teams)
+                    .ThenInclude(team => team.Members);
     }
 
     private static void ApplySponsorPlacement(GameSponsorPlacement gameSponsorPlacement, GameSponsorPlacementInputDTO placement, Guid gameId)

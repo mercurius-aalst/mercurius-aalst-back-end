@@ -282,6 +282,37 @@ public class UserTests
     }
 
     [Fact]
+    public async Task DeleteUserAsync_AnonymizesExistingUserByUsername()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = CreateStoredUser("auth0|delete-me", "delete-me@example.com");
+        user.Username = "DeleteMe";
+        user.NormalizedUsername = "deleteme";
+        dbContext.Users.Add(user);
+        await dbContext.SaveChangesAsync();
+
+        var service = new UserService(dbContext, new RecordingAuth0ManagementService(new Auth0ProfileSnapshot(null, null, false)));
+
+        await service.DeleteUserAsync("DELETEME");
+
+        var storedUser = await dbContext.Users.SingleAsync(u => u.Id == user.Id);
+        Assert.True(storedUser.IsDeleted);
+        Assert.StartsWith("deleted-user-", storedUser.Username);
+        Assert.Null(storedUser.Email);
+    }
+
+    [Fact]
+    public async Task DeleteUserAsync_ThrowsNotFound_WhenUsernameDoesNotExist()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = new UserService(dbContext, new RecordingAuth0ManagementService(new Auth0ProfileSnapshot(null, null, false)));
+
+        var exception = await Assert.ThrowsAsync<NotFoundException>(() => service.DeleteUserAsync("missinguser"));
+
+        Assert.Contains("missinguser", exception.Message);
+    }
+
+    [Fact]
     public void Auth0LinkedUser_StoresExternalUserId()
     {
         var user = new User

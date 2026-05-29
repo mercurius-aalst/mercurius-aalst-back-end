@@ -13,7 +13,7 @@
 
 ## 3. Regression Coverage
 
-- [ ] 3.1 Add tests for admin username delete success and missing user 404.
-- [ ] 3.2 Add tests for anonymous and non-admin rejection.
-- [ ] 3.3 Add tests that GUID delete and username delete route precedence both work.
+- [x] 3.1 Add tests for admin username delete success and missing user 404.
+- [x] 3.2 Add tests for anonymous and non-admin rejection.
+- [x] 3.3 Add tests that GUID delete and username delete route precedence both work.
 - [x] 3.4 Run `dotnet test` for the solution.

@@ -12,6 +12,10 @@ public class GetGameDTO
     public string Name { get; set; }
     public DateTime StartTime { get; set; }
     public DateTime EndTime { get; set; }
+    public DateTime PlannedStartTime { get; set; }
+    public int AverageGameDurationMinutes { get; set; }
+    public int RoundBreakDurationMinutes { get; set; }
+    public DateTime? EstimatedEndTime { get; set; }
     public GameStatus Status { get; set; }
     public BracketType BracketType { get; set; }
     public GameFormat Format { get; set; }
@@ -33,6 +37,10 @@ public class GetGameDTO
         Name = game.Name;
         StartTime = game.StartTime;
         EndTime = game.EndTime;
+        PlannedStartTime = game.PlannedStartTime;
+        AverageGameDurationMinutes = game.AverageGameDurationMinutes;
+        RoundBreakDurationMinutes = game.RoundBreakDurationMinutes;
+        EstimatedEndTime = game.EstimatedEndTime;
         Status = game.Status;
         BracketType = game.BracketType;
         Format = game.Format;

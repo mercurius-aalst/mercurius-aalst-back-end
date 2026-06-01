@@ -20,6 +20,11 @@ public static class TeamEndpoints
             .WithTags("Teams")
             .RequireAuthorization(new AuthorizeAttribute { Roles = "admin" });
 
+        var publicGroup = app.MapGroup("v{version:apiVersion}/lan/public/teams")
+            .WithApiVersionSet(apiVersionSet)
+            .MapToApiVersion(new ApiVersion(1, 0))
+            .WithTags("Public Teams");
+
         group.MapGet("/", (ITeamService teamService) =>
         {
             return teamService.GetAllTeams();
@@ -66,6 +71,12 @@ public static class TeamEndpoints
         {
             return await teamService.GetUserInvitesAsync(userId);
         });
+
+        publicGroup.MapGet("/{teamName}", async (string teamName, ITeamService teamService) =>
+        {
+            return await teamService.GetPublicTeamProfileAsync(teamName);
+        })
+        .AllowAnonymous();
 
         return group;
     }

@@ -70,9 +70,8 @@ public sealed class SearchService : ISearchService
             .AsNoTracking()
             .Where(team =>
                 team.Name != null &&
-                team.NormalizedName != null &&
-                team.NormalizedName.Contains(normalizedQuery))
-            .Select(team => new TeamProjection(team.Id, team.Name, team.NormalizedName))
+                team.Name.ToLower().Contains(normalizedQuery))
+            .Select(team => new TeamProjection(team.Id, team.Name, team.Name.ToLower()))
             .ToListAsync(cancellationToken);
 
         var games = await _dbContext.Games

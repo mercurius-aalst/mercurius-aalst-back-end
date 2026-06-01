@@ -17,4 +17,4 @@
 - [x] 3.1 Add tests for user, team, game, empty, short-query, case-insensitive results, relevance ordering, and cursor continuation.
 - [x] 3.2 Add tests that deleted/incomplete users are excluded.
 - [x] 3.3 Add privacy tests proving user search results do not contain private fields.
-- [ ] 3.4 Run `dotnet test` for the solution.
+- [x] 3.4 Run `dotnet test` for the solution.

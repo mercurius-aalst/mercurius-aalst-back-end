@@ -40,7 +40,6 @@ public class TeamService : ITeamService
     {
         return _dbContext.Teams
             .Include(t => t.Members)
-            .Include(t => t.TeamInvites)
             .Select(t => new GetTeamDTO(t));
     }
     public async Task<Team> GetTeamByIdAsync(Guid teamId)

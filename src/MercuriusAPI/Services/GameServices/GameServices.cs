@@ -280,8 +280,6 @@ public class GameService : IGameService
 
         var currentRoundStart = game.PlannedStartTime;
         DateTime? latestEnd = null;
-        var finalRoundNumber = game.Matches.Max(match => match.RoundNumber);
-
         foreach (var round in game.Matches
                      .GroupBy(match => match.RoundNumber)
                      .OrderBy(group => group.Key))
@@ -291,9 +289,8 @@ public class GameService : IGameService
 
             foreach (var match in orderedMatches)
             {
-                var format = match.RoundNumber == finalRoundNumber ? game.FinalsFormat : match.Format;
-                var matchDuration = TimeSpan.FromMinutes(game.AverageGameDurationMinutes * GetDurationMultiplier(format));
-                var estimatedEnd = currentRoundStart.Add(matchDuration);
+                var matchDuration = TimeSpan.FromMinutes(game.AverageGameDurationMinutes * GetDurationMultiplier(match.Format));
+                var estimatedEnd = AddScheduleTime(currentRoundStart, matchDuration);
                 match.SetEstimatedWindow(currentRoundStart, estimatedEnd);
 
                 if (matchDuration > roundDuration)
@@ -302,9 +299,9 @@ public class GameService : IGameService
                     latestEnd = estimatedEnd;
             }
 
-            currentRoundStart = currentRoundStart
-                .Add(roundDuration)
-                .Add(TimeSpan.FromMinutes(game.RoundBreakDurationMinutes));
+            currentRoundStart = AddScheduleTime(
+                AddScheduleTime(currentRoundStart, roundDuration),
+                TimeSpan.FromMinutes(game.RoundBreakDurationMinutes));
         }
 
         game.EstimatedEndTime = latestEnd;
@@ -319,6 +316,18 @@ public class GameService : IGameService
             GameFormat.BestOf5 => 5,
             _ => 1
         };
+    }
+
+    private static DateTime AddScheduleTime(DateTime timestamp, TimeSpan duration)
+    {
+        try
+        {
+            return timestamp.Add(duration);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            throw new ValidationException("Estimated tournament schedule exceeds supported date range.");
+        }
     }
 }
 

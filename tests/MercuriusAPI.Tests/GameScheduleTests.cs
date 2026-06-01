@@ -7,6 +7,7 @@ using Mercurius.LAN.API.Models;
 using Mercurius.LAN.API.Services.Files;
 using Mercurius.LAN.API.Services.GameServices;
 using Mercurius.LAN.API.Services.MatchServices;
+using Mercurius.LAN.API.Services.MatchServices.BracketTypes;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
@@ -27,6 +28,14 @@ public class GameScheduleTests
         Assert.Equal(5, game.RoundBreakDurationMinutes);
     }
 
+    [Fact]
+    public void Game_AllowsRoundBreakDurationsAbovePreviousLimit()
+    {
+        var game = CreateScheduledGame(breakMinutes: 241);
+
+        Assert.Equal(241, game.RoundBreakDurationMinutes);
+    }
+
     [Theory]
     [InlineData(true, 10, 5, "Planned tournament start time is required.")]
     [InlineData(false, 0, 5, "Average game duration must be greater than zero.")]
@@ -34,7 +43,6 @@ public class GameScheduleTests
     [InlineData(false, 1441, 5, "Average game duration cannot exceed 1440 minutes.")]
     [InlineData(false, 10, 0, "Round break duration must be greater than zero.")]
     [InlineData(false, 10, -1, "Round break duration must be greater than zero.")]
-    [InlineData(false, 10, 241, "Round break duration cannot exceed 240 minutes.")]
     public void Game_RejectsInvalidScheduleConfiguration(
         bool missingPlannedStart,
         int averageMinutes,
@@ -95,6 +103,48 @@ public class GameScheduleTests
         Assert.Equal(PlannedStart.AddMinutes(35), matches[2].EstimatedStartTime);
         Assert.Equal(PlannedStart.AddMinutes(85), matches[2].EstimatedEndTime);
         Assert.Equal(PlannedStart.AddMinutes(85), storedGame.EstimatedEndTime);
+    }
+
+    [Fact]
+    public async Task StartGameAsync_DoesNotApplyFinalsFormatToRoundRobinLastRound()
+    {
+        await using var dbContext = CreateDbContext();
+        var game = CreateScheduledGame(
+            format: GameFormat.BestOf1,
+            finalsFormat: GameFormat.BestOf5,
+            bracketType: BracketType.RoundRobin);
+        game.RegisterUser(CreateUser(1));
+        game.RegisterUser(CreateUser(2));
+        game.RegisterUser(CreateUser(3));
+        game.RegisterUser(CreateUser(4));
+        dbContext.Games.Add(game);
+        await dbContext.SaveChangesAsync();
+
+        var service = CreateGameService(dbContext, new RoundRobinMatchModerator());
+
+        await service.StartGameAsync(game.Id);
+
+        var matches = await dbContext.Matches.ToListAsync();
+
+        Assert.All(matches, match =>
+            Assert.Equal(TimeSpan.FromMinutes(10), match.EstimatedEndTime - match.EstimatedStartTime));
+    }
+
+    [Fact]
+    public async Task StartGameAsync_RejectsEstimatedScheduleDateOverflow()
+    {
+        await using var dbContext = CreateDbContext();
+        var game = CreateScheduledGame(plannedStartTime: DateTime.MaxValue.AddMinutes(-5));
+        game.RegisterUser(CreateUser(1));
+        game.RegisterUser(CreateUser(2));
+        dbContext.Games.Add(game);
+        await dbContext.SaveChangesAsync();
+
+        var service = CreateGameService(dbContext, new FixedScheduleMatchModerator());
+
+        var exception = await Assert.ThrowsAsync<ValidationException>(() => service.StartGameAsync(game.Id));
+
+        Assert.Equal("Estimated tournament schedule exceeds supported date range.", exception.Message);
     }
 
     [Fact]
@@ -171,11 +221,12 @@ public class GameScheduleTests
         int averageMinutes = 10,
         int breakMinutes = 5,
         GameFormat format = GameFormat.BestOf1,
-        GameFormat finalsFormat = GameFormat.BestOf5)
+        GameFormat finalsFormat = GameFormat.BestOf5,
+        BracketType bracketType = BracketType.SingleElimination)
     {
         return new Game(
             "Schedule Cup",
-            BracketType.SingleElimination,
+            bracketType,
             format,
             finalsFormat,
             ParticipationMode.Individual,
@@ -241,7 +292,7 @@ public class GameScheduleTests
                     GameId = game.Id,
                     RoundNumber = 2,
                     MatchNumber = 1,
-                    Format = GameFormat.BestOf1,
+                    Format = game.FinalsFormat,
                     ParticipationMode = game.ParticipationMode
                 }
             ];

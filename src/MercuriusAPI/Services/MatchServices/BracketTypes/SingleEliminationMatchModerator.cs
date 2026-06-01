@@ -143,7 +143,7 @@ public class SingleEliminationMatchModerator : IMatchModerator
                 RoundNumber = round,
                 MatchNumber = matchNumber,
                 BracketType = BracketType.SingleElimination,
-                Format = game.Format,
+                Format = round == totalRounds ? game.FinalsFormat : game.Format,
                 ParticipationMode = game.ParticipationMode
             };
 

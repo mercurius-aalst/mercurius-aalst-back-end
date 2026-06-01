@@ -24,7 +24,7 @@ public class GetGameDTO
     public GetGameSponsorPlacementDTO? SponsorPlacement { get; set; }
 
     public IEnumerable<GetMatchDTO> Matches { get; set; } = [];
-    public IEnumerable<GetUserDTO> Users { get; set; } = [];
+    public IEnumerable<PublicUserDTO> Users { get; set; } = [];
     public IEnumerable<GetTeamDTO> Teams { get; set; } = [];
 
     public GetGameDTO(Game game)
@@ -48,7 +48,7 @@ public class GetGameDTO
         switch (ParticipationMode)
         {
             case ParticipationMode.Individual:
-                Users = game.RegisteredUsers.Select(user => new GetUserDTO(user)).ToList();
+                Users = game.RegisteredUsers.Select(user => new PublicUserDTO(user)).ToList();
                 break;
             case ParticipationMode.Team:
                 Teams = game.RegisteredTeams.Select(team => new GetTeamDTO(team)).ToList();

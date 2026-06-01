@@ -1,7 +1,6 @@
 using Mercurius.LAN.API.Data;
 using Mercurius.LAN.API.DTOs.GameDTOs;
 using Mercurius.LAN.API.DTOs.PlacementDTOs;
-using Mercurius.LAN.API.DTOs.Public;
 using Mercurius.LAN.API.Exceptions;
 using Mercurius.LAN.API.Models;
 using Mercurius.LAN.API.Services.Files;
@@ -68,27 +67,6 @@ public class GameService : IGameService
                 .ThenInclude(placement => placement!.Sponsor)
             .ToList()
             .Select(g => new GetGameDTO(g));
-    }
-
-    public IEnumerable<PublicGameSummaryDTO> GetAllPublicGames(PublicAudience audience)
-    {
-        return _dbContext.Games
-            .AsNoTracking()
-            .SelectPublicGameSummaries(audience)
-            .ToList();
-    }
-
-    public async Task<PublicGameDetailDTO> GetPublicGameByIdAsync(Guid gameId, PublicAudience audience)
-    {
-        var game = await _dbContext.Games
-            .AsNoTracking()
-            .Where(game => game.Id == gameId)
-            .SelectPublicGameDetails(audience)
-            .FirstOrDefaultAsync();
-        if (game is null)
-            throw new NotFoundException($"{nameof(Game)} not found");
-
-        return game;
     }
 
     public async Task<GetGameDTO> UpdateGameAsync(Guid id, UpdateGameDTO gameDTO)

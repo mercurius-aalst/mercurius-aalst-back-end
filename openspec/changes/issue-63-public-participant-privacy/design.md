@@ -17,16 +17,14 @@
 
 ## Decisions
 
-- Add endpoint-level public read models instead of cloning the full admin DTO graph or trying to hide fields from existing full DTOs.
-- Reuse one public participant DTO for individual users and team members.
-- Return stable public schemas from anonymous read URLs. Expose full admin read DTOs through explicit `/admin` routes.
-- Represent caller visibility as a public audience value and apply it once inside centralized EF projections.
-- Use username and a safe display label as the anonymous user representation. Keep internal IDs only where bracket or match resolution requires them.
-- Exclude invite collections and invite history from all public team/participant DTOs.
-- Use projection-based queries for public list/detail paths so private user graphs are not loaded just to be discarded.
+- Add one privacy-safe `PublicUserDTO` for embedded participant data.
+- Reuse the existing game, placement, and team DTO graph instead of maintaining parallel public variants.
+- Use username as the safe display label and keep internal user IDs for bracket and navigation resolution.
+- Include Discord, Steam, and Riot IDs in `PublicUserDTO`; the website privacy policy explicitly treats these linked identifiers as public.
+- Exclude invite collections from the shared team DTO. Invite workflows remain available through their dedicated authorized endpoint.
+- Keep the remaining full `GetUserDTO` fields limited to authorized user-management and current-user workflows.
 
 ## Risks / Trade-offs
 
 - Existing front-end or tests may depend on full DTOs from anonymous endpoints. The implementation should coordinate response shape changes with the redesigned front-end contract.
-- Admin consumers must use the explicit `/admin` reads when they need full response DTOs.
-- EF includes are currently broad; tightening them may expose missing navigation assumptions in existing service tests.
+- Existing clients that relied on private embedded participant fields must use authorized user APIs instead.

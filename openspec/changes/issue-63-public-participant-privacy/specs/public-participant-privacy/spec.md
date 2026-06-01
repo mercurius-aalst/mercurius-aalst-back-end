@@ -5,7 +5,7 @@ Anonymous public API responses that embed participants MUST expose only fields r
 
 #### Scenario: Anonymous game detail participants
 - **WHEN** an anonymous client reads a game detail response
-- **THEN** embedded users and team members omit email, first name, last name, platform IDs, Auth0 IDs, deleted state, and timestamps
+- **THEN** embedded users and team members omit email, first name, last name, Auth0 IDs, deleted state, and timestamps
 
 #### Scenario: Anonymous placement participants
 - **WHEN** an anonymous client reads placement data
@@ -15,20 +15,20 @@ Anonymous public API responses that embed participants MUST expose only fields r
 - **WHEN** an anonymous client reads public team data
 - **THEN** the response omits pending invites, declined invites, invite history, and private member fields
 
-### Requirement: Authenticated public enrichment
-Authenticated public responses MUST include linked platform IDs only for endpoints that explicitly allow them.
+### Requirement: Shared participant privacy
+Shared participant responses MUST remain privacy-safe for anonymous and authenticated callers while including platform identifiers declared public by the website privacy policy.
 
-#### Scenario: Authenticated public participant response
-- **WHEN** an authenticated client reads an endpoint that permits linked identity display
-- **THEN** the response may include Discord, Steam, and Riot IDs but still omits email, Auth0 IDs, deleted state, and timestamps
+#### Scenario: Authenticated shared participant response
+- **WHEN** an authenticated client reads a game, placement, or team response
+- **THEN** embedded participants include Discord, Steam, and Riot IDs but still omit private account fields
 
-#### Scenario: Anonymous platform ID suppression
-- **WHEN** an anonymous client reads the same public endpoint
-- **THEN** platform identifiers are not present in the response body
+#### Scenario: Authorized profile response
+- **WHEN** an authorized profile workflow needs private user data
+- **THEN** it uses the dedicated user API rather than an embedded participant response
 
 ### Requirement: Admin data preservation
 Authorized admin/current-user APIs MUST continue returning the full DTOs required by admin and profile workflows.
 
-#### Scenario: Admin response shape retained
-- **WHEN** an admin reads an admin user, team, game, or placement workflow that requires full data
-- **THEN** authorized responses still include the fields needed by that workflow
+#### Scenario: Admin user response shape retained
+- **WHEN** an admin or current user reads an authorized user workflow
+- **THEN** the response still includes the fields needed by that workflow

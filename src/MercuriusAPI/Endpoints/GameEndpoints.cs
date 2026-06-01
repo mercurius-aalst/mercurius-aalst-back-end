@@ -1,10 +1,9 @@
 using Asp.Versioning;
 using Mercurius.LAN.API.DTOs.GameDTOs;
-using Mercurius.LAN.API.DTOs.Public;
+using Mercurius.LAN.API.DTOs.PlacementDTOs;
 using Mercurius.LAN.API.Services.GameServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Security.Claims;
 
 namespace Mercurius.LAN.API.Endpoints;
 
@@ -23,27 +22,17 @@ public static class GameEndpoints
             .WithTags("Games")
             .RequireAuthorization(new AuthorizeAttribute { Roles = "admin" });
 
-        group.MapGet("/", (ClaimsPrincipal user, IGameService gameService) =>
+        group.MapGet("/", (IGameService gameService) =>
         {
-            return Results.Ok(gameService.GetAllPublicGames(GetPublicAudience(user)).ToList());
+            return gameService.GetAllGames();
         })
         .AllowAnonymous();
 
-        group.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal user, IGameService gameService) =>
+        group.MapGet("/{id}", async (Guid id, IGameService gameService) =>
         {
-            return Results.Ok(await gameService.GetPublicGameByIdAsync(id, GetPublicAudience(user)));
+            return new GetGameDTO(await gameService.GetGameByIdAsync(id));
         })
         .AllowAnonymous();
-
-        group.MapGet("/admin", (IGameService gameService) =>
-        {
-            return Results.Ok(gameService.GetAllGames().ToList());
-        });
-
-        group.MapGet("/admin/{id:guid}", async (Guid id, IGameService gameService) =>
-        {
-            return Results.Ok(new GetGameDTO(await gameService.GetGameByIdAsync(id)));
-        });
 
         group.MapPost("/", async ([FromForm] CreateGameDTO createGameDTO, IGameService gameService) =>
         {
@@ -106,12 +95,5 @@ public static class GameEndpoints
         });
 
         return group;
-    }
-
-    private static PublicAudience GetPublicAudience(ClaimsPrincipal user)
-    {
-        return user.Identity?.IsAuthenticated == true
-            ? PublicAudience.Authenticated
-            : PublicAudience.Anonymous;
     }
 }

@@ -1,6 +1,5 @@
 using Mercurius.LAN.API.DTOs.GameDTOs;
 using Mercurius.LAN.API.DTOs.PlacementDTOs;
-using Mercurius.LAN.API.DTOs.Public;
 using Mercurius.LAN.API.Models;
 
 namespace Mercurius.LAN.API.Services.GameServices;
@@ -12,9 +11,7 @@ public interface IGameService
     Task<GetGameDTO> CreateGameAsync(CreateGameDTO createGameDTO);
     Task DeleteGameAsync(Guid id);
     IEnumerable<GetGameDTO> GetAllGames();
-    IEnumerable<PublicGameSummaryDTO> GetAllPublicGames(PublicAudience audience);
     Task<Game> GetGameByIdAsync(Guid gameId);
-    Task<PublicGameDetailDTO> GetPublicGameByIdAsync(Guid gameId, PublicAudience audience);
     Task<GetGameDTO> RegisterUserAsync(Guid id, Guid userId);
     Task<GetGameDTO> RegisterTeamAsync(Guid id, Guid teamId);
     Task<GetGameDTO> ReplaceSponsorPlacementsAsync(Guid id, ReplaceGameSponsorsDTO sponsorDTO);

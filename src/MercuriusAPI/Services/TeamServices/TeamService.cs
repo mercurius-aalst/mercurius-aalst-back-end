@@ -1,6 +1,5 @@
 using Mercurius.LAN.API.Data;
 using Mercurius.LAN.API.DTOs.TeamDTOs;
-using Mercurius.LAN.API.DTOs.Public;
 using Mercurius.LAN.API.Exceptions;
 using Mercurius.LAN.API.Models;
 using Microsoft.EntityFrameworkCore;
@@ -41,18 +40,8 @@ public class TeamService : ITeamService
     {
         return _dbContext.Teams
             .Include(t => t.Members)
-            .Include(t => t.TeamInvites)
             .Select(t => new GetTeamDTO(t));
     }
-
-    public IEnumerable<PublicTeamDTO> GetAllPublicTeams(PublicAudience audience)
-    {
-        return _dbContext.Teams
-            .AsNoTracking()
-            .SelectPublicTeams(audience)
-            .ToList();
-    }
-
     public async Task<Team> GetTeamByIdAsync(Guid teamId)
     {
         var team = await _dbContext.Teams
@@ -61,19 +50,6 @@ public class TeamService : ITeamService
             .FirstOrDefaultAsync(t => t.Id == teamId);
         if (team is null)
             throw new NotFoundException($"{nameof(Team)} not found");
-        return team;
-    }
-
-    public async Task<PublicTeamDTO> GetPublicTeamByIdAsync(Guid teamId, PublicAudience audience)
-    {
-        var team = await _dbContext.Teams
-            .AsNoTracking()
-            .Where(team => team.Id == teamId)
-            .SelectPublicTeams(audience)
-            .FirstOrDefaultAsync();
-        if (team is null)
-            throw new NotFoundException($"{nameof(Team)} not found");
-
         return team;
     }
 
@@ -147,6 +123,5 @@ public class TeamService : ITeamService
     {
         return _dbContext.Teams.AnyAsync(t => t.Name.Equals(name));
     }
-
 }
 

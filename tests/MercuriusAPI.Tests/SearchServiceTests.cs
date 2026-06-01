@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Reflection;
 using Mercurius.LAN.API.Data;
 using Mercurius.LAN.API.Models;
 using Mercurius.LAN.API.Services.SearchServices;
@@ -117,6 +118,98 @@ public class SearchServiceTests
 
         Assert.Single(usernames);
         Assert.Equal("alpha-valid", usernames[0]);
+    }
+
+    [Fact]
+    public async Task SearchAsync_ExcludesUsersWithWhitespaceOnlyProfileNames()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = CreateUser("alpha-whitespace");
+        user.Firstname = " ";
+        dbContext.Users.Add(user);
+        await dbContext.SaveChangesAsync();
+
+        var service = new SearchService(dbContext);
+
+        var result = await service.SearchAsync("alpha", cursor: null, pageSize: 10);
+
+        Assert.Empty(result.Results);
+    }
+
+    [Fact]
+    public async Task SearchAsync_TreatsLikeWildcardsAsLiteralCharacters()
+    {
+        await using var dbContext = CreateDbContext();
+        dbContext.Games.AddRange(
+            CreateGame("Cup 100%"),
+            CreateGame("Cup 1000"));
+        await dbContext.SaveChangesAsync();
+
+        var service = new SearchService(dbContext);
+
+        var result = await service.SearchAsync("100%", cursor: null, pageSize: 10);
+
+        var game = Assert.Single(result.Results);
+        Assert.Equal("Cup 100%", game.DisplayLabel);
+    }
+
+    [Fact]
+    public async Task SearchAsync_KeysetCursor_DoesNotRepeatResultsWhenEarlierRowsAreInserted()
+    {
+        await using var dbContext = CreateDbContext();
+        dbContext.Users.AddRange(
+            CreateUser("alpha"),
+            CreateUser("alphab"),
+            CreateUser("alphac"));
+        await dbContext.SaveChangesAsync();
+
+        var service = new SearchService(dbContext);
+        var page1 = await service.SearchAsync("alpha", cursor: null, pageSize: 2);
+
+        dbContext.Users.Add(CreateUser("alphaa"));
+        await dbContext.SaveChangesAsync();
+
+        var page2 = await service.SearchAsync("alpha", page1.NextCursor, pageSize: 2);
+
+        Assert.Equal(["alpha", "alphab"], page1.Results.Select(result => result.Username));
+        Assert.Equal(["alphac"], page2.Results.Select(result => result.Username));
+    }
+
+    [Fact]
+    public async Task SearchAsync_ResponseIncludesNullNextCursor_WhenNoMoreResultsExist()
+    {
+        await using var dbContext = CreateDbContext();
+        dbContext.Users.Add(CreateUser("alpha"));
+        await dbContext.SaveChangesAsync();
+
+        var service = new SearchService(dbContext);
+        var result = await service.SearchAsync("alpha", cursor: null, pageSize: 10);
+
+        var json = JsonSerializer.Serialize(result, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+
+        Assert.Contains("\"nextCursor\":null", json);
+    }
+
+    [Fact]
+    public void SearchAsync_QueryAndKeysetCursor_TranslateForPostgreSql()
+    {
+        var options = new DbContextOptionsBuilder<MercuriusDBContext>()
+            .UseNpgsql("Host=localhost;Database=translation-only")
+            .Options;
+        using var dbContext = new MercuriusDBContext(options);
+        var service = new SearchService(dbContext);
+
+        var buildQuery = typeof(SearchService).GetMethod("BuildCandidateQuery", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var applyCursor = typeof(SearchService).GetMethod("ApplyCursor", BindingFlags.Static | BindingFlags.NonPublic)!;
+        var cursorType = typeof(SearchService).GetNestedType("SearchCursor", BindingFlags.NonPublic)!;
+
+        var query = (IQueryable)buildQuery.Invoke(service, ["alpha"])!;
+        var cursor = Activator.CreateInstance(cursorType, "alpha", 1, "alphab", 0, Guid.NewGuid().ToString())!;
+        var filteredQuery = (IQueryable)applyCursor.Invoke(null, [query, cursor])!;
+        var sql = filteredQuery.ToQueryString();
+
+        Assert.Contains("UNION ALL", sql);
+        Assert.Contains("LIKE", sql);
     }
 
     [Fact]

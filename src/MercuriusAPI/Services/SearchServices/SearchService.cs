@@ -1,4 +1,4 @@
-using System.Text;
+using System.Text.Json;
 using Mercurius.LAN.API.Data;
 using Mercurius.LAN.API.DTOs.SearchDTOs;
 using Mercurius.LAN.API.Exceptions;
@@ -25,117 +25,110 @@ public sealed class SearchService : ISearchService
         if (normalizedQuery.Length < SearchRequestLimits.MinimumQueryLength)
             return new SearchResponseDTO { Results = [], TotalCount = 0, HasMore = false };
 
-        var offset = DecodeCursor(cursor, normalizedQuery);
-        var orderedCandidates = await LoadCandidatesAsync(normalizedQuery, cancellationToken);
-        if (offset > orderedCandidates.Count)
-            throw new ValidationException("Cursor is out of range.");
+        var decodedCursor = DecodeCursor(cursor, normalizedQuery);
+        var candidates = BuildCandidateQuery(normalizedQuery);
+        var totalCount = await candidates.CountAsync(cancellationToken);
+        var pagedCandidates = await ApplyCursor(candidates, decodedCursor)
+            .OrderBy(candidate => candidate.RelevanceRank)
+            .ThenBy(candidate => candidate.NormalizedLabel)
+            .ThenBy(candidate => candidate.TypeOrder)
+            .ThenBy(candidate => candidate.StableId)
+            .Take(boundedPageSize + 1)
+            .ToListAsync(cancellationToken);
 
-        var pagedResults = orderedCandidates
-            .Skip(offset)
-            .Take(boundedPageSize)
-            .Select(candidate => candidate.Result)
-            .ToList();
-
-        var nextOffset = offset + pagedResults.Count;
-        var hasMore = nextOffset < orderedCandidates.Count;
+        var hasMore = pagedCandidates.Count > boundedPageSize;
+        if (hasMore)
+            pagedCandidates.RemoveAt(pagedCandidates.Count - 1);
 
         return new SearchResponseDTO
         {
-            Results = pagedResults,
-            NextCursor = hasMore ? BuildCursor(normalizedQuery, nextOffset) : null,
-            TotalCount = orderedCandidates.Count,
+            Results = pagedCandidates.Select(ToResult).ToList(),
+            NextCursor = hasMore ? BuildCursor(normalizedQuery, pagedCandidates[^1]) : null,
+            TotalCount = totalCount,
             HasMore = hasMore
         };
     }
 
-    private async Task<List<SearchCandidate>> LoadCandidatesAsync(string normalizedQuery, CancellationToken cancellationToken)
+    private IQueryable<SearchCandidate> BuildCandidateQuery(string normalizedQuery)
     {
-        var users = await _dbContext.Users
+        var containsPattern = $"%{EscapeLikePattern(normalizedQuery)}%";
+        var prefixPattern = $"{EscapeLikePattern(normalizedQuery)}%";
+
+        var users = _dbContext.Users
             .AsNoTracking()
             .Where(user =>
                 !user.IsDeleted &&
-                user.Username != null &&
-                user.Username != string.Empty &&
-                user.NormalizedUsername != null &&
-                user.NormalizedUsername != string.Empty &&
-                user.Firstname != null &&
-                user.Firstname != string.Empty &&
-                user.Lastname != null &&
-                user.Lastname != string.Empty &&
-                user.NormalizedUsername.Contains(normalizedQuery))
-            .Select(user => new UserProjection(user.Id, user.Username!, user.NormalizedUsername!))
-            .ToListAsync(cancellationToken);
+                !string.IsNullOrEmpty(user.Username) &&
+                !string.IsNullOrEmpty(user.NormalizedUsername) &&
+                !string.IsNullOrWhiteSpace(user.Firstname) &&
+                !string.IsNullOrWhiteSpace(user.Lastname) &&
+                EF.Functions.Like(user.NormalizedUsername, containsPattern, "\\"))
+            .Select(user => new SearchCandidate
+            {
+                RelevanceRank = user.NormalizedUsername == normalizedQuery
+                    ? 0
+                    : EF.Functions.Like(user.NormalizedUsername, prefixPattern, "\\") ? 1 : 2,
+                NormalizedLabel = user.NormalizedUsername!,
+                DisplayLabel = user.Username!,
+                TypeOrder = 0,
+                StableId = user.Id.ToString(),
+                Type = "user",
+                Username = user.Username,
+                TeamName = null,
+                GameId = null
+            });
 
-        var teams = await _dbContext.Teams
+        var teams = _dbContext.Teams
             .AsNoTracking()
             .Where(team =>
-                team.Name != null &&
-                team.Name.ToLower().Contains(normalizedQuery))
-            .Select(team => new TeamProjection(team.Id, team.Name, team.Name.ToLower()))
-            .ToListAsync(cancellationToken);
-
-        var games = await _dbContext.Games
-            .AsNoTracking()
-            .Where(game => game.Name != null && game.Name.ToLower().Contains(normalizedQuery))
-            .Select(game => new GameProjection(game.Id, game.Name, game.Name.ToLower()))
-            .ToListAsync(cancellationToken);
-
-        var candidates = new List<SearchCandidate>(users.Count + teams.Count + games.Count);
-
-        candidates.AddRange(users.Select(user => new SearchCandidate(
-            RelevanceRank: GetRelevanceRank(user.NormalizedUsername, normalizedQuery),
-            DisplayLabel: user.Username,
-            TypeOrder: 0,
-            StableKey: $"{user.NormalizedUsername}|{user.Id:N}",
-            Result: new SearchResultDTO
+                !string.IsNullOrEmpty(team.Name) &&
+                EF.Functions.Like(team.Name.ToLower(), containsPattern, "\\"))
+            .Select(team => new SearchCandidate
             {
-                Type = "user",
-                DisplayLabel = user.Username,
-                SupportingText = "User",
-                Username = user.Username
-            })));
-
-        candidates.AddRange(teams.Select(team => new SearchCandidate(
-            RelevanceRank: GetRelevanceRank(team.NormalizedName, normalizedQuery),
-            DisplayLabel: team.Name,
-            TypeOrder: 1,
-            StableKey: $"{team.NormalizedName}|{team.Id:N}",
-            Result: new SearchResultDTO
-            {
-                Type = "team",
+                RelevanceRank = team.Name.ToLower() == normalizedQuery
+                    ? 0
+                    : EF.Functions.Like(team.Name.ToLower(), prefixPattern, "\\") ? 1 : 2,
+                NormalizedLabel = team.Name.ToLower(),
                 DisplayLabel = team.Name,
-                SupportingText = "Team",
-                TeamName = team.Name
-            })));
+                TypeOrder = 1,
+                StableId = team.Id.ToString(),
+                Type = "team",
+                Username = null,
+                TeamName = team.Name,
+                GameId = null
+            });
 
-        candidates.AddRange(games.Select(game => new SearchCandidate(
-            RelevanceRank: GetRelevanceRank(game.NormalizedName, normalizedQuery),
-            DisplayLabel: game.Name,
-            TypeOrder: 2,
-            StableKey: $"{game.NormalizedName}|{game.Id:N}",
-            Result: new SearchResultDTO
+        var games = _dbContext.Games
+            .AsNoTracking()
+            .Where(game => !string.IsNullOrEmpty(game.Name) && EF.Functions.Like(game.Name.ToLower(), containsPattern, "\\"))
+            .Select(game => new SearchCandidate
             {
-                Type = "game",
+                RelevanceRank = game.Name.ToLower() == normalizedQuery
+                    ? 0
+                    : EF.Functions.Like(game.Name.ToLower(), prefixPattern, "\\") ? 1 : 2,
+                NormalizedLabel = game.Name.ToLower(),
                 DisplayLabel = game.Name,
-                SupportingText = "Game",
+                TypeOrder = 2,
+                StableId = game.Id.ToString(),
+                Type = "game",
+                Username = null,
+                TeamName = null,
                 GameId = game.Id
-            })));
+            });
 
-        return candidates
-            .OrderBy(candidate => candidate.RelevanceRank)
-            .ThenBy(candidate => candidate.DisplayLabel, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(candidate => candidate.TypeOrder)
-            .ThenBy(candidate => candidate.StableKey, StringComparer.Ordinal)
-            .ToList();
+        return users.Concat(teams).Concat(games);
     }
 
-    private static int GetRelevanceRank(string normalizedValue, string normalizedQuery)
+    private static IQueryable<SearchCandidate> ApplyCursor(IQueryable<SearchCandidate> candidates, SearchCursor? cursor)
     {
-        if (normalizedValue == normalizedQuery)
-            return 0;
-        if (normalizedValue.StartsWith(normalizedQuery, StringComparison.Ordinal))
-            return 1;
-        return 2;
+        if (cursor is null)
+            return candidates;
+
+        return candidates.Where(candidate =>
+            candidate.RelevanceRank > cursor.RelevanceRank ||
+            candidate.RelevanceRank == cursor.RelevanceRank && string.Compare(candidate.NormalizedLabel, cursor.NormalizedLabel) > 0 ||
+            candidate.RelevanceRank == cursor.RelevanceRank && candidate.NormalizedLabel == cursor.NormalizedLabel && candidate.TypeOrder > cursor.TypeOrder ||
+            candidate.RelevanceRank == cursor.RelevanceRank && candidate.NormalizedLabel == cursor.NormalizedLabel && candidate.TypeOrder == cursor.TypeOrder && string.Compare(candidate.StableId, cursor.StableId) > 0);
     }
 
     private static string NormalizeQuery(string? query)
@@ -143,41 +136,81 @@ public sealed class SearchService : ISearchService
         return (query ?? string.Empty).Trim().ToLowerInvariant();
     }
 
-    private static string BuildCursor(string normalizedQuery, int offset)
+    private static string EscapeLikePattern(string value)
     {
-        return Convert.ToBase64String(Encoding.UTF8.GetBytes($"{normalizedQuery}|{offset}"));
+        return value
+            .Replace("\\", "\\\\", StringComparison.Ordinal)
+            .Replace("%", "\\%", StringComparison.Ordinal)
+            .Replace("_", "\\_", StringComparison.Ordinal);
     }
 
-    private static int DecodeCursor(string? cursor, string normalizedQuery)
+    private static SearchResultDTO ToResult(SearchCandidate candidate)
+    {
+        return new SearchResultDTO
+        {
+            Type = candidate.Type,
+            DisplayLabel = candidate.DisplayLabel,
+            SupportingText = candidate.Type switch
+            {
+                "user" => "User",
+                "team" => "Team",
+                "game" => "Game",
+                _ => throw new InvalidOperationException($"Unsupported search result type '{candidate.Type}'.")
+            },
+            Username = candidate.Username,
+            TeamName = candidate.TeamName,
+            GameId = candidate.GameId
+        };
+    }
+
+    private static string BuildCursor(string normalizedQuery, SearchCandidate candidate)
+    {
+        var payload = new SearchCursor(normalizedQuery, candidate.RelevanceRank, candidate.NormalizedLabel, candidate.TypeOrder, candidate.StableId);
+        return Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(payload));
+    }
+
+    private static SearchCursor? DecodeCursor(string? cursor, string normalizedQuery)
     {
         if (string.IsNullOrWhiteSpace(cursor))
-            return 0;
+            return null;
+
+        if (cursor.Length > SearchRequestLimits.MaximumCursorLength)
+            throw new ValidationException("Cursor is invalid.");
 
         try
         {
-            var payload = Encoding.UTF8.GetString(Convert.FromBase64String(cursor));
-            var separatorIndex = payload.LastIndexOf('|');
-            if (separatorIndex <= 0 || separatorIndex == payload.Length - 1)
+            var payload = JsonSerializer.Deserialize<SearchCursor>(Convert.FromBase64String(cursor));
+            if (payload is null ||
+                string.IsNullOrEmpty(payload.Query) ||
+                payload.RelevanceRank is < 0 or > 2 ||
+                string.IsNullOrEmpty(payload.NormalizedLabel) ||
+                payload.TypeOrder is < 0 or > 2 ||
+                !Guid.TryParse(payload.StableId, out _))
                 throw new ValidationException("Cursor is invalid.");
 
-            var cursorQuery = payload[..separatorIndex];
-            if (!string.Equals(cursorQuery, normalizedQuery, StringComparison.Ordinal))
+            if (!string.Equals(payload.Query, normalizedQuery, StringComparison.Ordinal))
                 throw new ValidationException("Cursor does not match query.");
 
-            var offsetSegment = payload[(separatorIndex + 1)..];
-            if (!int.TryParse(offsetSegment, out var offset) || offset < 0)
-                throw new ValidationException("Cursor is invalid.");
-
-            return offset;
+            return payload;
         }
-        catch (FormatException)
+        catch (Exception exception) when (exception is FormatException or JsonException)
         {
             throw new ValidationException("Cursor is invalid.");
         }
     }
 
-    private sealed record SearchCandidate(int RelevanceRank, string DisplayLabel, int TypeOrder, string StableKey, SearchResultDTO Result);
-    private sealed record UserProjection(Guid Id, string Username, string NormalizedUsername);
-    private sealed record TeamProjection(Guid Id, string Name, string NormalizedName);
-    private sealed record GameProjection(Guid Id, string Name, string NormalizedName);
+    private sealed class SearchCandidate
+    {
+        public int RelevanceRank { get; init; }
+        public required string NormalizedLabel { get; init; }
+        public required string DisplayLabel { get; init; }
+        public int TypeOrder { get; init; }
+        public required string StableId { get; init; }
+        public required string Type { get; init; }
+        public string? Username { get; init; }
+        public string? TeamName { get; init; }
+        public Guid? GameId { get; init; }
+    }
+
+    private sealed record SearchCursor(string Query, int RelevanceRank, string NormalizedLabel, int TypeOrder, string StableId);
 }

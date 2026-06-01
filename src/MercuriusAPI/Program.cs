@@ -64,6 +64,7 @@ public class Program
             };
         });
         builder.Services.AddAuthorization();
+        builder.Services.AddApiRateLimiting(builder.Configuration);
 
         var jwtBuilder = new JWTBuilder(builder);
         jwtBuilder.AddJWTSecuredSwaggerGen(options =>
@@ -110,6 +111,7 @@ public class Program
 
         app.UseAuthentication();
         app.UseAuthorization();
+        app.UseRateLimiter();
 
         app.UseSecuredSwaggerUI();
 

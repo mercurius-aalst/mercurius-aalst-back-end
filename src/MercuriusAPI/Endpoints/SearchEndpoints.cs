@@ -1,5 +1,6 @@
 using Asp.Versioning;
 using Mercurius.LAN.API.Exceptions;
+using Mercurius.LAN.API.Extensions;
 using Mercurius.LAN.API.Services.SearchServices;
 
 namespace Mercurius.LAN.API.Endpoints;
@@ -31,7 +32,8 @@ public static class SearchEndpoints
 
             return await searchService.SearchAsync(query, cursor, boundedPageSize, cancellationToken);
         })
-        .AllowAnonymous();
+        .AllowAnonymous()
+        .RequireRateLimiting(RateLimitPolicies.AnonymousSearch);
 
         return group;
     }

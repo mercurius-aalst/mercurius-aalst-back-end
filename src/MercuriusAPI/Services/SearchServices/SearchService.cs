@@ -23,17 +23,10 @@ public sealed class SearchService : ISearchService
 
         var boundedPageSize = Math.Clamp(pageSize, 1, SearchRequestLimits.MaximumPageSize);
         if (normalizedQuery.Length < SearchRequestLimits.MinimumQueryLength)
-            return new SearchResponseDTO { Results = [], TotalCount = 0, HasMore = false };
+            return new SearchResponseDTO { Results = [], HasMore = false };
 
         var decodedCursor = DecodeCursor(cursor, normalizedQuery);
-        var candidates = BuildCandidateQuery(normalizedQuery);
-        var totalCount = await candidates.CountAsync(cancellationToken);
-        var pagedCandidates = await ApplyCursor(candidates, decodedCursor)
-            .OrderBy(candidate => candidate.RelevanceRank)
-            .ThenBy(candidate => candidate.NormalizedLabel)
-            .ThenBy(candidate => candidate.TypeOrder)
-            .ThenBy(candidate => candidate.StableId)
-            .Take(boundedPageSize + 1)
+        var pagedCandidates = await BuildPagedCandidateQuery(normalizedQuery, decodedCursor, boundedPageSize + 1)
             .ToListAsync(cancellationToken);
 
         var hasMore = pagedCandidates.Count > boundedPageSize;
@@ -44,7 +37,6 @@ public sealed class SearchService : ISearchService
         {
             Results = pagedCandidates.Select(ToResult).ToList(),
             NextCursor = hasMore ? BuildCursor(normalizedQuery, pagedCandidates[^1]) : null,
-            TotalCount = totalCount,
             HasMore = hasMore
         };
     }
@@ -119,16 +111,32 @@ public sealed class SearchService : ISearchService
         return users.Concat(teams).Concat(games);
     }
 
+    private IQueryable<SearchCandidate> BuildPagedCandidateQuery(string normalizedQuery, SearchCursor? cursor, int limit)
+    {
+        return ApplyCursor(BuildCandidateQuery(normalizedQuery), cursor)
+            .OrderBy(candidate => candidate.RelevanceRank)
+            .ThenBy(candidate => candidate.NormalizedLabel)
+            .ThenBy(candidate => candidate.TypeOrder)
+            .ThenBy(candidate => candidate.StableId)
+            .Take(limit);
+    }
+
     private static IQueryable<SearchCandidate> ApplyCursor(IQueryable<SearchCandidate> candidates, SearchCursor? cursor)
     {
         if (cursor is null)
             return candidates;
 
         return candidates.Where(candidate =>
-            candidate.RelevanceRank > cursor.RelevanceRank ||
-            candidate.RelevanceRank == cursor.RelevanceRank && string.Compare(candidate.NormalizedLabel, cursor.NormalizedLabel) > 0 ||
-            candidate.RelevanceRank == cursor.RelevanceRank && candidate.NormalizedLabel == cursor.NormalizedLabel && candidate.TypeOrder > cursor.TypeOrder ||
-            candidate.RelevanceRank == cursor.RelevanceRank && candidate.NormalizedLabel == cursor.NormalizedLabel && candidate.TypeOrder == cursor.TypeOrder && string.Compare(candidate.StableId, cursor.StableId) > 0);
+            (candidate.RelevanceRank > cursor.RelevanceRank) ||
+            (candidate.RelevanceRank == cursor.RelevanceRank &&
+             string.Compare(candidate.NormalizedLabel, cursor.NormalizedLabel) > 0) ||
+            (candidate.RelevanceRank == cursor.RelevanceRank &&
+             candidate.NormalizedLabel == cursor.NormalizedLabel &&
+             candidate.TypeOrder > cursor.TypeOrder) ||
+            (candidate.RelevanceRank == cursor.RelevanceRank &&
+             candidate.NormalizedLabel == cursor.NormalizedLabel &&
+             candidate.TypeOrder == cursor.TypeOrder &&
+             string.Compare(candidate.StableId, cursor.StableId) > 0));
     }
 
     private static string NormalizeQuery(string? query)

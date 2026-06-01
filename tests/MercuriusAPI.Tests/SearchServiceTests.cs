@@ -20,7 +20,6 @@ public class SearchServiceTests
         Assert.Empty(result.Results);
         Assert.False(result.HasMore);
         Assert.Null(result.NextCursor);
-        Assert.Equal(0, result.TotalCount);
     }
 
     [Fact]
@@ -37,7 +36,6 @@ public class SearchServiceTests
 
         var result = await service.SearchAsync("  ALPHA  ", cursor: null, pageSize: 10);
 
-        Assert.Equal(3, result.TotalCount);
         Assert.Collection(result.Results,
             user =>
             {
@@ -199,17 +197,19 @@ public class SearchServiceTests
         using var dbContext = new MercuriusDBContext(options);
         var service = new SearchService(dbContext);
 
-        var buildQuery = typeof(SearchService).GetMethod("BuildCandidateQuery", BindingFlags.Instance | BindingFlags.NonPublic)!;
-        var applyCursor = typeof(SearchService).GetMethod("ApplyCursor", BindingFlags.Static | BindingFlags.NonPublic)!;
+        var buildQuery = typeof(SearchService).GetMethod("BuildPagedCandidateQuery", BindingFlags.Instance | BindingFlags.NonPublic)!;
         var cursorType = typeof(SearchService).GetNestedType("SearchCursor", BindingFlags.NonPublic)!;
 
-        var query = (IQueryable)buildQuery.Invoke(service, ["alpha"])!;
         var cursor = Activator.CreateInstance(cursorType, "alpha", 1, "alphab", 0, Guid.NewGuid().ToString())!;
-        var filteredQuery = (IQueryable)applyCursor.Invoke(null, [query, cursor])!;
-        var sql = filteredQuery.ToQueryString();
+        var query = (IQueryable)buildQuery.Invoke(service, ["alpha", cursor, 3])!;
+        var sql = query.ToQueryString();
 
         Assert.Contains("UNION ALL", sql);
         Assert.Contains("LIKE", sql);
+        Assert.Contains("""u1."NormalizedLabel" > @cursor_NormalizedLabel""", sql);
+        Assert.Contains("""u1."StableId" > @cursor_StableId""", sql);
+        Assert.Contains("ORDER BY u1.\"RelevanceRank\", u1.\"NormalizedLabel\", u1.\"TypeOrder\", u1.\"StableId\"", sql);
+        Assert.Contains("LIMIT", sql);
     }
 
     [Fact]

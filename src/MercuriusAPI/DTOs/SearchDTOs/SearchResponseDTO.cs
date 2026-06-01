@@ -6,6 +6,5 @@ public sealed class SearchResponseDTO
 
     public string? NextCursor { get; init; }
 
-    public int TotalCount { get; init; }
     public bool HasMore { get; init; }
 }

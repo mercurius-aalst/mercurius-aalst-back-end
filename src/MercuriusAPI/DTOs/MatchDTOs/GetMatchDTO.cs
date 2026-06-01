@@ -7,6 +7,8 @@ public class GetMatchDTO
     public Guid Id { get; set; }
     public DateTime StartTime { get; set; }
     public DateTime EndTime { get; set; }
+    public DateTime? EstimatedStartTime { get; set; }
+    public DateTime? EstimatedEndTime { get; set; }
     public BracketType BracketType { get; set; }
     public GameFormat Format { get; set; }
     public ParticipationMode ParticipationMode { get; set; }
@@ -41,6 +43,8 @@ public class GetMatchDTO
         Id = match.Id;
         StartTime = match.StartTime;
         EndTime = match.EndTime;
+        EstimatedStartTime = match.EstimatedStartTime;
+        EstimatedEndTime = match.EstimatedEndTime;
         BracketType = match.BracketType;
         Format = match.Format;
         ParticipationMode = match.ParticipationMode;

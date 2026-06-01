@@ -12,6 +12,10 @@ public class GetGameDTO
     public string Name { get; set; }
     public DateTime StartTime { get; set; }
     public DateTime EndTime { get; set; }
+    public DateTime PlannedStartTime { get; set; }
+    public int AverageGameDurationMinutes { get; set; }
+    public int RoundBreakDurationMinutes { get; set; }
+    public DateTime? EstimatedEndTime { get; set; }
     public GameStatus Status { get; set; }
     public BracketType BracketType { get; set; }
     public GameFormat Format { get; set; }
@@ -24,7 +28,7 @@ public class GetGameDTO
     public GetGameSponsorPlacementDTO? SponsorPlacement { get; set; }
 
     public IEnumerable<GetMatchDTO> Matches { get; set; } = [];
-    public IEnumerable<GetUserDTO> Users { get; set; } = [];
+    public IEnumerable<PublicUserDTO> Users { get; set; } = [];
     public IEnumerable<GetTeamDTO> Teams { get; set; } = [];
 
     public GetGameDTO(Game game)
@@ -33,6 +37,10 @@ public class GetGameDTO
         Name = game.Name;
         StartTime = game.StartTime;
         EndTime = game.EndTime;
+        PlannedStartTime = game.PlannedStartTime;
+        AverageGameDurationMinutes = game.AverageGameDurationMinutes;
+        RoundBreakDurationMinutes = game.RoundBreakDurationMinutes;
+        EstimatedEndTime = game.EstimatedEndTime;
         Status = game.Status;
         BracketType = game.BracketType;
         Format = game.Format;
@@ -48,7 +56,7 @@ public class GetGameDTO
         switch (ParticipationMode)
         {
             case ParticipationMode.Individual:
-                Users = game.RegisteredUsers.Select(user => new GetUserDTO(user)).ToList();
+                Users = game.RegisteredUsers.Select(user => new PublicUserDTO(user)).ToList();
                 break;
             case ParticipationMode.Team:
                 Teams = game.RegisteredTeams.Select(team => new GetTeamDTO(team)).ToList();

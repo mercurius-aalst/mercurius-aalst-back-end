@@ -1,6 +1,7 @@
 using Mercurius.LAN.API.Data;
 using Mercurius.LAN.API.DTOs.GameDTOs;
 using Mercurius.LAN.API.DTOs.PlacementDTOs;
+using Mercurius.LAN.API.DTOs.Public;
 using Mercurius.LAN.API.Exceptions;
 using Mercurius.LAN.API.Models;
 using Mercurius.LAN.API.Services.Files;
@@ -69,21 +70,25 @@ public class GameService : IGameService
             .Select(g => new GetGameDTO(g));
     }
 
-    public IEnumerable<GetPublicGameDTO> GetAllPublicGames(bool includePlatformIds)
+    public IEnumerable<PublicGameSummaryDTO> GetAllPublicGames(PublicAudience audience)
     {
-        return CreatePublicGameQuery(includePlacements: false)
-            .ToList()
-            .Select(game => new GetPublicGameDTO(game, includePlatformIds));
+        return _dbContext.Games
+            .AsNoTracking()
+            .SelectPublicGameSummaries(audience)
+            .ToList();
     }
 
-    public async Task<GetPublicGameDTO> GetPublicGameByIdAsync(Guid gameId, bool includePlatformIds)
+    public async Task<PublicGameDetailDTO> GetPublicGameByIdAsync(Guid gameId, PublicAudience audience)
     {
-        var game = await CreatePublicGameQuery(includePlacements: true)
-            .FirstOrDefaultAsync(g => g.Id == gameId);
+        var game = await _dbContext.Games
+            .AsNoTracking()
+            .Where(game => game.Id == gameId)
+            .SelectPublicGameDetails(audience)
+            .FirstOrDefaultAsync();
         if (game is null)
             throw new NotFoundException($"{nameof(Game)} not found");
 
-        return new GetPublicGameDTO(game, includePlatformIds);
+        return game;
     }
 
     public async Task<GetGameDTO> UpdateGameAsync(Guid id, UpdateGameDTO gameDTO)
@@ -256,28 +261,6 @@ public class GameService : IGameService
         return _dbContext.Games
             .Include(g => g.Placements)
             .Include(g => g.SponsorPlacement);
-    }
-
-    private IQueryable<Game> CreatePublicGameQuery(bool includePlacements)
-    {
-        var query = _dbContext.Games
-            .AsNoTracking()
-            .Include(g => g.RegisteredUsers)
-            .Include(g => g.RegisteredTeams)
-                .ThenInclude(team => team.Members)
-            .Include(g => g.Matches)
-            .Include(g => g.SponsorPlacement)
-                .ThenInclude(placement => placement!.Sponsor);
-
-        if (!includePlacements)
-            return query;
-
-        return query
-            .Include(g => g.Placements)
-                .ThenInclude(placement => placement.Users)
-            .Include(g => g.Placements)
-                .ThenInclude(placement => placement.Teams)
-                    .ThenInclude(team => team.Members);
     }
 
     private static void ApplySponsorPlacement(GameSponsorPlacement gameSponsorPlacement, GameSponsorPlacementInputDTO placement, Guid gameId)

@@ -17,14 +17,16 @@
 
 ## Decisions
 
-- Add dedicated public DTOs instead of trying to hide fields from existing full DTOs.
-- Pass caller visibility into public mapping only when a route explicitly supports authenticated enrichment.
+- Add endpoint-level public read models instead of cloning the full admin DTO graph or trying to hide fields from existing full DTOs.
+- Reuse one public participant DTO for individual users and team members.
+- Return stable public schemas from anonymous read URLs. Expose full admin read DTOs through explicit `/admin` routes.
+- Represent caller visibility as a public audience value and apply it once inside centralized EF projections.
 - Use username and a safe display label as the anonymous user representation. Keep internal IDs only where bracket or match resolution requires them.
 - Exclude invite collections and invite history from all public team/participant DTOs.
-- Prefer projection-based queries for public list/detail paths so private user graphs are not loaded just to be discarded.
+- Use projection-based queries for public list/detail paths so private user graphs are not loaded just to be discarded.
 
 ## Risks / Trade-offs
 
 - Existing front-end or tests may depend on full DTOs from anonymous endpoints. The implementation should coordinate response shape changes with the redesigned front-end contract.
-- Some public routes may need to be split from admin routes to keep authorization and DTO selection simple.
+- Admin consumers must use the explicit `/admin` reads when they need full response DTOs.
 - EF includes are currently broad; tightening them may expose missing navigation assumptions in existing service tests.

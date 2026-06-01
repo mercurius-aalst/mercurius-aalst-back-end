@@ -1,8 +1,7 @@
 using System.Text.Json;
 using Mercurius.LAN.API.Data;
 using Mercurius.LAN.API.DTOs.GameDTOs;
-using Mercurius.LAN.API.DTOs.PlacementDTOs;
-using Mercurius.LAN.API.DTOs.TeamDTOs;
+using Mercurius.LAN.API.DTOs.Public;
 using Mercurius.LAN.API.Models;
 using Mercurius.LAN.API.Services.Files;
 using Mercurius.LAN.API.Services.GameServices;
@@ -19,8 +18,9 @@ public class PublicParticipantPrivacyDTOTests
     private static readonly JsonSerializerOptions WebJson = new(JsonSerializerDefaults.Web);
 
     [Fact]
-    public void GetPublicGameDTO_AnonymousResponse_OmitsPrivateUserFields()
+    public async Task GetPublicGameByIdAsync_AnonymousResponse_OmitsPrivateUserFields()
     {
+        await using var dbContext = CreateDbContext();
         var game = CreateIndividualGame();
         var user = CreateUser(1);
         game.RegisterUser(user);
@@ -29,10 +29,151 @@ public class PublicParticipantPrivacyDTOTests
             Place = 1,
             Users = [user]
         });
+        dbContext.Games.Add(game);
+        await dbContext.SaveChangesAsync();
 
-        var dto = new GetPublicGameDTO(game, includePlatformIds: false);
+        var dto = await CreateGameService(dbContext).GetPublicGameByIdAsync(game.Id, PublicAudience.Anonymous);
         var json = JsonSerializer.Serialize(dto, WebJson);
 
+        AssertPrivateUserFieldsAreAbsent(json);
+        Assert.Contains("\"displayName\":", json, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("\"username\":", json, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task GetPublicGameByIdAsync_AnonymousTeamPlacement_OmitsPrivateMemberFields()
+    {
+        await using var dbContext = CreateDbContext();
+        var game = CreateTeamGame();
+        var team = CreateTeam(2);
+        game.RegisterTeam(team);
+        game.Placements.Add(new Placement
+        {
+            Place = 1,
+            Teams = [team]
+        });
+        dbContext.Games.Add(game);
+        await dbContext.SaveChangesAsync();
+
+        var dto = await CreateGameService(dbContext).GetPublicGameByIdAsync(game.Id, PublicAudience.Anonymous);
+        var json = JsonSerializer.Serialize(dto, WebJson);
+
+        AssertPrivateUserFieldsAreAbsent(json);
+        Assert.Contains("\"members\":", json, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("\"placements\":", json, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task GetPublicTeamByIdAsync_AnonymousResponse_OmitsInvitesAndPrivateMemberFields()
+    {
+        await using var dbContext = CreateDbContext();
+        var team = CreateTeam(3);
+        team.TeamInvites.Add(new TeamInvite
+        {
+            TeamId = team.Id,
+            UserId = Guid.NewGuid(),
+            Status = TeamInviteStatus.Pending
+        });
+        dbContext.Teams.Add(team);
+        await dbContext.SaveChangesAsync();
+
+        var dto = await CreateTeamService(dbContext).GetPublicTeamByIdAsync(team.Id, PublicAudience.Anonymous);
+        var json = JsonSerializer.Serialize(dto, WebJson);
+
+        Assert.DoesNotContain("\"teamInvites\":", json, StringComparison.OrdinalIgnoreCase);
+        AssertPrivateUserFieldsAreAbsent(json);
+        Assert.Contains("\"members\":", json, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task GetPublicGameByIdAsync_AuthenticatedResponse_IncludesPlatformIds()
+    {
+        await using var dbContext = CreateDbContext();
+        var game = CreateIndividualGame();
+        game.RegisterUser(CreateUser(4));
+        dbContext.Games.Add(game);
+        await dbContext.SaveChangesAsync();
+
+        var dto = await CreateGameService(dbContext).GetPublicGameByIdAsync(game.Id, PublicAudience.Authenticated);
+        var json = JsonSerializer.Serialize(dto, WebJson);
+
+        Assert.Contains("\"discordId\":\"discord-4\"", json, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("\"steamId\":\"steam-4\"", json, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("\"riotId\":\"riot-4\"", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("\"email\":", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("\"auth0UserId\":", json, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task GetAllPublicGames_ReturnsSummaryContractWithoutDetailCollections()
+    {
+        await using var dbContext = CreateDbContext();
+        dbContext.Games.Add(CreateIndividualGame());
+        await dbContext.SaveChangesAsync();
+
+        var dto = Assert.Single(CreateGameService(dbContext).GetAllPublicGames(PublicAudience.Anonymous));
+        var json = JsonSerializer.Serialize(dto, WebJson);
+
+        Assert.DoesNotContain("\"placements\":", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("\"matches\":", json, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void GetGameDTO_AdminResponse_StillIncludesPrivateUserFields()
+    {
+        var game = CreateIndividualGame();
+        var user = CreateUser(5);
+        game.RegisterUser(user);
+
+        var json = JsonSerializer.Serialize(new GetGameDTO(game), WebJson);
+
+        Assert.Contains("\"email\":\"user5@example.com\"", json, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("\"firstname\":\"First5\"", json, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("\"lastname\":\"Last5\"", json, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("\"discordId\":\"discord-5\"", json, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void PublicTeamDTO_ReusesPublicParticipantDTOForMembers()
+    {
+        var membersProperty = typeof(PublicTeamDTO).GetProperty(nameof(PublicTeamDTO.Members));
+
+        Assert.NotNull(membersProperty);
+        Assert.Equal(typeof(IEnumerable<PublicParticipantDTO>), membersProperty.PropertyType);
+    }
+
+    [Fact]
+    public void PublicGameDetailProjection_PostgresSql_DoesNotSelectPrivateUserColumns()
+    {
+        using var dbContext = CreatePostgresDbContext();
+
+        var sql = dbContext.Games
+            .SelectPublicGameDetails(PublicAudience.Anonymous)
+            .ToQueryString();
+
+        Assert.DoesNotContain("\"Email\"", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("\"Auth0UserId\"", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("\"Firstname\"", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("\"Lastname\"", sql, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void PublicTeamProjection_PostgresSql_DoesNotSelectPrivateUserColumns()
+    {
+        using var dbContext = CreatePostgresDbContext();
+
+        var sql = dbContext.Teams
+            .SelectPublicTeams(PublicAudience.Anonymous)
+            .ToQueryString();
+
+        Assert.DoesNotContain("\"Email\"", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("\"Auth0UserId\"", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("\"Firstname\"", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("\"Lastname\"", sql, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void AssertPrivateUserFieldsAreAbsent(string json)
+    {
         Assert.DoesNotContain("\"email\":", json, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("\"firstname\":", json, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("\"lastname\":", json, StringComparison.OrdinalIgnoreCase);
@@ -43,134 +184,6 @@ public class PublicParticipantPrivacyDTOTests
         Assert.DoesNotContain("\"discordId\":", json, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("\"steamId\":", json, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("\"riotId\":", json, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("\"displayName\":", json, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("\"username\":", json, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public void GetPublicPlacementDTO_AnonymousTeamPlacement_OmitsPrivateMemberFields()
-    {
-        var team = CreateTeam(1);
-        var placement = new Placement
-        {
-            Place = 1,
-            Teams = [team]
-        };
-
-        var dto = new GetPublicPlacementDTO(placement, ParticipationMode.Team, includePlatformIds: false);
-        var json = JsonSerializer.Serialize(dto, WebJson);
-
-        Assert.DoesNotContain("\"email\":", json, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("\"firstname\":", json, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("\"lastname\":", json, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("\"discordId\":", json, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("\"steamId\":", json, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("\"riotId\":", json, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("\"members\":", json, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public void GetPublicTeamDTO_AnonymousResponse_OmitsInvitesAndPrivateMemberFields()
-    {
-        var team = CreateTeam(2);
-        team.TeamInvites.Add(new TeamInvite
-        {
-            TeamId = team.Id,
-            UserId = Guid.NewGuid(),
-            Status = TeamInviteStatus.Pending
-        });
-
-        var dto = new GetPublicTeamDTO(team, includePlatformIds: false);
-        var json = JsonSerializer.Serialize(dto, WebJson);
-
-        Assert.DoesNotContain("\"teamInvites\":", json, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("\"email\":", json, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("\"firstname\":", json, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("\"lastname\":", json, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("\"discordId\":", json, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("\"steamId\":", json, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("\"riotId\":", json, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("\"members\":", json, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public void GetPublicGameDTO_AuthenticatedPublicResponse_IncludesPlatformIdsWhenEnabled()
-    {
-        var game = CreateIndividualGame();
-        var user = CreateUser(3);
-        game.RegisterUser(user);
-
-        var dto = new GetPublicGameDTO(game, includePlatformIds: true);
-        var json = JsonSerializer.Serialize(dto, WebJson);
-
-        Assert.Contains("\"discordId\":\"discord-3\"", json, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("\"steamId\":\"steam-3\"", json, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("\"riotId\":\"riot-3\"", json, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public void GetGameDTO_AdminResponse_StillIncludesPrivateUserFields()
-    {
-        var game = CreateIndividualGame();
-        var user = CreateUser(4);
-        game.RegisterUser(user);
-
-        var dto = new GetGameDTO(game);
-        var json = JsonSerializer.Serialize(dto, WebJson);
-
-        Assert.Contains("\"email\":\"user4@example.com\"", json, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("\"firstname\":\"First4\"", json, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("\"lastname\":\"Last4\"", json, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("\"discordId\":\"discord-4\"", json, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("\"steamId\":\"steam-4\"", json, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("\"riotId\":\"riot-4\"", json, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public async Task GetPublicGameByIdAsync_UsesPublicProjectionShape()
-    {
-        await using var dbContext = CreateDbContext();
-        var game = CreateIndividualGame();
-        game.Id = Guid.NewGuid();
-        var user = CreateUser(5);
-        game.RegisterUser(user);
-        dbContext.Games.Add(game);
-        await dbContext.SaveChangesAsync();
-
-        var service = CreateGameService(dbContext);
-
-        var dto = await service.GetPublicGameByIdAsync(game.Id, includePlatformIds: false);
-        var json = JsonSerializer.Serialize(dto, WebJson);
-
-        Assert.DoesNotContain("\"email\":", json, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("\"auth0UserId\":", json, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("\"discordId\":", json, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("\"username\":\"user5\"", json, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public async Task GetPublicTeamByIdAsync_UsesPublicProjectionWithoutInvites()
-    {
-        await using var dbContext = CreateDbContext();
-        var team = CreateTeam(6);
-        team.TeamInvites.Add(new TeamInvite
-        {
-            TeamId = team.Id,
-            UserId = Guid.NewGuid(),
-            Status = TeamInviteStatus.Pending
-        });
-        dbContext.Teams.Add(team);
-        await dbContext.SaveChangesAsync();
-
-        var service = CreateTeamService(dbContext);
-
-        var dto = await service.GetPublicTeamByIdAsync(team.Id, includePlatformIds: false);
-        var json = JsonSerializer.Serialize(dto, WebJson);
-
-        Assert.DoesNotContain("\"teamInvites\":", json, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("\"email\":", json, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("\"discordId\":", json, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("\"members\":", json, StringComparison.OrdinalIgnoreCase);
     }
 
     private static Game CreateIndividualGame()
@@ -181,6 +194,17 @@ public class PublicParticipantPrivacyDTOTests
             GameFormat.BestOf1,
             GameFormat.BestOf1,
             ParticipationMode.Individual,
+            "https://example.com/register");
+    }
+
+    private static Game CreateTeamGame()
+    {
+        return new Game(
+            "Public Privacy Team Game",
+            BracketType.SingleElimination,
+            GameFormat.BestOf1,
+            GameFormat.BestOf1,
+            ParticipationMode.Team,
             "https://example.com/register");
     }
 
@@ -217,6 +241,15 @@ public class PublicParticipantPrivacyDTOTests
     {
         var options = new DbContextOptionsBuilder<MercuriusDBContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        return new MercuriusDBContext(options);
+    }
+
+    private static MercuriusDBContext CreatePostgresDbContext()
+    {
+        var options = new DbContextOptionsBuilder<MercuriusDBContext>()
+            .UseNpgsql("Host=localhost;Database=projection-test;Username=projection-test;Password=projection-test")
             .Options;
 
         return new MercuriusDBContext(options);

@@ -1,4 +1,5 @@
 using Asp.Versioning;
+using Mercurius.LAN.API.DTOs.Public;
 using Mercurius.LAN.API.DTOs.TeamDTOs;
 using Mercurius.LAN.API.Services.TeamServices;
 using Microsoft.AspNetCore.Authorization;
@@ -23,23 +24,25 @@ public static class TeamEndpoints
 
         group.MapGet("/", (ClaimsPrincipal user, ITeamService teamService) =>
         {
-            if (IsAdmin(user))
-                return Results.Ok(teamService.GetAllTeams().ToList());
-
-            var includePlatformIds = user.Identity?.IsAuthenticated == true;
-            return Results.Ok(teamService.GetAllPublicTeams(includePlatformIds).ToList());
+            return Results.Ok(teamService.GetAllPublicTeams(GetPublicAudience(user)).ToList());
         })
         .AllowAnonymous();
 
-        group.MapGet("/{id}", async (Guid id, ClaimsPrincipal user, ITeamService teamService) =>
+        group.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal user, ITeamService teamService) =>
         {
-            if (IsAdmin(user))
-                return Results.Ok(new GetTeamDTO(await teamService.GetTeamByIdAsync(id)));
-
-            var includePlatformIds = user.Identity?.IsAuthenticated == true;
-            return Results.Ok(await teamService.GetPublicTeamByIdAsync(id, includePlatformIds));
+            return Results.Ok(await teamService.GetPublicTeamByIdAsync(id, GetPublicAudience(user)));
         })
         .AllowAnonymous();
+
+        group.MapGet("/admin", (ITeamService teamService) =>
+        {
+            return Results.Ok(teamService.GetAllTeams().ToList());
+        });
+
+        group.MapGet("/admin/{id:guid}", async (Guid id, ITeamService teamService) =>
+        {
+            return Results.Ok(new GetTeamDTO(await teamService.GetTeamByIdAsync(id)));
+        });
 
         group.MapPost("/", async (CreateTeamDTO createTeamDTO, ITeamService teamService) =>
         {
@@ -79,8 +82,10 @@ public static class TeamEndpoints
         return group;
     }
 
-    private static bool IsAdmin(ClaimsPrincipal user)
+    private static PublicAudience GetPublicAudience(ClaimsPrincipal user)
     {
-        return user.Identity?.IsAuthenticated == true && user.IsInRole("admin");
+        return user.Identity?.IsAuthenticated == true
+            ? PublicAudience.Authenticated
+            : PublicAudience.Anonymous;
     }
 }

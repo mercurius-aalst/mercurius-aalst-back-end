@@ -1,5 +1,6 @@
 using Mercurius.LAN.API.Data;
 using Mercurius.LAN.API.DTOs.TeamDTOs;
+using Mercurius.LAN.API.DTOs.Public;
 using Mercurius.LAN.API.Exceptions;
 using Mercurius.LAN.API.Models;
 using Microsoft.EntityFrameworkCore;
@@ -44,11 +45,12 @@ public class TeamService : ITeamService
             .Select(t => new GetTeamDTO(t));
     }
 
-    public IEnumerable<GetPublicTeamDTO> GetAllPublicTeams(bool includePlatformIds)
+    public IEnumerable<PublicTeamDTO> GetAllPublicTeams(PublicAudience audience)
     {
-        return CreatePublicTeamQuery()
-            .ToList()
-            .Select(team => new GetPublicTeamDTO(team, includePlatformIds));
+        return _dbContext.Teams
+            .AsNoTracking()
+            .SelectPublicTeams(audience)
+            .ToList();
     }
 
     public async Task<Team> GetTeamByIdAsync(Guid teamId)
@@ -62,14 +64,17 @@ public class TeamService : ITeamService
         return team;
     }
 
-    public async Task<GetPublicTeamDTO> GetPublicTeamByIdAsync(Guid teamId, bool includePlatformIds)
+    public async Task<PublicTeamDTO> GetPublicTeamByIdAsync(Guid teamId, PublicAudience audience)
     {
-        var team = await CreatePublicTeamQuery()
-            .FirstOrDefaultAsync(t => t.Id == teamId);
+        var team = await _dbContext.Teams
+            .AsNoTracking()
+            .Where(team => team.Id == teamId)
+            .SelectPublicTeams(audience)
+            .FirstOrDefaultAsync();
         if (team is null)
             throw new NotFoundException($"{nameof(Team)} not found");
 
-        return new GetPublicTeamDTO(team, includePlatformIds);
+        return team;
     }
 
     public async Task<GetTeamDTO> RemoveMemberAsync(Guid id, Guid userId)
@@ -143,11 +148,5 @@ public class TeamService : ITeamService
         return _dbContext.Teams.AnyAsync(t => t.Name.Equals(name));
     }
 
-    private IQueryable<Team> CreatePublicTeamQuery()
-    {
-        return _dbContext.Teams
-            .AsNoTracking()
-            .Include(t => t.Members);
-    }
 }
 

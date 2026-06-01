@@ -16,6 +16,10 @@ public class GetGameSponsorPlacementDTO
     public string? SupportLine { get; set; }
     public int DisplayOrder { get; set; }
 
+    public GetGameSponsorPlacementDTO()
+    {
+    }
+
     public GetGameSponsorPlacementDTO(GameSponsorPlacement placement)
     {
         Id = placement.Id;

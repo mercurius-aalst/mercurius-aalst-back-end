@@ -54,12 +54,12 @@ public class TeamService : ITeamService
 
     public async Task<PublicTeamProfileDTO> GetPublicTeamProfileAsync(string teamName)
     {
-        var normalizedTeamName = NormalizeTeamNameForLookup(teamName);
+        var normalizedTeamName = Team.NormalizeName(teamName);
         var team = await _dbContext.Teams
             .AsNoTracking()
             .Include(t => t.Captain)
             .Include(t => t.Members)
-            .FirstOrDefaultAsync(t => t.Name.ToLower() == normalizedTeamName);
+            .FirstOrDefaultAsync(t => t.NormalizedName == normalizedTeamName);
 
         if (team is null)
             throw new NotFoundException($"{nameof(Team)} not found");
@@ -92,6 +92,8 @@ public class TeamService : ITeamService
             Members = members,
             Tournaments = tournaments
         };
+    }
+
     public async Task<Team> GetTeamByNameAsync(string name)
     {
         var normalizedName = Team.NormalizeName(name);
@@ -199,15 +201,6 @@ public class TeamService : ITeamService
         return !string.IsNullOrWhiteSpace(username);
     }
 
-    private static string NormalizeTeamNameForLookup(string teamName)
-    {
-        if (string.IsNullOrWhiteSpace(teamName))
-            throw new ValidationException("Team name is required.");
-
-        return teamName.Trim().ToLowerInvariant();
-    }
-
-    private Task<bool> CheckIfTeamNameExistsAsync(string name)
     private Task<bool> CheckIfTeamNameExistsAsync(string normalizedName, Guid? excludedTeamId = null)
     {
         return _dbContext.Teams.AnyAsync(t =>

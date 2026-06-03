@@ -5,11 +5,11 @@ The API MUST expose `GET /v1/lan/public/users/{username}` for public username-ba
 
 #### Scenario: Anonymous public profile lookup
 - **WHEN** an anonymous client requests a valid complete profile by username
-- **THEN** the response includes username, first name, and last name
-
-#### Scenario: Authenticated public profile lookup
-- **WHEN** an authenticated client requests a valid complete profile by username
 - **THEN** the response includes username, first name, last name, Discord ID, Steam ID, and Riot ID
+
+#### Scenario: Same response shape for authenticated callers
+- **WHEN** an authenticated client requests a valid complete profile by username
+- **THEN** the response includes the same public fields as an anonymous response
 
 #### Scenario: Case-insensitive lookup
 - **WHEN** a client requests a username with different casing than stored
@@ -20,7 +20,7 @@ The public user profile endpoint MUST omit account-private fields.
 
 #### Scenario: Anonymous private fields omitted
 - **WHEN** an anonymous client reads a public user profile
-- **THEN** the response omits email, email verification state, Auth0 ID, deleted state, timestamps, and platform IDs
+- **THEN** the response omits email, email verification state, Auth0 ID, deleted state, and timestamps
 
 #### Scenario: Authenticated private fields omitted
 - **WHEN** an authenticated client reads a public user profile

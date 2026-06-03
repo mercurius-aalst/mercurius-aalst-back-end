@@ -293,11 +293,10 @@ public class UserTests
         var inner = new RecordingUserService();
         var service = new UserValidationService(inner);
 
-        var result = await service.GetPublicUserProfileByUsernameAsync(" ValidUser ", includePlatformIds: true);
+        var result = await service.GetPublicUserProfileByUsernameAsync(" ValidUser ");
 
         Assert.Same(inner.PublicUser, result);
         Assert.Equal("validuser", inner.LastPublicProfileUsername);
-        Assert.True(inner.LastIncludePlatformIds);
     }
 
     [Fact]
@@ -306,7 +305,7 @@ public class UserTests
         var service = new UserValidationService(new RecordingUserService());
 
         var exception = await Assert.ThrowsAsync<ValidationException>(() =>
-            service.GetPublicUserProfileByUsernameAsync("x", includePlatformIds: false));
+            service.GetPublicUserProfileByUsernameAsync("x"));
 
         Assert.Contains("Username must be 3-32 alphanumeric characters.", exception.Message);
     }
@@ -370,7 +369,7 @@ public class UserTests
     }
 
     [Fact]
-    public async Task GetPublicUserProfileByUsernameAsync_HidesPlatformIds_ForAnonymousCallers()
+    public async Task GetPublicUserProfileByUsernameAsync_IncludesPlatformIds()
     {
         await using var dbContext = CreateDbContext();
         var user = CreateStoredUser("auth0|123", "public@example.com");
@@ -384,33 +383,11 @@ public class UserTests
             dbContext,
             new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("public@example.com", true, true)));
 
-        var profile = await service.GetPublicUserProfileByUsernameAsync("playerone", includePlatformIds: false);
+        var profile = await service.GetPublicUserProfileByUsernameAsync("playerone");
 
         Assert.Equal("PlayerOne", profile.Username);
         Assert.Equal("Player", profile.Firstname);
         Assert.Equal("One", profile.Lastname);
-        Assert.Null(profile.DiscordId);
-        Assert.Null(profile.SteamId);
-        Assert.Null(profile.RiotId);
-    }
-
-    [Fact]
-    public async Task GetPublicUserProfileByUsernameAsync_IncludesPlatformIds_ForAuthenticatedCallers()
-    {
-        await using var dbContext = CreateDbContext();
-        var user = CreateStoredUser("auth0|123", "public@example.com");
-        user.DiscordId = "discord-1";
-        user.SteamId = "steam-1";
-        user.RiotId = "riot-1";
-        dbContext.Users.Add(user);
-        await dbContext.SaveChangesAsync();
-
-        var service = new UserService(
-            dbContext,
-            new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("public@example.com", true, true)));
-
-        var profile = await service.GetPublicUserProfileByUsernameAsync("playerone", includePlatformIds: true);
-
         Assert.Equal("discord-1", profile.DiscordId);
         Assert.Equal("steam-1", profile.SteamId);
         Assert.Equal("riot-1", profile.RiotId);
@@ -427,7 +404,7 @@ public class UserTests
             dbContext,
             new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("public@example.com", true, true)));
 
-        var profile = await service.GetPublicUserProfileByUsernameAsync("PlAyErOnE", includePlatformIds: false);
+        var profile = await service.GetPublicUserProfileByUsernameAsync("PlAyErOnE");
 
         Assert.Equal("PlayerOne", profile.Username);
     }
@@ -441,7 +418,7 @@ public class UserTests
             new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("public@example.com", true, true)));
 
         await Assert.ThrowsAsync<NotFoundException>(() =>
-            service.GetPublicUserProfileByUsernameAsync("playerone", includePlatformIds: false));
+            service.GetPublicUserProfileByUsernameAsync("playerone"));
     }
 
     [Fact]
@@ -458,7 +435,7 @@ public class UserTests
             new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("public@example.com", true, true)));
 
         await Assert.ThrowsAsync<NotFoundException>(() =>
-            service.GetPublicUserProfileByUsernameAsync("playerone", includePlatformIds: false));
+            service.GetPublicUserProfileByUsernameAsync("playerone"));
     }
 
     [Fact]
@@ -475,7 +452,7 @@ public class UserTests
             new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("public@example.com", true, true)));
 
         await Assert.ThrowsAsync<NotFoundException>(() =>
-            service.GetPublicUserProfileByUsernameAsync("playerone", includePlatformIds: false));
+            service.GetPublicUserProfileByUsernameAsync("playerone"));
     }
 
     private static MercuriusDBContext CreateDbContext()
@@ -513,7 +490,6 @@ public class UserTests
         public string? LastUpdateCurrentSubject { get; private set; }
         public UpdateUserProfileRequest? LastUpdateCurrentRequest { get; private set; }
         public string? LastPublicProfileUsername { get; private set; }
-        public bool? LastIncludePlatformIds { get; private set; }
         public GetUserDTO CreatedUser { get; } = new(new User
         {
             Id = Guid.NewGuid(),
@@ -552,10 +528,9 @@ public class UserTests
             return Task.FromResult(new CurrentUserProfileResponse(true, CreatedUser));
         }
 
-        public Task<PublicUserProfileDTO> GetPublicUserProfileByUsernameAsync(string username, bool includePlatformIds)
+        public Task<PublicUserProfileDTO> GetPublicUserProfileByUsernameAsync(string username)
         {
             LastPublicProfileUsername = username;
-            LastIncludePlatformIds = includePlatformIds;
             return Task.FromResult(PublicUser);
         }
 

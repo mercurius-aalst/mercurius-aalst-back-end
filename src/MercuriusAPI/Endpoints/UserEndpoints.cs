@@ -25,10 +25,9 @@ public static class UserEndpoints
             .MapToApiVersion(new ApiVersion(1, 0))
             .WithTags("Users");
 
-        publicGroup.MapGet("/{username}", async (string username, ClaimsPrincipal user, IUserService userService) =>
+        publicGroup.MapGet("/{username}", async (string username, IUserService userService) =>
         {
-            var includePlatformIds = user.Identity?.IsAuthenticated == true;
-            return await userService.GetPublicUserProfileByUsernameAsync(username, includePlatformIds);
+            return await userService.GetPublicUserProfileByUsernameAsync(username);
         })
         .AllowAnonymous();
 

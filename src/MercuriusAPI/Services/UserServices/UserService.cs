@@ -59,7 +59,7 @@ public class UserService : IUserService
         return new CurrentUserProfileResponse(user.IsComplete, new GetUserDTO(user));
     }
 
-    public async Task<PublicUserProfileDTO> GetPublicUserProfileByUsernameAsync(string username, bool includePlatformIds)
+    public async Task<PublicUserProfileDTO> GetPublicUserProfileByUsernameAsync(string username)
     {
         var normalizedUsername = UserProfileValidationHelper.NormalizeUsername(username);
         var trimmedUsername = username?.Trim() ?? string.Empty;
@@ -82,9 +82,9 @@ public class UserService : IUserService
                 Username = u.Username!,
                 Firstname = u.Firstname!,
                 Lastname = u.Lastname!,
-                DiscordId = includePlatformIds ? u.DiscordId : null,
-                SteamId = includePlatformIds ? u.SteamId : null,
-                RiotId = includePlatformIds ? u.RiotId : null
+                DiscordId = u.DiscordId,
+                SteamId = u.SteamId,
+                RiotId = u.RiotId
             })
             .FirstOrDefaultAsync();
 

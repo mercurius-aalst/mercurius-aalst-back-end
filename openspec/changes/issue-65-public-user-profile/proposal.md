@@ -5,11 +5,11 @@ The redesigned front-end adds public user profile pages at `/users/{username}`, 
 ## What Changes
 
 - Add `GET /v1/lan/public/users/{username}` as a public username-based profile endpoint.
-- Return username, first name, and last name for valid public profiles.
-- Include Discord, Steam, and Riot IDs only for authenticated callers.
+- Return username, first name, last name, Discord ID, Steam ID, and Riot ID for valid public profiles.
+- Include Discord, Steam, and Riot IDs in public profile responses.
 - Exclude email, email verification state, Auth0 ID, deleted state, and timestamps.
 - Use normalized username lookup and exclude deleted/incomplete profiles.
-- Add tests for anonymous/authenticated visibility, lookup, not found cases, and privacy regressions.
+- Add tests for public response shape, lookup, not found cases, and privacy regressions.
 
 ## Capabilities
 

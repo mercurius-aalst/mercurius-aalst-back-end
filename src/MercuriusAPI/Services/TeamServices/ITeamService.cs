@@ -8,6 +8,7 @@ public interface ITeamService
     Task<GetTeamDTO> CreateTeamAsync(CreateTeamDTO teamDTO);
     Task DeleteTeamAsync(Guid teamId);
     IEnumerable<GetTeamDTO> GetAllTeams();
+    Task<PublicTeamProfileDTO> GetPublicTeamProfileAsync(string teamName);
     Task<IEnumerable<TeamInviteDTO>> GetUserInvitesAsync(Guid userId);
     Task<Team> GetTeamByIdAsync(Guid teamId);
     Task<Team> GetTeamByNameAsync(string name);

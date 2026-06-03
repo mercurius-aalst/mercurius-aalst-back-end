@@ -52,6 +52,48 @@ public class TeamService : ITeamService
         return team;
     }
 
+    public async Task<PublicTeamProfileDTO> GetPublicTeamProfileAsync(string teamName)
+    {
+        var normalizedTeamName = Team.NormalizeName(teamName);
+        var team = await _dbContext.Teams
+            .AsNoTracking()
+            .Include(t => t.Captain)
+            .Include(t => t.Members)
+            .FirstOrDefaultAsync(t => t.NormalizedName == normalizedTeamName);
+
+        if (team is null)
+            throw new NotFoundException($"{nameof(Team)} not found");
+
+        var tournaments = await _dbContext.Games
+            .AsNoTracking()
+            .Where(game => game.RegisteredTeams.Any(registeredTeam => registeredTeam.Id == team.Id))
+            .Select(game => new PublicTeamTournamentDTO
+            {
+                GameId = game.Id,
+                Name = game.Name
+            })
+            .OrderBy(game => game.Name)
+            .ThenBy(game => game.GameId)
+            .ToListAsync();
+
+        var members = team.Members
+            .Select(member => member.Username)
+            .Where(IsValidPublicUsername)
+            .Select(username => username!)
+            .OrderBy(username => username, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(username => username, StringComparer.Ordinal)
+            .Select(username => new PublicTeamMemberDTO(username))
+            .ToList();
+
+        return new PublicTeamProfileDTO
+        {
+            TeamName = team.Name,
+            CaptainUsername = IsValidPublicUsername(team.Captain.Username) ? team.Captain.Username : null,
+            Members = members,
+            Tournaments = tournaments
+        };
+    }
+
     public async Task<Team> GetTeamByNameAsync(string name)
     {
         var normalizedName = Team.NormalizeName(name);
@@ -152,6 +194,11 @@ public class TeamService : ITeamService
             Status = invite.Status.ToString(),
             CreatedAt = invite.CreatedAt
         });
+    }
+
+    private static bool IsValidPublicUsername(string? username)
+    {
+        return !string.IsNullOrWhiteSpace(username);
     }
 
     private Task<bool> CheckIfTeamNameExistsAsync(string normalizedName, Guid? excludedTeamId = null)

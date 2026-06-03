@@ -1,7 +1,4 @@
-## Purpose
-Define tournament schedule configuration and generated match time estimates so clients can display planned tournament timing consistently.
-
-## Requirements
+## ADDED Requirements
 
 ### Requirement: Admin tournament schedule configuration
 Admins MUST be able to create and update scheduled tournaments with a planned tournament start time, an average single-game duration, and a break duration between rounds.

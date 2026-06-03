@@ -4,6 +4,7 @@ using Mercurius.LAN.API.Endpoints;
 using Mercurius.LAN.API.Extensions;
 using Mercurius.LAN.API.Middleware;
 using Mercurius.LAN.API.Options;
+using Mercurius.LAN.API.Routing;
 using Mercurius.LAN.API.Services.Auth0;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -32,6 +33,10 @@ public class Program
         builder.Services.AddHttpClient<IAuth0ManagementService, Auth0ManagementService>();
         builder.Services.AddProblemDetails();
         builder.Services.AddExceptionHandler<ApiExceptionHandler>();
+        builder.Services.Configure<RouteOptions>(options =>
+        {
+            options.ConstraintMap["nonguid"] = typeof(NonGuidRouteConstraint);
+        });
 
         builder.Services.ConfigureHttpJsonOptions(options =>
         {

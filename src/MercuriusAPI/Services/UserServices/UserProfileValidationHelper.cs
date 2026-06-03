@@ -31,7 +31,9 @@ public static class UserProfileValidationHelper
 
     public static bool IsUsernameValid(string username)
     {
-        return UsernameRegex.IsMatch((username ?? string.Empty).Trim());
+        var normalizedUsername = (username ?? string.Empty).Trim();
+        return UsernameRegex.IsMatch(normalizedUsername) &&
+            !Guid.TryParse(normalizedUsername, out _);
     }
 
     public static bool IsReservedUsername(string username)

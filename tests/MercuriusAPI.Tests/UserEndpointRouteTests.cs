@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Mercurius.LAN.API.Routing;
 
 namespace Mercurius.LAN.API.Tests;
 
@@ -13,7 +14,7 @@ public class UserEndpointRouteTests
     [Fact]
     public void UsernameDeleteRoute_RequiresAdminAuthorization()
     {
-        var endpoint = GetUserRouteEndpoint("DELETE", "v{version:apiVersion}/lan/users/{username}");
+        var endpoint = GetUserRouteEndpoint("DELETE", "v{version:apiVersion}/lan/users/{username:nonguid}");
 
         var authorizeMetadata = endpoint.Metadata.OfType<AuthorizeAttribute>().ToList();
 
@@ -35,7 +36,35 @@ public class UserEndpointRouteTests
         var endpoints = GetUserRouteEndpoints("DELETE").ToList();
 
         Assert.Contains(endpoints, endpoint => endpoint.RoutePattern.RawText == "v{version:apiVersion}/lan/users/{id:guid}");
-        Assert.Contains(endpoints, endpoint => endpoint.RoutePattern.RawText == "v{version:apiVersion}/lan/users/{username}");
+        Assert.Contains(endpoints, endpoint => endpoint.RoutePattern.RawText == "v{version:apiVersion}/lan/users/{username:nonguid}");
+    }
+
+    [Fact]
+    public void NonGuidRouteConstraint_RejectsGuidShapedValues()
+    {
+        var constraint = new NonGuidRouteConstraint();
+        var values = new RouteValueDictionary
+        {
+            ["username"] = "0123456789abcdef0123456789abcdef"
+        };
+
+        var matches = constraint.Match(null, null, "username", values, RouteDirection.IncomingRequest);
+
+        Assert.False(matches);
+    }
+
+    [Fact]
+    public void NonGuidRouteConstraint_AllowsRegularUsernames()
+    {
+        var constraint = new NonGuidRouteConstraint();
+        var values = new RouteValueDictionary
+        {
+            ["username"] = "PlayerOne"
+        };
+
+        var matches = constraint.Match(null, null, "username", values, RouteDirection.IncomingRequest);
+
+        Assert.True(matches);
     }
 
     private static RouteEndpoint GetUserRouteEndpoint(string method, string routePattern)
@@ -49,6 +78,10 @@ public class UserEndpointRouteTests
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddAuthorization();
         builder.Services.AddApiVersioning();
+        builder.Services.Configure<RouteOptions>(options =>
+        {
+            options.ConstraintMap["nonguid"] = typeof(NonGuidRouteConstraint);
+        });
         builder.Services.AddScoped<IUserService>(_ => throw new NotSupportedException());
 
         var app = builder.Build();

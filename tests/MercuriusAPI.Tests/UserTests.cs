@@ -147,6 +147,7 @@ public class UserTests
     [InlineData("ab")]
     [InlineData("user-name")]
     [InlineData("thisusernameiswaytoolongtobeaccepted")]
+    [InlineData("0123456789abcdef0123456789abcdef")]
     public void IsUsernameValid_RejectsInvalidUsernames(string username)
     {
         Assert.False(UserProfileValidationHelper.IsUsernameValid(username));

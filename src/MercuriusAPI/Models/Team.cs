@@ -6,6 +6,7 @@ public class Team
 {
     public Guid Id { get; set; }
     public string Name { get; set; }
+    public string NormalizedName { get; set; }
     public Guid CaptainUserId { get; set; }
     public User Captain { get; set; }
 
@@ -19,7 +20,7 @@ public class Team
 
     public Team(string name, User captain)
     {
-        Name = name;
+        UpdateName(name);
         Captain = captain;
         CaptainUserId = captain.Id;
         Members.Add(captain);
@@ -27,7 +28,28 @@ public class Team
 
     public void UpdateName(string name)
     {
-        Name = name;
+        var displayName = NormalizeDisplayName(name);
+        Name = displayName;
+        NormalizedName = displayName.ToLowerInvariant();
+    }
+
+    public static string NormalizeName(string name)
+    {
+        return NormalizeDisplayName(name).ToLowerInvariant();
+    }
+
+    private static string NormalizeDisplayName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            throw new ValidationException("Team name is required.");
+
+        var trimmedName = name.Trim();
+        if (trimmedName.Length > 100)
+            throw new ValidationException("Team name cannot exceed 100 characters.");
+        if (trimmedName.Any(char.IsControl))
+            throw new ValidationException("Team name cannot contain control characters.");
+
+        return trimmedName;
     }
 
     public void ChangeCaptain(Guid captainUserId)

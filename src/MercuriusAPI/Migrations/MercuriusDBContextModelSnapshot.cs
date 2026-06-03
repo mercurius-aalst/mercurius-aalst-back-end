@@ -58,10 +58,16 @@ namespace Mercurius.LAN.API.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<int>("AverageGameDurationMinutes")
+                        .HasColumnType("integer");
+
                     b.Property<int>("BracketType")
                         .HasColumnType("integer");
 
                     b.Property<DateTime>("EndTime")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("EstimatedEndTime")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("FinalsFormat")
@@ -80,9 +86,15 @@ namespace Mercurius.LAN.API.Migrations
                     b.Property<int>("ParticipationMode")
                         .HasColumnType("integer");
 
+                    b.Property<DateTime>("PlannedStartTime")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("RegisterFormUrl")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<int>("RoundBreakDurationMinutes")
+                        .HasColumnType("integer");
 
                     b.Property<DateTime>("StartTime")
                         .HasColumnType("timestamp with time zone");
@@ -126,10 +138,10 @@ namespace Mercurius.LAN.API.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("SponsorId");
-
                     b.HasIndex("GameId")
                         .IsUnique();
+
+                    b.HasIndex("SponsorId");
 
                     b.ToTable("GameSponsorPlacements");
                 });
@@ -144,6 +156,12 @@ namespace Mercurius.LAN.API.Migrations
                         .HasColumnType("integer");
 
                     b.Property<DateTime>("EndTime")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("EstimatedEndTime")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("EstimatedStartTime")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("Format")
@@ -299,11 +317,20 @@ namespace Mercurius.LAN.API.Migrations
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("NormalizedName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
 
                     b.HasKey("Id");
 
                     b.HasIndex("CaptainUserId");
+
+                    b.HasIndex("NormalizedName")
+                        .IsUnique();
 
                     b.ToTable("Teams");
                 });

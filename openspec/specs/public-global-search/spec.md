@@ -1,4 +1,7 @@
-## ADDED Requirements
+## Purpose
+Provide anonymous, privacy-safe global search across public users, teams, and games so clients can navigate to matching public pages without exposing private account data.
+
+## Requirements
 
 ### Requirement: Public global search endpoint
 The API MUST expose `GET /v1/lan/search?query={query}` for anonymous public search.

@@ -40,7 +40,7 @@ public class TeamService : ITeamService
     }
     public IEnumerable<GetTeamDTO> GetAllTeams()
     {
-        return GetTeamDetailsQuery()
+        return GetTeamWithMembersQuery()
             .Select(t => new GetTeamDTO(t));
     }
     public async Task<Team> GetTeamByIdAsync(Guid teamId)
@@ -55,7 +55,7 @@ public class TeamService : ITeamService
     public async Task<Team> GetTeamByNameAsync(string name)
     {
         var normalizedName = Team.NormalizeName(name);
-        var team = await GetTeamDetailsQuery()
+        var team = await GetTeamWithMembersQuery()
             .FirstOrDefaultAsync(t => t.NormalizedName == normalizedName);
         if (team is null)
             throw new NotFoundException($"{nameof(Team)} not found");
@@ -74,7 +74,11 @@ public class TeamService : ITeamService
 
     public async Task<GetTeamDTO> UpdateTeamAsync(Guid id, UpdateTeamDTO teamDTO)
     {
-        var team = await GetTeamByIdAsync(id);
+        var team = await GetTeamWithMembersQuery()
+            .FirstOrDefaultAsync(t => t.Id == id);
+        if (team is null)
+            throw new NotFoundException($"{nameof(Team)} not found");
+
         if (teamDTO.Name != null)
         {
             var normalizedTeamName = Team.NormalizeName(teamDTO.Name);
@@ -103,7 +107,7 @@ public class TeamService : ITeamService
         var normalizedQuery = query.Trim().ToLowerInvariant();
         var resultLimit = Math.Clamp(limit.GetValueOrDefault(MaxTeamSearchResults), 1, MaxTeamSearchResults);
 
-        return await GetTeamDetailsQuery()
+        return await GetTeamWithMembersQuery()
             .Where(t => t.NormalizedName.StartsWith(normalizedQuery))
             .OrderBy(t => t.Name)
             .Take(resultLimit)
@@ -159,9 +163,14 @@ public class TeamService : ITeamService
 
     private IQueryable<Team> GetTeamDetailsQuery()
     {
-        return _dbContext.Teams
-            .Include(t => t.Members)
+        return GetTeamWithMembersQuery()
             .Include(t => t.TeamInvites);
+    }
+
+    private IQueryable<Team> GetTeamWithMembersQuery()
+    {
+        return _dbContext.Teams
+            .Include(t => t.Members);
     }
 
     private async Task SaveTeamChangesAsync(string teamName)

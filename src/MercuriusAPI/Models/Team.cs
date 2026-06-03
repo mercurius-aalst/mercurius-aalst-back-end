@@ -46,6 +46,8 @@ public class Team
         var trimmedName = name.Trim();
         if (trimmedName.Length > 100)
             throw new ValidationException("Team name cannot exceed 100 characters.");
+        if (trimmedName.Any(char.IsControl))
+            throw new ValidationException("Team name cannot contain control characters.");
 
         return trimmedName;
     }

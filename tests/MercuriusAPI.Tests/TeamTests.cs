@@ -153,6 +153,7 @@ public class TeamTests
     {
         Assert.Throws<ValidationException>(() => Team.NormalizeName("   "));
         Assert.Throws<ValidationException>(() => Team.NormalizeName(new string('a', 101)));
+        Assert.Throws<ValidationException>(() => Team.NormalizeName("Alpha\nSquad"));
     }
 
     [Fact]

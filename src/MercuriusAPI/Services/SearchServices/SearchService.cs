@@ -74,13 +74,14 @@ public sealed class SearchService : ISearchService
             .AsNoTracking()
             .Where(team =>
                 !string.IsNullOrEmpty(team.Name) &&
-                EF.Functions.Like(team.Name.ToLower(), containsPattern, "\\"))
+                !string.IsNullOrEmpty(team.NormalizedName) &&
+                EF.Functions.Like(team.NormalizedName, containsPattern, "\\"))
             .Select(team => new SearchCandidate
             {
-                RelevanceRank = team.Name.ToLower() == normalizedQuery
+                RelevanceRank = team.NormalizedName == normalizedQuery
                     ? 0
-                    : EF.Functions.Like(team.Name.ToLower(), prefixPattern, "\\") ? 1 : 2,
-                NormalizedLabel = team.Name.ToLower(),
+                    : EF.Functions.Like(team.NormalizedName, prefixPattern, "\\") ? 1 : 2,
+                NormalizedLabel = team.NormalizedName,
                 DisplayLabel = team.Name,
                 TypeOrder = 1,
                 StableId = team.Id.ToString(),

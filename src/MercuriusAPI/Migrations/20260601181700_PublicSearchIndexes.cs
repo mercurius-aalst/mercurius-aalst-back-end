@@ -17,8 +17,8 @@ namespace Mercurius.LAN.API.Migrations
                 WHERE "NormalizedUsername" IS NOT NULL AND "IsDeleted" = false;
                 """);
             migrationBuilder.Sql("""
-                CREATE INDEX "IX_Teams_Name_Search"
-                ON "Teams" USING gin (lower("Name") gin_trgm_ops);
+                CREATE INDEX "IX_Teams_NormalizedName_Search"
+                ON "Teams" USING gin ("NormalizedName" gin_trgm_ops);
                 """);
             migrationBuilder.Sql("""
                 CREATE INDEX "IX_Games_Name_Search"
@@ -30,7 +30,7 @@ namespace Mercurius.LAN.API.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.Sql("""DROP INDEX "IX_Games_Name_Search";""");
-            migrationBuilder.Sql("""DROP INDEX "IX_Teams_Name_Search";""");
+            migrationBuilder.Sql("""DROP INDEX "IX_Teams_NormalizedName_Search";""");
             migrationBuilder.Sql("""DROP INDEX "IX_Users_NormalizedUsername_Search";""");
         }
     }

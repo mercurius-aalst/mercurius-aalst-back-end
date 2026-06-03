@@ -58,6 +58,25 @@ public class SearchServiceTests
     }
 
     [Fact]
+    public async Task SearchAsync_MatchesTeamsByPersistedNormalizedName()
+    {
+        await using var dbContext = CreateDbContext();
+        var team = CreateTeam("Display Name", CreateUser("captain-one"));
+        team.NormalizedName = "alpha-team";
+        dbContext.Teams.Add(team);
+        await dbContext.SaveChangesAsync();
+
+        var service = new SearchService(dbContext);
+
+        var result = await service.SearchAsync("alpha", cursor: null, pageSize: 10);
+
+        var teamResult = Assert.Single(result.Results);
+        Assert.Equal("team", teamResult.Type);
+        Assert.Equal("Display Name", teamResult.DisplayLabel);
+        Assert.Equal("Display Name", teamResult.TeamName);
+    }
+
+    [Fact]
     public async Task SearchAsync_SupportsCursorContinuation()
     {
         await using var dbContext = CreateDbContext();
@@ -206,6 +225,8 @@ public class SearchServiceTests
 
         Assert.Contains("UNION ALL", sql);
         Assert.Contains("LIKE", sql);
+        Assert.Contains("\"NormalizedName\"", sql);
+        Assert.DoesNotContain("lower(t.\"Name\")", sql);
         Assert.Contains("""u1."NormalizedLabel" > @cursor_NormalizedLabel""", sql);
         Assert.Contains("""u1."StableId" > @cursor_StableId""", sql);
         Assert.Contains("ORDER BY u1.\"RelevanceRank\", u1.\"NormalizedLabel\", u1.\"TypeOrder\", u1.\"StableId\"", sql);

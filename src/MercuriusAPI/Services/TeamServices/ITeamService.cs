@@ -10,8 +10,10 @@ public interface ITeamService
     IEnumerable<GetTeamDTO> GetAllTeams();
     Task<IEnumerable<TeamInviteDTO>> GetUserInvitesAsync(Guid userId);
     Task<Team> GetTeamByIdAsync(Guid teamId);
+    Task<Team> GetTeamByNameAsync(string name);
     Task<TeamInviteDTO> InviteUserAsync(Guid teamId, Guid userId);
     Task<GetTeamDTO> RemoveMemberAsync(Guid id, Guid userId);
     Task<TeamInviteDTO> RespondToInviteAsync(Guid teamId, Guid userId, bool accept);
+    Task<IEnumerable<GetTeamDTO>> SearchTeamsByNameAsync(string query, int? limit = null);
     Task<GetTeamDTO> UpdateTeamAsync(Guid id, UpdateTeamDTO teamDTO);
 }

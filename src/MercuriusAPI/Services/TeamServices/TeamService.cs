@@ -8,6 +8,7 @@ namespace Mercurius.LAN.API.Services.TeamServices;
 
 public class TeamService : ITeamService
 {
+    private const int MaxTeamSearchResults = 25;
     private readonly MercuriusDBContext _dbContext;
     private readonly int _inviteResendCooldownDays;
     public TeamService(MercuriusDBContext dbContext, IConfiguration configuration)
@@ -18,14 +19,15 @@ public class TeamService : ITeamService
 
     public async Task<GetTeamDTO> CreateTeamAsync(CreateTeamDTO teamDTO)
     {
-        if (await CheckIfTeamNameExistsAsync(teamDTO.Name))
+        var normalizedTeamName = Team.NormalizeName(teamDTO.Name);
+        if (await CheckIfTeamNameExistsAsync(normalizedTeamName))
             throw new ValidationException($"Teamname {teamDTO.Name} already in use");
         var captain = await _dbContext.Users.FindAsync(teamDTO.CaptainUserId);
         if (captain is null)
             throw new NotFoundException($"{nameof(User)} not found");
         var team = new Team(teamDTO.Name, captain);
         _dbContext.Teams.Add(team);
-        await _dbContext.SaveChangesAsync();
+        await SaveTeamChangesAsync(teamDTO.Name);
         return new GetTeamDTO(team);
     }
     public async Task DeleteTeamAsync(Guid teamId)
@@ -38,16 +40,23 @@ public class TeamService : ITeamService
     }
     public IEnumerable<GetTeamDTO> GetAllTeams()
     {
-        return _dbContext.Teams
-            .Include(t => t.Members)
+        return GetTeamWithMembersQuery()
             .Select(t => new GetTeamDTO(t));
     }
     public async Task<Team> GetTeamByIdAsync(Guid teamId)
     {
-        var team = await _dbContext.Teams
-            .Include(t => t.Members)
-            .Include(t => t.TeamInvites)
+        var team = await GetTeamDetailsQuery()
             .FirstOrDefaultAsync(t => t.Id == teamId);
+        if (team is null)
+            throw new NotFoundException($"{nameof(Team)} not found");
+        return team;
+    }
+
+    public async Task<Team> GetTeamByNameAsync(string name)
+    {
+        var normalizedName = Team.NormalizeName(name);
+        var team = await GetTeamWithMembersQuery()
+            .FirstOrDefaultAsync(t => t.NormalizedName == normalizedName);
         if (team is null)
             throw new NotFoundException($"{nameof(Team)} not found");
         return team;
@@ -65,19 +74,45 @@ public class TeamService : ITeamService
 
     public async Task<GetTeamDTO> UpdateTeamAsync(Guid id, UpdateTeamDTO teamDTO)
     {
-        var team = await GetTeamByIdAsync(id);
-        if (teamDTO.Name != null && !team.Name.Equals(teamDTO.Name) && await CheckIfTeamNameExistsAsync(teamDTO.Name))
-            throw new ValidationException($"Teamname {teamDTO.Name} already in use");
+        var team = await GetTeamWithMembersQuery()
+            .FirstOrDefaultAsync(t => t.Id == id);
+        if (team is null)
+            throw new NotFoundException($"{nameof(Team)} not found");
 
         if (teamDTO.Name != null)
+        {
+            var normalizedTeamName = Team.NormalizeName(teamDTO.Name);
+            if (!string.Equals(team.NormalizedName, normalizedTeamName, StringComparison.Ordinal) &&
+                await CheckIfTeamNameExistsAsync(normalizedTeamName, id))
+            {
+                throw new ValidationException($"Teamname {teamDTO.Name} already in use");
+            }
+
             team.UpdateName(teamDTO.Name);
+        }
 
         if (teamDTO.CaptainUserId.HasValue)
             team.ChangeCaptain(teamDTO.CaptainUserId.Value);
 
         _dbContext.Teams.Update(team);
-        await _dbContext.SaveChangesAsync();
+        await SaveTeamChangesAsync(team.Name);
         return new GetTeamDTO(team);
+    }
+
+    public async Task<IEnumerable<GetTeamDTO>> SearchTeamsByNameAsync(string query, int? limit = null)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+            return [];
+
+        var normalizedQuery = query.Trim().ToLowerInvariant();
+        var resultLimit = Math.Clamp(limit.GetValueOrDefault(MaxTeamSearchResults), 1, MaxTeamSearchResults);
+
+        return await GetTeamWithMembersQuery()
+            .Where(t => t.NormalizedName.StartsWith(normalizedQuery))
+            .OrderBy(t => t.Name)
+            .Take(resultLimit)
+            .Select(t => new GetTeamDTO(t))
+            .ToListAsync();
     }
 
     public async Task<TeamInviteDTO> InviteUserAsync(Guid teamId, Guid userId)
@@ -119,9 +154,46 @@ public class TeamService : ITeamService
         });
     }
 
-    private Task<bool> CheckIfTeamNameExistsAsync(string name)
+    private Task<bool> CheckIfTeamNameExistsAsync(string normalizedName, Guid? excludedTeamId = null)
     {
-        return _dbContext.Teams.AnyAsync(t => t.Name.Equals(name));
+        return _dbContext.Teams.AnyAsync(t =>
+            t.NormalizedName == normalizedName &&
+            (!excludedTeamId.HasValue || t.Id != excludedTeamId.Value));
+    }
+
+    private IQueryable<Team> GetTeamDetailsQuery()
+    {
+        return GetTeamWithMembersQuery()
+            .Include(t => t.TeamInvites);
+    }
+
+    private IQueryable<Team> GetTeamWithMembersQuery()
+    {
+        return _dbContext.Teams
+            .Include(t => t.Members);
+    }
+
+    private async Task SaveTeamChangesAsync(string teamName)
+    {
+        try
+        {
+            await _dbContext.SaveChangesAsync();
+        }
+        catch (DbUpdateException exception) when (IsTeamNameUniqueConstraintViolation(exception))
+        {
+            throw new ValidationException($"Teamname {teamName} already in use");
+        }
+    }
+
+    private static bool IsTeamNameUniqueConstraintViolation(DbUpdateException exception)
+    {
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+        {
+            if (current.Message.Contains("IX_Teams_NormalizedName", StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return false;
     }
 }
 

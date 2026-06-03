@@ -3,6 +3,7 @@ using System;
 using Mercurius.LAN.API.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Mercurius.LAN.API.Migrations
 {
     [DbContext(typeof(MercuriusDBContext))]
-    partial class MercuriusDBContextModelSnapshot : ModelSnapshot
+    [Migration("20260529193431_TeamNameNormalization")]
+    partial class TeamNameNormalization
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -58,16 +61,10 @@ namespace Mercurius.LAN.API.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<int>("AverageGameDurationMinutes")
-                        .HasColumnType("integer");
-
                     b.Property<int>("BracketType")
                         .HasColumnType("integer");
 
                     b.Property<DateTime>("EndTime")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("EstimatedEndTime")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("FinalsFormat")
@@ -86,15 +83,9 @@ namespace Mercurius.LAN.API.Migrations
                     b.Property<int>("ParticipationMode")
                         .HasColumnType("integer");
 
-                    b.Property<DateTime>("PlannedStartTime")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<string>("RegisterFormUrl")
                         .IsRequired()
                         .HasColumnType("text");
-
-                    b.Property<int>("RoundBreakDurationMinutes")
-                        .HasColumnType("integer");
 
                     b.Property<DateTime>("StartTime")
                         .HasColumnType("timestamp with time zone");
@@ -156,12 +147,6 @@ namespace Mercurius.LAN.API.Migrations
                         .HasColumnType("integer");
 
                     b.Property<DateTime>("EndTime")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("EstimatedEndTime")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("EstimatedStartTime")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("Format")

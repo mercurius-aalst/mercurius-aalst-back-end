@@ -20,6 +20,17 @@ public static class UserEndpoints
                 .MapToApiVersion(new ApiVersion(1, 0))
                 .WithTags("Users");
 
+        var publicGroup = app.MapGroup("v{version:apiVersion}/lan/public/users")
+            .WithApiVersionSet(apiVersionSet)
+            .MapToApiVersion(new ApiVersion(1, 0))
+            .WithTags("Users");
+
+        publicGroup.MapGet("/{username}", async (string username, IUserService userService) =>
+        {
+            return await userService.GetPublicUserProfileByUsernameAsync(username);
+        })
+        .AllowAnonymous();
+
         group.MapGet("/me", async (ClaimsPrincipal user, IUserService userService) =>
         {
             return await userService.GetCurrentUserAsync(GetAuth0UserId(user));

@@ -75,6 +75,8 @@ public partial class MercuriusDBContext : DbContext
         modelBuilder.Entity<Match>(entity =>
         {
             entity.HasKey(e => e.Id);
+            entity.Property(e => e.EstimatedStartTime).IsRequired(false);
+            entity.Property(e => e.EstimatedEndTime).IsRequired(false);
             entity.HasOne(e => e.UserParticipant1)
                   .WithMany()
                   .HasForeignKey(e => e.UserParticipant1Id).IsRequired(false);
@@ -116,6 +118,10 @@ public partial class MercuriusDBContext : DbContext
             entity.Property(e => e.Name).IsRequired();
             entity.Property(e => e.StartTime).IsRequired();
             entity.Property(e => e.EndTime).IsRequired();
+            entity.Property(e => e.PlannedStartTime).IsRequired();
+            entity.Property(e => e.AverageGameDurationMinutes).IsRequired();
+            entity.Property(e => e.RoundBreakDurationMinutes).IsRequired();
+            entity.Property(e => e.EstimatedEndTime).IsRequired(false);
             entity.HasOne(e => e.SponsorPlacement)
                   .WithOne(e => e.Game)
                   .HasForeignKey<GameSponsorPlacement>(e => e.GameId)

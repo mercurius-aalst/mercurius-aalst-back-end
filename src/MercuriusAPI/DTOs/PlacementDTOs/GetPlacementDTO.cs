@@ -7,7 +7,7 @@ namespace Mercurius.LAN.API.DTOs.PlacementDTOs;
 public class GetPlacementDTO
 {
     public int Place { get; set; }
-    public IEnumerable<GetUserDTO> Users { get; set; } = [];
+    public IEnumerable<PublicUserDTO> Users { get; set; } = [];
     public IEnumerable<GetTeamDTO> Teams { get; set; } = [];
 
     public GetPlacementDTO()
@@ -21,7 +21,7 @@ public class GetPlacementDTO
         switch (participationMode)
         {
             case ParticipationMode.Individual:
-                Users = placement.Users.Select(user => new GetUserDTO(user)).ToList();
+                Users = placement.Users.Select(user => new PublicUserDTO(user)).ToList();
                 break;
             case ParticipationMode.Team:
                 Teams = placement.Teams.Select(team => new GetTeamDTO(team)).ToList();

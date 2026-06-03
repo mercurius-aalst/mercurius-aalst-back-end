@@ -7,6 +7,8 @@ public class Match
     public Guid Id { get; set; }
     public DateTime StartTime { get; set; }
     public DateTime EndTime { get; set; }
+    public DateTime? EstimatedStartTime { get; set; }
+    public DateTime? EstimatedEndTime { get; set; }
     public BracketType BracketType { get; set; }
     public GameFormat Format { get; set; }
     public ParticipationMode ParticipationMode { get; set; }
@@ -129,6 +131,15 @@ public class Match
     {
         EndTime = DateTime.UtcNow;
         UpdateParticipantsNextMatch();
+    }
+
+    public void SetEstimatedWindow(DateTime estimatedStartTime, DateTime estimatedEndTime)
+    {
+        if (estimatedEndTime <= estimatedStartTime)
+            throw new ValidationException("Estimated match end time must be greater than estimated start time.");
+
+        EstimatedStartTime = estimatedStartTime;
+        EstimatedEndTime = estimatedEndTime;
     }
 
     public void SetScoresAndWinner(int participant1Score, int participant2Score)

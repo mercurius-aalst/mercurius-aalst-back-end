@@ -1,3 +1,4 @@
+using Mercurius.LAN.API.DTOs.Auth;
 using Mercurius.LAN.API.Models;
 
 namespace Mercurius.LAN.API.DTOs.TeamDTOs;
@@ -7,8 +8,7 @@ public class GetTeamDTO
     public Guid Id { get; set; }
     public string Name { get; set; }
     public Guid CaptainUserId { get; set; }
-    public IEnumerable<GetTeamUserDTO> Members { get; set; } = [];
-    public IEnumerable<TeamInviteDTO> TeamInvites { get; set; } = [];
+    public IEnumerable<PublicUserDTO> Members { get; set; } = [];
 
     public GetTeamDTO()
     {
@@ -18,8 +18,7 @@ public class GetTeamDTO
     {
         Id = team.Id;
         Name = team.Name;
-        Members = team.Members.Select(p => new GetTeamUserDTO(p));
-        TeamInvites = team.TeamInvites.Where(i => i.Status == TeamInviteStatus.Pending).Select(i => new TeamInviteDTO(i));
+        Members = team.Members.Select(member => new PublicUserDTO(member));
         CaptainUserId = team.CaptainUserId;
     }
 }

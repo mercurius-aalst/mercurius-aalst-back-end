@@ -42,6 +42,15 @@ public class UserValidationService : IUserService
         return _inner.GetCurrentUserAsync(auth0UserId);
     }
 
+    public Task<PublicUserProfileDTO> GetPublicUserProfileByUsernameAsync(string username)
+    {
+        var normalizedUsername = UserProfileValidationHelper.NormalizeUsername(username);
+        if (!UserProfileValidationHelper.IsUsernameValid(normalizedUsername))
+            throw new ValidationException("Username must be 3-32 alphanumeric characters.");
+
+        return _inner.GetPublicUserProfileByUsernameAsync(normalizedUsername);
+    }
+
     public Task<GetUserDTO> UpdateCurrentUserAsync(string auth0UserId, UpdateUserProfileRequest request)
     {
         if (string.IsNullOrWhiteSpace(auth0UserId))

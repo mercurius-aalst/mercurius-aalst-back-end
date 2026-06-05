@@ -32,6 +32,10 @@ Authenticated user search MUST support a query string, continuation cursor, and 
 - **WHEN** a client searches with a query beyond the configured maximum search length
 - **THEN** the API rejects the request with validation failure
 
+#### Scenario: Search requests are rate limited
+- **WHEN** an authenticated client searches the users collection
+- **THEN** the request is subject to the API search rate limit policy
+
 ### Requirement: User search response shape
 Authenticated user search results MUST include only the fields needed for user selection, plus pagination metadata aligned with global search.
 

@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Mercurius.LAN.API.Data;
 using Mercurius.LAN.API.DTOs.SearchDTOs;
 using Mercurius.LAN.API.Exceptions;
@@ -17,11 +16,10 @@ public sealed class SearchService : ISearchService
 
     public async Task<SearchResponseDTO> SearchAsync(string? query, string? cursor, int pageSize, CancellationToken cancellationToken = default)
     {
-        var normalizedQuery = NormalizeQuery(query);
-        if (normalizedQuery.Length > SearchRequestLimits.MaximumQueryLength)
-            throw new ValidationException($"Query cannot exceed {SearchRequestLimits.MaximumQueryLength} characters.");
+        var normalizedQuery = SearchRequest.NormalizeQuery(query);
+        SearchRequest.ValidateQueryLength(normalizedQuery);
 
-        var boundedPageSize = Math.Clamp(pageSize, 1, SearchRequestLimits.MaximumPageSize);
+        var boundedPageSize = SearchRequest.BoundPageSize(pageSize);
         if (normalizedQuery.Length < SearchRequestLimits.MinimumQueryLength)
             return new SearchResponseDTO { Results = [], HasMore = false };
 
@@ -43,8 +41,9 @@ public sealed class SearchService : ISearchService
 
     private IQueryable<SearchCandidate> BuildCandidateQuery(string normalizedQuery)
     {
-        var containsPattern = $"%{EscapeLikePattern(normalizedQuery)}%";
-        var prefixPattern = $"{EscapeLikePattern(normalizedQuery)}%";
+        var escapedQuery = SearchRequest.EscapeLikePattern(normalizedQuery);
+        var containsPattern = $"%{escapedQuery}%";
+        var prefixPattern = $"{escapedQuery}%";
 
         var users = _dbContext.Users
             .AsNoTracking()
@@ -140,19 +139,6 @@ public sealed class SearchService : ISearchService
              string.Compare(candidate.StableId, cursor.StableId) > 0));
     }
 
-    private static string NormalizeQuery(string? query)
-    {
-        return (query ?? string.Empty).Trim().ToLowerInvariant();
-    }
-
-    private static string EscapeLikePattern(string value)
-    {
-        return value
-            .Replace("\\", "\\\\", StringComparison.Ordinal)
-            .Replace("%", "\\%", StringComparison.Ordinal)
-            .Replace("_", "\\_", StringComparison.Ordinal);
-    }
-
     private static SearchResultDTO ToResult(SearchCandidate candidate)
     {
         return new SearchResultDTO
@@ -175,37 +161,21 @@ public sealed class SearchService : ISearchService
     private static string BuildCursor(string normalizedQuery, SearchCandidate candidate)
     {
         var payload = new SearchCursor(normalizedQuery, candidate.RelevanceRank, candidate.NormalizedLabel, candidate.TypeOrder, candidate.StableId);
-        return Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(payload));
+        return SearchCursorCodec.Encode(payload);
     }
 
     private static SearchCursor? DecodeCursor(string? cursor, string normalizedQuery)
     {
-        if (string.IsNullOrWhiteSpace(cursor))
-            return null;
-
-        if (cursor.Length > SearchRequestLimits.MaximumCursorLength)
-            throw new ValidationException("Cursor is invalid.");
-
-        try
-        {
-            var payload = JsonSerializer.Deserialize<SearchCursor>(Convert.FromBase64String(cursor));
-            if (payload is null ||
-                string.IsNullOrEmpty(payload.Query) ||
-                payload.RelevanceRank is < 0 or > 2 ||
-                string.IsNullOrEmpty(payload.NormalizedLabel) ||
-                payload.TypeOrder is < 0 or > 2 ||
-                !Guid.TryParse(payload.StableId, out _))
-                throw new ValidationException("Cursor is invalid.");
-
-            if (!string.Equals(payload.Query, normalizedQuery, StringComparison.Ordinal))
-                throw new ValidationException("Cursor does not match query.");
-
-            return payload;
-        }
-        catch (Exception exception) when (exception is FormatException or JsonException)
-        {
-            throw new ValidationException("Cursor is invalid.");
-        }
+        return SearchCursorCodec.Decode<SearchCursor>(
+            cursor,
+            normalizedQuery,
+            payload =>
+                !string.IsNullOrEmpty(payload.Query) &&
+                payload.RelevanceRank is >= 0 and <= 2 &&
+                !string.IsNullOrEmpty(payload.NormalizedLabel) &&
+                payload.TypeOrder is >= 0 and <= 2 &&
+                Guid.TryParse(payload.StableId, out _),
+            payload => payload.Query);
     }
 
     private sealed class SearchCandidate

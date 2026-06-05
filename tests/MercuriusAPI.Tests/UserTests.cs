@@ -6,6 +6,7 @@ using Mercurius.LAN.API.Services.SearchServices;
 using Mercurius.LAN.API.Services.Auth0;
 using Mercurius.LAN.API.Services.UserServices;
 using Microsoft.EntityFrameworkCore;
+using System.Reflection;
 using System.Text.Json;
 
 namespace Mercurius.LAN.API.Tests;
@@ -340,7 +341,7 @@ public class UserTests
     }
 
     [Fact]
-    public async Task SearchUsersAsync_ForwardsTrimmedQueryCursorAndPageSize()
+    public async Task SearchUsersAsync_ForwardsNormalizedQueryCursorAndPageSize()
     {
         var inner = new RecordingUserService();
         var service = new UserValidationService(inner);
@@ -348,7 +349,7 @@ public class UserTests
         var result = await service.SearchUsersAsync(" Alpha ", "cursor-1", 7);
 
         Assert.Same(inner.UserSearchResponse, result);
-        Assert.Equal("Alpha", inner.LastUserSearchQuery);
+        Assert.Equal("alpha", inner.LastUserSearchQuery);
         Assert.Equal("cursor-1", inner.LastUserSearchCursor);
         Assert.Equal(7, inner.LastUserSearchPageSize);
     }
@@ -652,6 +653,34 @@ public class UserTests
         Assert.False(page2.HasMore);
         Assert.Null(page2.NextCursor);
         Assert.Equal(["Alpha", "Alphaa", "Alphab"], page1.Results.Concat(page2.Results).Select(result => result.Username));
+    }
+
+    [Fact]
+    public void SearchUsersAsync_QueryAndKeysetCursor_TranslateForPostgreSql()
+    {
+        var options = new DbContextOptionsBuilder<MercuriusDBContext>()
+            .UseNpgsql("Host=localhost;Database=translation-only")
+            .Options;
+        using var dbContext = new MercuriusDBContext(options);
+        var service = new UserService(
+            dbContext,
+            new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("public@example.com", true, true)));
+
+        var buildQuery = typeof(UserService).GetMethod("BuildPagedUserSearchQuery", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var cursorType = typeof(UserService).GetNestedType("UserSearchCursor", BindingFlags.NonPublic)!;
+        var cursorId = Guid.NewGuid();
+
+        var cursor = Activator.CreateInstance(cursorType, "alpha", 1, "alphab", cursorId)!;
+        var query = (IQueryable)buildQuery.Invoke(service, ["alpha", cursor, 3])!;
+        var sql = query.ToQueryString();
+
+        Assert.Contains("LIKE", sql);
+        Assert.Contains("\"NormalizedUsername\"", sql);
+        Assert.Contains("\"Id\"", sql);
+        Assert.Contains("ORDER BY", sql);
+        Assert.Contains("LIMIT", sql);
+        Assert.DoesNotContain("CAST", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("::text", sql, StringComparison.OrdinalIgnoreCase);
     }
 
     private static MercuriusDBContext CreateDbContext()

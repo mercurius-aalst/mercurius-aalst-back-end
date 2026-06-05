@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Mercurius.LAN.API.Data;
 using Mercurius.LAN.API.DTOs.Auth;
 using Mercurius.LAN.API.Exceptions;
@@ -102,14 +101,13 @@ public class UserService : IUserService
         int pageSize,
         CancellationToken cancellationToken = default)
     {
-        var normalizedQuery = (query ?? string.Empty).Trim().ToLowerInvariant();
-        if (normalizedQuery.Length > SearchRequestLimits.MaximumQueryLength)
-            throw new ValidationException($"Query cannot exceed {SearchRequestLimits.MaximumQueryLength} characters.");
+        var normalizedQuery = SearchRequest.NormalizeQuery(query);
+        SearchRequest.ValidateQueryLength(normalizedQuery);
 
         if (normalizedQuery.Length < SearchRequestLimits.MinimumQueryLength)
             return new UserSearchResponseDTO { Results = [], HasMore = false };
 
-        var boundedPageSize = Math.Clamp(pageSize, 1, SearchRequestLimits.MaximumPageSize);
+        var boundedPageSize = SearchRequest.BoundPageSize(pageSize);
         var decodedCursor = DecodeUserSearchCursor(cursor, normalizedQuery);
         var users = await BuildPagedUserSearchQuery(normalizedQuery, decodedCursor, boundedPageSize + 1)
             .ToListAsync(cancellationToken);
@@ -131,14 +129,15 @@ public class UserService : IUserService
         return ApplyUserSearchCursor(BuildUserSearchQuery(normalizedQuery), cursor)
             .OrderBy(user => user.RelevanceRank)
             .ThenBy(user => user.NormalizedUsername)
-            .ThenBy(user => user.StableId)
+            .ThenBy(user => user.Id)
             .Take(limit);
     }
 
     private IQueryable<UserSearchCandidate> BuildUserSearchQuery(string normalizedQuery)
     {
-        var containsPattern = $"%{EscapeLikePattern(normalizedQuery)}%";
-        var prefixPattern = $"{EscapeLikePattern(normalizedQuery)}%";
+        var escapedQuery = SearchRequest.EscapeLikePattern(normalizedQuery);
+        var containsPattern = $"%{escapedQuery}%";
+        var prefixPattern = $"{escapedQuery}%";
 
         return _dbContext.Users
             .AsNoTracking()
@@ -154,8 +153,7 @@ public class UserService : IUserService
                     ? 0
                     : EF.Functions.Like(user.NormalizedUsername, prefixPattern, "\\") ? 1 : 2,
                 NormalizedUsername = user.NormalizedUsername!,
-                Username = user.Username!,
-                StableId = user.Id.ToString()
+                Username = user.Username!
             });
     }
 
@@ -170,7 +168,7 @@ public class UserService : IUserService
              string.Compare(candidate.NormalizedUsername, cursor.NormalizedUsername) > 0) ||
             (candidate.RelevanceRank == cursor.RelevanceRank &&
              candidate.NormalizedUsername == cursor.NormalizedUsername &&
-             string.Compare(candidate.StableId, cursor.StableId) > 0));
+             candidate.Id.CompareTo(cursor.StableId) > 0));
     }
 
     private static UserSearchResultDTO ToUserSearchResult(UserSearchCandidate candidate)
@@ -421,47 +419,23 @@ public class UserService : IUserService
         return exception.InnerException?.Message.Contains("IX_Users_NormalizedUsername", StringComparison.OrdinalIgnoreCase) == true;
     }
 
-    private static string EscapeLikePattern(string value)
-    {
-        return value
-            .Replace("\\", "\\\\", StringComparison.Ordinal)
-            .Replace("%", "\\%", StringComparison.Ordinal)
-            .Replace("_", "\\_", StringComparison.Ordinal);
-    }
-
     private static string BuildUserSearchCursor(string normalizedQuery, UserSearchCandidate candidate)
     {
-        var payload = new UserSearchCursor(normalizedQuery, candidate.RelevanceRank, candidate.NormalizedUsername, candidate.StableId);
-        return Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(payload));
+        var payload = new UserSearchCursor(normalizedQuery, candidate.RelevanceRank, candidate.NormalizedUsername, candidate.Id);
+        return SearchCursorCodec.Encode(payload);
     }
 
     private static UserSearchCursor? DecodeUserSearchCursor(string? cursor, string normalizedQuery)
     {
-        if (string.IsNullOrWhiteSpace(cursor))
-            return null;
-
-        if (cursor.Length > SearchRequestLimits.MaximumCursorLength)
-            throw new ValidationException("Cursor is invalid.");
-
-        try
-        {
-            var payload = JsonSerializer.Deserialize<UserSearchCursor>(Convert.FromBase64String(cursor));
-            if (payload is null ||
-                string.IsNullOrEmpty(payload.Query) ||
-                payload.RelevanceRank is < 0 or > 2 ||
-                string.IsNullOrEmpty(payload.NormalizedUsername) ||
-                !Guid.TryParse(payload.StableId, out _))
-                throw new ValidationException("Cursor is invalid.");
-
-            if (!string.Equals(payload.Query, normalizedQuery, StringComparison.Ordinal))
-                throw new ValidationException("Cursor does not match query.");
-
-            return payload;
-        }
-        catch (Exception exception) when (exception is FormatException or JsonException)
-        {
-            throw new ValidationException("Cursor is invalid.");
-        }
+        return SearchCursorCodec.Decode<UserSearchCursor>(
+            cursor,
+            normalizedQuery,
+            payload =>
+                !string.IsNullOrEmpty(payload.Query) &&
+                payload.RelevanceRank is >= 0 and <= 2 &&
+                !string.IsNullOrEmpty(payload.NormalizedUsername) &&
+                payload.StableId != Guid.Empty,
+            payload => payload.Query);
     }
 
     private sealed class UserSearchCandidate
@@ -470,10 +444,9 @@ public class UserService : IUserService
         public int RelevanceRank { get; init; }
         public required string NormalizedUsername { get; init; }
         public required string Username { get; init; }
-        public required string StableId { get; init; }
     }
 
-    private sealed record UserSearchCursor(string Query, int RelevanceRank, string NormalizedUsername, string StableId);
+    private sealed record UserSearchCursor(string Query, int RelevanceRank, string NormalizedUsername, Guid StableId);
 
     private static void EnsureActive(User user)
     {

@@ -1,6 +1,6 @@
 using Asp.Versioning;
 using Mercurius.LAN.API.DTOs.Auth;
-using Mercurius.LAN.API.Exceptions;
+using Mercurius.LAN.API.Extensions;
 using Mercurius.LAN.API.Services.SearchServices;
 using Mercurius.LAN.API.Services.UserServices;
 using Microsoft.AspNetCore.Authorization;
@@ -61,14 +61,10 @@ public static class UserEndpoints
         {
             if (request.Query.ContainsKey("query"))
             {
-                var normalizedQuery = (query ?? string.Empty).Trim();
-                if (normalizedQuery.Length > SearchRequestLimits.MaximumQueryLength)
-                    throw new ValidationException($"Query cannot exceed {SearchRequestLimits.MaximumQueryLength} characters.");
+                SearchRequest.ValidateQueryLength(SearchRequest.NormalizeQuery(query));
+                SearchRequest.ValidatePageSize(pageSize);
 
-                if (pageSize is <= 0)
-                    throw new ValidationException("pageSize must be greater than 0.");
-
-                var boundedPageSize = Math.Min(pageSize ?? SearchRequestLimits.DefaultPageSize, SearchRequestLimits.MaximumPageSize);
+                var boundedPageSize = SearchRequest.BoundPageSize(pageSize);
                 return Results.Ok(await userService.SearchUsersAsync(query, cursor, boundedPageSize, cancellationToken));
             }
 
@@ -77,7 +73,8 @@ public static class UserEndpoints
 
             return Results.Ok(await userService.GetAllUsersAsync());
         })
-        .RequireAuthorization();
+        .RequireAuthorization()
+        .RequireRateLimiting(RateLimitPolicies.AuthenticatedSearch);
 
         group.MapPost("/me/resend-verification-email", async (ClaimsPrincipal user, IUserService userService) =>
         {

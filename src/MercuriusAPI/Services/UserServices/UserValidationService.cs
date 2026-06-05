@@ -58,12 +58,9 @@ public class UserValidationService : IUserService
         int pageSize,
         CancellationToken cancellationToken = default)
     {
-        var normalizedQuery = (query ?? string.Empty).Trim();
-        if (normalizedQuery.Length > SearchRequestLimits.MaximumQueryLength)
-            throw new ValidationException($"Query cannot exceed {SearchRequestLimits.MaximumQueryLength} characters.");
-
-        if (pageSize <= 0)
-            throw new ValidationException("pageSize must be greater than 0.");
+        var normalizedQuery = SearchRequest.NormalizeQuery(query);
+        SearchRequest.ValidateQueryLength(normalizedQuery);
+        SearchRequest.ValidatePageSize(pageSize);
 
         return _inner.SearchUsersAsync(normalizedQuery, cursor, pageSize, cancellationToken);
     }

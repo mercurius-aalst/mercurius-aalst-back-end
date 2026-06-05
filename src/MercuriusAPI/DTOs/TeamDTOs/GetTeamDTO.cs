@@ -8,6 +8,7 @@ public class GetTeamDTO
     public Guid Id { get; set; }
     public string Name { get; set; }
     public Guid CaptainUserId { get; set; }
+    public string? LogoUrl { get; set; }
     public IEnumerable<PublicUserDTO> Members { get; set; } = [];
 
     public GetTeamDTO()
@@ -18,6 +19,7 @@ public class GetTeamDTO
     {
         Id = team.Id;
         Name = team.Name;
+        LogoUrl = team.LogoUrl;
         Members = team.Members.Select(member => new PublicUserDTO(member));
         CaptainUserId = team.CaptainUserId;
     }

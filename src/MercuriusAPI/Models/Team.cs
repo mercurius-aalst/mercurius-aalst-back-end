@@ -9,6 +9,7 @@ public class Team
     public string NormalizedName { get; set; }
     public Guid CaptainUserId { get; set; }
     public User Captain { get; set; }
+    public string? LogoUrl { get; set; }
 
     public IList<User> Members { get; set; } = new List<User>();
     public IList<TeamInvite> TeamInvites { get; set; } = new List<TeamInvite>();
@@ -70,25 +71,39 @@ public class Team
         Members.Remove(member);
     }
 
-    public TeamInvite InviteUser(Guid userId, int inviteResendCooldownDays)
+    public TeamInvite InviteUser(Guid userId, int inviteResendCooldownDays, int inviteExpirationDays = 14, int declinedInviteResendLimit = 3)
     {
         if (Members.Any(p => p.Id == userId))
             throw new ValidationException("User is already in the team");
         if (TeamInvites.Any(i => i.UserId == userId && i.Status == TeamInviteStatus.Pending))
             throw new ValidationException("User already has a pending invite to this team");
-        var lastDeclinedInvite = TeamInvites
-           .Where(i => i.UserId == userId && i.Status == TeamInviteStatus.Declined)
-           .OrderByDescending(i => i.RespondedAt)
-           .FirstOrDefault();
-        if (lastDeclinedInvite != null && lastDeclinedInvite.RespondedAt.HasValue)
+        var cooldownStart = DateTime.UtcNow.AddDays(-inviteResendCooldownDays);
+        var declinedInvitesInCooldown = TeamInvites
+            .Where(i =>
+                i.UserId == userId &&
+                i.Status == TeamInviteStatus.Declined &&
+                i.RespondedAt.HasValue &&
+                i.RespondedAt.Value >= cooldownStart)
+            .OrderByDescending(i => i.RespondedAt)
+            .ToList();
+
+        if (declinedInvitesInCooldown.Count >= declinedInviteResendLimit)
         {
-            var daysSinceDeclined = (DateTime.UtcNow - lastDeclinedInvite.RespondedAt.Value).TotalDays;
+            var lastDeclinedInvite = declinedInvitesInCooldown[0];
+            var daysSinceDeclined = (DateTime.UtcNow - lastDeclinedInvite.RespondedAt!.Value).TotalDays;
             if (daysSinceDeclined < inviteResendCooldownDays)
             {
-                throw new ValidationException($"User declined the last invite less than {inviteResendCooldownDays} days ago. Please wait {inviteResendCooldownDays - (int)daysSinceDeclined} more day(s).");
+                throw new ValidationException($"User declined {declinedInviteResendLimit} invites in the cooldown window. Please wait {inviteResendCooldownDays - (int)daysSinceDeclined} more day(s).");
             }
         }
-        var invite = new TeamInvite { TeamId = Id, UserId = userId };
+        var now = DateTime.UtcNow;
+        var invite = new TeamInvite
+        {
+            TeamId = Id,
+            UserId = userId,
+            CreatedAt = now,
+            ExpiresAt = now.AddDays(inviteExpirationDays)
+        };
         TeamInvites.Add(invite);
         return invite;
     }

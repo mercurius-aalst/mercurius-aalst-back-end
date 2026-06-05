@@ -5,6 +5,14 @@ namespace Mercurius.LAN.API.Services.Files;
 
 public class FileValidationService : IFileService
 {
+    private static readonly HashSet<string> AllowedContentTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+        "image/gif"
+    };
+
     private readonly IFileService _innerService;
     private readonly IConfiguration _configuration;
     private readonly int _maxFileSizeInMB;
@@ -25,6 +33,13 @@ public class FileValidationService : IFileService
             throw new ValidationException("Empty file provided");
         if (image.Length > _maxFileSizeInMB * 1024 * 1024)
             throw new ValidationException($"File too big, maximum file size is {_maxFileSizeInMB}MB");
+        if (string.IsNullOrWhiteSpace(image.ContentType) || !AllowedContentTypes.Contains(image.ContentType))
+            throw new ValidationException("Unsupported image type.");
         return _innerService.SaveImageAsync(image);
+    }
+
+    public Task DeleteImageAsync(string? imageUrl)
+    {
+        return _innerService.DeleteImageAsync(imageUrl);
     }
 }

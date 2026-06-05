@@ -2,6 +2,7 @@
 using Mercurius.LAN.API.Data;
 using Mercurius.LAN.API.Endpoints;
 using Mercurius.LAN.API.Extensions;
+using Mercurius.LAN.API.Hubs;
 using Mercurius.LAN.API.Middleware;
 using Mercurius.LAN.API.Options;
 using Mercurius.LAN.API.Routing;
@@ -69,6 +70,7 @@ public class Program
             };
         });
         builder.Services.AddAuthorization();
+        builder.Services.AddSignalR();
         builder.Services.AddApiRateLimiting(builder.Configuration);
 
         var jwtBuilder = new JWTBuilder(builder);
@@ -126,6 +128,7 @@ public class Program
         app.MapSponsorEndpoints();
         app.MapUserEndpoints();
         app.MapSearchEndpoints();
+        app.MapHub<TeamManagementHub>("/v1/lan/team-events").RequireAuthorization();
 
         app.Run();
     }

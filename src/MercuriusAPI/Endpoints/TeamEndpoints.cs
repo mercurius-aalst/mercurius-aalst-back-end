@@ -1,7 +1,7 @@
 using Asp.Versioning;
 using Mercurius.LAN.API.DTOs.TeamDTOs;
 using Mercurius.LAN.API.Services.TeamServices;
-using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
 
 namespace Mercurius.LAN.API.Endpoints;
 
@@ -17,8 +17,7 @@ public static class TeamEndpoints
         var group = app.MapGroup("v{version:apiVersion}/lan/teams")
             .WithApiVersionSet(apiVersionSet)
             .MapToApiVersion(new ApiVersion(1, 0))
-            .WithTags("Teams")
-            .RequireAuthorization(new AuthorizeAttribute { Roles = "admin" });
+            .WithTags("Teams");
 
         var publicGroup = app.MapGroup("v{version:apiVersion}/lan/public/teams")
             .WithApiVersionSet(apiVersionSet)
@@ -31,46 +30,79 @@ public static class TeamEndpoints
         })
         .AllowAnonymous();
 
-        group.MapGet("/{id}", async (Guid id, ITeamService teamService) =>
+        group.MapGet("/{id:guid}", async (Guid id, ITeamService teamService) =>
         {
             return new GetTeamDTO(await teamService.GetTeamByIdAsync(id));
         })
         .AllowAnonymous();
 
-        group.MapPost("/", async (CreateTeamDTO createTeamDTO, ITeamService teamService) =>
+        group.MapPost("/", async (CreateTeamDTO createTeamDTO, ClaimsPrincipal user, ITeamService teamService) =>
         {
-            return await teamService.CreateTeamAsync(createTeamDTO);
-        });
+            return await teamService.CreateCurrentUserTeamAsync(GetAuth0UserId(user), createTeamDTO);
+        })
+        .RequireAuthorization();
 
-        group.MapDelete("/{id}/users/{userId}", async (Guid id, Guid userId, ITeamService teamService) =>
+        group.MapGet("/me/summary", async (ClaimsPrincipal user, ITeamService teamService) =>
         {
-            return await teamService.RemoveMemberAsync(id, userId);
-        });
+            return await teamService.GetCurrentUserTeamSummaryAsync(GetAuth0UserId(user));
+        })
+        .RequireAuthorization();
 
-        group.MapPut("/{id}", async (Guid id, UpdateTeamDTO updateTeamDTO, ITeamService teamService) =>
+        group.MapGet("/me/invites", async (ClaimsPrincipal user, ITeamService teamService) =>
         {
-            return await teamService.UpdateTeamAsync(id, updateTeamDTO);
-        });
+            return await teamService.GetCurrentUserInvitesAsync(GetAuth0UserId(user));
+        })
+        .RequireAuthorization();
 
-        group.MapDelete("/{id}", async (Guid id, ITeamService teamService) =>
+        group.MapGet("/me/sent-invites", async (ClaimsPrincipal user, ITeamService teamService) =>
         {
-            await teamService.DeleteTeamAsync(id);
-        });
+            return await teamService.GetCurrentUserSentInvitesAsync(GetAuth0UserId(user));
+        })
+        .RequireAuthorization();
 
-        group.MapPost("/{id}/users/invite/{userId}", async (Guid id, Guid userId, ITeamService teamService) =>
+        group.MapPost("/{id}/leave", async (Guid id, ClaimsPrincipal user, ITeamService teamService) =>
         {
-            return await teamService.InviteUserAsync(id, userId);
-        });
+            return await teamService.LeaveTeamAsync(GetAuth0UserId(user), id);
+        })
+        .RequireAuthorization();
 
-        group.MapPut("/{id}/users/invite/{userId}", async (Guid id, Guid userId, RespondTeamInviteDTO dto, ITeamService teamService) =>
+        group.MapPost("/{id}/invites/{userId}", async (Guid id, Guid userId, ClaimsPrincipal user, ITeamService teamService) =>
         {
-            return await teamService.RespondToInviteAsync(id, userId, dto.Accept);
-        });
+            return await teamService.InviteUserAsync(GetAuth0UserId(user), id, userId);
+        })
+        .RequireAuthorization();
 
-        group.MapGet("/users/{userId}/invites", async (Guid userId, ITeamService teamService) =>
+        group.MapDelete("/{id}/invites/{inviteId}", async (Guid id, Guid inviteId, ClaimsPrincipal user, ITeamService teamService) =>
         {
-            return await teamService.GetUserInvitesAsync(userId);
-        });
+            return await teamService.CancelInviteAsync(GetAuth0UserId(user), id, inviteId);
+        })
+        .RequireAuthorization();
+
+        group.MapPut("/invites/{inviteId}", async (Guid inviteId, RespondTeamInviteDTO dto, ClaimsPrincipal user, ITeamService teamService) =>
+        {
+            return await teamService.RespondToInviteAsync(GetAuth0UserId(user), inviteId, dto.Accept);
+        })
+        .RequireAuthorization();
+
+        group.MapPut("/{id}/captain", async (Guid id, TransferCaptainDTO dto, ClaimsPrincipal user, ITeamService teamService) =>
+        {
+            return await teamService.TransferCaptainAsync(GetAuth0UserId(user), id, dto.NewCaptainUserId);
+        })
+        .RequireAuthorization();
+
+        group.MapPost("/{id}/logo", async (Guid id, IFormFile logo, ClaimsPrincipal user, ITeamService teamService) =>
+        {
+            return await teamService.UploadTeamLogoAsync(GetAuth0UserId(user), id, logo);
+        })
+        .Accepts<IFormFile>("multipart/form-data")
+        .DisableAntiforgery()
+        .RequireAuthorization();
+
+        group.MapDelete("/{id}/logo", async (Guid id, ClaimsPrincipal user, ITeamService teamService) =>
+        {
+            return await teamService.RemoveTeamLogoAsync(GetAuth0UserId(user), id);
+        })
+        .RequireAuthorization();
 
         publicGroup.MapGet("/{teamName}", async (string teamName, ITeamService teamService) =>
         {
@@ -79,5 +111,14 @@ public static class TeamEndpoints
         .AllowAnonymous();
 
         return group;
+    }
+
+    private static string GetAuth0UserId(ClaimsPrincipal user)
+    {
+        var subject = user.FindFirstValue("sub") ?? user.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(subject))
+            throw new UnauthorizedAccessException("Authenticated user id is missing.");
+
+        return subject;
     }
 }

@@ -51,7 +51,9 @@ public partial class MercuriusDBContext : DbContext
         {
             entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
             entity.Property(e => e.NormalizedName).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.LogoUrl).HasMaxLength(260);
             entity.HasIndex(e => e.NormalizedName).IsUnique();
+            entity.HasIndex(e => e.CaptainUserId);
             entity.HasMany(e => e.Members)
                   .WithMany()
                   .UsingEntity<Dictionary<string, object>>(
@@ -168,6 +170,13 @@ public partial class MercuriusDBContext : DbContext
                   .OnDelete(DeleteBehavior.Cascade);
             entity.Property(e => e.Status).IsRequired();
             entity.Property(e => e.CreatedAt).IsRequired();
+            entity.Property(e => e.ExpiresAt).IsRequired();
+            entity.HasIndex(e => new { e.TeamId, e.UserId })
+                  .IsUnique()
+                  .HasFilter("\"Status\" = 0")
+                  .HasDatabaseName("IX_TeamInvites_TeamId_UserId_Pending");
+            entity.HasIndex(e => new { e.UserId, e.Status, e.ExpiresAt });
+            entity.HasIndex(e => new { e.TeamId, e.Status, e.ExpiresAt });
         });
 
         modelBuilder.Entity<Placement>(entity =>

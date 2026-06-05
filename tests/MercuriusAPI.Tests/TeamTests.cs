@@ -3,7 +3,9 @@ using Mercurius.LAN.API.Data;
 using Mercurius.LAN.API.DTOs.TeamDTOs;
 using Mercurius.LAN.API.Models;
 using Mercurius.LAN.API.Migrations;
+using Mercurius.LAN.API.Services.Files;
 using Mercurius.LAN.API.Services.TeamServices;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Microsoft.Extensions.Configuration;
@@ -188,6 +190,39 @@ public class TeamTests
     }
 
     [Fact]
+    public void UserOwnedTeamManagementMigration_AddsLogoInviteStateIndexesAndBackfills()
+    {
+        var migration = new UserOwnedTeamManagement();
+        var operations = migration.UpOperations.ToList();
+
+        Assert.Contains(operations, operation =>
+            operation is AddColumnOperation addColumn &&
+            addColumn.Table == "Teams" &&
+            addColumn.Name == "LogoUrl");
+        Assert.Contains(operations, operation =>
+            operation is AddColumnOperation addColumn &&
+            addColumn.Table == "TeamInvites" &&
+            addColumn.Name == "ExpiresAt" &&
+            addColumn.IsNullable);
+        Assert.Contains(operations, operation =>
+            operation is CreateIndexOperation createIndex &&
+            createIndex.Table == "TeamInvites" &&
+            createIndex.Name == "IX_TeamInvites_TeamId_UserId_Pending" &&
+            createIndex.IsUnique);
+        Assert.Contains(operations, operation =>
+            operation is SqlOperation sqlOperation &&
+            sqlOperation.Sql.Contains("WHERE \"ExpiresAt\" IS NULL", StringComparison.Ordinal));
+        Assert.Contains(operations, operation =>
+            operation is AlterColumnOperation alterColumn &&
+            alterColumn.Table == "TeamInvites" &&
+            alterColumn.Name == "ExpiresAt" &&
+            !alterColumn.IsNullable);
+        Assert.Contains(operations, operation =>
+            operation is SqlOperation sqlOperation &&
+            sqlOperation.Sql.Contains("INSERT INTO \"TeamUser\"", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void ChangeCaptain_ChangesCaptain_WhenUserIsTeamMember()
     {
         var team = CreateTeam();
@@ -281,7 +316,7 @@ public class TeamTests
     }
 
     [Fact]
-    public void InviteUser_Should_Throw_When_Last_Invite_Was_Declined_Too_Soon()
+    public void InviteUser_Should_Allow_Resend_When_Declined_Limit_Not_Reached()
     {
         // Arrange
         var team = CreateTeam();
@@ -294,7 +329,29 @@ public class TeamTests
             Status = TeamInviteStatus.Declined,
             RespondedAt = DateTime.UtcNow.AddDays(-5) // Declined 5 days ago
         });
-        // Act & Assert
+
+        var invite = team.InviteUser(userToInvite.Id, 7);
+
+        Assert.Equal(TeamInviteStatus.Pending, invite.Status);
+    }
+
+    [Fact]
+    public void InviteUser_Should_Throw_When_Declined_Limit_Reached_Too_Soon()
+    {
+        var team = CreateTeam();
+        var userToInvite = CreateUser();
+        team.TeamInvites.Clear();
+        foreach (var index in Enumerable.Range(0, 3))
+        {
+            team.TeamInvites.Add(new TeamInvite
+            {
+                UserId = userToInvite.Id,
+                TeamId = team.Id,
+                Status = TeamInviteStatus.Declined,
+                RespondedAt = DateTime.UtcNow.AddDays(-index - 1)
+            });
+        }
+
         Assert.Throws<ValidationException>(() => team.InviteUser(userToInvite.Id, 7));
     }
 
@@ -351,6 +408,256 @@ public class TeamTests
         Assert.Throws<ValidationException>(() => invite.Respond(true));
     }
 
+    [Fact]
+    public void TeamInvite_Respond_Should_Expire_When_Invite_Is_PastExpiration()
+    {
+        var team = CreateTeam();
+        var userToInvite = CreateUser();
+        var invite = team.InviteUser(userToInvite.Id, 7);
+        invite.Team = team;
+        invite.User = userToInvite;
+        invite.ExpiresAt = DateTime.UtcNow.AddMinutes(-1);
+
+        Assert.Throws<ValidationException>(() => invite.Respond(true));
+        Assert.Equal(TeamInviteStatus.Expired, invite.Status);
+        Assert.NotNull(invite.ExpiredAt);
+    }
+
+    [Fact]
+    public async Task CreateCurrentUserTeamAsync_UsesCurrentUserAndEnforcesCaptainLimit()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        dbContext.Users.Add(captain);
+        dbContext.Teams.AddRange(
+            new Team("One", captain) { Id = Guid.NewGuid() },
+            new Team("Two", captain) { Id = Guid.NewGuid() });
+        await dbContext.SaveChangesAsync();
+
+        var teamService = CreateTeamService(dbContext);
+
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            teamService.CreateCurrentUserTeamAsync(captain.Auth0UserId, new CreateTeamDTO { Name = "Three" }));
+    }
+
+    [Fact]
+    public async Task InviteUserAsync_RequiresCurrentCaptain()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var outsider = CreateUser();
+        var invited = CreateUser();
+        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
+        dbContext.Users.AddRange(captain, outsider, invited);
+        dbContext.Teams.Add(team);
+        await dbContext.SaveChangesAsync();
+
+        var teamService = CreateTeamService(dbContext);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            teamService.InviteUserAsync(outsider.Auth0UserId, team.Id, invited.Id));
+    }
+
+    [Fact]
+    public async Task CancelInviteAsync_MarksPendingInviteCancelled()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var invited = CreateUser();
+        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
+        dbContext.Users.AddRange(captain, invited);
+        dbContext.Teams.Add(team);
+        await dbContext.SaveChangesAsync();
+
+        var teamService = CreateTeamService(dbContext);
+        var invite = await teamService.InviteUserAsync(captain.Auth0UserId, team.Id, invited.Id);
+
+        var result = await teamService.CancelInviteAsync(captain.Auth0UserId, team.Id, invite.Id);
+
+        Assert.Equal(nameof(TeamInviteStatus.Cancelled), result.Status);
+        Assert.NotNull(result.CancelledAt);
+    }
+
+    [Fact]
+    public async Task RespondToInviteAsync_OnlyAllowsRecipient()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var invited = CreateUser();
+        var otherUser = CreateUser();
+        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
+        dbContext.Users.AddRange(captain, invited, otherUser);
+        dbContext.Teams.Add(team);
+        await dbContext.SaveChangesAsync();
+
+        var teamService = CreateTeamService(dbContext);
+        var invite = await teamService.InviteUserAsync(captain.Auth0UserId, team.Id, invited.Id);
+
+        await Assert.ThrowsAsync<NotFoundException>(() =>
+            teamService.RespondToInviteAsync(otherUser.Auth0UserId, invite.Id, true));
+    }
+
+    [Theory]
+    [InlineData(GameStatus.InProgress)]
+    [InlineData(GameStatus.Completed)]
+    [InlineData(GameStatus.Canceled)]
+    public async Task LeaveTeamAsync_BlocksProtectedTournamentStatuses(GameStatus status)
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var member = CreateUser();
+        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
+        team.Members.Add(member);
+        var game = new Game("Game", BracketType.SingleElimination, GameFormat.BestOf1, GameFormat.BestOf1, ParticipationMode.Team, "https://example.com")
+        {
+            Id = Guid.NewGuid(),
+            Status = status
+        };
+        game.RegisteredTeams.Add(team);
+        dbContext.Users.AddRange(captain, member);
+        dbContext.Teams.Add(team);
+        dbContext.Games.Add(game);
+        await dbContext.SaveChangesAsync();
+
+        var teamService = CreateTeamService(dbContext);
+
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            teamService.LeaveTeamAsync(member.Auth0UserId, team.Id));
+    }
+
+    [Fact]
+    public async Task TransferCaptainAsync_RejectsRecipientCaptainLimit()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var target = CreateUser();
+        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
+        team.Members.Add(target);
+        dbContext.Users.AddRange(captain, target);
+        dbContext.Teams.AddRange(
+            team,
+            new Team("Target One", target) { Id = Guid.NewGuid() },
+            new Team("Target Two", target) { Id = Guid.NewGuid() });
+        await dbContext.SaveChangesAsync();
+
+        var teamService = CreateTeamService(dbContext);
+
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            teamService.TransferCaptainAsync(captain.Auth0UserId, team.Id, target.Id));
+    }
+
+    [Fact]
+    public async Task UploadTeamLogoAsync_StoresSafeReferenceAndPublicProfileReturnsIt()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
+        dbContext.Users.Add(captain);
+        dbContext.Teams.Add(team);
+        await dbContext.SaveChangesAsync();
+
+        var teamService = CreateTeamService(dbContext, new StubFileService("/images/team-logo.webp"));
+
+        var result = await teamService.UploadTeamLogoAsync(captain.Auth0UserId, team.Id, CreateFormFile());
+        var profile = await teamService.GetPublicTeamProfileAsync("alpha");
+
+        Assert.Equal("/images/team-logo.webp", result.LogoUrl);
+        Assert.Equal("/images/team-logo.webp", profile.LogoUrl);
+    }
+
+    [Fact]
+    public async Task GetCurrentUserTeamSummaryAsync_ReturnsCaptainedMemberAndInviteViews()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var member = CreateUser();
+        var otherCaptain = CreateUser();
+        var captainedTeam = new Team("Captained", captain) { Id = Guid.NewGuid() };
+        var memberTeam = new Team("Member", otherCaptain) { Id = Guid.NewGuid() };
+        memberTeam.Members.Add(member);
+        dbContext.Users.AddRange(captain, member, otherCaptain);
+        dbContext.Teams.AddRange(captainedTeam, memberTeam);
+        await dbContext.SaveChangesAsync();
+
+        var teamService = CreateTeamService(dbContext);
+        await teamService.InviteUserAsync(captain.Auth0UserId, captainedTeam.Id, member.Id);
+
+        var summary = await teamService.GetCurrentUserTeamSummaryAsync(member.Auth0UserId);
+
+        Assert.Contains(summary.MemberTeams, team => team.Id == memberTeam.Id);
+        Assert.Contains(summary.ReceivedPendingInvites, invite => invite.TeamId == captainedTeam.Id);
+    }
+
+    [Fact]
+    public async Task GetCurrentUserTeamSummaryAsync_CleansUpExpiredTerminalInvites()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var invited = CreateUser();
+        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
+        var oldInvite = new TeamInvite
+        {
+            Id = Guid.NewGuid(),
+            Team = team,
+            TeamId = team.Id,
+            User = invited,
+            UserId = invited.Id,
+            Status = TeamInviteStatus.Declined,
+            CreatedAt = DateTime.UtcNow.AddDays(-120),
+            ExpiresAt = DateTime.UtcNow.AddDays(-100),
+            RespondedAt = DateTime.UtcNow.AddDays(-100)
+        };
+        dbContext.Users.AddRange(captain, invited);
+        dbContext.Teams.Add(team);
+        dbContext.TeamInvites.Add(oldInvite);
+        await dbContext.SaveChangesAsync();
+
+        var teamService = CreateTeamService(dbContext);
+
+        await teamService.GetCurrentUserTeamSummaryAsync(invited.Auth0UserId);
+
+        Assert.False(await dbContext.TeamInvites.AnyAsync(invite => invite.Id == oldInvite.Id));
+    }
+
+    [Fact]
+    public async Task TeamManagementEvents_ArePublishedForInviteMembershipAndCaptainTransfer()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var invited = CreateUser();
+        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
+        dbContext.Users.AddRange(captain, invited);
+        dbContext.Teams.Add(team);
+        await dbContext.SaveChangesAsync();
+
+        var publisher = new RecordingTeamEventPublisher();
+        var teamService = CreateTeamService(dbContext, eventPublisher: publisher);
+
+        var invite = await teamService.InviteUserAsync(captain.Auth0UserId, team.Id, invited.Id);
+        await teamService.RespondToInviteAsync(invited.Auth0UserId, invite.Id, true);
+        await teamService.TransferCaptainAsync(captain.Auth0UserId, team.Id, invited.Id);
+
+        Assert.Contains(publisher.InviteEvents, evt => evt.TeamId == team.Id && evt.InviteId == invite.Id && evt.Status == nameof(TeamInviteStatus.Pending));
+        Assert.Contains(publisher.InviteEvents, evt => evt.TeamId == team.Id && evt.InviteId == invite.Id && evt.Status == nameof(TeamInviteStatus.Accepted));
+        Assert.Contains(publisher.MembershipEvents, evt => evt.TeamId == team.Id && evt.UserId == invited.Id && evt.Action == "Joined");
+        Assert.Contains(publisher.CaptainEvents, evt => evt.TeamId == team.Id && evt.NewCaptainUserId == invited.Id);
+    }
+
+    [Fact]
+    public async Task FileValidationService_RejectsUnsupportedLogoContentType()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["FileStorage:MaxFileSizeInMB"] = "5"
+            })
+            .Build();
+        var validationService = new FileValidationService(new StubFileService("/images/team-logo.webp"), configuration);
+        var file = CreateFormFile("text/plain");
+
+        await Assert.ThrowsAsync<ValidationException>(() => validationService.SaveImageAsync(file));
+    }
+
 
     private static User CreateUser()
     {
@@ -358,6 +665,7 @@ public class TeamTests
         return new User
         {
             Id = Guid.NewGuid(),
+            Auth0UserId = $"auth0|user{id}",
             Username = $"user{id}",
             Firstname = $"First{id}",
             Lastname = $"Last{id}",
@@ -395,16 +703,77 @@ public class TeamTests
         return new UniqueConstraintDbContext(options);
     }
 
-    private static TeamService CreateTeamService(MercuriusDBContext dbContext)
+    private static TeamService CreateTeamService(
+        MercuriusDBContext dbContext,
+        IFileService? fileService = null,
+        ITeamEventPublisher? eventPublisher = null)
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["TeamInvite:ResendCooldownDays"] = "7"
+                ["TeamInvite:ResendCooldownDays"] = "7",
+                ["TeamInvite:ExpirationDays"] = "14",
+                ["TeamInvite:RetentionDays"] = "90",
+                ["TeamInvite:DeclinedResendLimit"] = "3"
             })
             .Build();
 
-        return new TeamService(dbContext, configuration);
+        return new TeamService(dbContext, configuration, fileService, eventPublisher);
+    }
+
+    private static IFormFile CreateFormFile(string contentType = "image/png")
+    {
+        var bytes = new byte[] { 1, 2, 3 };
+        return new FormFile(new MemoryStream(bytes), 0, bytes.Length, "logo", "logo.png")
+        {
+            Headers = new HeaderDictionary(),
+            ContentType = contentType
+        };
+    }
+
+    private sealed class StubFileService : IFileService
+    {
+        private readonly string _imageUrl;
+
+        public StubFileService(string imageUrl)
+        {
+            _imageUrl = imageUrl;
+        }
+
+        public Task<string> SaveImageAsync(IFormFile image)
+        {
+            return Task.FromResult(_imageUrl);
+        }
+
+        public Task DeleteImageAsync(string? imageUrl)
+        {
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class RecordingTeamEventPublisher : ITeamEventPublisher
+    {
+        public List<TeamInviteChangedEvent> InviteEvents { get; } = [];
+        public List<TeamMembershipChangedEvent> MembershipEvents { get; } = [];
+        public List<TeamCaptainTransferredEvent> CaptainEvents { get; } = [];
+
+        public Task InviteChangedAsync(Guid teamId, Guid inviteId, Guid affectedUserId, string status)
+        {
+            InviteEvents.Add(new TeamInviteChangedEvent(teamId, inviteId, affectedUserId, status));
+            return Task.CompletedTask;
+        }
+
+        public Task MembershipChangedAsync(Guid teamId, Guid affectedUserId, string action)
+        {
+            MembershipEvents.Add(new TeamMembershipChangedEvent(teamId, affectedUserId, action));
+            return Task.CompletedTask;
+        }
+
+        public Task CaptainTransferredAsync(Guid teamId, Guid newCaptainUserId)
+        {
+            CaptainEvents.Add(new TeamCaptainTransferredEvent(teamId, newCaptainUserId));
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class UniqueConstraintDbContext(DbContextOptions<MercuriusDBContext> options) : MercuriusDBContext(options)

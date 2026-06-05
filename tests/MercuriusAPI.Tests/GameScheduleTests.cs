@@ -318,5 +318,10 @@ public class GameScheduleTests
         {
             throw new NotSupportedException();
         }
+
+        public Task DeleteImageAsync(string? imageUrl)
+        {
+            throw new NotSupportedException();
+        }
     }
 }

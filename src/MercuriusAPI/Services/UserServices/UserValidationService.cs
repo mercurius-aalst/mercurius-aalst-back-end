@@ -1,5 +1,6 @@
 using Mercurius.LAN.API.DTOs.Auth;
 using Mercurius.LAN.API.Exceptions;
+using Mercurius.LAN.API.Services.SearchServices;
 
 namespace Mercurius.LAN.API.Services.UserServices;
 
@@ -49,6 +50,22 @@ public class UserValidationService : IUserService
             throw new ValidationException("Username must be 3-32 alphanumeric characters.");
 
         return _inner.GetPublicUserProfileByUsernameAsync(normalizedUsername);
+    }
+
+    public Task<UserSearchResponseDTO> SearchUsersAsync(
+        string? query,
+        string? cursor,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedQuery = (query ?? string.Empty).Trim();
+        if (normalizedQuery.Length > SearchRequestLimits.MaximumQueryLength)
+            throw new ValidationException($"Query cannot exceed {SearchRequestLimits.MaximumQueryLength} characters.");
+
+        if (pageSize <= 0)
+            throw new ValidationException("pageSize must be greater than 0.");
+
+        return _inner.SearchUsersAsync(normalizedQuery, cursor, pageSize, cancellationToken);
     }
 
     public Task<GetUserDTO> UpdateCurrentUserAsync(string auth0UserId, UpdateUserProfileRequest request)

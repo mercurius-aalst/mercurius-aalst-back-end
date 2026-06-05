@@ -31,6 +31,15 @@ public class UserEndpointRouteTests
     }
 
     [Fact]
+    public void UserCollectionRoute_RequiresAuthorization()
+    {
+        var endpoint = GetUserRouteEndpoint("GET", "v{version:apiVersion}/lan/users/");
+
+        Assert.DoesNotContain(endpoint.Metadata, metadata => metadata is IAllowAnonymous);
+        Assert.Contains(endpoint.Metadata, metadata => metadata is IAuthorizeData);
+    }
+
+    [Fact]
     public void GuidAndUsernameDeleteRoutes_HaveDistinctRoutePatterns()
     {
         var endpoints = GetUserRouteEndpoints("DELETE").ToList();

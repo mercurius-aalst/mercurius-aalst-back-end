@@ -1,5 +1,7 @@
 using Asp.Versioning;
 using Mercurius.LAN.API.DTOs.Auth;
+using Mercurius.LAN.API.Exceptions;
+using Mercurius.LAN.API.Services.SearchServices;
 using Mercurius.LAN.API.Services.UserServices;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
@@ -55,6 +57,28 @@ public static class UserEndpoints
         })
         .RequireAuthorization();
 
+        group.MapGet("/", async (HttpRequest request, string? query, string? cursor, int? pageSize, ClaimsPrincipal user, IUserService userService, CancellationToken cancellationToken) =>
+        {
+            if (request.Query.ContainsKey("query"))
+            {
+                var normalizedQuery = (query ?? string.Empty).Trim();
+                if (normalizedQuery.Length > SearchRequestLimits.MaximumQueryLength)
+                    throw new ValidationException($"Query cannot exceed {SearchRequestLimits.MaximumQueryLength} characters.");
+
+                if (pageSize is <= 0)
+                    throw new ValidationException("pageSize must be greater than 0.");
+
+                var boundedPageSize = Math.Min(pageSize ?? SearchRequestLimits.DefaultPageSize, SearchRequestLimits.MaximumPageSize);
+                return Results.Ok(await userService.SearchUsersAsync(query, cursor, boundedPageSize, cancellationToken));
+            }
+
+            if (!user.IsInRole("admin"))
+                return Results.Forbid();
+
+            return Results.Ok(await userService.GetAllUsersAsync());
+        })
+        .RequireAuthorization();
+
         group.MapPost("/me/resend-verification-email", async (ClaimsPrincipal user, IUserService userService) =>
         {
             return await userService.ResendVerificationEmailAsync(GetAuth0UserId(user));
@@ -84,11 +108,6 @@ public static class UserEndpoints
         adminGroup.MapGet("/{id:guid}", async (Guid id, IUserService userService) =>
         {
             return await userService.GetUserByIdAsync(id);
-        });
-
-        adminGroup.MapGet("/", async (IUserService userService) =>
-        {
-            return await userService.GetAllUsersAsync();
         });
 
         adminGroup.MapPatch("/{id:guid}", async (Guid id, UpdateUserProfileRequest request, IUserService userService) =>

@@ -56,6 +56,7 @@ public static class DepedencyConfiguration
     public static IServiceCollection AddServiceDependencies(this IServiceCollection services)
     {
         services.AddTransient<ITeamService, TeamService>();
+        services.AddTransient<ITeamEventPublisher, SignalRTeamEventPublisher>();
         services.AddTransient<IGameService, GameService>();
         services.AddTransient<IMatchService, MatchService>();
         services.AddTransient<ISponsorService, SponsorService>();

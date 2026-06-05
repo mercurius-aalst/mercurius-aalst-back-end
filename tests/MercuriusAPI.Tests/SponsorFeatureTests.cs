@@ -215,6 +215,11 @@ public class SponsorFeatureTests
         {
             return Task.FromResult("/images/mock-upload.png");
         }
+
+        public Task DeleteImageAsync(string? imageUrl)
+        {
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class StubMatchModeratorFactory : IMatchModeratorFactory

@@ -2,6 +2,7 @@ using Mercurius.LAN.API.Data;
 using Mercurius.LAN.API.DTOs.GameDTOs;
 using Mercurius.LAN.API.DTOs.PlacementDTOs;
 using Mercurius.LAN.API.Exceptions;
+using Mercurius.LAN.API.Extensions;
 using Mercurius.LAN.API.Models;
 using Mercurius.LAN.API.Services.Files;
 using Mercurius.LAN.API.Services.MatchServices;
@@ -36,7 +37,7 @@ public class GameService : IGameService
             createGameDTO.FinalsFormat,
             createGameDTO.ParticipationMode!.Value,
             createGameDTO.RegisterFormUrl,
-            createGameDTO.PlannedStartTime,
+            createGameDTO.PlannedStartTime.EnsureUtc(),
             createGameDTO.AverageGameDurationMinutes,
             createGameDTO.RoundBreakDurationMinutes);
 
@@ -91,7 +92,7 @@ public class GameService : IGameService
             gameDTO.FinalsFormat,
             gameDTO.ParticipationMode!.Value,
             gameDTO.RegisterFormUrl,
-            gameDTO.PlannedStartTime,
+            gameDTO.PlannedStartTime.EnsureUtc(),
             gameDTO.AverageGameDurationMinutes,
             gameDTO.RoundBreakDurationMinutes);
 

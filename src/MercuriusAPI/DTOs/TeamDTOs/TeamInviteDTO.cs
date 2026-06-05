@@ -10,7 +10,10 @@ public class TeamInviteDTO
     public Guid UserId { get; set; }
     public string Status { get; set; }
     public DateTime CreatedAt { get; set; }
+    public DateTime ExpiresAt { get; set; }
     public DateTime? RespondedAt { get; set; }
+    public DateTime? CancelledAt { get; set; }
+    public DateTime? ExpiredAt { get; set; }
 
     public TeamInviteDTO()
     {
@@ -24,7 +27,10 @@ public class TeamInviteDTO
         UserId = teamInvite.UserId;
         Status = teamInvite.Status.ToString();
         CreatedAt = teamInvite.CreatedAt;
+        ExpiresAt = teamInvite.ExpiresAt;
         RespondedAt = teamInvite.RespondedAt;
+        CancelledAt = teamInvite.CancelledAt;
+        ExpiredAt = teamInvite.ExpiredAt;
     }
 }
 
@@ -40,4 +46,10 @@ public class RespondTeamInviteDTO
 {
     [Required]
     public bool Accept { get; set; }
+}
+
+public class TransferCaptainDTO
+{
+    [Required]
+    public Guid NewCaptainUserId { get; set; }
 }

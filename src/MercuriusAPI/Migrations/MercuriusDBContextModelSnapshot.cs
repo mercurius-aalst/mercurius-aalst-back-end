@@ -315,6 +315,12 @@ namespace Mercurius.LAN.API.Migrations
                     b.Property<Guid>("CaptainUserId")
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime?>("DeletedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("LogoUrl")
                         .HasMaxLength(260)
                         .HasColumnType("character varying(260)");
@@ -334,7 +340,8 @@ namespace Mercurius.LAN.API.Migrations
                     b.HasIndex("CaptainUserId");
 
                     b.HasIndex("NormalizedName")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = false");
 
                     b.ToTable("Teams");
                 });

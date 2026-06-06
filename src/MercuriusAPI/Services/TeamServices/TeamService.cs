@@ -68,9 +68,25 @@ public class TeamService : ITeamService
         var team = await _dbContext.Teams.FindAsync(teamId);
         if (team is null)
             throw new NotFoundException($"{nameof(Team)} not found");
-        _dbContext.Teams.Remove(team);
+        team.Delete();
         await _dbContext.SaveChangesAsync();
     }
+
+    public async Task DeleteTeamAsync(string auth0UserId, Guid teamId)
+    {
+        var currentUser = await GetCurrentUserAsync(auth0UserId);
+        var team = await GetActiveTeamsQuery().FirstOrDefaultAsync(t => t.Id == teamId);
+        if (team is null)
+            throw new NotFoundException($"{nameof(Team)} not found");
+
+        EnsureCaptain(team, currentUser.Id);
+        if (await IsTeamInDeleteBlockingTournamentAsync(teamId))
+            throw new ValidationException("Cannot delete a team that is actively participating in a game or tournament.");
+
+        team.Delete();
+        await _dbContext.SaveChangesAsync();
+    }
+
     public IEnumerable<GetTeamDTO> GetAllTeams()
     {
         return GetTeamWithMembersQuery()
@@ -90,6 +106,7 @@ public class TeamService : ITeamService
         var normalizedTeamName = Team.NormalizeName(teamName);
         var team = await _dbContext.Teams
             .AsNoTracking()
+            .Where(t => !t.IsDeleted)
             .Include(t => t.Captain)
             .Include(t => t.Members)
             .FirstOrDefaultAsync(t => t.NormalizedName == normalizedTeamName);
@@ -146,6 +163,23 @@ public class TeamService : ITeamService
         team.RemoveMember(userId);
         await _dbContext.SaveChangesAsync();
         return new GetTeamDTO(team);
+    }
+
+    public async Task<TeamManagementSummaryDTO> RemoveMemberAsync(string auth0UserId, Guid teamId, Guid userId)
+    {
+        var currentUser = await GetCurrentUserAsync(auth0UserId);
+        var team = await GetTeamWithMembersQuery().FirstOrDefaultAsync(t => t.Id == teamId);
+        if (team is null)
+            throw new NotFoundException($"{nameof(Team)} not found");
+
+        EnsureCaptain(team, currentUser.Id);
+        if (await IsTeamInMemberRemovalBlockingTournamentAsync(teamId))
+            throw new ValidationException("Cannot remove a member from a team that is part of an in-progress tournament roster.");
+
+        team.RemoveMember(userId);
+        await _dbContext.SaveChangesAsync();
+        await _eventPublisher.MembershipChangedAsync(team.Id, userId, "Removed");
+        return new TeamManagementSummaryDTO(team);
     }
 
     public async Task<GetTeamDTO> UpdateTeamAsync(Guid id, UpdateTeamDTO teamDTO)
@@ -433,6 +467,7 @@ public class TeamService : ITeamService
     private async Task EnsureCaptainLimitAsync(Guid captainUserId, Guid? excludedTeamId = null)
     {
         var captainedTeamCount = await _dbContext.Teams.CountAsync(team =>
+            !team.IsDeleted &&
             team.CaptainUserId == captainUserId &&
             (!excludedTeamId.HasValue || team.Id != excludedTeamId.Value));
         if (captainedTeamCount >= MaxCaptainedTeams)
@@ -450,6 +485,22 @@ public class TeamService : ITeamService
         return await _dbContext.Games.AnyAsync(game =>
             game.ParticipationMode == ParticipationMode.Team &&
             (game.Status == GameStatus.InProgress || game.Status == GameStatus.Completed || game.Status == GameStatus.Canceled) &&
+            game.RegisteredTeams.Any(team => team.Id == teamId));
+    }
+
+    private async Task<bool> IsTeamInMemberRemovalBlockingTournamentAsync(Guid teamId)
+    {
+        return await _dbContext.Games.AnyAsync(game =>
+            game.ParticipationMode == ParticipationMode.Team &&
+            game.Status == GameStatus.InProgress &&
+            game.RegisteredTeams.Any(team => team.Id == teamId));
+    }
+
+    private async Task<bool> IsTeamInDeleteBlockingTournamentAsync(Guid teamId)
+    {
+        return await _dbContext.Games.AnyAsync(game =>
+            game.ParticipationMode == ParticipationMode.Team &&
+            (game.Status == GameStatus.Scheduled || game.Status == GameStatus.InProgress) &&
             game.RegisteredTeams.Any(team => team.Id == teamId));
     }
 
@@ -493,6 +544,7 @@ public class TeamService : ITeamService
     private Task<bool> CheckIfTeamNameExistsAsync(string normalizedName, Guid? excludedTeamId = null)
     {
         return _dbContext.Teams.AnyAsync(t =>
+            !t.IsDeleted &&
             t.NormalizedName == normalizedName &&
             (!excludedTeamId.HasValue || t.Id != excludedTeamId.Value));
     }
@@ -505,17 +557,22 @@ public class TeamService : ITeamService
 
     private IQueryable<Team> GetTeamWithMembersQuery()
     {
-        return _dbContext.Teams
+        return GetActiveTeamsQuery()
             .Include(t => t.Captain)
             .Include(t => t.Members);
     }
 
     private IQueryable<Team> TeamManagementQuery()
     {
-        return _dbContext.Teams
+        return GetActiveTeamsQuery()
             .AsNoTracking()
             .Include(t => t.Captain)
             .Include(t => t.Members);
+    }
+
+    private IQueryable<Team> GetActiveTeamsQuery()
+    {
+        return _dbContext.Teams.Where(team => !team.IsDeleted);
     }
 
     private IQueryable<TeamInvite> GetPendingInviteSummariesQuery()
@@ -524,7 +581,7 @@ public class TeamService : ITeamService
             .AsNoTracking()
             .Include(invite => invite.Team)
             .Include(invite => invite.User)
-            .Where(invite => invite.Status == TeamInviteStatus.Pending && invite.ExpiresAt > DateTime.UtcNow);
+            .Where(invite => !invite.Team.IsDeleted && invite.Status == TeamInviteStatus.Pending && invite.ExpiresAt > DateTime.UtcNow);
     }
 
     private async Task SaveTeamChangesAsync(string teamName)

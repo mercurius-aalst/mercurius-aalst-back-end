@@ -10,6 +10,8 @@ public class Team
     public Guid CaptainUserId { get; set; }
     public User Captain { get; set; }
     public string? LogoUrl { get; set; }
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedAtUtc { get; set; }
 
     public IList<User> Members { get; set; } = new List<User>();
     public IList<TeamInvite> TeamInvites { get; set; } = new List<TeamInvite>();
@@ -69,6 +71,15 @@ public class Team
         if (member.Id == CaptainUserId)
             throw new ValidationException("The captain cannot be removed from a team");
         Members.Remove(member);
+    }
+
+    public void Delete()
+    {
+        if (IsDeleted)
+            return;
+
+        IsDeleted = true;
+        DeletedAtUtc = DateTime.UtcNow;
     }
 
     public TeamInvite InviteUser(Guid userId, int inviteResendCooldownDays, int inviteExpirationDays = 14, int declinedInviteResendLimit = 3)

@@ -24,4 +24,5 @@ Authenticated app workflows need a stable backend user id when selecting users, 
 - DTOs: new privacy-safe authenticated user search result shape.
 - Services: user service search method with query, cursor, and page-size bounds.
 - Tests: endpoint authorization/route coverage, service filtering/DTO privacy coverage.
-- No database migration, CORS, Auth0 configuration, or deployment variable changes expected.
+- Database: EF migration adds the PostgreSQL `pg_trgm` extension if needed and authenticated user search indexes on active users with usernames.
+- No CORS, Auth0 configuration, or deployment variable changes expected.

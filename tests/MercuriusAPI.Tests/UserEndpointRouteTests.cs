@@ -1,4 +1,5 @@
 using Mercurius.LAN.API.Endpoints;
+using Mercurius.LAN.API.Extensions;
 using Mercurius.LAN.API.Services.UserServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
@@ -28,6 +29,27 @@ public class UserEndpointRouteTests
         var endpoint = GetUserRouteEndpoint("DELETE", "v{version:apiVersion}/lan/users/{username}/account");
 
         Assert.NotNull(endpoint);
+    }
+
+    [Fact]
+    public void UserCollectionRoute_RequiresAuthorization()
+    {
+        var endpoint = GetUserRouteEndpoint("GET", "v{version:apiVersion}/lan/users/");
+
+        Assert.DoesNotContain(endpoint.Metadata, metadata => metadata is IAllowAnonymous);
+        Assert.Contains(endpoint.Metadata, metadata => metadata is IAuthorizeData);
+    }
+
+    [Fact]
+    public void UserCollectionRoute_UsesAuthenticatedSearchRateLimitPolicy()
+    {
+        var endpoint = GetUserRouteEndpoint("GET", "v{version:apiVersion}/lan/users/");
+
+        var rateLimitMetadata = Assert.Single(endpoint.Metadata.Where(metadata =>
+            metadata.GetType().GetProperty("PolicyName")?.GetValue(metadata) is not null));
+        var policyName = rateLimitMetadata.GetType().GetProperty("PolicyName")!.GetValue(rateLimitMetadata);
+
+        Assert.Equal(RateLimitPolicies.AuthenticatedSearch, policyName);
     }
 
     [Fact]

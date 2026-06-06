@@ -2,9 +2,12 @@ using Mercurius.LAN.API.DTOs.Auth;
 using Mercurius.LAN.API.Data;
 using Mercurius.LAN.API.Exceptions;
 using Mercurius.LAN.API.Models;
+using Mercurius.LAN.API.Services.SearchServices;
 using Mercurius.LAN.API.Services.Auth0;
 using Mercurius.LAN.API.Services.UserServices;
 using Microsoft.EntityFrameworkCore;
+using System.Reflection;
+using System.Text.Json;
 
 namespace Mercurius.LAN.API.Tests;
 
@@ -100,6 +103,32 @@ public class UserTests
         Assert.DoesNotContain("EmailVerified", properties);
         Assert.DoesNotContain("Auth0UserId", properties);
         Assert.DoesNotContain("IsDeleted", properties);
+        Assert.DoesNotContain("CreatedAtUtc", properties);
+        Assert.DoesNotContain("UpdatedAtUtc", properties);
+    }
+
+    [Fact]
+    public void UserSearchResultDTO_DoesNotExposePrivateFields()
+    {
+        var properties = typeof(UserSearchResultDTO)
+            .GetProperties()
+            .Select(property => property.Name)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        Assert.Contains("Id", properties);
+        Assert.Contains("Type", properties);
+        Assert.Contains("Username", properties);
+        Assert.Contains("DisplayLabel", properties);
+        Assert.Contains("SupportingText", properties);
+        Assert.DoesNotContain("Email", properties);
+        Assert.DoesNotContain("EmailVerified", properties);
+        Assert.DoesNotContain("Auth0UserId", properties);
+        Assert.DoesNotContain("IsDeleted", properties);
+        Assert.DoesNotContain("Firstname", properties);
+        Assert.DoesNotContain("Lastname", properties);
+        Assert.DoesNotContain("DiscordId", properties);
+        Assert.DoesNotContain("SteamId", properties);
+        Assert.DoesNotContain("RiotId", properties);
         Assert.DoesNotContain("CreatedAtUtc", properties);
         Assert.DoesNotContain("UpdatedAtUtc", properties);
     }
@@ -312,6 +341,32 @@ public class UserTests
     }
 
     [Fact]
+    public async Task SearchUsersAsync_ForwardsNormalizedQueryCursorAndPageSize()
+    {
+        var inner = new RecordingUserService();
+        var service = new UserValidationService(inner);
+
+        var result = await service.SearchUsersAsync(" Alpha ", "cursor-1", 7);
+
+        Assert.Same(inner.UserSearchResponse, result);
+        Assert.Equal("alpha", inner.LastUserSearchQuery);
+        Assert.Equal("cursor-1", inner.LastUserSearchCursor);
+        Assert.Equal(7, inner.LastUserSearchPageSize);
+    }
+
+    [Fact]
+    public async Task SearchUsersAsync_RejectsOverlongQuery()
+    {
+        var service = new UserValidationService(new RecordingUserService());
+        var query = new string('a', SearchRequestLimits.MaximumQueryLength + 1);
+
+        var exception = await Assert.ThrowsAsync<ValidationException>(() =>
+            service.SearchUsersAsync(query, cursor: null, pageSize: 10));
+
+        Assert.Contains($"Query cannot exceed {SearchRequestLimits.MaximumQueryLength} characters.", exception.Message);
+    }
+
+    [Fact]
     public async Task DeleteUserByIdAsync_RejectsEmptyIds()
     {
         var service = new UserValidationService(new RecordingUserService());
@@ -487,6 +542,147 @@ public class UserTests
             service.GetPublicUserProfileByUsernameAsync("playerone"));
     }
 
+    [Fact]
+    public async Task SearchUsersAsync_ReturnsBoundedPrivacySafeMatches_InDeterministicOrder()
+    {
+        await using var dbContext = CreateDbContext();
+        var exact = CreateStoredUser("auth0|exact", "exact@example.com", "Alpha");
+        var prefix = CreateStoredUser("auth0|prefix", "prefix@example.com", "AlphaBeta");
+        var contains = CreateStoredUser("auth0|contains", "contains@example.com", "BetaAlpha");
+        var deleted = CreateStoredUser("auth0|deleted", "deleted@example.com", "AlphaDeleted");
+        deleted.Anonymize(DateTime.UtcNow);
+        var missingUsername = CreateStoredUser("auth0|missing-username", "missing-username@example.com", "AlphaMissing");
+        missingUsername.Username = null;
+        var missingNormalizedUsername = CreateStoredUser("auth0|missing-normalized", "missing-normalized@example.com", "AlphaMissingNormalized");
+        missingNormalizedUsername.NormalizedUsername = null;
+        dbContext.Users.AddRange(contains, prefix, exact, deleted, missingUsername, missingNormalizedUsername);
+        await dbContext.SaveChangesAsync();
+
+        var service = new UserService(
+            dbContext,
+            new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("public@example.com", true, true)));
+
+        var response = await service.SearchUsersAsync("  ALPHA  ", cursor: null, pageSize: 2);
+
+        Assert.True(response.HasMore);
+        Assert.NotNull(response.NextCursor);
+        Assert.Collection(response.Results,
+            first =>
+            {
+                Assert.Equal(exact.Id, first.Id);
+                Assert.Equal("user", first.Type);
+                Assert.Equal("Alpha", first.Username);
+                Assert.Equal("Alpha", first.DisplayLabel);
+                Assert.Equal("User", first.SupportingText);
+            },
+            second =>
+            {
+                Assert.Equal(prefix.Id, second.Id);
+                Assert.Equal("AlphaBeta", second.Username);
+            });
+
+        var json = JsonSerializer.Serialize(response, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        Assert.Contains("\"results\"", json);
+        Assert.Contains("\"nextCursor\"", json);
+        Assert.Contains("\"hasMore\"", json);
+        Assert.DoesNotContain("email", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("auth0", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("deleted", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("firstname", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("lastname", json, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task SearchUsersAsync_DoesNotRequireFirstOrLastName()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = CreateStoredUser("auth0|username-only", "username-only@example.com", "UsernameOnly");
+        user.Firstname = null;
+        user.Lastname = null;
+        dbContext.Users.Add(user);
+        await dbContext.SaveChangesAsync();
+
+        var service = new UserService(
+            dbContext,
+            new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("public@example.com", true, true)));
+
+        var response = await service.SearchUsersAsync("username", cursor: null, pageSize: 10);
+
+        var result = Assert.Single(response.Results);
+        Assert.Equal(user.Id, result.Id);
+        Assert.Equal("UsernameOnly", result.Username);
+    }
+
+    [Fact]
+    public async Task SearchUsersAsync_ReturnsEmptyResults_ForShortQueries()
+    {
+        await using var dbContext = CreateDbContext();
+        dbContext.Users.Add(CreateStoredUser("auth0|short", "short@example.com", "Alpha"));
+        await dbContext.SaveChangesAsync();
+
+        var service = new UserService(
+            dbContext,
+            new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("public@example.com", true, true)));
+
+        var response = await service.SearchUsersAsync("al", cursor: null, pageSize: 10);
+
+        Assert.Empty(response.Results);
+        Assert.False(response.HasMore);
+        Assert.Null(response.NextCursor);
+    }
+
+    [Fact]
+    public async Task SearchUsersAsync_SupportsCursorContinuation()
+    {
+        await using var dbContext = CreateDbContext();
+        dbContext.Users.AddRange(
+            CreateStoredUser("auth0|alpha", "alpha@example.com", "Alpha"),
+            CreateStoredUser("auth0|alphaa", "alphaa@example.com", "Alphaa"),
+            CreateStoredUser("auth0|alphab", "alphab@example.com", "Alphab"));
+        await dbContext.SaveChangesAsync();
+
+        var service = new UserService(
+            dbContext,
+            new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("public@example.com", true, true)));
+
+        var page1 = await service.SearchUsersAsync("alpha", cursor: null, pageSize: 2);
+        var page2 = await service.SearchUsersAsync("alpha", page1.NextCursor, pageSize: 2);
+
+        Assert.True(page1.HasMore);
+        Assert.NotNull(page1.NextCursor);
+        Assert.False(page2.HasMore);
+        Assert.Null(page2.NextCursor);
+        Assert.Equal(["Alpha", "Alphaa", "Alphab"], page1.Results.Concat(page2.Results).Select(result => result.Username));
+    }
+
+    [Fact]
+    public void SearchUsersAsync_QueryAndKeysetCursor_TranslateForPostgreSql()
+    {
+        var options = new DbContextOptionsBuilder<MercuriusDBContext>()
+            .UseNpgsql("Host=localhost;Database=translation-only")
+            .Options;
+        using var dbContext = new MercuriusDBContext(options);
+        var service = new UserService(
+            dbContext,
+            new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("public@example.com", true, true)));
+
+        var buildQuery = typeof(UserService).GetMethod("BuildPagedUserSearchQuery", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var cursorType = typeof(UserService).GetNestedType("UserSearchCursor", BindingFlags.NonPublic)!;
+        var cursorId = Guid.NewGuid();
+
+        var cursor = Activator.CreateInstance(cursorType, "alpha", 1, "alphab", cursorId)!;
+        var query = (IQueryable)buildQuery.Invoke(service, ["alpha", cursor, 3])!;
+        var sql = query.ToQueryString();
+
+        Assert.Contains("LIKE", sql);
+        Assert.Contains("\"NormalizedUsername\"", sql);
+        Assert.Contains("\"Id\"", sql);
+        Assert.Contains("ORDER BY", sql);
+        Assert.Contains("LIMIT", sql);
+        Assert.DoesNotContain("CAST", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("::text", sql, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static MercuriusDBContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<MercuriusDBContext>()
@@ -496,15 +692,15 @@ public class UserTests
         return new MercuriusDBContext(options);
     }
 
-    private static User CreateStoredUser(string auth0UserId, string email)
+    private static User CreateStoredUser(string auth0UserId, string email, string username = "PlayerOne")
     {
         var now = DateTime.UtcNow;
         return new User
         {
             Id = Guid.NewGuid(),
             Auth0UserId = auth0UserId,
-            Username = "PlayerOne",
-            NormalizedUsername = "playerone",
+            Username = username,
+            NormalizedUsername = username.ToLowerInvariant(),
             Firstname = "Player",
             Lastname = "One",
             Email = email,
@@ -522,6 +718,9 @@ public class UserTests
         public string? LastUpdateCurrentSubject { get; private set; }
         public UpdateUserProfileRequest? LastUpdateCurrentRequest { get; private set; }
         public string? LastPublicProfileUsername { get; private set; }
+        public string? LastUserSearchQuery { get; private set; }
+        public string? LastUserSearchCursor { get; private set; }
+        public int LastUserSearchPageSize { get; private set; }
         public GetUserDTO CreatedUser { get; } = new(new User
         {
             Id = Guid.NewGuid(),
@@ -541,6 +740,33 @@ public class UserTests
             SteamId = "steam-2",
             RiotId = "riot-2"
         };
+        public UserSearchResponseDTO UserSearchResponse { get; } = new()
+        {
+            Results =
+            [
+                new()
+                {
+                    Id = Guid.NewGuid(),
+                    Type = "user",
+                    Username = "ValidUser",
+                    DisplayLabel = "ValidUser",
+                    SupportingText = "User"
+                }
+            ],
+            HasMore = false
+        };
+
+        public Task<UserSearchResponseDTO> SearchUsersAsync(
+            string? query,
+            string? cursor,
+            int pageSize,
+            CancellationToken cancellationToken = default)
+        {
+            LastUserSearchQuery = query;
+            LastUserSearchCursor = cursor;
+            LastUserSearchPageSize = pageSize;
+            return Task.FromResult(UserSearchResponse);
+        }
 
         public Task<GetUserDTO> CreateUserAsync(CreateUserProfileRequest request)
         {

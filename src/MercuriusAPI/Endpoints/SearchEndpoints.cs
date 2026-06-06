@@ -21,14 +21,10 @@ public static class SearchEndpoints
 
         group.MapGet("/", async (string? query, string? cursor, int? pageSize, ISearchService searchService, CancellationToken cancellationToken) =>
         {
-            var normalizedQuery = (query ?? string.Empty).Trim();
-            if (normalizedQuery.Length > SearchRequestLimits.MaximumQueryLength)
-                throw new ValidationException($"Query cannot exceed {SearchRequestLimits.MaximumQueryLength} characters.");
+            SearchRequest.ValidateQueryLength(SearchRequest.NormalizeQuery(query));
+            SearchRequest.ValidatePageSize(pageSize);
 
-            if (pageSize is <= 0)
-                throw new ValidationException("pageSize must be greater than 0.");
-
-            var boundedPageSize = Math.Min(pageSize ?? SearchRequestLimits.DefaultPageSize, SearchRequestLimits.MaximumPageSize);
+            var boundedPageSize = SearchRequest.BoundPageSize(pageSize);
 
             return await searchService.SearchAsync(query, cursor, boundedPageSize, cancellationToken);
         })

@@ -3,6 +3,7 @@ using Mercurius.LAN.API.DTOs.Auth;
 using Mercurius.LAN.API.Exceptions;
 using Mercurius.LAN.API.Models;
 using Mercurius.LAN.API.Services.Auth0;
+using Mercurius.LAN.API.Services.SearchServices;
 using Microsoft.EntityFrameworkCore;
 
 namespace Mercurius.LAN.API.Services.UserServices;
@@ -92,6 +93,94 @@ public class UserService : IUserService
             throw new NotFoundException($"User '{trimmedUsername}' not found.");
 
         return profile;
+    }
+
+    public async Task<UserSearchResponseDTO> SearchUsersAsync(
+        string? query,
+        string? cursor,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedQuery = SearchRequest.NormalizeQuery(query);
+        SearchRequest.ValidateQueryLength(normalizedQuery);
+
+        if (normalizedQuery.Length < SearchRequestLimits.MinimumQueryLength)
+            return new UserSearchResponseDTO { Results = [], HasMore = false };
+
+        var boundedPageSize = SearchRequest.BoundPageSize(pageSize);
+        var decodedCursor = DecodeUserSearchCursor(cursor, normalizedQuery);
+        var users = await BuildPagedUserSearchQuery(normalizedQuery, decodedCursor, boundedPageSize + 1)
+            .ToListAsync(cancellationToken);
+
+        var hasMore = users.Count > boundedPageSize;
+        if (hasMore)
+            users.RemoveAt(users.Count - 1);
+
+        return new UserSearchResponseDTO
+        {
+            Results = users.Select(ToUserSearchResult).ToList(),
+            NextCursor = hasMore ? BuildUserSearchCursor(normalizedQuery, users[^1]) : null,
+            HasMore = hasMore
+        };
+    }
+
+    private IQueryable<UserSearchCandidate> BuildPagedUserSearchQuery(string normalizedQuery, UserSearchCursor? cursor, int limit)
+    {
+        return ApplyUserSearchCursor(BuildUserSearchQuery(normalizedQuery), cursor)
+            .OrderBy(user => user.RelevanceRank)
+            .ThenBy(user => user.NormalizedUsername)
+            .ThenBy(user => user.Id)
+            .Take(limit);
+    }
+
+    private IQueryable<UserSearchCandidate> BuildUserSearchQuery(string normalizedQuery)
+    {
+        var escapedQuery = SearchRequest.EscapeLikePattern(normalizedQuery);
+        var containsPattern = $"%{escapedQuery}%";
+        var prefixPattern = $"{escapedQuery}%";
+
+        return _dbContext.Users
+            .AsNoTracking()
+            .Where(user =>
+                !user.IsDeleted &&
+                !string.IsNullOrEmpty(user.Username) &&
+                !string.IsNullOrEmpty(user.NormalizedUsername) &&
+                EF.Functions.Like(user.NormalizedUsername, containsPattern, "\\"))
+            .Select(user => new UserSearchCandidate
+            {
+                Id = user.Id,
+                RelevanceRank = user.NormalizedUsername == normalizedQuery
+                    ? 0
+                    : EF.Functions.Like(user.NormalizedUsername, prefixPattern, "\\") ? 1 : 2,
+                NormalizedUsername = user.NormalizedUsername!,
+                Username = user.Username!
+            });
+    }
+
+    private static IQueryable<UserSearchCandidate> ApplyUserSearchCursor(IQueryable<UserSearchCandidate> candidates, UserSearchCursor? cursor)
+    {
+        if (cursor is null)
+            return candidates;
+
+        return candidates.Where(candidate =>
+            (candidate.RelevanceRank > cursor.RelevanceRank) ||
+            (candidate.RelevanceRank == cursor.RelevanceRank &&
+             string.Compare(candidate.NormalizedUsername, cursor.NormalizedUsername) > 0) ||
+            (candidate.RelevanceRank == cursor.RelevanceRank &&
+             candidate.NormalizedUsername == cursor.NormalizedUsername &&
+             candidate.Id.CompareTo(cursor.StableId) > 0));
+    }
+
+    private static UserSearchResultDTO ToUserSearchResult(UserSearchCandidate candidate)
+    {
+        return new UserSearchResultDTO
+        {
+            Id = candidate.Id,
+            Type = "user",
+            Username = candidate.Username,
+            DisplayLabel = candidate.Username,
+            SupportingText = "User"
+        };
     }
 
     public async Task<GetUserDTO> UpdateCurrentUserAsync(string auth0UserId, UpdateUserProfileRequest request)
@@ -329,6 +418,35 @@ public class UserService : IUserService
     {
         return exception.InnerException?.Message.Contains("IX_Users_NormalizedUsername", StringComparison.OrdinalIgnoreCase) == true;
     }
+
+    private static string BuildUserSearchCursor(string normalizedQuery, UserSearchCandidate candidate)
+    {
+        var payload = new UserSearchCursor(normalizedQuery, candidate.RelevanceRank, candidate.NormalizedUsername, candidate.Id);
+        return SearchCursorCodec.Encode(payload);
+    }
+
+    private static UserSearchCursor? DecodeUserSearchCursor(string? cursor, string normalizedQuery)
+    {
+        return SearchCursorCodec.Decode<UserSearchCursor>(
+            cursor,
+            normalizedQuery,
+            payload =>
+                !string.IsNullOrEmpty(payload.Query) &&
+                payload.RelevanceRank is >= 0 and <= 2 &&
+                !string.IsNullOrEmpty(payload.NormalizedUsername) &&
+                payload.StableId != Guid.Empty,
+            payload => payload.Query);
+    }
+
+    private sealed class UserSearchCandidate
+    {
+        public Guid Id { get; init; }
+        public int RelevanceRank { get; init; }
+        public required string NormalizedUsername { get; init; }
+        public required string Username { get; init; }
+    }
+
+    private sealed record UserSearchCursor(string Query, int RelevanceRank, string NormalizedUsername, Guid StableId);
 
     private static void EnsureActive(User user)
     {

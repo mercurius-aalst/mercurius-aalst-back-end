@@ -7,6 +7,7 @@ namespace Mercurius.LAN.API.Extensions;
 public static class RateLimitPolicies
 {
     public const string AnonymousSearch = "anonymous-search";
+    public const string AuthenticatedSearch = "authenticated-search";
 }
 
 public static class RateLimitingConfiguration
@@ -25,6 +26,10 @@ public static class RateLimitingConfiguration
                 CreateFixedWindowPartition(httpContext, globalPermitLimit, window));
             options.AddPolicy(RateLimitPolicies.AnonymousSearch, httpContext =>
                 CreateFixedWindowPartition(httpContext, searchPermitLimit, window));
+            options.AddPolicy(RateLimitPolicies.AuthenticatedSearch, httpContext =>
+                httpContext.Request.Query.ContainsKey("query")
+                    ? CreateFixedWindowPartition(httpContext, searchPermitLimit, window)
+                    : RateLimitPartition.GetNoLimiter(GetPartitionKey(httpContext)));
             options.OnRejected = async (context, cancellationToken) =>
             {
                 if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))

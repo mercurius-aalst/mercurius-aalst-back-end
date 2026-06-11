@@ -1,0 +1,5 @@
+- [x] Update user-owned team management requirements for captain member removal.
+- [x] Add an authenticated captain-only member removal service method.
+- [x] Add the member removal API route.
+- [x] Add tests for success, authorization, captain protection, and in-progress tournament blocking.
+- [x] Run `dotnet test LAN.API.sln`.

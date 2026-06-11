@@ -7,6 +7,8 @@ using Mercurius.LAN.API.Services.Files;
 using Mercurius.LAN.API.Services.TeamServices;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Microsoft.Extensions.Configuration;
 
@@ -222,6 +224,8 @@ public class TeamTests
             sqlOperation.Sql.Contains("INSERT INTO \"TeamUser\"", StringComparison.Ordinal));
     }
 
+    
+
     [Fact]
     public void ChangeCaptain_ChangesCaptain_WhenUserIsTeamMember()
     {
@@ -270,11 +274,11 @@ public class TeamTests
     {
         // Arrange
         var team = CreateTeam();
-        var captain = team.Captain;
+        var captain = team.Captain!;
         team.CaptainUserId = captain.Id;
         team.Members.Add(captain);
         // Act & Assert
-        Assert.Throws<ValidationException>(() => team.RemoveMember(team.CaptainUserId));
+        Assert.Throws<ValidationException>(() => team.RemoveMember(team.CaptainUserId!.Value));
     }
 
     [Fact]
@@ -523,6 +527,269 @@ public class TeamTests
 
         await Assert.ThrowsAsync<ValidationException>(() =>
             teamService.LeaveTeamAsync(member.Auth0UserId, team.Id));
+    }
+
+    [Fact]
+    public async Task RemoveMemberAsync_AllowsCaptainToRemoveNonCaptainMember()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var member = CreateUser();
+        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
+        team.Members.Add(member);
+        dbContext.Users.AddRange(captain, member);
+        dbContext.Teams.Add(team);
+        await dbContext.SaveChangesAsync();
+        var publisher = new RecordingTeamEventPublisher();
+        var teamService = CreateTeamService(dbContext, eventPublisher: publisher);
+
+        var result = await teamService.RemoveMemberAsync(captain.Auth0UserId, team.Id, member.Id);
+
+        Assert.DoesNotContain(result.Members, teamMember => teamMember.Id == member.Id);
+        Assert.DoesNotContain(team.Members, teamMember => teamMember.Id == member.Id);
+        Assert.Contains(publisher.MembershipEvents, evt => evt.TeamId == team.Id && evt.UserId == member.Id && evt.Action == "Removed");
+    }
+
+    [Fact]
+    public async Task RemoveMemberAsync_RequiresCurrentCaptain()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var member = CreateUser();
+        var outsider = CreateUser();
+        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
+        team.Members.Add(member);
+        dbContext.Users.AddRange(captain, member, outsider);
+        dbContext.Teams.Add(team);
+        await dbContext.SaveChangesAsync();
+        var teamService = CreateTeamService(dbContext);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            teamService.RemoveMemberAsync(outsider.Auth0UserId, team.Id, member.Id));
+
+        Assert.Contains(team.Members, teamMember => teamMember.Id == member.Id);
+    }
+
+    [Fact]
+    public async Task RemoveMemberAsync_RejectsCaptainRemoval()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
+        dbContext.Users.Add(captain);
+        dbContext.Teams.Add(team);
+        await dbContext.SaveChangesAsync();
+        var teamService = CreateTeamService(dbContext);
+
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            teamService.RemoveMemberAsync(captain.Auth0UserId, team.Id, captain.Id));
+
+        Assert.Contains(team.Members, teamMember => teamMember.Id == captain.Id);
+    }
+
+    [Fact]
+    public async Task RemoveMemberAsync_BlocksInProgressTournamentRoster()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var member = CreateUser();
+        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
+        team.Members.Add(member);
+        var game = new Game("Game", BracketType.SingleElimination, GameFormat.BestOf1, GameFormat.BestOf1, ParticipationMode.Team, "https://example.com")
+        {
+            Id = Guid.NewGuid(),
+            Status = GameStatus.InProgress
+        };
+        game.RegisteredTeams.Add(team);
+        dbContext.Users.AddRange(captain, member);
+        dbContext.Teams.Add(team);
+        dbContext.Games.Add(game);
+        await dbContext.SaveChangesAsync();
+        var teamService = CreateTeamService(dbContext);
+
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            teamService.RemoveMemberAsync(captain.Auth0UserId, team.Id, member.Id));
+
+        Assert.Contains(team.Members, teamMember => teamMember.Id == member.Id);
+    }
+
+    [Theory]
+    [InlineData(GameStatus.Completed)]
+    [InlineData(GameStatus.Canceled)]
+    public async Task RemoveMemberAsync_AllowsCompletedAndCanceledTournamentRosters(GameStatus status)
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var member = CreateUser();
+        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
+        team.Members.Add(member);
+        var game = new Game("Game", BracketType.SingleElimination, GameFormat.BestOf1, GameFormat.BestOf1, ParticipationMode.Team, "https://example.com")
+        {
+            Id = Guid.NewGuid(),
+            Status = status
+        };
+        game.RegisteredTeams.Add(team);
+        dbContext.Users.AddRange(captain, member);
+        dbContext.Teams.Add(team);
+        dbContext.Games.Add(game);
+        await dbContext.SaveChangesAsync();
+        var teamService = CreateTeamService(dbContext);
+
+        await teamService.RemoveMemberAsync(captain.Auth0UserId, team.Id, member.Id);
+
+        Assert.DoesNotContain(team.Members, teamMember => teamMember.Id == member.Id);
+    }
+
+    [Fact]
+    public async Task DeleteTeamAsync_RequiresCurrentCaptain()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var outsider = CreateUser();
+        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
+        dbContext.Users.AddRange(captain, outsider);
+        dbContext.Teams.Add(team);
+        await dbContext.SaveChangesAsync();
+
+        var teamService = CreateTeamService(dbContext);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            teamService.DeleteTeamAsync(outsider.Auth0UserId, team.Id));
+
+        Assert.False((await dbContext.Teams.FindAsync(team.Id))!.IsDeleted);
+    }
+
+    [Theory]
+    [InlineData(GameStatus.Scheduled)]
+    [InlineData(GameStatus.InProgress)]
+    public async Task DeleteTeamAsync_BlocksActiveTournamentStatuses(GameStatus status)
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
+        var game = new Game("Game", BracketType.SingleElimination, GameFormat.BestOf1, GameFormat.BestOf1, ParticipationMode.Team, "https://example.com")
+        {
+            Id = Guid.NewGuid(),
+            Status = status
+        };
+        game.RegisteredTeams.Add(team);
+        dbContext.Users.Add(captain);
+        dbContext.Teams.Add(team);
+        dbContext.Games.Add(game);
+        await dbContext.SaveChangesAsync();
+
+        var teamService = CreateTeamService(dbContext);
+
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            teamService.DeleteTeamAsync(captain.Auth0UserId, team.Id));
+
+        Assert.False((await dbContext.Teams.FindAsync(team.Id))!.IsDeleted);
+    }
+
+    [Fact]
+    public async Task DeleteTeamAsync_SoftDeletesAndPreservesHistoricalReferences()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var member = CreateUser();
+        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
+        team.LogoUrl = "/images/alpha.webp";
+        team.Members.Add(member);
+        var game = new Game("Completed Game", BracketType.SingleElimination, GameFormat.BestOf1, GameFormat.BestOf1, ParticipationMode.Team, "https://example.com")
+        {
+            Id = Guid.NewGuid(),
+            Status = GameStatus.Completed
+        };
+        var placement = new Placement { Id = Guid.NewGuid(), Game = game, GameId = game.Id, Place = 1 };
+        var match = new Match
+        {
+            Id = Guid.NewGuid(),
+            Game = game,
+            GameId = game.Id,
+            ParticipationMode = ParticipationMode.Team,
+            TeamParticipant1 = team,
+            TeamParticipant1Id = team.Id
+        };
+        game.RegisteredTeams.Add(team);
+        placement.Teams = [team];
+        var invite = new TeamInvite
+        {
+            Id = Guid.NewGuid(),
+            Team = team,
+            TeamId = team.Id,
+            User = member,
+            UserId = member.Id,
+            Status = TeamInviteStatus.Pending,
+            CreatedAt = DateTime.UtcNow,
+            ExpiresAt = DateTime.UtcNow.AddDays(7)
+        };
+        dbContext.Users.AddRange(captain, member);
+        dbContext.Teams.Add(team);
+        dbContext.TeamInvites.Add(invite);
+        dbContext.Games.Add(game);
+        dbContext.Placements.Add(placement);
+        dbContext.Matches.Add(match);
+        await dbContext.SaveChangesAsync();
+
+        var teamService = CreateTeamService(dbContext);
+
+        await teamService.DeleteTeamAsync(captain.Auth0UserId, team.Id);
+
+        var deletedTeam = await dbContext.Teams.FindAsync(team.Id);
+        Assert.NotNull(deletedTeam);
+        Assert.True(deletedTeam.IsDeleted);
+        Assert.NotNull(deletedTeam.DeletedAtUtc);
+        Assert.StartsWith("deleted-team-", deletedTeam.Name);
+        Assert.Equal(deletedTeam.Name, deletedTeam.NormalizedName);
+        Assert.Null(deletedTeam.CaptainUserId);
+        Assert.Null(deletedTeam.LogoUrl);
+        Assert.Empty(team.Members);
+        Assert.False(await dbContext.TeamInvites.AnyAsync(teamInvite => teamInvite.TeamId == team.Id));
+        Assert.True(await dbContext.Games.AnyAsync(g => g.Id == game.Id && g.RegisteredTeams.Any(t => t.Id == team.Id)));
+        Assert.True(await dbContext.Matches.AnyAsync(m => m.Id == match.Id && m.TeamParticipant1Id == team.Id));
+        Assert.True(await dbContext.Placements.AnyAsync(p => p.Id == placement.Id && p.Teams.Any(t => t.Id == team.Id)));
+    }
+
+    [Fact]
+    public async Task DeleteTeamAsync_AllowsDeletedTeamNameToBeReused()
+    {
+        await using var dbContext = CreateDbContext();
+        var originalCaptain = CreateUser();
+        var newCaptain = CreateUser();
+        var team = new Team("Alpha", originalCaptain) { Id = Guid.NewGuid() };
+        dbContext.Users.AddRange(originalCaptain, newCaptain);
+        dbContext.Teams.Add(team);
+        await dbContext.SaveChangesAsync();
+        var teamService = CreateTeamService(dbContext);
+
+        await teamService.DeleteTeamAsync(originalCaptain.Auth0UserId, team.Id);
+        var created = await teamService.CreateCurrentUserTeamAsync(newCaptain.Auth0UserId, new CreateTeamDTO { Name = "Alpha" });
+
+        Assert.Equal("Alpha", created.Name);
+        Assert.NotEqual(team.Id, created.Id);
+    }
+
+    [Fact]
+    public async Task DeletedTeams_AreHiddenFromActiveTeamSurfaces()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
+        dbContext.Users.Add(captain);
+        dbContext.Teams.Add(team);
+        await dbContext.SaveChangesAsync();
+
+        var teamService = CreateTeamService(dbContext);
+
+        await teamService.DeleteTeamAsync(captain.Auth0UserId, team.Id);
+
+        Assert.Empty(teamService.GetAllTeams());
+        Assert.Empty(await teamService.SearchTeamsByNameAsync("alp"));
+        await Assert.ThrowsAsync<NotFoundException>(() => teamService.GetTeamByIdAsync(team.Id));
+        await Assert.ThrowsAsync<NotFoundException>(() => teamService.GetPublicTeamProfileAsync("alpha"));
+        var summary = await teamService.GetCurrentUserTeamSummaryAsync(captain.Auth0UserId);
+        Assert.Empty(summary.CaptainedTeams);
+        Assert.Empty(summary.MemberTeams);
     }
 
     [Fact]

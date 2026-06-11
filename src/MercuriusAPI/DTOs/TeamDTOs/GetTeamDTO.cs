@@ -21,7 +21,7 @@ public class GetTeamDTO
         Name = team.Name;
         LogoUrl = team.LogoUrl;
         Members = team.Members.Select(member => new PublicUserDTO(member));
-        CaptainUserId = team.CaptainUserId;
+        CaptainUserId = team.CaptainUserId ?? Guid.Empty;
     }
 }
 

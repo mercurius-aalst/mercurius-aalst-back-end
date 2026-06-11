@@ -65,12 +65,12 @@ Authenticated user search MUST return only privacy-safe active users with usable
 - **THEN** matching is case-insensitive
 
 ### Requirement: User search database indexes
-Authenticated user search MUST include database indexes aligned with username matching and cursor continuation.
+Authenticated user search MUST use the existing database indexing strategy aligned with normalized username matching.
 
 #### Scenario: Username matching index exists
 - **WHEN** authenticated user search is deployed to PostgreSQL
 - **THEN** the database includes a trigram index on active users' normalized usernames
 
-#### Scenario: Cursor ordering index exists
-- **WHEN** authenticated user search is deployed to PostgreSQL
-- **THEN** the database includes an index supporting normalized username and user id ordering for active users with usernames
+#### Scenario: Dedicated authenticated-search migration not required
+- **WHEN** authenticated user search is deployed alongside the existing public search indexes
+- **THEN** the API does not require an additional authenticated-search-specific migration

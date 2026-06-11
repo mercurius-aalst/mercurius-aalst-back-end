@@ -66,6 +66,19 @@ public static class TeamEndpoints
         })
         .RequireAuthorization();
 
+        group.MapDelete("/{id:guid}/members/{userId:guid}", async (Guid id, Guid userId, ClaimsPrincipal user, ITeamService teamService) =>
+        {
+            return await teamService.RemoveMemberAsync(GetAuth0UserId(user), id, userId);
+        })
+        .RequireAuthorization();
+
+        group.MapDelete("/{id:guid}", async (Guid id, ClaimsPrincipal user, ITeamService teamService) =>
+        {
+            await teamService.DeleteTeamAsync(GetAuth0UserId(user), id);
+            return Results.NoContent();
+        })
+        .RequireAuthorization();
+
         group.MapPost("/{id}/invites/{userId}", async (Guid id, Guid userId, ClaimsPrincipal user, ITeamService teamService) =>
         {
             return await teamService.InviteUserAsync(GetAuth0UserId(user), id, userId);

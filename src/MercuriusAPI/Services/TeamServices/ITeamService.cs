@@ -8,6 +8,7 @@ public interface ITeamService
     Task<GetTeamDTO> CreateTeamAsync(CreateTeamDTO teamDTO);
     Task<TeamManagementSummaryDTO> CreateCurrentUserTeamAsync(string auth0UserId, CreateTeamDTO teamDTO);
     Task DeleteTeamAsync(Guid teamId);
+    Task DeleteTeamAsync(string auth0UserId, Guid teamId);
     IEnumerable<GetTeamDTO> GetAllTeams();
     Task<CurrentUserTeamSummaryDTO> GetCurrentUserTeamSummaryAsync(string auth0UserId);
     Task<PublicTeamProfileDTO> GetPublicTeamProfileAsync(string teamName);
@@ -20,6 +21,7 @@ public interface ITeamService
     Task<TeamInviteDTO> InviteUserAsync(string auth0UserId, Guid teamId, Guid userId);
     Task<TeamInviteDTO> CancelInviteAsync(string auth0UserId, Guid teamId, Guid inviteId);
     Task<GetTeamDTO> RemoveMemberAsync(Guid id, Guid userId);
+    Task<TeamManagementSummaryDTO> RemoveMemberAsync(string auth0UserId, Guid teamId, Guid userId);
     Task<TeamManagementSummaryDTO> LeaveTeamAsync(string auth0UserId, Guid teamId);
     Task<TeamInviteDTO> RespondToInviteAsync(Guid teamId, Guid userId, bool accept);
     Task<TeamInviteDTO> RespondToInviteAsync(string auth0UserId, Guid inviteId, bool accept);

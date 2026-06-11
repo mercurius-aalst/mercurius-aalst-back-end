@@ -52,7 +52,10 @@ public partial class MercuriusDBContext : DbContext
             entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
             entity.Property(e => e.NormalizedName).IsRequired().HasMaxLength(100);
             entity.Property(e => e.LogoUrl).HasMaxLength(260);
-            entity.HasIndex(e => e.NormalizedName).IsUnique();
+            entity.Property(e => e.IsDeleted).IsRequired();
+            entity.HasIndex(e => e.NormalizedName)
+                  .IsUnique()
+                  .HasFilter("\"IsDeleted\" = false");
             entity.HasIndex(e => e.CaptainUserId);
             entity.HasMany(e => e.Members)
                   .WithMany()
@@ -70,7 +73,7 @@ public partial class MercuriusDBContext : DbContext
             entity.HasOne(e => e.Captain)
                    .WithMany()
                    .HasForeignKey(e => e.CaptainUserId)
-                   .IsRequired();
+                   .IsRequired(false);
 
         });
 

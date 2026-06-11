@@ -22,9 +22,13 @@ The API MUST allow a team captain to delete their team only when deletion preser
 - **WHEN** a team is registered for a Scheduled or InProgress team game or tournament
 - **THEN** the API rejects deletion and preserves the team as active
 
+#### Scenario: Completed or canceled participation allows delete
+- **WHEN** a team is registered only for Completed or Canceled team games or tournaments
+- **THEN** the API allows deletion when no other deletion rule blocks it
+
 #### Scenario: Deleted team hidden from active team surfaces
 - **WHEN** a team has been deleted
-- **THEN** active team listing, lookup, search, public profile, and current-user team-management projections MUST exclude the team
+- **THEN** active team listing, lookup, team-name search, public profile, and current-user team-management projections MUST exclude the team
 
 #### Scenario: Historical deleted team references remain readable
 - **WHEN** a deleted team is referenced by completed or canceled games, matches, or placements

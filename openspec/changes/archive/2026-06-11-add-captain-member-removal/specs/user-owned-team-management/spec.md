@@ -34,7 +34,15 @@ The API MUST allow a team captain to remove a non-captain member from their team
 - **WHEN** the team is registered only in completed or canceled team tournaments
 - **THEN** the API allows member removal when no other removal rule blocks it
 
+#### Scenario: Scheduled tournament roster allows removal
+- **WHEN** the team is registered only in scheduled team tournaments
+- **THEN** the API allows member removal when no other removal rule blocks it
+
 ## MODIFIED Requirements
 
 ### Requirement: Captain-only team mutations
 The API MUST allow only the current team captain to invite users, cancel team invitations, remove team members, transfer captainship, and manage the team logo.
+
+#### Scenario: Non-captain member removal is rejected
+- **WHEN** an authenticated user who is not the team captain attempts to remove a team member
+- **THEN** the API rejects the request without changing team membership

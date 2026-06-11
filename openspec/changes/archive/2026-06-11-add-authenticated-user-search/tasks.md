@@ -9,7 +9,7 @@
 - [x] Add user service lookup method with normalized query matching, bounded page size, and cursor continuation.
 - [x] Map authenticated `GET /v1/lan/users?query={query}` on the existing users collection route.
 - [x] Apply the existing search rate-limit setup to authenticated user search requests.
-- [x] Add PostgreSQL indexes for authenticated user search matching and cursor continuation.
+- [x] Verify authenticated user search can reuse the existing PostgreSQL normalized-username search index without adding a dedicated migration.
 
 ## 3. Verification
 

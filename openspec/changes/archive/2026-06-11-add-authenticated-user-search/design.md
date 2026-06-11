@@ -45,10 +45,7 @@ Use the existing search request limits for minimum query length, maximum query l
 
 ## Indexes
 
-The migration adds PostgreSQL indexes scoped to active users with usernames:
-
-- `IX_Users_AuthenticatedSearch_NormalizedUsername_Trgm` supports exact, prefix, and contains matching on `NormalizedUsername`.
-- `IX_Users_AuthenticatedSearch_Cursor` supports deterministic ordering and keyset continuation by `NormalizedUsername` and `Id`.
+Authenticated user search reuses the existing PostgreSQL trigram index on `Users.NormalizedUsername` that supports exact, prefix, and contains matching for active users. The existing unique normalized-username index and bounded page size are sufficient for deterministic cursor ordering by normalized username and user id, so this change does not add a dedicated migration.
 
 ## Privacy
 

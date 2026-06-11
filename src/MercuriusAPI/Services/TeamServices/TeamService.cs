@@ -65,17 +65,23 @@ public class TeamService : ITeamService
     }
     public async Task DeleteTeamAsync(Guid teamId)
     {
-        var team = await _dbContext.Teams.FindAsync(teamId);
+        var team = await _dbContext.Teams
+            .Include(t => t.Members)
+            .Include(t => t.TeamInvites)
+            .FirstOrDefaultAsync(t => t.Id == teamId);
         if (team is null)
             throw new NotFoundException($"{nameof(Team)} not found");
-        team.Delete();
+        team.Delete(DateTime.UtcNow);
         await _dbContext.SaveChangesAsync();
     }
 
     public async Task DeleteTeamAsync(string auth0UserId, Guid teamId)
     {
         var currentUser = await GetCurrentUserAsync(auth0UserId);
-        var team = await GetActiveTeamsQuery().FirstOrDefaultAsync(t => t.Id == teamId);
+        var team = await GetActiveTeamsQuery()
+            .Include(t => t.Members)
+            .Include(t => t.TeamInvites)
+            .FirstOrDefaultAsync(t => t.Id == teamId);
         if (team is null)
             throw new NotFoundException($"{nameof(Team)} not found");
 
@@ -83,7 +89,7 @@ public class TeamService : ITeamService
         if (await IsTeamInDeleteBlockingTournamentAsync(teamId))
             throw new ValidationException("Cannot delete a team that is actively participating in a game or tournament.");
 
-        team.Delete();
+        team.Delete(DateTime.UtcNow);
         await _dbContext.SaveChangesAsync();
     }
 

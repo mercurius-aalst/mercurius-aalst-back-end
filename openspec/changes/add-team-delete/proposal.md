@@ -9,7 +9,7 @@ The front-end needs a way for a team captain to delete a team. A hard delete wou
 ## Scope
 - Add an authenticated `DELETE /v{version}/lan/teams/{id}` route.
 - Allow only the current team's captain to delete the team.
-- Soft-delete teams so historical references remain readable.
+- Anonymize deleted teams so historical references remain readable without retaining the original team name, logo, captain, members, or invites.
 - Block deletion while the team is actively registered for scheduled or in-progress team tournaments/games.
 - Exclude deleted teams from normal team lookup, search, public profile, and current-user team-management projections.
 - Add tests for authorization, blocking rules, soft deletion, and query visibility.
@@ -20,6 +20,6 @@ The front-end needs a way for a team captain to delete a team. A hard delete wou
 - Front-end DTO or client changes.
 
 ## Impact
-- Adds soft-delete fields to `Team` and an EF Core migration.
+- Adds deletion state to `Team`, allows deleted teams to have no captain, and updates the EF Core migration.
 - Reuses existing exception middleware behavior for unauthorized, not-found, and validation responses.
 - No CORS, Auth0, or deployment configuration changes expected.

@@ -8,3 +8,6 @@
 - [x] 2.4 Expose authenticated `DELETE /v{version}/lan/teams/{id}`.
 - [x] 3.1 Add tests for captain-only deletion, non-captain rejection, active participation blocking, historical-data preservation, and deleted-team visibility.
 - [x] 3.2 Run `dotnet test LAN.API.sln`.
+- [x] 4.1 Anonymize deleted teams and detach captain, members, logo, and invites.
+- [x] 4.2 Allow deleted team names to be reused.
+- [x] 4.3 Run `dotnet test LAN.API.sln`.

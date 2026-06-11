@@ -73,7 +73,7 @@ public partial class MercuriusDBContext : DbContext
             entity.HasOne(e => e.Captain)
                    .WithMany()
                    .HasForeignKey(e => e.CaptainUserId)
-                   .IsRequired();
+                   .IsRequired(false);
 
         });
 

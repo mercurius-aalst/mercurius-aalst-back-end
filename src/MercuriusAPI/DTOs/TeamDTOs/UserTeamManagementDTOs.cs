@@ -28,8 +28,8 @@ public class TeamManagementSummaryDTO
     {
         Id = team.Id;
         Name = team.Name;
-        CaptainUserId = team.CaptainUserId;
-        CaptainUsername = team.Captain.Username;
+        CaptainUserId = team.CaptainUserId ?? Guid.Empty;
+        CaptainUsername = team.Captain?.Username;
         LogoUrl = team.LogoUrl;
         Members = team.Members.Select(member => new PublicUserDTO(member));
     }

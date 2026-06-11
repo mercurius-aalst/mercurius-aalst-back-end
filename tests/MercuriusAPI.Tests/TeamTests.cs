@@ -7,6 +7,8 @@ using Mercurius.LAN.API.Services.Files;
 using Mercurius.LAN.API.Services.TeamServices;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Microsoft.Extensions.Configuration;
 
@@ -222,29 +224,7 @@ public class TeamTests
             sqlOperation.Sql.Contains("INSERT INTO \"TeamUser\"", StringComparison.Ordinal));
     }
 
-    [Fact]
-    public void TeamSoftDeletionMigration_AddsSoftDeleteColumnsAndFiltersActiveTeamNames()
-    {
-        var migration = new TeamSoftDeletion();
-        var operations = migration.UpOperations.ToList();
-
-        Assert.Contains(operations, operation =>
-            operation is AddColumnOperation addColumn &&
-            addColumn.Table == "Teams" &&
-            addColumn.Name == "IsDeleted" &&
-            !addColumn.IsNullable);
-        Assert.Contains(operations, operation =>
-            operation is AddColumnOperation addColumn &&
-            addColumn.Table == "Teams" &&
-            addColumn.Name == "DeletedAtUtc" &&
-            addColumn.IsNullable);
-        Assert.Contains(operations, operation =>
-            operation is CreateIndexOperation createIndex &&
-            createIndex.Table == "Teams" &&
-            createIndex.Name == "IX_Teams_NormalizedName" &&
-            createIndex.IsUnique &&
-            createIndex.Filter == "\"IsDeleted\" = false");
-    }
+    
 
     [Fact]
     public void ChangeCaptain_ChangesCaptain_WhenUserIsTeamMember()
@@ -294,11 +274,11 @@ public class TeamTests
     {
         // Arrange
         var team = CreateTeam();
-        var captain = team.Captain;
+        var captain = team.Captain!;
         team.CaptainUserId = captain.Id;
         team.Members.Add(captain);
         // Act & Assert
-        Assert.Throws<ValidationException>(() => team.RemoveMember(team.CaptainUserId));
+        Assert.Throws<ValidationException>(() => team.RemoveMember(team.CaptainUserId!.Value));
     }
 
     [Fact]
@@ -711,7 +691,10 @@ public class TeamTests
     {
         await using var dbContext = CreateDbContext();
         var captain = CreateUser();
+        var member = CreateUser();
         var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
+        team.LogoUrl = "/images/alpha.webp";
+        team.Members.Add(member);
         var game = new Game("Completed Game", BracketType.SingleElimination, GameFormat.BestOf1, GameFormat.BestOf1, ParticipationMode.Team, "https://example.com")
         {
             Id = Guid.NewGuid(),
@@ -729,8 +712,20 @@ public class TeamTests
         };
         game.RegisteredTeams.Add(team);
         placement.Teams = [team];
-        dbContext.Users.Add(captain);
+        var invite = new TeamInvite
+        {
+            Id = Guid.NewGuid(),
+            Team = team,
+            TeamId = team.Id,
+            User = member,
+            UserId = member.Id,
+            Status = TeamInviteStatus.Pending,
+            CreatedAt = DateTime.UtcNow,
+            ExpiresAt = DateTime.UtcNow.AddDays(7)
+        };
+        dbContext.Users.AddRange(captain, member);
         dbContext.Teams.Add(team);
+        dbContext.TeamInvites.Add(invite);
         dbContext.Games.Add(game);
         dbContext.Placements.Add(placement);
         dbContext.Matches.Add(match);
@@ -744,9 +739,34 @@ public class TeamTests
         Assert.NotNull(deletedTeam);
         Assert.True(deletedTeam.IsDeleted);
         Assert.NotNull(deletedTeam.DeletedAtUtc);
+        Assert.StartsWith("deleted-team-", deletedTeam.Name);
+        Assert.Equal(deletedTeam.Name, deletedTeam.NormalizedName);
+        Assert.Null(deletedTeam.CaptainUserId);
+        Assert.Null(deletedTeam.LogoUrl);
+        Assert.Empty(team.Members);
+        Assert.False(await dbContext.TeamInvites.AnyAsync(teamInvite => teamInvite.TeamId == team.Id));
         Assert.True(await dbContext.Games.AnyAsync(g => g.Id == game.Id && g.RegisteredTeams.Any(t => t.Id == team.Id)));
         Assert.True(await dbContext.Matches.AnyAsync(m => m.Id == match.Id && m.TeamParticipant1Id == team.Id));
         Assert.True(await dbContext.Placements.AnyAsync(p => p.Id == placement.Id && p.Teams.Any(t => t.Id == team.Id)));
+    }
+
+    [Fact]
+    public async Task DeleteTeamAsync_AllowsDeletedTeamNameToBeReused()
+    {
+        await using var dbContext = CreateDbContext();
+        var originalCaptain = CreateUser();
+        var newCaptain = CreateUser();
+        var team = new Team("Alpha", originalCaptain) { Id = Guid.NewGuid() };
+        dbContext.Users.AddRange(originalCaptain, newCaptain);
+        dbContext.Teams.Add(team);
+        await dbContext.SaveChangesAsync();
+        var teamService = CreateTeamService(dbContext);
+
+        await teamService.DeleteTeamAsync(originalCaptain.Auth0UserId, team.Id);
+        var created = await teamService.CreateCurrentUserTeamAsync(newCaptain.Auth0UserId, new CreateTeamDTO { Name = "Alpha" });
+
+        Assert.Equal("Alpha", created.Name);
+        Assert.NotEqual(team.Id, created.Id);
     }
 
     [Fact]

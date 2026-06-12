@@ -20,7 +20,6 @@ public class TournamentRegistrationRosterMember
     public Team? Team { get; set; }
     public bool IsCaptain { get; set; }
     public RosterMemberConfirmationStatus ConfirmationStatus { get; set; }
-    public TournamentRosterConfirmationNotification? ConfirmationNotification { get; set; }
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime? ConfirmedAtUtc { get; set; }

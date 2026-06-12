@@ -24,7 +24,6 @@ public partial class MercuriusDBContext : DbContext
     public DbSet<GameSponsorPlacement> GameSponsorPlacements { get; set; }
     public DbSet<TournamentRegistration> TournamentRegistrations { get; set; }
     public DbSet<TournamentRegistrationRosterMember> TournamentRegistrationRosterMembers { get; set; }
-    public DbSet<TournamentRosterConfirmationNotification> TournamentRosterConfirmationNotifications { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -207,29 +206,6 @@ public partial class MercuriusDBContext : DbContext
                   .HasDatabaseName("IX_TournamentRosterMembers_GameId_UserId_PendingActive");
             entity.HasIndex(e => new { e.GameId, e.TeamId, e.UserId });
             entity.HasIndex(e => new { e.TournamentRegistrationId, e.ConfirmationStatus });
-        });
-
-        modelBuilder.Entity<TournamentRosterConfirmationNotification>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.CreatedAtUtc).IsRequired();
-            entity.Property(e => e.ExpiresAtUtc).IsRequired();
-            entity.HasOne(e => e.RosterMember)
-                  .WithOne(e => e.ConfirmationNotification)
-                  .HasForeignKey<TournamentRosterConfirmationNotification>(e => e.TournamentRegistrationRosterMemberId)
-                  .OnDelete(DeleteBehavior.Cascade);
-            entity.HasOne(e => e.Team)
-                  .WithMany()
-                  .HasForeignKey(e => e.TeamId)
-                  .OnDelete(DeleteBehavior.Cascade);
-            entity.HasOne(e => e.User)
-                  .WithMany()
-                  .HasForeignKey(e => e.UserId)
-                  .OnDelete(DeleteBehavior.Cascade);
-            entity.HasIndex(e => e.TournamentRegistrationRosterMemberId)
-                  .IsUnique();
-            entity.HasIndex(e => new { e.UserId, e.ExpiresAtUtc });
-            entity.HasIndex(e => new { e.TeamId, e.UserId });
         });
 
         modelBuilder.Entity<TeamInvite>(entity =>

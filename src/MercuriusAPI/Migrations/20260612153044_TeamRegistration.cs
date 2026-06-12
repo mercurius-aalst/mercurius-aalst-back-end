@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Mercurius.LAN.API.Migrations
 {
     /// <inheritdoc />
-    public partial class InternalTournamentRegistration : Migration
+    public partial class TeamRegistration : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -17,26 +17,9 @@ namespace Mercurius.LAN.API.Migrations
             migrationBuilder.DropTable(
                 name: "GameUser");
 
-            migrationBuilder.DropIndex(
-                name: "IX_TeamInvites_TeamId_UserId_Pending",
-                table: "TeamInvites");
-
             migrationBuilder.DropColumn(
                 name: "RegisterFormUrl",
                 table: "Games");
-
-            migrationBuilder.AddColumn<int>(
-                name: "Purpose",
-                table: "TeamInvites",
-                type: "integer",
-                nullable: false,
-                defaultValue: 0);
-
-            migrationBuilder.AddColumn<Guid>(
-                name: "TournamentRegistrationRosterMemberId",
-                table: "TeamInvites",
-                type: "uuid",
-                nullable: true);
 
             migrationBuilder.AddColumn<int>(
                 name: "TeamSize",
@@ -98,7 +81,6 @@ namespace Mercurius.LAN.API.Migrations
                     TeamId = table.Column<Guid>(type: "uuid", nullable: true),
                     IsCaptain = table.Column<bool>(type: "boolean", nullable: false),
                     ConfirmationStatus = table.Column<int>(type: "integer", nullable: false),
-                    ConfirmationInviteId = table.Column<Guid>(type: "uuid", nullable: true),
                     CreatedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     UpdatedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     ConfirmedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
@@ -112,12 +94,6 @@ namespace Mercurius.LAN.API.Migrations
                         principalTable: "Games",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
-                    table.ForeignKey(
-                        name: "FK_TournamentRegistrationRosterMembers_TeamInvites_Confirmatio~",
-                        column: x => x.ConfirmationInviteId,
-                        principalTable: "TeamInvites",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.SetNull);
                     table.ForeignKey(
                         name: "FK_TournamentRegistrationRosterMembers_Teams_TeamId",
                         column: x => x.TeamId,
@@ -138,22 +114,7 @@ namespace Mercurius.LAN.API.Migrations
                         onDelete: ReferentialAction.Restrict);
                 });
 
-            migrationBuilder.CreateIndex(
-                name: "IX_TeamInvites_TeamId_UserId_Pending",
-                table: "TeamInvites",
-                columns: new[] { "TeamId", "UserId" },
-                unique: true,
-                filter: "\"Status\" = 0 AND \"Purpose\" = 0");
 
-            migrationBuilder.CreateIndex(
-                name: "IX_TeamInvites_TournamentRegistrationRosterMemberId_Purpose",
-                table: "TeamInvites",
-                columns: new[] { "TournamentRegistrationRosterMemberId", "Purpose" });
-
-            migrationBuilder.CreateIndex(
-                name: "IX_TournamentRegistrationRosterMembers_ConfirmationInviteId",
-                table: "TournamentRegistrationRosterMembers",
-                column: "ConfirmationInviteId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_TournamentRegistrationRosterMembers_GameId_TeamId_UserId",
@@ -231,20 +192,12 @@ namespace Mercurius.LAN.API.Migrations
                 name: "TournamentRegistrations");
 
             migrationBuilder.DropIndex(
-                name: "IX_TeamInvites_TeamId_UserId_Pending",
-                table: "TeamInvites");
+                name: "IX_Users_Email",
+                table: "Users");
 
             migrationBuilder.DropIndex(
-                name: "IX_TeamInvites_TournamentRegistrationRosterMemberId_Purpose",
-                table: "TeamInvites");
-
-            migrationBuilder.DropColumn(
-                name: "Purpose",
-                table: "TeamInvites");
-
-            migrationBuilder.DropColumn(
-                name: "TournamentRegistrationRosterMemberId",
-                table: "TeamInvites");
+                name: "IX_Users_Username",
+                table: "Users");
 
             migrationBuilder.DropColumn(
                 name: "TeamSize",
@@ -304,13 +257,6 @@ namespace Mercurius.LAN.API.Migrations
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
-
-            migrationBuilder.CreateIndex(
-                name: "IX_TeamInvites_TeamId_UserId_Pending",
-                table: "TeamInvites",
-                columns: new[] { "TeamId", "UserId" },
-                unique: true,
-                filter: "\"Status\" = 0");
 
             migrationBuilder.CreateIndex(
                 name: "IX_GameTeam_TeamId",

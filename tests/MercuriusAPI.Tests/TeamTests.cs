@@ -894,18 +894,7 @@ public class TeamTests
             TeamId = team.Id,
             RosterMembers = [rosterMember]
         });
-        dbContext.TournamentRosterConfirmationNotifications.Add(new TournamentRosterConfirmationNotification
-        {
-            Id = Guid.NewGuid(),
-            RosterMember = rosterMember,
-            TournamentRegistrationRosterMemberId = rosterMember.Id,
-            Team = team,
-            TeamId = team.Id,
-            User = member,
-            UserId = member.Id,
-            CreatedAtUtc = DateTime.UtcNow,
-            ExpiresAtUtc = DateTime.UtcNow.AddDays(7)
-        });
+
         await dbContext.SaveChangesAsync();
 
         var teamService = CreateTeamService(dbContext);
@@ -972,15 +961,15 @@ public class TeamTests
     }
 
     [Fact]
-    public async Task SignalRTeamEventPublisher_PushesRosterConfirmationNotificationsToUserAndTeamGroups()
+    public async Task SignalRTeamEventPublisher_PushesRosterConfirmationEventsToUserAndTeamGroups()
     {
         var teamId = Guid.NewGuid();
-        var notificationId = Guid.NewGuid();
+        var rosterMemberId = Guid.NewGuid();
         var affectedUserId = Guid.NewGuid();
         var hubContext = new RecordingHubContext();
         var publisher = new SignalRTeamEventPublisher(hubContext);
 
-        await publisher.RosterConfirmationChangedAsync(teamId, notificationId, affectedUserId, "Pending");
+        await publisher.RosterConfirmationChangedAsync(teamId, rosterMemberId, affectedUserId, "Pending");
 
         var send = Assert.Single(hubContext.HubClients.Proxy.Sends);
         Assert.Equal("TournamentRosterConfirmationChanged", send.Method);
@@ -988,7 +977,7 @@ public class TeamTests
         Assert.Contains(SignalRTeamEventPublisher.GetTeamGroup(teamId), hubContext.HubClients.RecordedGroups);
         var payload = Assert.IsType<TournamentRosterConfirmationChangedEvent>(Assert.Single(send.Args));
         Assert.Equal(teamId, payload.TeamId);
-        Assert.Equal(notificationId, payload.NotificationId);
+        Assert.Equal(rosterMemberId, payload.RosterMemberId);
         Assert.Equal(affectedUserId, payload.UserId);
         Assert.Equal("Pending", payload.Status);
     }
@@ -1151,9 +1140,9 @@ public class TeamTests
             return Task.CompletedTask;
         }
 
-        public Task RosterConfirmationChangedAsync(Guid teamId, Guid notificationId, Guid affectedUserId, string status)
+        public Task RosterConfirmationChangedAsync(Guid teamId, Guid rosterMemberId, Guid affectedUserId, string status)
         {
-            RosterConfirmationEvents.Add(new TournamentRosterConfirmationChangedEvent(teamId, notificationId, affectedUserId, status));
+            RosterConfirmationEvents.Add(new TournamentRosterConfirmationChangedEvent(teamId, rosterMemberId, affectedUserId, status));
             return Task.CompletedTask;
         }
 

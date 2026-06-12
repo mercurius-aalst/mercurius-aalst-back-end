@@ -465,39 +465,6 @@ namespace Mercurius.LAN.API.Migrations
                     b.ToTable("TournamentRegistrationRosterMembers");
                 });
 
-            modelBuilder.Entity("Mercurius.LAN.API.Models.TournamentRosterConfirmationNotification", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime>("ExpiresAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("TeamId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("TournamentRegistrationRosterMemberId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TournamentRegistrationRosterMemberId")
-                        .IsUnique();
-
-                    b.HasIndex("TeamId", "UserId");
-
-                    b.HasIndex("UserId", "ExpiresAtUtc");
-
-                    b.ToTable("TournamentRosterConfirmationNotifications");
-                });
-
             modelBuilder.Entity("Mercurius.LAN.API.Models.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -817,33 +784,6 @@ namespace Mercurius.LAN.API.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("Mercurius.LAN.API.Models.TournamentRosterConfirmationNotification", b =>
-                {
-                    b.HasOne("Mercurius.LAN.API.Models.Team", "Team")
-                        .WithMany()
-                        .HasForeignKey("TeamId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("Mercurius.LAN.API.Models.TournamentRegistrationRosterMember", "RosterMember")
-                        .WithOne("ConfirmationNotification")
-                        .HasForeignKey("Mercurius.LAN.API.Models.TournamentRosterConfirmationNotification", "TournamentRegistrationRosterMemberId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("Mercurius.LAN.API.Models.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("RosterMember");
-
-                    b.Navigation("Team");
-
-                    b.Navigation("User");
-                });
-
             modelBuilder.Entity("PlacementTeam", b =>
                 {
                     b.HasOne("Mercurius.LAN.API.Models.Placement", null)
@@ -913,11 +853,6 @@ namespace Mercurius.LAN.API.Migrations
             modelBuilder.Entity("Mercurius.LAN.API.Models.TournamentRegistration", b =>
                 {
                     b.Navigation("RosterMembers");
-                });
-
-            modelBuilder.Entity("Mercurius.LAN.API.Models.TournamentRegistrationRosterMember", b =>
-                {
-                    b.Navigation("ConfirmationNotification");
                 });
 #pragma warning restore 612, 618
         }

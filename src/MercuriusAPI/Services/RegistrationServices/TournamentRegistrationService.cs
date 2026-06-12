@@ -127,7 +127,6 @@ public class TournamentRegistrationService : ITournamentRegistrationService
         var team = await GetTeamWithMembersAsync(request.TeamId);
         var existing = await _dbContext.TournamentRegistrations
             .Include(registration => registration.RosterMembers)
-                .ThenInclude(member => member.ConfirmationNotification)
             .FirstOrDefaultAsync(registration =>
                 registration.GameId == gameId &&
                 registration.TeamId == team.Id &&
@@ -182,12 +181,13 @@ public class TournamentRegistrationService : ITournamentRegistrationService
             registration.Activate(now);
 
         _dbContext.TournamentRegistrations.Add(registration);
-        var notificationEvents = CreateRosterConfirmationNotifications(registration);
-        await SaveRegistrationChangesAsync("One or more roster members already has pending or active participation or roster confirmation notifications for this tournament.");
+        var rosterConfirmationEvents = CreateRosterConfirmationEvents(registration);
+
+        await SaveRegistrationChangesAsync("One or more roster members already has pending or active participation for this tournament.");
         var dto = new TournamentRegistrationDTO(await GetRegistrationByIdAsync(registration.Id));
         if (transaction is not null)
             await transaction.CommitAsync();
-        await PublishRosterConfirmationEventsAsync(notificationEvents);
+        await PublishRosterConfirmationEventsAsync(rosterConfirmationEvents);
         return dto;
     }
 
@@ -196,7 +196,6 @@ public class TournamentRegistrationService : ITournamentRegistrationService
         await using var transaction = await BeginTransactionIfSupportedAsync();
         var user = await GetCurrentUserAsync(auth0UserId);
         var member = await _dbContext.TournamentRegistrationRosterMembers
-            .Include(roster => roster.ConfirmationNotification)
             .Include(roster => roster.TournamentRegistration)
                 .ThenInclude(registration => registration.RosterMembers)
             .Include(roster => roster.TournamentRegistration)
@@ -207,14 +206,6 @@ public class TournamentRegistrationService : ITournamentRegistrationService
             .FirstOrDefaultAsync(roster => roster.Id == rosterMemberId && roster.UserId == user.Id);
         if (member is null || member.ConfirmationStatus != RosterMemberConfirmationStatus.Pending)
             throw new NotFoundException("Pending roster confirmation not found.");
-        if (member.ConfirmationNotification is null)
-            throw new NotFoundException("Pending roster confirmation not found.");
-        if (member.ConfirmationNotification.ExpiresAtUtc <= DateTime.UtcNow)
-        {
-            _dbContext.TournamentRosterConfirmationNotifications.Remove(member.ConfirmationNotification);
-            await _dbContext.SaveChangesAsync();
-            throw new ValidationException("Pending roster confirmation has expired.");
-        }
 
         var registration = member.TournamentRegistration;
         EnsureScheduled(registration.Game);
@@ -226,9 +217,7 @@ public class TournamentRegistrationService : ITournamentRegistrationService
             throw new ValidationException(string.Join(", ", candidateFailures));
 
         var now = DateTime.UtcNow;
-        var notification = member.ConfirmationNotification;
         member.Confirm(now);
-        _dbContext.TournamentRosterConfirmationNotifications.Remove(notification);
         if (registration.RosterMembers.All(roster => roster.ConfirmationStatus is RosterMemberConfirmationStatus.AutoConfirmed or RosterMemberConfirmationStatus.Confirmed))
             registration.Activate(now);
         else
@@ -287,7 +276,7 @@ public class TournamentRegistrationService : ITournamentRegistrationService
                     User = new PublicUserDTO(pendingRoster.User),
                     IsCaptain = pendingRoster.IsCaptain,
                     ConfirmationStatus = pendingRoster.ConfirmationStatus
-            },
+                },
             ActiveTeamRegistration = activeTeam is null ? null : new TournamentRegistrationDTO(activeTeam),
             CaptainManagedRegistrations = captained.Select(registration => new TournamentRegistrationDTO(registration)).ToList(),
             CanRegisterIndividual = game.ParticipationMode == ParticipationMode.Individual &&
@@ -409,41 +398,28 @@ public class TournamentRegistrationService : ITournamentRegistrationService
                    (!excludedRegistrationId.HasValue || member.TournamentRegistrationId != excludedRegistrationId.Value));
     }
 
-    private List<TournamentRosterConfirmationChangedEvent> CreateRosterConfirmationNotifications(TournamentRegistration registration)
+    private static List<TournamentRosterConfirmationChangedEvent> CreateRosterConfirmationEvents(
+     TournamentRegistration registration)
     {
-        var notificationEvents = new List<TournamentRosterConfirmationChangedEvent>();
-        foreach (var member in registration.RosterMembers.Where(member => member.ConfirmationStatus == RosterMemberConfirmationStatus.Pending))
-        {
-            var notification = new TournamentRosterConfirmationNotification
-            {
-                Id = Guid.NewGuid(),
-                TeamId = registration.TeamId!.Value,
-                UserId = member.UserId,
-                TournamentRegistrationRosterMemberId = member.Id,
-                CreatedAtUtc = DateTime.UtcNow,
-                ExpiresAtUtc = DateTime.UtcNow.AddDays(14)
-            };
-            member.ConfirmationNotification = notification;
-            _dbContext.TournamentRosterConfirmationNotifications.Add(notification);
-            notificationEvents.Add(new TournamentRosterConfirmationChangedEvent(
-                notification.TeamId,
-                notification.Id,
-                notification.UserId,
-                nameof(RosterMemberConfirmationStatus.Pending)));
-        }
-
-        return notificationEvents;
+        return registration.RosterMembers
+            .Where(member => member.ConfirmationStatus == RosterMemberConfirmationStatus.Pending)
+            .Select(member => new TournamentRosterConfirmationChangedEvent(
+                registration.TeamId!.Value,
+                member.Id,
+                member.UserId,
+                nameof(RosterMemberConfirmationStatus.Pending)))
+            .ToList();
     }
 
-    private async Task PublishRosterConfirmationEventsAsync(IEnumerable<TournamentRosterConfirmationChangedEvent> notificationEvents)
+    private async Task PublishRosterConfirmationEventsAsync(IEnumerable<TournamentRosterConfirmationChangedEvent> rosterConfirmationEvents)
     {
-        foreach (var notificationEvent in notificationEvents)
+        foreach (var rosterConfirmationEvent in rosterConfirmationEvents)
         {
             await _eventPublisher.RosterConfirmationChangedAsync(
-                notificationEvent.TeamId,
-                notificationEvent.NotificationId,
-                notificationEvent.UserId,
-                notificationEvent.Status);
+                rosterConfirmationEvent.TeamId,
+                rosterConfirmationEvent.RosterMemberId,
+                rosterConfirmationEvent.UserId,
+                rosterConfirmationEvent.Status);
         }
     }
 
@@ -457,7 +433,6 @@ public class TournamentRegistrationService : ITournamentRegistrationService
     {
         var registration = await _dbContext.TournamentRegistrations
             .Include(r => r.RosterMembers)
-                .ThenInclude(member => member.ConfirmationNotification)
             .FirstOrDefaultAsync(r =>
                 r.GameId == gameId &&
                 r.TeamId == teamId &&
@@ -542,8 +517,7 @@ public class TournamentRegistrationService : ITournamentRegistrationService
         for (Exception? current = exception; current is not null; current = current.InnerException)
         {
             if (current.Message.Contains("IX_TournamentRegistrations_", StringComparison.OrdinalIgnoreCase) ||
-                current.Message.Contains("IX_TournamentRosterMembers_", StringComparison.OrdinalIgnoreCase) ||
-                current.Message.Contains("IX_TournamentRosterConfirmationNotifications_", StringComparison.OrdinalIgnoreCase))
+                current.Message.Contains("IX_TournamentRosterMembers_", StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }

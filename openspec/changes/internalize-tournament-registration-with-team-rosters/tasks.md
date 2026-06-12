@@ -11,7 +11,7 @@
 - [x] 2.1 Add a registration service interface and implementation for individual self-registration, individual self-unregistration, team roster submission, roster confirmation, captain roster edits, team unregistration, admin listing, and admin removals.
 - [x] 2.2 Implement shared eligibility checks for tournament state, participation mode, duplicate pending/active participation, current-user identity, captain authority, team membership, deleted users/teams, exact roster size, confirmation state, and admin authorization.
 - [x] 2.3 Add REST eligibility-check service methods and DTOs for individual user eligibility, team registration eligibility, and roster candidate eligibility with fast machine-readable reason codes.
-- [ ] 2.4 Wrap registration and confirmation mutations in transactions and translate database uniqueness conflicts into validation errors.
+- [x] 2.4 Wrap registration and confirmation mutations in transactions and translate database uniqueness conflicts into validation errors.
 - [x] 2.5 Reuse or extend the existing team-invite notification infrastructure to publish roster confirmation notifications for selected non-captain members and auto-confirm captains.
 - [x] 2.6 Physically delete transient pending registrations, roster rows, and roster confirmation notifications when a team unregisters, a captain replaces a roster, or an admin removes a pending team registration so stale data does not accumulate.
 - [x] 2.7 Update match-generation inputs to use active confirmed internal registrations and exact team rosters without changing bracket behavior.

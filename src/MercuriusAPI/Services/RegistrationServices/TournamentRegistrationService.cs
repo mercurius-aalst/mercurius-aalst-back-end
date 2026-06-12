@@ -5,6 +5,7 @@ using Mercurius.LAN.API.Exceptions;
 using Mercurius.LAN.API.Models;
 using Mercurius.LAN.API.Services.TeamServices;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Mercurius.LAN.API.Services.RegistrationServices;
 
@@ -68,6 +69,7 @@ public class TournamentRegistrationService : ITournamentRegistrationService
 
     public async Task<TournamentRegistrationDTO> RegisterIndividualAsync(string auth0UserId, Guid gameId)
     {
+        await using var transaction = await BeginTransactionIfSupportedAsync();
         var user = await GetCurrentUserAsync(auth0UserId);
         var game = await GetGameAsync(gameId);
         var reasons = await GetIndividualEligibilityFailuresAsync(game, user.Id);
@@ -89,11 +91,15 @@ public class TournamentRegistrationService : ITournamentRegistrationService
 
         _dbContext.TournamentRegistrations.Add(registration);
         await SaveRegistrationChangesAsync("User already has pending or active participation for this tournament.");
-        return new TournamentRegistrationDTO(await GetRegistrationByIdAsync(registration.Id));
+        var dto = new TournamentRegistrationDTO(await GetRegistrationByIdAsync(registration.Id));
+        if (transaction is not null)
+            await transaction.CommitAsync();
+        return dto;
     }
 
     public async Task UnregisterIndividualAsync(string auth0UserId, Guid gameId)
     {
+        await using var transaction = await BeginTransactionIfSupportedAsync();
         var user = await GetCurrentUserAsync(auth0UserId);
         var game = await GetGameAsync(gameId);
         EnsureScheduled(game);
@@ -109,10 +115,13 @@ public class TournamentRegistrationService : ITournamentRegistrationService
 
         _dbContext.TournamentRegistrations.Remove(registration);
         await _dbContext.SaveChangesAsync();
+        if (transaction is not null)
+            await transaction.CommitAsync();
     }
 
     public async Task<TournamentRegistrationDTO> SubmitTeamRosterAsync(string auth0UserId, Guid gameId, SubmitTeamRosterDTO request)
     {
+        await using var transaction = await BeginTransactionIfSupportedAsync();
         var user = await GetCurrentUserAsync(auth0UserId);
         var game = await GetGameAsync(gameId);
         var team = await GetTeamWithMembersAsync(request.TeamId);
@@ -173,16 +182,18 @@ public class TournamentRegistrationService : ITournamentRegistrationService
             registration.Activate(now);
 
         _dbContext.TournamentRegistrations.Add(registration);
-        await SaveRegistrationChangesAsync("One or more roster members already has pending or active participation for this tournament.");
-
-        registration = await GetRegistrationByIdAsync(registration.Id);
-        await CreateRosterConfirmationInvitesAsync(registration);
-        await SaveRegistrationChangesAsync("One or more roster members already has pending roster confirmation notifications.");
-        return new TournamentRegistrationDTO(await GetRegistrationByIdAsync(registration.Id));
+        var inviteEvents = CreateRosterConfirmationInvites(registration);
+        await SaveRegistrationChangesAsync("One or more roster members already has pending or active participation or roster confirmation notifications for this tournament.");
+        var dto = new TournamentRegistrationDTO(await GetRegistrationByIdAsync(registration.Id));
+        if (transaction is not null)
+            await transaction.CommitAsync();
+        await PublishInviteEventsAsync(inviteEvents);
+        return dto;
     }
 
     public async Task<TournamentRegistrationDTO> ConfirmRosterAsync(string auth0UserId, Guid rosterMemberId)
     {
+        await using var transaction = await BeginTransactionIfSupportedAsync();
         var user = await GetCurrentUserAsync(auth0UserId);
         var member = await _dbContext.TournamentRegistrationRosterMembers
             .Include(roster => roster.TournamentRegistration)
@@ -213,11 +224,15 @@ public class TournamentRegistrationService : ITournamentRegistrationService
             registration.UpdatedAtUtc = now;
 
         await SaveRegistrationChangesAsync("User already has pending or active participation for this tournament.");
-        return new TournamentRegistrationDTO(await GetRegistrationByIdAsync(registration.Id));
+        var dto = new TournamentRegistrationDTO(await GetRegistrationByIdAsync(registration.Id));
+        if (transaction is not null)
+            await transaction.CommitAsync();
+        return dto;
     }
 
     public async Task UnregisterTeamAsync(string auth0UserId, Guid gameId, Guid teamId)
     {
+        await using var transaction = await BeginTransactionIfSupportedAsync();
         var user = await GetCurrentUserAsync(auth0UserId);
         var game = await GetGameAsync(gameId);
         EnsureScheduled(game);
@@ -227,12 +242,14 @@ public class TournamentRegistrationService : ITournamentRegistrationService
         var registration = await GetTeamRegistrationForMutationAsync(gameId, teamId);
         await DeleteTransientTeamRegistrationAsync(registration);
         await _dbContext.SaveChangesAsync();
+        if (transaction is not null)
+            await transaction.CommitAsync();
     }
 
     public async Task<CurrentUserTournamentRegistrationStateDTO> GetCurrentUserStateAsync(string auth0UserId, Guid gameId)
     {
         var user = await GetCurrentUserAsync(auth0UserId);
-        _ = await GetGameAsync(gameId);
+        var game = await GetGameAsync(gameId);
         var registrations = await GetRegistrationQuery()
             .Where(registration => registration.GameId == gameId)
             .ToListAsync();
@@ -259,10 +276,14 @@ public class TournamentRegistrationService : ITournamentRegistrationService
                     User = new PublicUserDTO(pendingRoster.User),
                     IsCaptain = pendingRoster.IsCaptain,
                     ConfirmationStatus = pendingRoster.ConfirmationStatus
-                },
+            },
             ActiveTeamRegistration = activeTeam is null ? null : new TournamentRegistrationDTO(activeTeam),
             CaptainManagedRegistrations = captained.Select(registration => new TournamentRegistrationDTO(registration)).ToList(),
-            CanRegisterIndividual = individual is null && activeTeam is null && pendingRoster is null,
+            CanRegisterIndividual = game.ParticipationMode == ParticipationMode.Individual &&
+                                    game.Status == GameStatus.Scheduled &&
+                                    individual is null &&
+                                    activeTeam is null &&
+                                    pendingRoster is null,
             CanConfirmRoster = pendingRoster is not null,
             CanUnregister = individual is not null || activeTeam is not null || captained.Any()
         };
@@ -283,6 +304,7 @@ public class TournamentRegistrationService : ITournamentRegistrationService
 
     public async Task RemoveIndividualAsAdminAsync(Guid gameId, Guid userId, string? reason, string? adminAuth0UserId)
     {
+        await using var transaction = await BeginTransactionIfSupportedAsync();
         var admin = string.IsNullOrWhiteSpace(adminAuth0UserId) ? null : await GetCurrentUserAsync(adminAuth0UserId);
         var registration = await _dbContext.TournamentRegistrations.FirstOrDefaultAsync(registration =>
             registration.GameId == gameId &&
@@ -293,14 +315,19 @@ public class TournamentRegistrationService : ITournamentRegistrationService
 
         _dbContext.TournamentRegistrations.Remove(registration);
         await _dbContext.SaveChangesAsync();
+        if (transaction is not null)
+            await transaction.CommitAsync();
     }
 
     public async Task RemoveTeamAsAdminAsync(Guid gameId, Guid teamId, string? reason, string? adminAuth0UserId)
     {
+        await using var transaction = await BeginTransactionIfSupportedAsync();
         var admin = string.IsNullOrWhiteSpace(adminAuth0UserId) ? null : await GetCurrentUserAsync(adminAuth0UserId);
         var registration = await GetTeamRegistrationForMutationAsync(gameId, teamId);
         await DeleteTransientTeamRegistrationAsync(registration);
         await _dbContext.SaveChangesAsync();
+        if (transaction is not null)
+            await transaction.CommitAsync();
     }
 
     private async Task<List<string>> GetIndividualEligibilityFailuresAsync(Game game, Guid userId)
@@ -371,8 +398,9 @@ public class TournamentRegistrationService : ITournamentRegistrationService
                    (!excludedRegistrationId.HasValue || member.TournamentRegistrationId != excludedRegistrationId.Value));
     }
 
-    private async Task CreateRosterConfirmationInvitesAsync(TournamentRegistration registration)
+    private List<TeamInviteChangedEvent> CreateRosterConfirmationInvites(TournamentRegistration registration)
     {
+        var inviteEvents = new List<TeamInviteChangedEvent>();
         foreach (var member in registration.RosterMembers.Where(member => member.ConfirmationStatus == RosterMemberConfirmationStatus.Pending))
         {
             var invite = new TeamInvite
@@ -388,7 +416,17 @@ public class TournamentRegistrationService : ITournamentRegistrationService
             member.ConfirmationInvite = invite;
             member.ConfirmationInviteId = invite.Id;
             _dbContext.TeamInvites.Add(invite);
-            await _eventPublisher.InviteChangedAsync(invite.TeamId, invite.Id, invite.UserId, invite.Status.ToString());
+            inviteEvents.Add(new TeamInviteChangedEvent(invite.TeamId, invite.Id, invite.UserId, invite.Status.ToString()));
+        }
+
+        return inviteEvents;
+    }
+
+    private async Task PublishInviteEventsAsync(IEnumerable<TeamInviteChangedEvent> inviteEvents)
+    {
+        foreach (var inviteEvent in inviteEvents)
+        {
+            await _eventPublisher.InviteChangedAsync(inviteEvent.TeamId, inviteEvent.InviteId, inviteEvent.UserId, inviteEvent.Status);
         }
     }
 
@@ -501,5 +539,13 @@ public class TournamentRegistrationService : ITournamentRegistrationService
         }
 
         return false;
+    }
+
+    private async Task<IDbContextTransaction?> BeginTransactionIfSupportedAsync()
+    {
+        if (_dbContext.Database.ProviderName == "Microsoft.EntityFrameworkCore.InMemory")
+            return null;
+
+        return await _dbContext.Database.BeginTransactionAsync();
     }
 }

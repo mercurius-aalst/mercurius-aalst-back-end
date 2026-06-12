@@ -65,6 +65,49 @@ public class TournamentRegistrationServiceTests
     }
 
     [Fact]
+    public async Task RegistrationMutations_AreSpecificToTournamentParticipationMode()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser("captain");
+        var member = CreateUser("member");
+        var team = CreateTeam(captain, member);
+        var individualGame = CreateIndividualGame();
+        var teamGame = CreateTeamGame(teamSize: 2);
+        dbContext.Users.AddRange(captain, member);
+        dbContext.Teams.Add(team);
+        dbContext.Games.AddRange(individualGame, teamGame);
+        await dbContext.SaveChangesAsync();
+        var service = CreateService(dbContext);
+
+        var individualOnTeam = await Assert.ThrowsAsync<ValidationException>(() => service.RegisterIndividualAsync(captain.Auth0UserId, teamGame.Id));
+        Assert.Contains("not_individual_tournament", individualOnTeam.Message);
+
+        var teamOnIndividualEligibility = await service.CheckTeamEligibilityAsync(captain.Auth0UserId, individualGame.Id, team.Id);
+        Assert.False(teamOnIndividualEligibility.Eligible);
+        Assert.Contains("not_team_tournament", teamOnIndividualEligibility.ReasonCodes);
+
+        var teamOnIndividual = await Assert.ThrowsAsync<ValidationException>(() =>
+            service.SubmitTeamRosterAsync(captain.Auth0UserId, individualGame.Id, new SubmitTeamRosterDTO(team.Id, [captain.Id, member.Id])));
+        Assert.Contains("not_team_tournament", teamOnIndividual.Message);
+    }
+
+    [Fact]
+    public async Task GetCurrentUserStateAsync_DoesNotOfferIndividualRegistrationForTeamTournament()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = CreateUser("captain");
+        var game = CreateTeamGame(teamSize: 2);
+        dbContext.Users.Add(user);
+        dbContext.Games.Add(game);
+        await dbContext.SaveChangesAsync();
+        var service = CreateService(dbContext);
+
+        var state = await service.GetCurrentUserStateAsync(user.Auth0UserId, game.Id);
+
+        Assert.False(state.CanRegisterIndividual);
+    }
+
+    [Fact]
     public async Task SubmitTeamRosterAsync_CreatesPendingRosterNotificationsAndConfirmingActivatesTeam()
     {
         await using var dbContext = CreateDbContext();
@@ -92,6 +135,28 @@ public class TournamentRegistrationServiceTests
 
         Assert.Equal(TournamentRegistrationStatus.Active, active.Status);
         Assert.Contains(active.RosterMembers, roster => roster.User.Id == member.Id && roster.ConfirmationStatus == RosterMemberConfirmationStatus.Confirmed);
+    }
+
+    [Fact]
+    public async Task SubmitTeamRosterAsync_PersistsConfirmationNotificationsBeforePublishingEvents()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser("captain");
+        var member = CreateUser("member");
+        var team = CreateTeam(captain, member);
+        var game = CreateTeamGame(teamSize: 2);
+        dbContext.Users.AddRange(captain, member);
+        dbContext.Teams.Add(team);
+        dbContext.Games.Add(game);
+        await dbContext.SaveChangesAsync();
+        var service = CreateService(dbContext, new ThrowingTeamEventPublisher());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.SubmitTeamRosterAsync(captain.Auth0UserId, game.Id, new SubmitTeamRosterDTO(team.Id, [captain.Id, member.Id])));
+
+        dbContext.ChangeTracker.Clear();
+        Assert.True(await dbContext.TournamentRegistrations.AnyAsync(registration => registration.GameId == game.Id && registration.TeamId == team.Id));
+        Assert.True(await dbContext.TeamInvites.AnyAsync(invite => invite.TeamId == team.Id && invite.UserId == member.Id && invite.Purpose == TeamInvitePurpose.TournamentRosterConfirmation));
     }
 
     [Fact]
@@ -179,6 +244,18 @@ public class TournamentRegistrationServiceTests
         {
             InviteEvents.Add(new TeamInviteChangedEvent(teamId, inviteId, affectedUserId, status));
             return Task.CompletedTask;
+        }
+
+        public Task MembershipChangedAsync(Guid teamId, Guid affectedUserId, string action) => Task.CompletedTask;
+
+        public Task CaptainTransferredAsync(Guid teamId, Guid newCaptainUserId) => Task.CompletedTask;
+    }
+
+    private sealed class ThrowingTeamEventPublisher : ITeamEventPublisher
+    {
+        public Task InviteChangedAsync(Guid teamId, Guid inviteId, Guid affectedUserId, string status)
+        {
+            throw new InvalidOperationException("event publishing failed");
         }
 
         public Task MembershipChangedAsync(Guid teamId, Guid affectedUserId, string action) => Task.CompletedTask;

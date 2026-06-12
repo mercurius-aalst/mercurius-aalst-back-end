@@ -31,9 +31,15 @@ public partial class MercuriusDBContext : DbContext
         modelBuilder.Entity<User>(entity =>
         {
             entity.HasIndex(e => e.Auth0UserId).IsUnique();
+            entity.HasIndex(e => e.Username)
+                  .IsUnique()
+                  .HasFilter("\"Username\" IS NOT NULL AND \"IsDeleted\" = false");
             entity.HasIndex(e => e.NormalizedUsername)
                   .IsUnique()
                   .HasFilter("\"NormalizedUsername\" IS NOT NULL AND \"IsDeleted\" = false");
+            entity.HasIndex(e => e.Email)
+                  .IsUnique()
+                  .HasFilter("\"Email\" IS NOT NULL AND \"IsDeleted\" = false");
             entity.Property(e => e.Auth0UserId).IsRequired().HasMaxLength(200);
             entity.Property(e => e.Username).HasMaxLength(32);
             entity.Property(e => e.NormalizedUsername).HasMaxLength(32);

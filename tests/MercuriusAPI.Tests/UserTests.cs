@@ -1,11 +1,14 @@
 using Mercurius.LAN.API.DTOs.Auth;
 using Mercurius.LAN.API.Data;
 using Mercurius.LAN.API.Exceptions;
+using Mercurius.LAN.API.Migrations;
 using Mercurius.LAN.API.Models;
 using Mercurius.LAN.API.Services.SearchServices;
 using Mercurius.LAN.API.Services.Auth0;
 using Mercurius.LAN.API.Services.UserServices;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using System.Reflection;
 using System.Text.Json;
 
@@ -13,6 +16,42 @@ namespace Mercurius.LAN.API.Tests;
 
 public class UserTests
 {
+    [Fact]
+    public void UserModel_EnforcesUserIdentityUniqueness()
+    {
+        using var dbContext = CreateDbContext();
+        var entityType = dbContext.Model.FindEntityType(typeof(User));
+
+        Assert.NotNull(entityType);
+        Assert.Equal([nameof(User.Id)], entityType.FindPrimaryKey()?.Properties.Select(property => property.Name).ToArray());
+
+        var indexes = entityType.GetIndexes().ToList();
+        AssertUniqueIndex(indexes, nameof(User.Auth0UserId), filter: null);
+        AssertUniqueIndex(indexes, nameof(User.Username), "\"Username\" IS NOT NULL AND \"IsDeleted\" = false");
+        AssertUniqueIndex(indexes, nameof(User.NormalizedUsername), "\"NormalizedUsername\" IS NOT NULL AND \"IsDeleted\" = false");
+        AssertUniqueIndex(indexes, nameof(User.Email), "\"Email\" IS NOT NULL AND \"IsDeleted\" = false");
+    }
+
+    [Fact]
+    public void UserIdentityUniquenessMigration_AddsFilteredUsernameAndEmailIndexes()
+    {
+        var migration = new UserIdentityUniqueness();
+        var operations = migration.UpOperations.ToList();
+
+        Assert.Contains(operations, operation =>
+            operation is CreateIndexOperation createIndex &&
+            createIndex.Table == "Users" &&
+            createIndex.Name == "IX_Users_Username" &&
+            createIndex.IsUnique &&
+            createIndex.Filter == "\"Username\" IS NOT NULL AND \"IsDeleted\" = false");
+        Assert.Contains(operations, operation =>
+            operation is CreateIndexOperation createIndex &&
+            createIndex.Table == "Users" &&
+            createIndex.Name == "IX_Users_Email" &&
+            createIndex.IsUnique &&
+            createIndex.Filter == "\"Email\" IS NOT NULL AND \"IsDeleted\" = false");
+    }
+
     [Fact]
     public void UpdateLocalProfile_UpdatesAppOwnedProfileFields()
     {
@@ -690,6 +729,15 @@ public class UserTests
             .Options;
 
         return new MercuriusDBContext(options);
+    }
+
+    private static void AssertUniqueIndex(IEnumerable<IIndex> indexes, string propertyName, string? filter)
+    {
+        var index = Assert.Single(indexes, candidate =>
+            candidate.Properties.Select(property => property.Name).SequenceEqual([propertyName]));
+
+        Assert.True(index.IsUnique);
+        Assert.Equal(filter, index.GetFilter());
     }
 
     private static User CreateStoredUser(string auth0UserId, string email, string username = "PlayerOne")

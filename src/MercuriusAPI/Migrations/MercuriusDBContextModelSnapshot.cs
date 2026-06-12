@@ -453,10 +453,17 @@ namespace Mercurius.LAN.API.Migrations
                     b.HasIndex("Auth0UserId")
                         .IsUnique();
 
+                    b.HasIndex("Email")
+                        .IsUnique()
+                        .HasFilter("\"Email\" IS NOT NULL AND \"IsDeleted\" = false");
+
                     b.HasIndex("NormalizedUsername")
                         .IsUnique()
                         .HasFilter("\"NormalizedUsername\" IS NOT NULL AND \"IsDeleted\" = false");
 
+                    b.HasIndex("Username")
+                        .IsUnique()
+                        .HasFilter("\"Username\" IS NOT NULL AND \"IsDeleted\" = false");
                     b.ToTable("Users");
                 });
 

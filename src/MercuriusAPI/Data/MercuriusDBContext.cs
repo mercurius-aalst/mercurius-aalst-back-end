@@ -22,6 +22,8 @@ public partial class MercuriusDBContext : DbContext
     public DbSet<Placement> Placements { get; set; }
     public DbSet<Sponsor> Sponsors { get; set; }
     public DbSet<GameSponsorPlacement> GameSponsorPlacements { get; set; }
+    public DbSet<TournamentRegistration> TournamentRegistrations { get; set; }
+    public DbSet<TournamentRegistrationRosterMember> TournamentRegistrationRosterMembers { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -31,9 +33,15 @@ public partial class MercuriusDBContext : DbContext
         modelBuilder.Entity<User>(entity =>
         {
             entity.HasIndex(e => e.Auth0UserId).IsUnique();
+            entity.HasIndex(e => e.Username)
+                  .IsUnique()
+                  .HasFilter("\"Username\" IS NOT NULL AND \"IsDeleted\" = false");
             entity.HasIndex(e => e.NormalizedUsername)
                   .IsUnique()
                   .HasFilter("\"NormalizedUsername\" IS NOT NULL AND \"IsDeleted\" = false");
+            entity.HasIndex(e => e.Email)
+                  .IsUnique()
+                  .HasFilter("\"Email\" IS NOT NULL AND \"IsDeleted\" = false");
             entity.Property(e => e.Auth0UserId).IsRequired().HasMaxLength(200);
             entity.Property(e => e.Username).HasMaxLength(32);
             entity.Property(e => e.NormalizedUsername).HasMaxLength(32);
@@ -127,37 +135,77 @@ public partial class MercuriusDBContext : DbContext
             entity.Property(e => e.AverageGameDurationMinutes).IsRequired();
             entity.Property(e => e.RoundBreakDurationMinutes).IsRequired();
             entity.Property(e => e.EstimatedEndTime).IsRequired(false);
+            entity.Property(e => e.TeamSize).IsRequired(false);
             entity.HasOne(e => e.SponsorPlacement)
                   .WithOne(e => e.Game)
                   .HasForeignKey<GameSponsorPlacement>(e => e.GameId)
                   .OnDelete(DeleteBehavior.Cascade);
-            entity.HasMany(e => e.RegisteredUsers)
-                  .WithMany()
-                  .UsingEntity<Dictionary<string, object>>(
-                      "GameUser",
-                      j => j.HasOne<User>()
-                          .WithMany()
-                          .HasForeignKey("UserId")
-                          .OnDelete(DeleteBehavior.Cascade),
-                      j => j.HasOne<Game>()
-                          .WithMany()
-                          .HasForeignKey("GameId")
-                          .OnDelete(DeleteBehavior.Cascade),
-                      j => j.HasKey("GameId", "UserId"));
-            entity.HasMany(e => e.RegisteredTeams)
-                  .WithMany()
-                  .UsingEntity<Dictionary<string, object>>(
-                      "GameTeam",
-                      j => j.HasOne<Team>()
-                          .WithMany()
-                          .HasForeignKey("TeamId")
-                          .OnDelete(DeleteBehavior.Cascade),
-                      j => j.HasOne<Game>()
-                          .WithMany()
-                          .HasForeignKey("GameId")
-                          .OnDelete(DeleteBehavior.Cascade),
-                      j => j.HasKey("GameId", "TeamId"));
 
+        });
+
+        modelBuilder.Entity<TournamentRegistration>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Kind).IsRequired();
+            entity.Property(e => e.Status).IsRequired();
+            entity.Property(e => e.CreatedAtUtc).IsRequired();
+            entity.Property(e => e.UpdatedAtUtc).IsRequired();
+            entity.HasOne(e => e.Game)
+                  .WithMany(e => e.TournamentRegistrations)
+                  .HasForeignKey(e => e.GameId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.RegisteredByUser)
+                  .WithMany()
+                  .HasForeignKey(e => e.RegisteredByUserId)
+                  .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(e => e.User)
+                  .WithMany()
+                  .HasForeignKey(e => e.UserId)
+                  .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(e => e.Team)
+                  .WithMany()
+                  .HasForeignKey(e => e.TeamId)
+                  .OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(e => new { e.GameId, e.UserId })
+                  .IsUnique()
+                  .HasFilter("\"UserId\" IS NOT NULL")
+                  .HasDatabaseName("IX_TournamentRegistrations_GameId_UserId_PendingActive");
+            entity.HasIndex(e => new { e.GameId, e.TeamId })
+                  .IsUnique()
+                  .HasFilter("\"TeamId\" IS NOT NULL")
+                  .HasDatabaseName("IX_TournamentRegistrations_GameId_TeamId_PendingActive");
+            entity.HasIndex(e => new { e.GameId, e.RegisteredByUserId })
+                  .HasDatabaseName("IX_TournamentRegistrations_GameId_RegisteredBy_PendingActive");
+            entity.HasIndex(e => new { e.GameId, e.Status, e.Kind });
+        });
+
+        modelBuilder.Entity<TournamentRegistrationRosterMember>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.ConfirmationStatus).IsRequired();
+            entity.Property(e => e.CreatedAtUtc).IsRequired();
+            entity.Property(e => e.UpdatedAtUtc).IsRequired();
+            entity.HasOne(e => e.TournamentRegistration)
+                  .WithMany(e => e.RosterMembers)
+                  .HasForeignKey(e => e.TournamentRegistrationId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Game)
+                  .WithMany()
+                  .HasForeignKey(e => e.GameId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.User)
+                  .WithMany()
+                  .HasForeignKey(e => e.UserId)
+                  .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(e => e.Team)
+                  .WithMany()
+                  .HasForeignKey(e => e.TeamId)
+                  .OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(e => new { e.GameId, e.UserId })
+                  .IsUnique()
+                  .HasDatabaseName("IX_TournamentRosterMembers_GameId_UserId_PendingActive");
+            entity.HasIndex(e => new { e.GameId, e.TeamId, e.UserId });
+            entity.HasIndex(e => new { e.TournamentRegistrationId, e.ConfirmationStatus });
         });
 
         modelBuilder.Entity<TeamInvite>(entity =>

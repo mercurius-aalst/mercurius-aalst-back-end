@@ -104,8 +104,8 @@ public class SingleEliminationMatchModerator : IMatchModerator
     {
         return game.ParticipationMode switch
         {
-            ParticipationMode.Individual => GenerateMatchesForGame(game, game.RegisteredUsers.OrderBy(_ => Guid.NewGuid()).ToList(), (match, p1, p2) => match.SetParticipants(p1, p2)),
-            ParticipationMode.Team => GenerateMatchesForGame(game, game.RegisteredTeams.OrderBy(_ => Guid.NewGuid()).ToList(), (match, p1, p2) => match.SetParticipants(p1, p2)),
+            ParticipationMode.Individual => GenerateMatchesForGame(game, game.GetActiveRegisteredUsers().OrderBy(_ => Guid.NewGuid()).ToList(), (match, p1, p2) => match.SetParticipants(p1, p2)),
+            ParticipationMode.Team => GenerateMatchesForGame(game, game.GetActiveRegisteredTeams().OrderBy(_ => Guid.NewGuid()).ToList(), (match, p1, p2) => match.SetParticipants(p1, p2)),
             _ => throw new ValidationException($"Unsupported participation mode {game.ParticipationMode}.")
         };
     }

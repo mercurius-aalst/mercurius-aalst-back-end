@@ -15,9 +15,7 @@ public class CreateGameDTO
     public ParticipationMode? ParticipationMode { get; set; }
     [Required]
     public IFormFile Image { get; set; }
-    [Required]
-    [StringLength(500, MinimumLength = 1)]
-    public string RegisterFormUrl { get; set; }
+    public int? TeamSize { get; set; }
     [Required]
     public DateTime PlannedStartTime { get; set; }
     [Range(1, 1440)]

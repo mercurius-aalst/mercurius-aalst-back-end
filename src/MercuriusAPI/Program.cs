@@ -123,6 +123,7 @@ public class Program
         app.UseSecuredSwaggerUI();
 
         app.MapGameEndpoints();
+        app.MapTournamentRegistrationEndpoints();
         app.MapMatchEndpoints();
         app.MapTeamEndpoints();
         app.MapSponsorEndpoints();

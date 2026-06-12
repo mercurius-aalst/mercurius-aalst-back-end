@@ -36,7 +36,7 @@ public class GameService : IGameService
             createGameDTO.Format,
             createGameDTO.FinalsFormat,
             createGameDTO.ParticipationMode!.Value,
-            createGameDTO.RegisterFormUrl,
+            createGameDTO.TeamSize,
             createGameDTO.PlannedStartTime.EnsureUtc(),
             createGameDTO.AverageGameDurationMinutes,
             createGameDTO.RoundBreakDurationMinutes);
@@ -52,8 +52,14 @@ public class GameService : IGameService
     public async Task<Game> GetGameByIdAsync(Guid gameId)
     {
         var game = await CreateDetailedGameQuery()
-            .Include(g => g.RegisteredUsers)
-            .Include(g => g.RegisteredTeams)
+            .Include(g => g.TournamentRegistrations)
+                .ThenInclude(registration => registration.User)
+            .Include(g => g.TournamentRegistrations)
+                .ThenInclude(registration => registration.Team)
+                    .ThenInclude(team => team!.Members)
+            .Include(g => g.TournamentRegistrations)
+                .ThenInclude(registration => registration.RosterMembers)
+                    .ThenInclude(member => member.User)
             .Include(g => g.Matches)
             .Include(g => g.Placements)
                 .ThenInclude(p => p.Users)
@@ -70,8 +76,14 @@ public class GameService : IGameService
     public IEnumerable<GetGameDTO> GetAllGames()
     {
         return CreateDetailedGameQuery()
-            .Include(g => g.RegisteredUsers)
-            .Include(g => g.RegisteredTeams)
+            .Include(g => g.TournamentRegistrations)
+                .ThenInclude(registration => registration.User)
+            .Include(g => g.TournamentRegistrations)
+                .ThenInclude(registration => registration.Team)
+                    .ThenInclude(team => team!.Members)
+            .Include(g => g.TournamentRegistrations)
+                .ThenInclude(registration => registration.RosterMembers)
+                    .ThenInclude(member => member.User)
             .Include(g => g.Matches)
             .Include(g => g.SponsorPlacement)
                 .ThenInclude(placement => placement!.Sponsor)
@@ -91,7 +103,7 @@ public class GameService : IGameService
             gameDTO.Format,
             gameDTO.FinalsFormat,
             gameDTO.ParticipationMode!.Value,
-            gameDTO.RegisterFormUrl,
+            gameDTO.TeamSize,
             gameDTO.PlannedStartTime.EnsureUtc(),
             gameDTO.AverageGameDurationMinutes,
             gameDTO.RoundBreakDurationMinutes);
@@ -102,7 +114,6 @@ public class GameService : IGameService
             game.ImageUrl = bannerPath;
         }
 
-        _dbContext.Games.Update(game);
         await _dbContext.SaveChangesAsync();
         return new GetGameDTO(await GetGameByIdAsync(game.Id));
     }
@@ -120,7 +131,6 @@ public class GameService : IGameService
     {
         var game = await GetGameByIdAsync(id);
         game.Cancel();
-        _dbContext.Games.Update(game);
         await _dbContext.SaveChangesAsync();
     }
 
@@ -132,7 +142,6 @@ public class GameService : IGameService
         game.Matches = matchGenerator.GenerateMatchesForGame(game).ToList();
         AssignEstimatedSchedule(game);
 
-        _dbContext.Games.Update(game);
         await _dbContext.SaveChangesAsync();
     }
 
@@ -144,7 +153,6 @@ public class GameService : IGameService
         var matchModerator = _matchGeneratorFactory.GetMatchModerator(game.BracketType);
         matchModerator.DeterminePlacements(game);
 
-        _dbContext.Games.Update(game);
         await _dbContext.SaveChangesAsync();
         return game.Placements.Select(p => new GetPlacementDTO(p, game.ParticipationMode));
     }
@@ -153,58 +161,7 @@ public class GameService : IGameService
     {
         var game = await GetGameByIdAsync(id);
         game.Reset();
-        _dbContext.Games.Update(game);
         await _dbContext.SaveChangesAsync();
-    }
-
-    public async Task<GetGameDTO> RegisterUserAsync(Guid id, Guid userId)
-    {
-        var game = await GetGameByIdAsync(id);
-        if (game.ParticipationMode != ParticipationMode.Individual)
-            throw new ValidationException("Users can only register for individual-mode games.");
-        var user = await _dbContext.Users.FindAsync(userId);
-        if (user is null)
-            throw new NotFoundException($"{nameof(User)} not found");
-        game.RegisterUser(user);
-        _dbContext.Games.Update(game);
-        await _dbContext.SaveChangesAsync();
-        return new GetGameDTO(await GetGameByIdAsync(game.Id));
-    }
-
-    public async Task<GetGameDTO> RegisterTeamAsync(Guid id, Guid teamId)
-    {
-        var game = await GetGameByIdAsync(id);
-        if (game.ParticipationMode != ParticipationMode.Team)
-            throw new ValidationException("Teams can only register for team-mode games.");
-        var team = await _dbContext.Teams.FindAsync(teamId);
-        if (team is null)
-            throw new NotFoundException($"{nameof(Team)} not found");
-        game.RegisterTeam(team);
-        _dbContext.Games.Update(game);
-        await _dbContext.SaveChangesAsync();
-        return new GetGameDTO(await GetGameByIdAsync(game.Id));
-    }
-
-    public async Task<GetGameDTO> UnregisterUserAsync(Guid id, Guid userId)
-    {
-        var game = await GetGameByIdAsync(id);
-        if (game.ParticipationMode != ParticipationMode.Individual)
-            throw new ValidationException("Users can only be removed from individual-mode games.");
-        game.RemoveUser(userId);
-        _dbContext.Games.Update(game);
-        await _dbContext.SaveChangesAsync();
-        return new GetGameDTO(await GetGameByIdAsync(game.Id));
-    }
-
-    public async Task<GetGameDTO> UnregisterTeamAsync(Guid id, Guid teamId)
-    {
-        var game = await GetGameByIdAsync(id);
-        if (game.ParticipationMode != ParticipationMode.Team)
-            throw new ValidationException("Teams can only be removed from team-mode games.");
-        game.RemoveTeam(teamId);
-        _dbContext.Games.Update(game);
-        await _dbContext.SaveChangesAsync();
-        return new GetGameDTO(await GetGameByIdAsync(game.Id));
     }
 
     public async Task<GetGameDTO> ReplaceSponsorPlacementsAsync(Guid id, ReplaceGameSponsorsDTO sponsorDTO)

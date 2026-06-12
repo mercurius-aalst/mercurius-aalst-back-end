@@ -4,10 +4,10 @@
       "containerPorts": "5432:5432",
       "secretStore": "LocalSecretsFile",
       "containerName": "postgresql",
-      "containerImage": "postgres:17",
+      "containerImage": "postgres",
+      "resourceId": null,
       "type": "postgresql.container",
-      "connectionId": "ConnectionStrings:MercuriusDB",
-      "dynamicId": null
+      "connectionId": "ConnectionStrings:MercuriusDB"
     }
   }
 }

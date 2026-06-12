@@ -39,6 +39,12 @@ public static class UserEndpoints
         })
         .RequireAuthorization();
 
+        group.MapPut("/me", async (CompleteUserProfileRequest request, ClaimsPrincipal user, IUserService userService) =>
+        {
+            return await userService.CreateCurrentUserAsync(GetAuth0UserId(user), request);
+        })
+        .RequireAuthorization();
+
         group.MapPatch("/me", async (UpdateUserProfileRequest request, ClaimsPrincipal user, IUserService userService) =>
         {
             return await userService.UpdateCurrentUserAsync(GetAuth0UserId(user), request);

@@ -7,5 +7,4 @@ public class PublicTournamentRosterMemberDTO
 {
     public PublicUserDTO User { get; set; }
     public bool IsCaptain { get; set; }
-    public RosterMemberConfirmationStatus ConfirmationStatus { get; set; }
 }

@@ -29,18 +29,19 @@
 
 - [x] 4.1 Update public game/detail projections to include internal pending/active registration data and full active rosters using privacy-safe user/team/roster DTOs without confirmation tokens or notification identifiers.
 - [x] 4.2 Update authenticated current-user registration projections to expose individual registration state, pending roster confirmations, confirmation eligibility, and captain-managed team registration state.
-- [x] 4.3 Update admin registration projections to include pending/active/removed roster state and removal metadata without enabling admin add/swap/force-confirm behavior.
+- [x] 4.3 Update admin registration projections to include pending/active roster state without enabling admin add/swap/force-confirm behavior.
 - [x] 4.4 Update team member leave, captain removal, and team deletion checks to use pending and active tournament registration roster state.
 - [x] 4.5 Ensure eligibility, registration, roster, team-management, cleanup, and public participant queries avoid N+1 loading and unbounded scans with bounded projections, includes, and indexes that start from tournament/status filters.
 
 ## 5. Tests and Verification
 
-- [ ] 5.1 Add domain/service tests for individual registration, duplicate prevention, self-unregistration timing, eligibility endpoints, and concurrent duplicate participation attempts.
-- [ ] 5.2 Add domain/service tests for captain team roster submission, exact roster size validation, roster member team membership, captain auto-confirmation, member confirmation, automatic team activation, captain roster edits, and team unregistration.
-- [ ] 5.3 Add tests proving pending confirmations and related notifications are removed or withdrawn when a captain edits the roster, unregisters the team, or an admin removes a pending team registration.
-- [ ] 5.4 Add tests proving confirmed members cannot leave the roster on their own and only captain edits or admin removals can change roster participation before tournament start.
-- [ ] 5.5 Add authorization tests for anonymous, authenticated non-captain, captain, selected member, confirmed member, and admin registration flows.
-- [ ] 5.6 Add privacy/contract tests for public registration projections, current-user registration state, eligibility responses, confirmation notifications, and admin registration lists.
-- [ ] 5.7 Add team-management regression tests for member leave, captain removal, and team deletion with pending, active, in-progress, completed, and canceled registration roster states.
+- [x] 5.1 Add domain/service tests for individual registration, duplicate prevention, self-unregistration timing, eligibility endpoints, and concurrent duplicate participation attempts.
+- [x] 5.2 Add domain/service tests for captain team roster submission, exact roster size validation, roster member team membership, captain auto-confirmation, member confirmation, automatic team activation, captain roster edits, and team unregistration.
+- [x] 5.3 Add tests proving pending confirmations and related notifications are removed or withdrawn when a captain edits the roster, unregisters the team, or an admin removes a pending team registration.
+- [x] 5.4 Add tests proving confirmed members cannot leave the roster on their own and only captain edits or admin removals can change roster participation before tournament start.
+- [x] 5.5 Add authorization tests for anonymous, authenticated non-captain, captain, selected member, confirmed member, and admin registration flows.
+- [x] 5.6 Add privacy/contract tests for public registration projections, current-user registration state, eligibility responses, confirmation notifications, and admin registration lists.
+- [x] 5.7 Add team-management regression tests for member leave, captain removal, and team deletion with pending, active, in-progress, completed, and canceled registration roster states.
 - [x] 5.8 Add migration verification for the `dotnet ef migrations add` generated migration, removal of registration URL state, and the no-backfill clean-database assumption.
 - [x] 5.9 Run `dotnet test LAN.API.sln` and update this checklist as implementation tasks complete.
+- [x] 5.10 Address review follow-ups for active-only public projections, registration-locked participation mode, and roster-confirmation notifications separated from team membership invites.

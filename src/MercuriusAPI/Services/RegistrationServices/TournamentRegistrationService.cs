@@ -127,7 +127,7 @@ public class TournamentRegistrationService : ITournamentRegistrationService
         var team = await GetTeamWithMembersAsync(request.TeamId);
         var existing = await _dbContext.TournamentRegistrations
             .Include(registration => registration.RosterMembers)
-                .ThenInclude(member => member.ConfirmationInvite)
+                .ThenInclude(member => member.ConfirmationNotification)
             .FirstOrDefaultAsync(registration =>
                 registration.GameId == gameId &&
                 registration.TeamId == team.Id &&
@@ -182,12 +182,12 @@ public class TournamentRegistrationService : ITournamentRegistrationService
             registration.Activate(now);
 
         _dbContext.TournamentRegistrations.Add(registration);
-        var inviteEvents = CreateRosterConfirmationInvites(registration);
+        var notificationEvents = CreateRosterConfirmationNotifications(registration);
         await SaveRegistrationChangesAsync("One or more roster members already has pending or active participation or roster confirmation notifications for this tournament.");
         var dto = new TournamentRegistrationDTO(await GetRegistrationByIdAsync(registration.Id));
         if (transaction is not null)
             await transaction.CommitAsync();
-        await PublishInviteEventsAsync(inviteEvents);
+        await PublishRosterConfirmationEventsAsync(notificationEvents);
         return dto;
     }
 
@@ -196,6 +196,7 @@ public class TournamentRegistrationService : ITournamentRegistrationService
         await using var transaction = await BeginTransactionIfSupportedAsync();
         var user = await GetCurrentUserAsync(auth0UserId);
         var member = await _dbContext.TournamentRegistrationRosterMembers
+            .Include(roster => roster.ConfirmationNotification)
             .Include(roster => roster.TournamentRegistration)
                 .ThenInclude(registration => registration.RosterMembers)
             .Include(roster => roster.TournamentRegistration)
@@ -206,6 +207,14 @@ public class TournamentRegistrationService : ITournamentRegistrationService
             .FirstOrDefaultAsync(roster => roster.Id == rosterMemberId && roster.UserId == user.Id);
         if (member is null || member.ConfirmationStatus != RosterMemberConfirmationStatus.Pending)
             throw new NotFoundException("Pending roster confirmation not found.");
+        if (member.ConfirmationNotification is null)
+            throw new NotFoundException("Pending roster confirmation not found.");
+        if (member.ConfirmationNotification.ExpiresAtUtc <= DateTime.UtcNow)
+        {
+            _dbContext.TournamentRosterConfirmationNotifications.Remove(member.ConfirmationNotification);
+            await _dbContext.SaveChangesAsync();
+            throw new ValidationException("Pending roster confirmation has expired.");
+        }
 
         var registration = member.TournamentRegistration;
         EnsureScheduled(registration.Game);
@@ -217,7 +226,9 @@ public class TournamentRegistrationService : ITournamentRegistrationService
             throw new ValidationException(string.Join(", ", candidateFailures));
 
         var now = DateTime.UtcNow;
+        var notification = member.ConfirmationNotification;
         member.Confirm(now);
+        _dbContext.TournamentRosterConfirmationNotifications.Remove(notification);
         if (registration.RosterMembers.All(roster => roster.ConfirmationStatus is RosterMemberConfirmationStatus.AutoConfirmed or RosterMemberConfirmationStatus.Confirmed))
             registration.Activate(now);
         else
@@ -398,46 +409,46 @@ public class TournamentRegistrationService : ITournamentRegistrationService
                    (!excludedRegistrationId.HasValue || member.TournamentRegistrationId != excludedRegistrationId.Value));
     }
 
-    private List<TeamInviteChangedEvent> CreateRosterConfirmationInvites(TournamentRegistration registration)
+    private List<TournamentRosterConfirmationChangedEvent> CreateRosterConfirmationNotifications(TournamentRegistration registration)
     {
-        var inviteEvents = new List<TeamInviteChangedEvent>();
+        var notificationEvents = new List<TournamentRosterConfirmationChangedEvent>();
         foreach (var member in registration.RosterMembers.Where(member => member.ConfirmationStatus == RosterMemberConfirmationStatus.Pending))
         {
-            var invite = new TeamInvite
+            var notification = new TournamentRosterConfirmationNotification
             {
                 Id = Guid.NewGuid(),
                 TeamId = registration.TeamId!.Value,
                 UserId = member.UserId,
-                Purpose = TeamInvitePurpose.TournamentRosterConfirmation,
                 TournamentRegistrationRosterMemberId = member.Id,
-                CreatedAt = DateTime.UtcNow,
-                ExpiresAt = DateTime.UtcNow.AddDays(14)
+                CreatedAtUtc = DateTime.UtcNow,
+                ExpiresAtUtc = DateTime.UtcNow.AddDays(14)
             };
-            member.ConfirmationInvite = invite;
-            member.ConfirmationInviteId = invite.Id;
-            _dbContext.TeamInvites.Add(invite);
-            inviteEvents.Add(new TeamInviteChangedEvent(invite.TeamId, invite.Id, invite.UserId, invite.Status.ToString()));
+            member.ConfirmationNotification = notification;
+            _dbContext.TournamentRosterConfirmationNotifications.Add(notification);
+            notificationEvents.Add(new TournamentRosterConfirmationChangedEvent(
+                notification.TeamId,
+                notification.Id,
+                notification.UserId,
+                nameof(RosterMemberConfirmationStatus.Pending)));
         }
 
-        return inviteEvents;
+        return notificationEvents;
     }
 
-    private async Task PublishInviteEventsAsync(IEnumerable<TeamInviteChangedEvent> inviteEvents)
+    private async Task PublishRosterConfirmationEventsAsync(IEnumerable<TournamentRosterConfirmationChangedEvent> notificationEvents)
     {
-        foreach (var inviteEvent in inviteEvents)
+        foreach (var notificationEvent in notificationEvents)
         {
-            await _eventPublisher.InviteChangedAsync(inviteEvent.TeamId, inviteEvent.InviteId, inviteEvent.UserId, inviteEvent.Status);
+            await _eventPublisher.RosterConfirmationChangedAsync(
+                notificationEvent.TeamId,
+                notificationEvent.NotificationId,
+                notificationEvent.UserId,
+                notificationEvent.Status);
         }
     }
 
     private async Task DeleteTransientTeamRegistrationAsync(TournamentRegistration registration)
     {
-        var inviteIds = registration.RosterMembers
-            .Where(member => member.ConfirmationInvite is not null)
-            .Select(member => member.ConfirmationInvite!)
-            .ToList();
-
-        _dbContext.TeamInvites.RemoveRange(inviteIds);
         _dbContext.TournamentRegistrations.Remove(registration);
         await Task.CompletedTask;
     }
@@ -446,7 +457,7 @@ public class TournamentRegistrationService : ITournamentRegistrationService
     {
         var registration = await _dbContext.TournamentRegistrations
             .Include(r => r.RosterMembers)
-                .ThenInclude(member => member.ConfirmationInvite)
+                .ThenInclude(member => member.ConfirmationNotification)
             .FirstOrDefaultAsync(r =>
                 r.GameId == gameId &&
                 r.TeamId == teamId &&
@@ -532,7 +543,7 @@ public class TournamentRegistrationService : ITournamentRegistrationService
         {
             if (current.Message.Contains("IX_TournamentRegistrations_", StringComparison.OrdinalIgnoreCase) ||
                 current.Message.Contains("IX_TournamentRosterMembers_", StringComparison.OrdinalIgnoreCase) ||
-                current.Message.Contains("IX_TeamInvites_TeamId_UserId_Pending", StringComparison.OrdinalIgnoreCase))
+                current.Message.Contains("IX_TournamentRosterConfirmationNotifications_", StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }

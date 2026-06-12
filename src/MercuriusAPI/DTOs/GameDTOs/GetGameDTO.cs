@@ -52,6 +52,7 @@ public class GetGameDTO
             : new GetGameSponsorPlacementDTO(game.SponsorPlacement);
         Matches = game.Matches.Select(m => new GetMatchDTO(m));
         Registrations = game.TournamentRegistrations
+            .Where(registration => registration.Status == TournamentRegistrationStatus.Active)
             .OrderBy(registration => registration.Kind)
             .ThenBy(registration => registration.Status)
             .ThenBy(registration => registration.CreatedAtUtc)

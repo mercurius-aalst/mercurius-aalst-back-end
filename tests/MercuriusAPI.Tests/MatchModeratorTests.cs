@@ -8,10 +8,10 @@ public class MatchModeratorTests
     [Fact]
     public void SingleElimination_GenerateMatchesForGame_KeepsUsersModeSafe_AndAdvancesByeWinner()
     {
-        var game = new Game("Bracket", BracketType.SingleElimination, GameFormat.BestOf1, GameFormat.BestOf1, ParticipationMode.Individual, "https://example.test");
-        game.RegisteredUsers.Add(CreateUser(1));
-        game.RegisteredUsers.Add(CreateUser(2));
-        game.RegisteredUsers.Add(CreateUser(3));
+        var game = new Game("Bracket", BracketType.SingleElimination, GameFormat.BestOf1, GameFormat.BestOf1, ParticipationMode.Individual);
+        AddIndividualRegistration(game, CreateUser(1));
+        AddIndividualRegistration(game, CreateUser(2));
+        AddIndividualRegistration(game, CreateUser(3));
 
         var moderator = new SingleEliminationMatchModerator();
 
@@ -31,10 +31,10 @@ public class MatchModeratorTests
     [Fact]
     public void DoubleElimination_GenerateMatchesForGame_KeepsTeamsModeSafe_AndPropagatesByeWinner()
     {
-        var game = new Game("Bracket", BracketType.DoubleElimination, GameFormat.BestOf1, GameFormat.BestOf3, ParticipationMode.Team, "https://example.test");
-        game.RegisteredTeams.Add(CreateTeam(1));
-        game.RegisteredTeams.Add(CreateTeam(2));
-        game.RegisteredTeams.Add(CreateTeam(3));
+        var game = new Game("Bracket", BracketType.DoubleElimination, GameFormat.BestOf1, GameFormat.BestOf3, ParticipationMode.Team, 1);
+        AddTeamRegistration(game, CreateTeam(1));
+        AddTeamRegistration(game, CreateTeam(2));
+        AddTeamRegistration(game, CreateTeam(3));
 
         var moderator = new DoubleEliminationMatchModerator();
 
@@ -53,10 +53,10 @@ public class MatchModeratorTests
     [Fact]
     public void RoundRobin_GenerateMatchesForGame_KeepsTeamsModeSafe()
     {
-        var game = new Game("Bracket", BracketType.RoundRobin, GameFormat.BestOf1, GameFormat.BestOf1, ParticipationMode.Team, "https://example.test");
-        game.RegisteredTeams.Add(CreateTeam(1));
-        game.RegisteredTeams.Add(CreateTeam(2));
-        game.RegisteredTeams.Add(CreateTeam(3));
+        var game = new Game("Bracket", BracketType.RoundRobin, GameFormat.BestOf1, GameFormat.BestOf1, ParticipationMode.Team, 1);
+        AddTeamRegistration(game, CreateTeam(1));
+        AddTeamRegistration(game, CreateTeam(2));
+        AddTeamRegistration(game, CreateTeam(3));
 
         var moderator = new RoundRobinMatchModerator();
 
@@ -71,10 +71,10 @@ public class MatchModeratorTests
     [Fact]
     public void SwissStage_GenerateMatchesForGame_KeepsUsersModeSafe()
     {
-        var game = new Game("Bracket", BracketType.Swiss, GameFormat.BestOf1, GameFormat.BestOf3, ParticipationMode.Individual, "https://example.test");
-        game.RegisteredUsers.Add(CreateUser(1));
-        game.RegisteredUsers.Add(CreateUser(2));
-        game.RegisteredUsers.Add(CreateUser(3));
+        var game = new Game("Bracket", BracketType.Swiss, GameFormat.BestOf1, GameFormat.BestOf3, ParticipationMode.Individual);
+        AddIndividualRegistration(game, CreateUser(1));
+        AddIndividualRegistration(game, CreateUser(2));
+        AddIndividualRegistration(game, CreateUser(3));
 
         var moderator = new SwissStageMatchModerator();
 
@@ -106,5 +106,37 @@ public class MatchModeratorTests
             Id = Guid.NewGuid(),
             CaptainUserId = captain.Id
         };
+    }
+
+    private static void AddIndividualRegistration(Game game, User user)
+    {
+        game.TournamentRegistrations.Add(new TournamentRegistration
+        {
+            Id = Guid.NewGuid(),
+            Game = game,
+            GameId = game.Id,
+            Kind = TournamentRegistrationKind.Individual,
+            Status = TournamentRegistrationStatus.Active,
+            RegisteredByUser = user,
+            RegisteredByUserId = user.Id,
+            User = user,
+            UserId = user.Id
+        });
+    }
+
+    private static void AddTeamRegistration(Game game, Team team)
+    {
+        game.TournamentRegistrations.Add(new TournamentRegistration
+        {
+            Id = Guid.NewGuid(),
+            Game = game,
+            GameId = game.Id,
+            Kind = TournamentRegistrationKind.Team,
+            Status = TournamentRegistrationStatus.Active,
+            RegisteredByUser = team.Captain!,
+            RegisteredByUserId = team.CaptainUserId!.Value,
+            Team = team,
+            TeamId = team.Id
+        });
     }
 }

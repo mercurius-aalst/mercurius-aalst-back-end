@@ -6,7 +6,7 @@ Tournament registration is currently modeled as an external form URL plus admin-
 
 - Add internal individual tournament registration for authenticated users, including explicit self-registration, duplicate prevention, and self-unregister before tournament start when tournament state allows it.
 - Add internal team tournament registration for captains with exact tournament team-size configuration and captain-selected rosters from current team members.
-- Require selected non-captain roster members to confirm their roster selection through the existing notification infrastructure before the team is automatically added to the tournament.
+- Require selected non-captain roster members to confirm their roster selection through dedicated roster-confirmation notifications before the team is automatically added to the tournament.
 - Treat the captain as always part of the roster and automatically confirmed.
 - Allow captains to edit rosters before tournament start; roster changes after confirmation notifications are sent invalidate the previous pending confirmations as if they never existed.
 - Prevent confirmed members from leaving the roster on their own; captain roster editing and admin removals are the allowed paths after confirmation.
@@ -16,7 +16,7 @@ Tournament registration is currently modeled as an external form URL plus admin-
 - Add admin visibility plus narrow admin removal flows for removing users or teams from tournaments.
 - **BREAKING**: Remove external registration URL from the registration model instead of preserving it as compatibility metadata.
 - **BREAKING**: Remove unused legacy admin registration routes instead of keeping wrappers.
-- Preserve privacy-safe public registration responses that do not expose email, Auth0 identifiers, deletion state, or private account metadata.
+- Preserve privacy-safe public registration responses that expose active registrations only and do not expose email, Auth0 identifiers, deletion state, pending confirmation state, or private account metadata.
 - Require registration operations to be concurrency-safe and query-efficient.
 
 ## Capabilities

@@ -31,8 +31,7 @@ public class PublicTournamentRegistrationDTO
             .Select(member => new PublicTournamentRosterMemberDTO
             {
                 User = new PublicUserDTO(member.User),
-                IsCaptain = member.IsCaptain,
-                ConfirmationStatus = member.ConfirmationStatus
+                IsCaptain = member.IsCaptain
             })
             .ToList();
     }

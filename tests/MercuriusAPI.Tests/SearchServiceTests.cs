@@ -303,7 +303,7 @@ public class SearchServiceTests
             GameFormat.BestOf1,
             GameFormat.BestOf1,
             ParticipationMode.Individual,
-            "https://example.test/register")
+            null)
         {
             Id = Guid.NewGuid()
         };

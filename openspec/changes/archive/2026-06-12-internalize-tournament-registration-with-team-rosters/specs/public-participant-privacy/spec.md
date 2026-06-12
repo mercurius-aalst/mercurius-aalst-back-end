@@ -5,7 +5,7 @@ Anonymous public API responses that embed participants MUST expose only fields r
 
 #### Scenario: Anonymous game detail participants
 - **WHEN** an anonymous client reads a game detail response
-- **THEN** embedded users, team registrations, and team roster members omit email, first name, last name, Auth0 IDs, deleted state, timestamps, confirmation tokens, notification identifiers, and private registration metadata
+- **THEN** embedded users, active team registrations, and active team roster members omit email, first name, last name, Auth0 IDs, deleted state, timestamps, pending confirmation state, confirmation tokens, notification identifiers, and private registration metadata
 
 #### Scenario: Anonymous placement participants
 - **WHEN** an anonymous client reads placement data
@@ -18,7 +18,7 @@ Anonymous public API responses that embed participants MUST expose only fields r
 #### Scenario: Anonymous registration roster participants
 - **WHEN** an anonymous client reads public tournament registration or roster data
 - **THEN** roster users and team members are represented with privacy-safe public fields only
-- **AND** pending confirmation tokens, withdrawn notification state, removal metadata, and admin-only registration details are omitted
+- **AND** pending registrations, pending confirmation state, confirmation tokens, withdrawn notification state, and admin-only registration details are omitted
 
 ### Requirement: Shared participant privacy
 Shared participant responses MUST remain privacy-safe for anonymous and authenticated callers while including platform identifiers declared public by the website privacy policy.

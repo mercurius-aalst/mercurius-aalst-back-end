@@ -25,10 +25,6 @@ public class Game
     public GameSponsorPlacement? SponsorPlacement { get; set; }
 
     public IList<Match> Matches { get; set; } = new List<Match>();
-    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
-    public IList<User> RegisteredUsers { get; set; } = [];
-    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
-    public IList<Team> RegisteredTeams { get; set; } = [];
     public IList<TournamentRegistration> TournamentRegistrations { get; set; } = [];
 
     public string? ImageUrl { get; set; }
@@ -60,13 +56,6 @@ public class Game
     {
     }
 
-    public Game(string name, BracketType bracketType, GameFormat format, GameFormat finalsFormat, ParticipationMode participationMode, string registerFormUrl)
-        : this(name, bracketType, format, finalsFormat, participationMode, participationMode == ParticipationMode.Team ? 1 : null)
-    {
-    }
-
-
-
     public Game()
     {
     }
@@ -84,8 +73,8 @@ public class Game
     {
         if (Status == GameStatus.InProgress || Status == GameStatus.Completed)
             throw new ValidationException("Game cannot be updated when it's in progress or completed.");
-        if (ParticipationMode != participationMode && Matches.Any())
-            throw new ValidationException("Participation mode cannot be changed once match generation has started.");
+        if (ParticipationMode != participationMode && (Matches.Any() || HasPendingOrActiveRegistrations()))
+            throw new ValidationException("Participation mode cannot be changed once registration or match generation has started.");
         if (Matches.Any() && ScheduleConfigurationChanged(plannedStartTime, averageGameDurationMinutes, roundBreakDurationMinutes))
             throw new ValidationException("Schedule configuration cannot be changed once match generation has started.");
         if (TeamSizeChanged(teamSize) && (Matches.Any() || HasPendingOrActiveRegistrations()))
@@ -99,14 +88,6 @@ public class Game
         SetScheduleConfiguration(plannedStartTime, averageGameDurationMinutes, roundBreakDurationMinutes);
     }
 
-    public void Update(string name, BracketType bracketType, GameFormat format, GameFormat finalsFormat, ParticipationMode participationMode, string registerFormUrl)
-    {
-        var plannedStart = PlannedStartTime == DateTime.MinValue ? DateTime.UtcNow : PlannedStartTime;
-        var averageMinutes = AverageGameDurationMinutes <= 0 ? 30 : AverageGameDurationMinutes;
-        var breakMinutes = RoundBreakDurationMinutes <= 0 ? 10 : RoundBreakDurationMinutes;
-
-        Update(name, bracketType, format, finalsFormat, participationMode, participationMode == ParticipationMode.Team ? TeamSize ?? 1 : null, plannedStart, averageMinutes, breakMinutes);
-    }
     public void Cancel()
     {
         if (Status == GameStatus.Completed)
@@ -141,51 +122,7 @@ public class Game
         EndTime = DateTime.MinValue;
         EstimatedEndTime = null;
         Matches.Clear();
-        RegisteredUsers.Clear();
-        RegisteredTeams.Clear();
         Placements.Clear();
-    }
-
-    public void RegisterUser(User user)
-    {
-        EnsureScheduledRegistrationState();
-        if (ParticipationMode != ParticipationMode.Individual)
-            throw new ValidationException("This game only accepts individual registrations.");
-        if (RegisteredUsers.Any(p => p.Id == user.Id))
-            throw new ValidationException("User is already registered for this game.");
-        RegisteredUsers.Add(user);
-    }
-
-    public void RegisterTeam(Team team)
-    {
-        EnsureScheduledRegistrationState();
-        if (ParticipationMode != ParticipationMode.Team)
-            throw new ValidationException("This game only accepts team registrations.");
-        if (RegisteredTeams.Any(t => t.Id == team.Id))
-            throw new ValidationException("Team is already registered for this game.");
-        RegisteredTeams.Add(team);
-    }
-
-    public void RemoveUser(Guid userId)
-    {
-        EnsureScheduledRegistrationState();
-        if (ParticipationMode != ParticipationMode.Individual)
-            throw new ValidationException("This game only accepts individual registrations.");
-        var user = RegisteredUsers.FirstOrDefault(p => p.Id == userId);
-        if (user is null)
-            throw new NotFoundException($"{nameof(User)} not found for game {Name}");
-        RegisteredUsers.Remove(user);
-    }
-
-    public void RemoveTeam(Guid teamId)
-    {
-        EnsureScheduledRegistrationState();
-        if (ParticipationMode != ParticipationMode.Team)
-            throw new ValidationException("This game only accepts team registrations.");
-        var team = RegisteredTeams.FirstOrDefault(t => t.Id == teamId);
-        if (team is null)
-            throw new NotFoundException($"{nameof(Team)} not found for game {Name}");
-        RegisteredTeams.Remove(team);
     }
 
     public int GetRegisteredParticipantCount()
@@ -204,12 +141,7 @@ public class Game
             };
         }
 
-        return ParticipationMode switch
-        {
-            ParticipationMode.Individual => RegisteredUsers.Count,
-            ParticipationMode.Team => RegisteredTeams.Count,
-            _ => 0
-        };
+        return 0;
     }
 
     public IReadOnlyList<User> GetActiveRegisteredUsers()
@@ -219,7 +151,7 @@ public class Game
             .Select(registration => registration.User!)
             .ToList();
 
-        return users.Count == 0 ? RegisteredUsers.ToList() : users;
+        return users;
     }
 
     public IReadOnlyList<Team> GetActiveRegisteredTeams()
@@ -229,13 +161,7 @@ public class Game
             .Select(registration => registration.Team!)
             .ToList();
 
-        return teams.Count == 0 ? RegisteredTeams.ToList() : teams;
-    }
-
-    private void EnsureScheduledRegistrationState()
-    {
-        if (Status != GameStatus.Scheduled)
-            throw new ValidationException("Game must be scheduled for registrations.");
+        return teams;
     }
 
     private void SetScheduleConfiguration(DateTime plannedStartTime, int averageGameDurationMinutes, int roundBreakDurationMinutes)

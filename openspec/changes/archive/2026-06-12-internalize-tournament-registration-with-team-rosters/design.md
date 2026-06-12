@@ -2,7 +2,7 @@
 
 The API currently represents tournament participants through `Game.RegisteredUsers` and `Game.RegisteredTeams` many-to-many collections. Mutations are exposed on admin-authorized game routes, and tournament creation/update requires `RegisterFormUrl`, reflecting the older external-form registration model. Team membership management already protects teams that are registered in protected tournament states, but it has no concept of tournament-specific rosters or member confirmation.
 
-Issue #83 requires registration to become a first-class authenticated workflow for individual users and team captains, with exact roster selection, selected-member confirmation, duplicate participation prevention, narrow admin removal, eligibility feedback, and privacy-safe public projections. The current many-to-many model cannot record pending confirmations, exact roster membership, per-registration state, removal metadata, or concurrency-safe uniqueness for a user participating through exactly one path.
+Issue #83 requires registration to become a first-class authenticated workflow for individual users and team captains, with exact roster selection, selected-member confirmation, duplicate participation prevention, narrow admin removal, eligibility feedback, and privacy-safe public projections. The current many-to-many model cannot record pending confirmations, exact roster membership, per-registration state, or concurrency-safe uniqueness for a user participating through exactly one path.
 
 ## Goals / Non-Goals
 
@@ -73,11 +73,11 @@ Add team-size configuration to team-mode tournaments. The configured size is the
 
 Alternative considered: maximum-size semantics. The requested behavior now requires exact team size, so smaller rosters must be rejected.
 
-### Reuse the existing notification infrastructure for roster confirmations
+### Keep roster confirmations separate from team membership invites
 
-When a captain submits an exact-size roster, the service creates pending confirmation entries and sends confirmation notifications to selected non-captain members through the existing notification delivery infrastructure used for team invites. If the captain edits the roster, unregisters the team, or an admin removes the pending team registration before all confirmations complete, pending confirmations and their notifications are deleted or withdrawn so the user experience behaves as if they never existed. Confirming a deleted or withdrawn notification must fail without changing participation.
+When a captain submits an exact-size roster, the service creates pending confirmation entries and sends dedicated roster-confirmation notifications to selected non-captain members. These notifications are separate from team membership invites: team invites add a user to a team, while roster confirmations add an existing team member to a tournament roster. If the captain edits the roster, unregisters the team, or an admin removes the pending team registration before all confirmations complete, pending confirmations and their notifications are deleted or withdrawn so the user experience behaves as if they never existed. Confirming a deleted, withdrawn, or expired notification must fail without changing participation.
 
-Alternative considered: create a new notification delivery platform for roster confirmations. The repository already has notification behavior for team invites, so the implementation should extend that infrastructure with a roster-confirmation notification type instead of adding a parallel delivery mechanism.
+Alternative considered: store roster confirmations as a team-invite purpose. That mixes two different domain concepts and lets generic team invite flows accidentally surface or mutate tournament roster confirmations, so roster confirmations use a separate table and service flow.
 
 ### Aggressively clean up transient registration data
 
@@ -89,13 +89,13 @@ Alternative considered: keep invalidated/removed registration rows for audit. Th
 
 ### Limit admin mutation power to removals
 
-Admins may inspect registrations and remove an individual registration from an individual tournament or remove a whole team registration from a team tournament. Admins must not add users, add teams, remove a single selected member from a pending team roster, swap roster users, force confirmations, or edit roster size. Removing an active team registration removes the whole team from the tournament.
+Admins may inspect registrations and remove an individual registration from an individual tournament or remove a whole team registration from a team tournament. Admin removals hard-delete the affected registration aggregate and related pending confirmation notifications rather than retaining removed-state metadata. Admins must not add users, add teams, remove a single selected member from a pending team roster, swap roster users, force confirmations, or edit roster size. Removing an active team registration removes the whole team from the tournament.
 
 Alternative considered: broad admin override. Narrow removal-only admin behavior is easier to reason about and matches the clarified scope.
 
 ### Preserve public privacy by projecting registration DTOs
 
-Public game/detail responses should expose registration status, participant counts, teams, and roster members using `PublicUserDTO`, `PublicTeamMemberDTO`, or equivalent privacy-safe DTOs. They must not expose email, Auth0 IDs, deletion state, admin removal notes, confirmation tokens, pending notification identifiers, or private account metadata.
+Public game/detail responses should expose active registration status, participant counts, teams, and roster members using `PublicUserDTO`, `PublicTeamMemberDTO`, or equivalent privacy-safe DTOs. They must not expose pending registrations, pending confirmation state, email, Auth0 IDs, deletion state, admin removal notes, confirmation tokens, notification identifiers, or private account metadata.
 
 Alternative considered: return internal registration entities directly to admin and public callers with conditional serialization. Separate DTOs make privacy and contract testing simpler.
 
@@ -111,7 +111,7 @@ Alternative considered: keep the property as optional metadata. The clarified re
 - [Risk] Duplicate participation constraints are subtle when pending confirmations and active registrations share the same tournament. -> Mitigation: model pending and active participation explicitly, add database constraints, and include concurrent registration/confirmation tests.
 - [Risk] Match generation currently reads `RegisteredUsers` / `RegisteredTeams`. -> Mitigation: update match generation input to use active confirmed registrations only.
 - [Risk] A selected member may become ineligible between notification and confirmation. -> Mitigation: re-run eligibility checks during confirmation before transitioning the member or team to active state.
-- [Risk] Admin removal from an active exact-size roster can leave the team invalid. -> Mitigation: removing a roster member from an active exact-size team registration removes the team from the tournament and records the removal reason.
+- [Risk] Admin removal from an active exact-size roster can leave the team invalid. -> Mitigation: admins remove the whole team registration from the tournament rather than removing a single roster member.
 - [Risk] Notification deletion may leave stale client UI state. -> Mitigation: confirmation endpoints must return a clear not-found or no-longer-actionable result, and current-user registration state endpoints must exclude deleted or withdrawn confirmations.
 - [Risk] Registration and notification tables could grow without bound if pending data is retained. -> Mitigation: physically delete transient pending registration, roster, and notification rows when they are replaced, unregistered, withdrawn, or no longer actionable; keep indexes aligned with active tournament queries.
 

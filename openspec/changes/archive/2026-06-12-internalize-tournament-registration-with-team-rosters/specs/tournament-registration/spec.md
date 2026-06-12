@@ -19,7 +19,7 @@ The API MUST allow authenticated users to register and unregister themselves for
 #### Scenario: User unregisters before start
 - **WHEN** an authenticated user has an active individual registration for a scheduled tournament
 - **AND** tournament state allows self-unregistration
-- **THEN** the API marks the registration inactive or removed for active participation
+- **THEN** the API deletes the registration from active participation
 
 #### Scenario: User cannot unregister after start
 - **WHEN** an authenticated user attempts to unregister from an in-progress or completed tournament
@@ -34,7 +34,7 @@ The API MUST allow team captains to submit exact-size rosters for teams they cap
 - **AND** the roster includes the captain and only current team members
 - **THEN** the API creates or updates a pending team registration
 - **AND** marks the captain as confirmed automatically
-- **AND** sends confirmation notifications to each selected non-captain roster member through the existing notification delivery infrastructure
+- **AND** sends dedicated roster-confirmation notifications to each selected non-captain roster member without creating team membership invites
 
 #### Scenario: Captain omitted from roster rejected
 - **WHEN** a captain submits a team tournament roster that does not include themselves
@@ -59,6 +59,7 @@ The API MUST allow team captains to submit exact-size rosters for teams they cap
 #### Scenario: Member confirms roster selection
 - **WHEN** a selected non-captain roster member confirms a valid pending roster notification
 - **THEN** the API marks that member's roster selection as confirmed
+- **AND** removes the consumed roster-confirmation notification from actionable notification state
 
 #### Scenario: Team activates when all members confirm
 - **WHEN** all selected non-captain roster members have confirmed their valid pending roster notifications
@@ -181,7 +182,7 @@ Admins MUST be able to inspect registrations and remove users or teams from tour
 
 #### Scenario: Admin removes individual user from individual tournament
 - **WHEN** an admin removes a user from an individual tournament
-- **THEN** the API removes the user's individual registration
+- **THEN** the API hard-deletes the user's individual registration
 
 #### Scenario: Admin cannot remove single pending roster member
 - **WHEN** an admin attempts to remove one selected member from a pending team tournament roster
@@ -190,7 +191,7 @@ Admins MUST be able to inspect registrations and remove users or teams from tour
 
 #### Scenario: Admin removes team from tournament
 - **WHEN** an admin removes a team from a tournament
-- **THEN** the API removes the team's pending or active registration
+- **THEN** the API hard-deletes the team's pending or active registration
 - **AND** removes related pending roster confirmations and confirmation notifications for that team registration
 
 #### Scenario: Admin cannot add or swap roster members
@@ -221,7 +222,11 @@ The API MUST expose registration views that are efficient and privacy-safe for t
 
 #### Scenario: Public registration projection omits private user fields
 - **WHEN** an anonymous or public client reads tournament details with registrations
-- **THEN** embedded users and roster members omit email, Auth0 IDs, deleted state, timestamps, confirmation tokens, notification identifiers, and private account metadata
+- **THEN** embedded users and roster members omit email, Auth0 IDs, deleted state, timestamps, pending confirmation state, confirmation tokens, notification identifiers, and private account metadata
+
+#### Scenario: Public registration projection includes active registrations only
+- **WHEN** an anonymous or public client reads tournament details with registrations
+- **THEN** pending registrations and pending roster confirmations are omitted from the public registration projection
 
 #### Scenario: Current user registration state returned
 - **WHEN** an authenticated user reads registration state for a tournament

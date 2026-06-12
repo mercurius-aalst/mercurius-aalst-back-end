@@ -190,7 +190,7 @@ public class SponsorFeatureTests
 
     private static Game CreateGame()
     {
-        return new Game("Counter-Strike 2", BracketType.SingleElimination, GameFormat.BestOf3, GameFormat.BestOf5, ParticipationMode.Team, "https://example.test/register")
+        return new Game("Counter-Strike 2", BracketType.SingleElimination, GameFormat.BestOf3, GameFormat.BestOf5, ParticipationMode.Team, 5)
         {
             Id = Guid.NewGuid()
         };

@@ -21,8 +21,8 @@ public class TeamServicePublicProfileTests
         dbContext.Teams.Add(team);
 
         var tournament = CreateGame(Guid.Parse("00000000-0000-0000-0000-000000000001"), "Alpha Cup");
-        tournament.RegisteredTeams.Add(team);
         dbContext.Games.Add(tournament);
+        AddActiveTeamRegistration(dbContext, tournament, team, captain);
         await dbContext.SaveChangesAsync();
 
         var service = CreateService(dbContext);
@@ -89,18 +89,18 @@ public class TeamServicePublicProfileTests
         dbContext.Teams.Add(team);
 
         var alphaOne = CreateGame(Guid.Parse("00000000-0000-0000-0000-000000000001"), "Alpha Cup");
-        alphaOne.RegisteredTeams.Add(team);
         var alphaTwo = CreateGame(Guid.Parse("00000000-0000-0000-0000-000000000002"), "Alpha Cup");
-        alphaTwo.RegisteredTeams.Add(team);
         var zeta = CreateGame(Guid.Parse("00000000-0000-0000-0000-000000000003"), "Zeta Clash");
-        zeta.RegisteredTeams.Add(team);
 
         var otherTeam = new Team("Other Team", CreateUser("CaptainOther")) { Id = Guid.NewGuid() };
         var hiddenTournament = CreateGame(Guid.Parse("00000000-0000-0000-0000-000000000004"), "Aardvark Cup");
-        hiddenTournament.RegisteredTeams.Add(otherTeam);
 
         dbContext.Teams.Add(otherTeam);
         dbContext.Games.AddRange(alphaOne, alphaTwo, zeta, hiddenTournament);
+        AddActiveTeamRegistration(dbContext, alphaOne, team, captain);
+        AddActiveTeamRegistration(dbContext, alphaTwo, team, captain);
+        AddActiveTeamRegistration(dbContext, zeta, team, captain);
+        AddActiveTeamRegistration(dbContext, hiddenTournament, otherTeam, otherTeam.Captain!);
         await dbContext.SaveChangesAsync();
 
         var service = CreateService(dbContext);
@@ -162,9 +162,40 @@ public class TeamServicePublicProfileTests
             GameFormat.BestOf3,
             GameFormat.BestOf5,
             ParticipationMode.Team,
-            "https://example.test/register")
+            5)
         {
             Id = id
         };
+    }
+
+    private static void AddActiveTeamRegistration(MercuriusDBContext dbContext, Game game, Team team, User captain)
+    {
+        dbContext.TournamentRegistrations.Add(new TournamentRegistration
+        {
+            Id = Guid.NewGuid(),
+            Game = game,
+            GameId = game.Id,
+            Kind = TournamentRegistrationKind.Team,
+            Status = TournamentRegistrationStatus.Active,
+            RegisteredByUser = captain,
+            RegisteredByUserId = captain.Id,
+            Team = team,
+            TeamId = team.Id,
+            RosterMembers =
+            [
+                new TournamentRegistrationRosterMember
+                {
+                    Id = Guid.NewGuid(),
+                    Game = game,
+                    GameId = game.Id,
+                    Team = team,
+                    TeamId = team.Id,
+                    User = captain,
+                    UserId = captain.Id,
+                    IsCaptain = true,
+                    ConfirmationStatus = RosterMemberConfirmationStatus.AutoConfirmed
+                }
+            ]
+        });
     }
 }

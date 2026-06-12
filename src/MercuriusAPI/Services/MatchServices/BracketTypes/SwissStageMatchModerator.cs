@@ -25,10 +25,10 @@ public class SwissStageMatchModerator : IMatchModerator
         switch (game.ParticipationMode)
         {
             case ParticipationMode.Individual:
-                GenerateSwissMatches(game, matches, PadTo16(game.RegisteredUsers.ToList()), (match, p1, p2) => match.SetParticipants(p1, p2));
+                GenerateSwissMatches(game, matches, PadTo16(game.GetActiveRegisteredUsers().ToList()), (match, p1, p2) => match.SetParticipants(p1, p2));
                 break;
             case ParticipationMode.Team:
-                GenerateSwissMatches(game, matches, PadTo16(game.RegisteredTeams.ToList()), (match, p1, p2) => match.SetParticipants(p1, p2));
+                GenerateSwissMatches(game, matches, PadTo16(game.GetActiveRegisteredTeams().ToList()), (match, p1, p2) => match.SetParticipants(p1, p2));
                 break;
         }
     }

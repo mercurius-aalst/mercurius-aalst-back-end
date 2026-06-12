@@ -9,7 +9,7 @@ public class RoundRobinMatchModerator : IMatchModerator
         switch (game.ParticipationMode)
         {
             case ParticipationMode.Individual:
-                DeterminePlacements(game, game.RegisteredUsers.ToList(), participant => participant.Id, participant => new Placement
+                DeterminePlacements(game, game.GetActiveRegisteredUsers().ToList(), participant => participant.Id, participant => new Placement
                 {
                     GameId = game.Id,
                     Users = [participant],
@@ -17,7 +17,7 @@ public class RoundRobinMatchModerator : IMatchModerator
                 });
                 break;
             case ParticipationMode.Team:
-                DeterminePlacements(game, game.RegisteredTeams.ToList(), participant => participant.Id, participant => new Placement
+                DeterminePlacements(game, game.GetActiveRegisteredTeams().ToList(), participant => participant.Id, participant => new Placement
                 {
                     GameId = game.Id,
                     Teams = [participant],
@@ -31,8 +31,8 @@ public class RoundRobinMatchModerator : IMatchModerator
     {
         return game.ParticipationMode switch
         {
-            ParticipationMode.Individual => GenerateMatchesForGame(game, game.RegisteredUsers.ToList(), (match, p1, p2) => match.SetParticipants(p1, p2)),
-            ParticipationMode.Team => GenerateMatchesForGame(game, game.RegisteredTeams.ToList(), (match, p1, p2) => match.SetParticipants(p1, p2)),
+            ParticipationMode.Individual => GenerateMatchesForGame(game, game.GetActiveRegisteredUsers().ToList(), (match, p1, p2) => match.SetParticipants(p1, p2)),
+            ParticipationMode.Team => GenerateMatchesForGame(game, game.GetActiveRegisteredTeams().ToList(), (match, p1, p2) => match.SetParticipants(p1, p2)),
             _ => throw new InvalidOperationException($"Unsupported participation mode {game.ParticipationMode}.")
         };
     }

@@ -24,14 +24,28 @@ public class PublicParticipantPrivacyDTOTests
     }
 
     [Fact]
-    public void GetGameDTO_UsesPrivacySafeParticipants()
+    public void GetGameDTO_UsesPrivacySafeRegistrationParticipants()
     {
         var game = CreateGame(ParticipationMode.Individual);
-        game.RegisterUser(CreateUser(2));
+        var user = CreateUser(2);
+        game.TournamentRegistrations.Add(new TournamentRegistration
+        {
+            Id = Guid.NewGuid(),
+            Game = game,
+            GameId = game.Id,
+            Kind = TournamentRegistrationKind.Individual,
+            Status = TournamentRegistrationStatus.Active,
+            RegisteredByUser = user,
+            RegisteredByUserId = user.Id,
+            User = user,
+            UserId = user.Id
+        });
 
         var json = Serialize(new GetGameDTO(game));
 
-        Assert.Contains("\"users\":", json, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("\"registrations\":", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("\"users\":", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("\"teams\":", json, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("\"username\":\"user2\"", json, StringComparison.OrdinalIgnoreCase);
         AssertPublicPlatformIdsArePresent(json, 2);
         AssertPrivateUserFieldsAreAbsent(json);
@@ -68,6 +82,69 @@ public class PublicParticipantPrivacyDTOTests
 
         Assert.Contains("\"members\":", json, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("\"teamInvites\":", json, StringComparison.OrdinalIgnoreCase);
+        AssertPrivateUserFieldsAreAbsent(json);
+    }
+
+    [Fact]
+    public void GetGameDTO_ExposesPublicRegistrationRostersWithoutPrivateRegistrationMetadata()
+    {
+        var captain = CreateUser(5);
+        var rosterMember = CreateUser(6);
+        var team = new Team("Roster Team", captain) { Id = Guid.NewGuid() };
+        team.Members.Add(CreateUser(99));
+        var game = CreateGame(ParticipationMode.Team);
+        var registration = new TournamentRegistration
+        {
+            Id = Guid.NewGuid(),
+            Game = game,
+            GameId = game.Id,
+            Kind = TournamentRegistrationKind.Team,
+            Status = TournamentRegistrationStatus.Active,
+            RegisteredByUser = captain,
+            RegisteredByUserId = captain.Id,
+            Team = team,
+            TeamId = team.Id,
+            CreatedAtUtc = DateTime.UtcNow,
+            UpdatedAtUtc = DateTime.UtcNow,
+            RosterMembers =
+            [
+                new TournamentRegistrationRosterMember
+                {
+                    Id = Guid.NewGuid(),
+                    Game = game,
+                    GameId = game.Id,
+                    Team = team,
+                    TeamId = team.Id,
+                    User = captain,
+                    UserId = captain.Id,
+                    IsCaptain = true,
+                    ConfirmationStatus = RosterMemberConfirmationStatus.AutoConfirmed
+                },
+                new TournamentRegistrationRosterMember
+                {
+                    Id = Guid.NewGuid(),
+                    Game = game,
+                    GameId = game.Id,
+                    Team = team,
+                    TeamId = team.Id,
+                    User = rosterMember,
+                    UserId = rosterMember.Id,
+                    ConfirmationStatus = RosterMemberConfirmationStatus.Confirmed,
+                    ConfirmationInviteId = Guid.NewGuid()
+                }
+            ]
+        };
+        game.TournamentRegistrations.Add(registration);
+
+        var json = Serialize(new GetGameDTO(game));
+
+        Assert.Contains("\"registrations\":", json, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("\"rosterMembers\":", json, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("\"username\":\"user6\"", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("\"createdAtUtc\":", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("\"updatedAtUtc\":", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("\"confirmationInviteId\":", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("\"confirmationNotification", json, StringComparison.OrdinalIgnoreCase);
         AssertPrivateUserFieldsAreAbsent(json);
     }
 

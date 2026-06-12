@@ -69,7 +69,7 @@ public class GameScheduleTests
             GameFormat.BestOf1,
             GameFormat.BestOf5,
             ParticipationMode.Individual,
-            "https://example.test/register",
+            null,
             PlannedStart.AddHours(1),
             10,
             5));
@@ -82,9 +82,9 @@ public class GameScheduleTests
     {
         await using var dbContext = CreateDbContext();
         var game = CreateScheduledGame(format: GameFormat.BestOf1, finalsFormat: GameFormat.BestOf5);
-        game.RegisterUser(CreateUser(1));
-        game.RegisterUser(CreateUser(2));
         dbContext.Games.Add(game);
+        AddIndividualRegistration(dbContext, game, CreateUser(1));
+        AddIndividualRegistration(dbContext, game, CreateUser(2));
         await dbContext.SaveChangesAsync();
 
         var service = CreateGameService(dbContext, new FixedScheduleMatchModerator());
@@ -113,11 +113,11 @@ public class GameScheduleTests
             format: GameFormat.BestOf1,
             finalsFormat: GameFormat.BestOf5,
             bracketType: BracketType.RoundRobin);
-        game.RegisterUser(CreateUser(1));
-        game.RegisterUser(CreateUser(2));
-        game.RegisterUser(CreateUser(3));
-        game.RegisterUser(CreateUser(4));
         dbContext.Games.Add(game);
+        AddIndividualRegistration(dbContext, game, CreateUser(1));
+        AddIndividualRegistration(dbContext, game, CreateUser(2));
+        AddIndividualRegistration(dbContext, game, CreateUser(3));
+        AddIndividualRegistration(dbContext, game, CreateUser(4));
         await dbContext.SaveChangesAsync();
 
         var service = CreateGameService(dbContext, new RoundRobinMatchModerator());
@@ -135,9 +135,9 @@ public class GameScheduleTests
     {
         await using var dbContext = CreateDbContext();
         var game = CreateScheduledGame(plannedStartTime: DateTime.MaxValue.AddMinutes(-5));
-        game.RegisterUser(CreateUser(1));
-        game.RegisterUser(CreateUser(2));
         dbContext.Games.Add(game);
+        AddIndividualRegistration(dbContext, game, CreateUser(1));
+        AddIndividualRegistration(dbContext, game, CreateUser(2));
         await dbContext.SaveChangesAsync();
 
         var service = CreateGameService(dbContext, new FixedScheduleMatchModerator());
@@ -197,25 +197,6 @@ public class GameScheduleTests
         Assert.Equal(PlannedStart.AddMinutes(10), matchDto.EstimatedEndTime);
     }
 
-    [Fact]
-    public async Task RegisterAndUnregisterUserAsync_StillWorksWithScheduleFields()
-    {
-        await using var dbContext = CreateDbContext();
-        var game = CreateScheduledGame();
-        var user = CreateUser(3);
-        dbContext.Games.Add(game);
-        dbContext.Users.Add(user);
-        await dbContext.SaveChangesAsync();
-
-        var service = CreateGameService(dbContext, new FixedScheduleMatchModerator());
-
-        var registered = await service.RegisterUserAsync(game.Id, user.Id);
-        Assert.Single(registered.Users);
-
-        var unregistered = await service.UnregisterUserAsync(game.Id, user.Id);
-        Assert.Empty(unregistered.Users);
-    }
-
     private static Game CreateScheduledGame(
         DateTime? plannedStartTime = null,
         int averageMinutes = 10,
@@ -230,7 +211,7 @@ public class GameScheduleTests
             format,
             finalsFormat,
             ParticipationMode.Individual,
-            "https://example.test/register",
+            null,
             plannedStartTime ?? PlannedStart,
             averageMinutes,
             breakMinutes)
@@ -258,6 +239,23 @@ public class GameScheduleTests
             .Options;
 
         return new MercuriusDBContext(options);
+    }
+
+    private static void AddIndividualRegistration(MercuriusDBContext dbContext, Game game, User user)
+    {
+        dbContext.Users.Add(user);
+        dbContext.TournamentRegistrations.Add(new TournamentRegistration
+        {
+            Id = Guid.NewGuid(),
+            Game = game,
+            GameId = game.Id,
+            Kind = TournamentRegistrationKind.Individual,
+            Status = TournamentRegistrationStatus.Active,
+            RegisteredByUser = user,
+            RegisteredByUserId = user.Id,
+            User = user,
+            UserId = user.Id
+        });
     }
 
     private static GameService CreateGameService(MercuriusDBContext dbContext, IMatchModerator matchModerator)

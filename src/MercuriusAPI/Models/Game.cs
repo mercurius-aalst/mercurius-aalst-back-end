@@ -19,15 +19,18 @@ public class Game
     public GameFormat Format { get; set; }
     public GameFormat FinalsFormat { get; set; }
     public ParticipationMode ParticipationMode { get; set; }
+    public int? TeamSize { get; set; }
 
     public IList<Placement> Placements { get; set; } = [];
     public GameSponsorPlacement? SponsorPlacement { get; set; }
 
     public IList<Match> Matches { get; set; } = new List<Match>();
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
     public IList<User> RegisteredUsers { get; set; } = [];
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
     public IList<Team> RegisteredTeams { get; set; } = [];
+    public IList<TournamentRegistration> TournamentRegistrations { get; set; } = [];
 
-    public string RegisterFormUrl { get; set; }
     public string? ImageUrl { get; set; }
 
     public Game(
@@ -36,7 +39,7 @@ public class Game
         GameFormat format,
         GameFormat finalsFormat,
         ParticipationMode participationMode,
-        string registerFormUrl,
+        int? teamSize,
         DateTime plannedStartTime,
         int averageGameDurationMinutes,
         int roundBreakDurationMinutes)
@@ -47,13 +50,18 @@ public class Game
         FinalsFormat = finalsFormat;
         Status = GameStatus.Scheduled;
         ParticipationMode = participationMode;
-        RegisterFormUrl = registerFormUrl;
+        SetTeamSize(teamSize);
         SetScheduleConfiguration(plannedStartTime, averageGameDurationMinutes, roundBreakDurationMinutes);
         Placements = new List<Placement>();
     }
 
+    public Game(string name, BracketType bracketType, GameFormat format, GameFormat finalsFormat, ParticipationMode participationMode, int? teamSize = null)
+        : this(name, bracketType, format, finalsFormat, participationMode, teamSize, DateTime.UtcNow, 30, 10)
+    {
+    }
+
     public Game(string name, BracketType bracketType, GameFormat format, GameFormat finalsFormat, ParticipationMode participationMode, string registerFormUrl)
-        : this(name, bracketType, format, finalsFormat, participationMode, registerFormUrl, DateTime.UtcNow, 30, 10)
+        : this(name, bracketType, format, finalsFormat, participationMode, participationMode == ParticipationMode.Team ? 1 : null)
     {
     }
 
@@ -69,7 +77,7 @@ public class Game
         GameFormat format,
         GameFormat finalsFormat,
         ParticipationMode participationMode,
-        string registerFormUrl,
+        int? teamSize,
         DateTime plannedStartTime,
         int averageGameDurationMinutes,
         int roundBreakDurationMinutes)
@@ -80,12 +88,14 @@ public class Game
             throw new ValidationException("Participation mode cannot be changed once match generation has started.");
         if (Matches.Any() && ScheduleConfigurationChanged(plannedStartTime, averageGameDurationMinutes, roundBreakDurationMinutes))
             throw new ValidationException("Schedule configuration cannot be changed once match generation has started.");
+        if (TeamSizeChanged(teamSize) && (Matches.Any() || HasPendingOrActiveRegistrations()))
+            throw new ValidationException("Team size cannot be changed once registration or match generation has started.");
         Name = name;
         BracketType = bracketType;
         Format = format;
         FinalsFormat = finalsFormat;
         ParticipationMode = participationMode;
-        RegisterFormUrl = registerFormUrl;
+        SetTeamSize(teamSize);
         SetScheduleConfiguration(plannedStartTime, averageGameDurationMinutes, roundBreakDurationMinutes);
     }
 
@@ -95,7 +105,7 @@ public class Game
         var averageMinutes = AverageGameDurationMinutes <= 0 ? 30 : AverageGameDurationMinutes;
         var breakMinutes = RoundBreakDurationMinutes <= 0 ? 10 : RoundBreakDurationMinutes;
 
-        Update(name, bracketType, format, finalsFormat, participationMode, registerFormUrl, plannedStart, averageMinutes, breakMinutes);
+        Update(name, bracketType, format, finalsFormat, participationMode, participationMode == ParticipationMode.Team ? TeamSize ?? 1 : null, plannedStart, averageMinutes, breakMinutes);
     }
     public void Cancel()
     {
@@ -180,12 +190,46 @@ public class Game
 
     public int GetRegisteredParticipantCount()
     {
+        var activeRegistrations = TournamentRegistrations
+            .Where(registration => registration.Status == TournamentRegistrationStatus.Active)
+            .ToList();
+
+        if (activeRegistrations.Count != 0)
+        {
+            return ParticipationMode switch
+            {
+                ParticipationMode.Individual => activeRegistrations.Count(registration => registration.Kind == TournamentRegistrationKind.Individual),
+                ParticipationMode.Team => activeRegistrations.Count(registration => registration.Kind == TournamentRegistrationKind.Team),
+                _ => 0
+            };
+        }
+
         return ParticipationMode switch
         {
             ParticipationMode.Individual => RegisteredUsers.Count,
             ParticipationMode.Team => RegisteredTeams.Count,
             _ => 0
         };
+    }
+
+    public IReadOnlyList<User> GetActiveRegisteredUsers()
+    {
+        var users = TournamentRegistrations
+            .Where(registration => registration.Kind == TournamentRegistrationKind.Individual && registration.Status == TournamentRegistrationStatus.Active && registration.User is not null)
+            .Select(registration => registration.User!)
+            .ToList();
+
+        return users.Count == 0 ? RegisteredUsers.ToList() : users;
+    }
+
+    public IReadOnlyList<Team> GetActiveRegisteredTeams()
+    {
+        var teams = TournamentRegistrations
+            .Where(registration => registration.Kind == TournamentRegistrationKind.Team && registration.Status == TournamentRegistrationStatus.Active && registration.Team is not null)
+            .Select(registration => registration.Team!)
+            .ToList();
+
+        return teams.Count == 0 ? RegisteredTeams.ToList() : teams;
     }
 
     private void EnsureScheduledRegistrationState()
@@ -207,6 +251,31 @@ public class Game
         PlannedStartTime = plannedStartTime;
         AverageGameDurationMinutes = averageGameDurationMinutes;
         RoundBreakDurationMinutes = roundBreakDurationMinutes;
+    }
+
+    private void SetTeamSize(int? teamSize)
+    {
+        if (ParticipationMode == ParticipationMode.Team)
+        {
+            if (!teamSize.HasValue || teamSize.Value <= 0)
+                throw new ValidationException("Team tournaments require a team size greater than zero.");
+
+            TeamSize = teamSize.Value;
+            return;
+        }
+
+        TeamSize = null;
+    }
+
+    private bool TeamSizeChanged(int? teamSize)
+    {
+        var normalizedTeamSize = ParticipationMode == ParticipationMode.Team ? teamSize : null;
+        return TeamSize != normalizedTeamSize;
+    }
+
+    private bool HasPendingOrActiveRegistrations()
+    {
+        return TournamentRegistrations.Any();
     }
 
     private bool ScheduleConfigurationChanged(DateTime plannedStartTime, int averageGameDurationMinutes, int roundBreakDurationMinutes)

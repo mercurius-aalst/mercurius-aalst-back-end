@@ -120,16 +120,19 @@ public class TeamService : ITeamService
         if (team is null)
             throw new NotFoundException($"{nameof(Team)} not found");
 
-        var tournaments = await _dbContext.Games
+        var tournaments = await _dbContext.TournamentRegistrations
             .AsNoTracking()
-            .Where(game => game.RegisteredTeams.Any(registeredTeam => registeredTeam.Id == team.Id))
-            .Select(game => new PublicTeamTournamentDTO
+            .Where(registration =>
+                registration.TeamId == team.Id &&
+                registration.Status == TournamentRegistrationStatus.Active &&
+                registration.Game.Status != GameStatus.Canceled)
+            .Select(registration => new PublicTeamTournamentDTO
             {
-                GameId = game.Id,
-                Name = game.Name
+                GameId = registration.GameId,
+                Name = registration.Game.Name
             })
-            .OrderBy(game => game.Name)
-            .ThenBy(game => game.GameId)
+            .OrderBy(tournament => tournament.Name)
+            .ThenBy(tournament => tournament.GameId)
             .ToListAsync();
 
         var members = team.Members
@@ -179,7 +182,7 @@ public class TeamService : ITeamService
             throw new NotFoundException($"{nameof(Team)} not found");
 
         EnsureCaptain(team, currentUser.Id);
-        if (await IsTeamInMemberRemovalBlockingTournamentAsync(teamId))
+        if (await IsTeamInMemberRemovalBlockingTournamentAsync(teamId, userId))
             throw new ValidationException("Cannot remove a member from a team that is part of an in-progress tournament roster.");
 
         team.RemoveMember(userId);
@@ -389,7 +392,7 @@ public class TeamService : ITeamService
             throw new ValidationException("The captain cannot leave a team without transferring captainship.");
         if (!team.Members.Any(member => member.Id == currentUser.Id))
             throw new NotFoundException($"{nameof(User)} not found in {team.Name}");
-        if (await IsTeamInLeaveBlockingTournamentAsync(teamId))
+        if (await IsTeamInLeaveBlockingTournamentAsync(teamId, currentUser.Id))
             throw new ValidationException("Cannot leave a team that is part of a protected tournament roster.");
 
         team.RemoveMember(currentUser.Id);
@@ -486,28 +489,27 @@ public class TeamService : ITeamService
             throw new UnauthorizedAccessException("Only the team captain can perform this action.");
     }
 
-    private async Task<bool> IsTeamInLeaveBlockingTournamentAsync(Guid teamId)
+    private async Task<bool> IsTeamInLeaveBlockingTournamentAsync(Guid teamId, Guid userId)
     {
-        return await _dbContext.Games.AnyAsync(game =>
-            game.ParticipationMode == ParticipationMode.Team &&
-            (game.Status == GameStatus.InProgress || game.Status == GameStatus.Completed || game.Status == GameStatus.Canceled) &&
-            game.RegisteredTeams.Any(team => team.Id == teamId));
+        return await _dbContext.TournamentRegistrationRosterMembers.AnyAsync(member =>
+            member.TeamId == teamId &&
+            member.UserId == userId &&
+            (member.Game.Status == GameStatus.Scheduled || member.Game.Status == GameStatus.InProgress));
     }
 
-    private async Task<bool> IsTeamInMemberRemovalBlockingTournamentAsync(Guid teamId)
+    private async Task<bool> IsTeamInMemberRemovalBlockingTournamentAsync(Guid teamId, Guid userId)
     {
-        return await _dbContext.Games.AnyAsync(game =>
-            game.ParticipationMode == ParticipationMode.Team &&
-            game.Status == GameStatus.InProgress &&
-            game.RegisteredTeams.Any(team => team.Id == teamId));
+        return await _dbContext.TournamentRegistrationRosterMembers.AnyAsync(member =>
+            member.TeamId == teamId &&
+            member.UserId == userId &&
+            (member.Game.Status == GameStatus.Scheduled || member.Game.Status == GameStatus.InProgress));
     }
 
     private async Task<bool> IsTeamInDeleteBlockingTournamentAsync(Guid teamId)
     {
-        return await _dbContext.Games.AnyAsync(game =>
-            game.ParticipationMode == ParticipationMode.Team &&
-            (game.Status == GameStatus.Scheduled || game.Status == GameStatus.InProgress) &&
-            game.RegisteredTeams.Any(team => team.Id == teamId));
+        return await _dbContext.TournamentRegistrations.AnyAsync(registration =>
+            registration.TeamId == teamId &&
+            (registration.Game.Status == GameStatus.Scheduled || registration.Game.Status == GameStatus.InProgress));
     }
 
     private async Task ExpirePendingInvitesAsync(Guid? teamId = null, Guid? userId = null)

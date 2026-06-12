@@ -21,10 +21,10 @@ public class DoubleEliminationMatchModerator : IMatchModerator
         switch (game.ParticipationMode)
         {
             case ParticipationMode.Individual:
-                GenerateUpperBracketMatches(game, game.RegisteredUsers.ToList(), matches, (match, p1, p2) => match.SetParticipants(p1, p2));
+                GenerateUpperBracketMatches(game, game.GetActiveRegisteredUsers(), matches, (match, p1, p2) => match.SetParticipants(p1, p2));
                 break;
             case ParticipationMode.Team:
-                GenerateUpperBracketMatches(game, game.RegisteredTeams.ToList(), matches, (match, p1, p2) => match.SetParticipants(p1, p2));
+                GenerateUpperBracketMatches(game, game.GetActiveRegisteredTeams(), matches, (match, p1, p2) => match.SetParticipants(p1, p2));
                 break;
             default:
                 throw new ValidationException($"Unsupported participation mode {game.ParticipationMode}.");

@@ -503,8 +503,6 @@ public class TeamTests
 
     [Theory]
     [InlineData(GameStatus.InProgress)]
-    [InlineData(GameStatus.Completed)]
-    [InlineData(GameStatus.Canceled)]
     public async Task LeaveTeamAsync_BlocksProtectedTournamentStatuses(GameStatus status)
     {
         await using var dbContext = CreateDbContext();
@@ -517,10 +515,10 @@ public class TeamTests
             Id = Guid.NewGuid(),
             Status = status
         };
-        game.RegisteredTeams.Add(team);
         dbContext.Users.AddRange(captain, member);
         dbContext.Teams.Add(team);
         dbContext.Games.Add(game);
+        AddTeamRegistration(dbContext, game, team, captain, [captain, member], TournamentRegistrationStatus.Active);
         await dbContext.SaveChangesAsync();
 
         var teamService = CreateTeamService(dbContext);
@@ -600,10 +598,10 @@ public class TeamTests
             Id = Guid.NewGuid(),
             Status = GameStatus.InProgress
         };
-        game.RegisteredTeams.Add(team);
         dbContext.Users.AddRange(captain, member);
         dbContext.Teams.Add(team);
         dbContext.Games.Add(game);
+        AddTeamRegistration(dbContext, game, team, captain, [captain, member], TournamentRegistrationStatus.Active);
         await dbContext.SaveChangesAsync();
         var teamService = CreateTeamService(dbContext);
 
@@ -628,10 +626,10 @@ public class TeamTests
             Id = Guid.NewGuid(),
             Status = status
         };
-        game.RegisteredTeams.Add(team);
         dbContext.Users.AddRange(captain, member);
         dbContext.Teams.Add(team);
         dbContext.Games.Add(game);
+        AddTeamRegistration(dbContext, game, team, captain, [captain, member], TournamentRegistrationStatus.Active);
         await dbContext.SaveChangesAsync();
         var teamService = CreateTeamService(dbContext);
 
@@ -672,10 +670,10 @@ public class TeamTests
             Id = Guid.NewGuid(),
             Status = status
         };
-        game.RegisteredTeams.Add(team);
         dbContext.Users.Add(captain);
         dbContext.Teams.Add(team);
         dbContext.Games.Add(game);
+        AddTeamRegistration(dbContext, game, team, captain, [captain], TournamentRegistrationStatus.Active);
         await dbContext.SaveChangesAsync();
 
         var teamService = CreateTeamService(dbContext);
@@ -710,7 +708,7 @@ public class TeamTests
             TeamParticipant1 = team,
             TeamParticipant1Id = team.Id
         };
-        game.RegisteredTeams.Add(team);
+        AddTeamRegistration(dbContext, game, team, captain, [captain, member], TournamentRegistrationStatus.Active);
         placement.Teams = [team];
         var invite = new TeamInvite
         {
@@ -745,7 +743,7 @@ public class TeamTests
         Assert.Null(deletedTeam.LogoUrl);
         Assert.Empty(team.Members);
         Assert.False(await dbContext.TeamInvites.AnyAsync(teamInvite => teamInvite.TeamId == team.Id));
-        Assert.True(await dbContext.Games.AnyAsync(g => g.Id == game.Id && g.RegisteredTeams.Any(t => t.Id == team.Id)));
+        Assert.True(await dbContext.TournamentRegistrations.AnyAsync(registration => registration.GameId == game.Id && registration.TeamId == team.Id));
         Assert.True(await dbContext.Matches.AnyAsync(m => m.Id == match.Id && m.TeamParticipant1Id == team.Id));
         Assert.True(await dbContext.Placements.AnyAsync(p => p.Id == placement.Id && p.Teams.Any(t => t.Id == team.Id)));
     }
@@ -959,6 +957,43 @@ public class TeamTests
             .Options;
 
         return new MercuriusDBContext(options);
+    }
+
+    private static void AddTeamRegistration(
+        MercuriusDBContext dbContext,
+        Game game,
+        Team team,
+        User captain,
+        IReadOnlyCollection<User> rosterMembers,
+        TournamentRegistrationStatus status)
+    {
+        dbContext.TournamentRegistrations.Add(new TournamentRegistration
+        {
+            Id = Guid.NewGuid(),
+            Game = game,
+            GameId = game.Id,
+            Kind = TournamentRegistrationKind.Team,
+            Status = status,
+            RegisteredByUser = captain,
+            RegisteredByUserId = captain.Id,
+            Team = team,
+            TeamId = team.Id,
+            RosterMembers = rosterMembers.Select(member => new TournamentRegistrationRosterMember
+            {
+                Id = Guid.NewGuid(),
+                Game = game,
+                GameId = game.Id,
+                Team = team,
+                TeamId = team.Id,
+                User = member,
+                UserId = member.Id,
+                IsCaptain = member.Id == captain.Id,
+                ConfirmationStatus = member.Id == captain.Id
+                    ? RosterMemberConfirmationStatus.AutoConfirmed
+                    : RosterMemberConfirmationStatus.Confirmed,
+                ConfirmedAtUtc = DateTime.UtcNow
+            }).ToList()
+        });
     }
 
     private static UniqueConstraintDbContext CreateUniqueConstraintDbContext()

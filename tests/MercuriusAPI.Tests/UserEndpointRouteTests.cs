@@ -40,6 +40,18 @@ public class UserEndpointRouteTests
         Assert.Contains(endpoint.Metadata, metadata => metadata is IAuthorizeData);
     }
 
+    [Theory]
+    [InlineData("GET")]
+    [InlineData("PUT")]
+    [InlineData("PATCH")]
+    public void CurrentUserProfileRoutes_RequireAuthorization(string method)
+    {
+        var endpoint = GetUserRouteEndpoint(method, "v{version:apiVersion}/lan/users/me");
+
+        Assert.DoesNotContain(endpoint.Metadata, metadata => metadata is IAllowAnonymous);
+        Assert.Contains(endpoint.Metadata, metadata => metadata is IAuthorizeData);
+    }
+
     [Fact]
     public void UserCollectionRoute_UsesAuthenticatedSearchRateLimitPolicy()
     {

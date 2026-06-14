@@ -303,6 +303,25 @@ public class UserTests
     }
 
     [Fact]
+    public async Task CreateCurrentUserAsync_ForwardsSubjectAndProfileRequest()
+    {
+        var inner = new RecordingUserService();
+        var service = new UserValidationService(inner);
+        var request = new CompleteUserProfileRequest
+        {
+            Username = "ValidUser",
+            Firstname = "Player",
+            Lastname = "One"
+        };
+
+        var result = await service.CreateCurrentUserAsync("auth0|123", request);
+
+        Assert.Same(inner.CreatedUser, result);
+        Assert.Equal("auth0|123", inner.LastCreateCurrentSubject);
+        Assert.Same(request, inner.LastCreateCurrentRequest);
+    }
+
+    [Fact]
     public async Task CompleteProfileAsync_ForwardsSubjectAndProfileRequest()
     {
         var inner = new RecordingUserService();
@@ -444,6 +463,183 @@ public class UserTests
         var exception = await Assert.ThrowsAsync<NotFoundException>(() => service.DeleteUserAsync("missinguser"));
 
         Assert.Contains("missinguser", exception.Message);
+    }
+
+    [Fact]
+    public async Task GetCurrentUserAsync_ReturnsExistingUserWithoutCreatingOrSyncingAuth0Profile()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = CreateStoredUser("auth0|current", "stored@example.com");
+        dbContext.Users.Add(user);
+        await dbContext.SaveChangesAsync();
+
+        var auth0ManagementService = new RecordingAuth0ManagementService(
+            new Auth0ProfileSnapshot("fresh@example.com", true, true));
+        var service = new UserService(dbContext, auth0ManagementService);
+
+        var response = await service.GetCurrentUserAsync("auth0|current");
+
+        Assert.True(response.IsComplete);
+        Assert.Equal(user.Id, response.User?.Id);
+        Assert.Equal("stored@example.com", response.Email);
+        Assert.False(response.EmailVerified);
+        Assert.Equal(0, auth0ManagementService.GetUserProfileCallCount);
+
+        var storedUser = await dbContext.Users.SingleAsync(u => u.Id == user.Id);
+        Assert.Equal("stored@example.com", storedUser.Email);
+        Assert.False(storedUser.EmailVerified);
+    }
+
+    [Fact]
+    public async Task GetCurrentUserAsync_ThrowsNotFoundWithoutCreatingUser_WhenCurrentUserMissing()
+    {
+        await using var dbContext = CreateDbContext();
+        var auth0ManagementService = new RecordingAuth0ManagementService(
+            new Auth0ProfileSnapshot("fresh@example.com", true, true));
+        var service = new UserService(dbContext, auth0ManagementService);
+
+        await Assert.ThrowsAsync<NotFoundException>(() => service.GetCurrentUserAsync("auth0|missing"));
+
+        Assert.Equal(0, auth0ManagementService.GetUserProfileCallCount);
+        Assert.Empty(await dbContext.Users.ToListAsync());
+    }
+
+    [Fact]
+    public async Task CreateCurrentUserAsync_CreatesMissingCurrentUserFromAuthenticatedSubject()
+    {
+        await using var dbContext = CreateDbContext();
+        var auth0ManagementService = new RecordingAuth0ManagementService(
+            new Auth0ProfileSnapshot("fresh@example.com", true, true));
+        var service = new UserService(dbContext, auth0ManagementService);
+        var request = new CompleteUserProfileRequest
+        {
+            Username = "NewPlayer",
+            Firstname = "New",
+            Lastname = "Player",
+            DiscordId = "discord-1"
+        };
+
+        var created = await service.CreateCurrentUserAsync(" auth0|new ", request);
+
+        Assert.Equal("NewPlayer", created.Username);
+        Assert.Equal("fresh@example.com", created.Email);
+        Assert.True(created.EmailVerified);
+        Assert.Equal(1, auth0ManagementService.GetUserProfileCallCount);
+        Assert.Equal("auth0|new", auth0ManagementService.LastGetUserProfileAuth0UserId);
+
+        var storedUser = await dbContext.Users.SingleAsync();
+        Assert.Equal("auth0|new", storedUser.Auth0UserId);
+        Assert.Equal("NewPlayer", storedUser.Username);
+        Assert.Equal("newplayer", storedUser.NormalizedUsername);
+        Assert.Equal("fresh@example.com", storedUser.Email);
+        Assert.Equal("discord-1", storedUser.DiscordId);
+    }
+
+    [Fact]
+    public async Task CreateCurrentUserAsync_RejectsExistingCurrentUserWithoutOverwritingProfile()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = CreateStoredUser("auth0|existing", "stored@example.com");
+        dbContext.Users.Add(user);
+        await dbContext.SaveChangesAsync();
+
+        var auth0ManagementService = new RecordingAuth0ManagementService(
+            new Auth0ProfileSnapshot("fresh@example.com", true, true));
+        var service = new UserService(dbContext, auth0ManagementService);
+        var request = new CompleteUserProfileRequest
+        {
+            Username = "OtherUser",
+            Firstname = "Other",
+            Lastname = "User"
+        };
+
+        var exception = await Assert.ThrowsAsync<ValidationException>(() =>
+            service.CreateCurrentUserAsync("auth0|existing", request));
+
+        Assert.Equal("Current user profile already exists.", exception.Message);
+        Assert.Equal(0, auth0ManagementService.GetUserProfileCallCount);
+
+        var storedUser = await dbContext.Users.SingleAsync(u => u.Id == user.Id);
+        Assert.Equal("PlayerOne", storedUser.Username);
+        Assert.Equal("stored@example.com", storedUser.Email);
+    }
+
+    [Fact]
+    public async Task CompleteProfileAsync_UpdatesExistingCurrentUserWithoutCallingAuth0Profile()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = CreateStoredUser("auth0|existing", "stored@example.com");
+        user.Username = null;
+        user.NormalizedUsername = null;
+        user.Firstname = null;
+        user.Lastname = null;
+        dbContext.Users.Add(user);
+        await dbContext.SaveChangesAsync();
+
+        var auth0ManagementService = new RecordingAuth0ManagementService(
+            new Auth0ProfileSnapshot("fresh@example.com", true, true));
+        var service = new UserService(dbContext, auth0ManagementService);
+        var request = new CompleteUserProfileRequest
+        {
+            Username = "CompletedUser",
+            Firstname = "Completed",
+            Lastname = "User",
+            SteamId = "steam-1"
+        };
+
+        var completed = await service.CompleteProfileAsync("auth0|existing", request);
+
+        Assert.Equal("CompletedUser", completed.Username);
+        Assert.Equal("stored@example.com", completed.Email);
+        Assert.False(completed.EmailVerified);
+        Assert.Equal(0, auth0ManagementService.GetUserProfileCallCount);
+
+        var storedUser = await dbContext.Users.SingleAsync(u => u.Id == user.Id);
+        Assert.Equal("CompletedUser", storedUser.Username);
+        Assert.Equal("completeduser", storedUser.NormalizedUsername);
+        Assert.Equal("Completed", storedUser.Firstname);
+        Assert.Equal("User", storedUser.Lastname);
+        Assert.Equal("steam-1", storedUser.SteamId);
+        Assert.Equal("stored@example.com", storedUser.Email);
+    }
+
+    [Fact]
+    public async Task CompleteProfileAsync_ThrowsNotFoundWithoutCreatingUser_WhenCurrentUserMissing()
+    {
+        await using var dbContext = CreateDbContext();
+        var auth0ManagementService = new RecordingAuth0ManagementService(
+            new Auth0ProfileSnapshot("fresh@example.com", true, true));
+        var service = new UserService(dbContext, auth0ManagementService);
+        var request = new CompleteUserProfileRequest
+        {
+            Username = "ValidUser",
+            Firstname = "Valid",
+            Lastname = "User"
+        };
+
+        await Assert.ThrowsAsync<NotFoundException>(() => service.CompleteProfileAsync("auth0|missing", request));
+
+        Assert.Equal(0, auth0ManagementService.GetUserProfileCallCount);
+        Assert.Empty(await dbContext.Users.ToListAsync());
+    }
+
+    [Fact]
+    public async Task UpdateCurrentUserAsync_ThrowsNotFoundWithoutCreatingUser_WhenCurrentUserMissing()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = new UserService(
+            dbContext,
+            new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("fresh@example.com", true, true)));
+        var request = new UpdateUserProfileRequest
+        {
+            Username = "ValidUser",
+            Firstname = "Valid",
+            Lastname = "User"
+        };
+
+        await Assert.ThrowsAsync<NotFoundException>(() => service.UpdateCurrentUserAsync("auth0|missing", request));
+
+        Assert.Empty(await dbContext.Users.ToListAsync());
     }
 
     [Fact]
@@ -761,6 +957,8 @@ public class UserTests
     private sealed class RecordingUserService : IUserService
     {
         public CreateUserProfileRequest? LastCreateRequest { get; private set; }
+        public string? LastCreateCurrentSubject { get; private set; }
+        public CompleteUserProfileRequest? LastCreateCurrentRequest { get; private set; }
         public string? LastCompleteSubject { get; private set; }
         public CompleteUserProfileRequest? LastCompleteRequest { get; private set; }
         public string? LastUpdateCurrentSubject { get; private set; }
@@ -819,6 +1017,13 @@ public class UserTests
         public Task<GetUserDTO> CreateUserAsync(CreateUserProfileRequest request)
         {
             LastCreateRequest = request;
+            return Task.FromResult(CreatedUser);
+        }
+
+        public Task<GetUserDTO> CreateCurrentUserAsync(string auth0UserId, CompleteUserProfileRequest request)
+        {
+            LastCreateCurrentSubject = auth0UserId;
+            LastCreateCurrentRequest = request;
             return Task.FromResult(CreatedUser);
         }
 
@@ -884,9 +1089,13 @@ public class UserTests
         }
 
         public string? LastPasswordResetEmail { get; private set; }
+        public string? LastGetUserProfileAuth0UserId { get; private set; }
+        public int GetUserProfileCallCount { get; private set; }
 
         public Task<Auth0ProfileSnapshot> GetUserProfileAsync(string auth0UserId, CancellationToken cancellationToken = default)
         {
+            LastGetUserProfileAuth0UserId = auth0UserId;
+            GetUserProfileCallCount++;
             return Task.FromResult(_profileSnapshot);
         }
 

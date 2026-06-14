@@ -39,9 +39,24 @@ public class UserService : IUserService
         return new GetUserDTO(user);
     }
 
+    public async Task<GetUserDTO> CreateCurrentUserAsync(string auth0UserId, CompleteUserProfileRequest request)
+    {
+        var normalizedAuth0UserId = NormalizeAuth0UserId(auth0UserId);
+        if (await _dbContext.Users.AnyAsync(u => u.Auth0UserId == normalizedAuth0UserId))
+            throw new ValidationException("Current user profile already exists.");
+
+        var auth0Profile = await _auth0ManagementService.GetUserProfileAsync(normalizedAuth0UserId);
+        var user = await CreateIncompleteUserAsync(normalizedAuth0UserId, auth0Profile);
+
+        ApplyProfileUpdate(user, request.Username, request.Firstname, request.Lastname, request.DiscordId, request.SteamId, request.RiotId);
+
+        await SaveProfileChangesAsync();
+        return new GetUserDTO(user);
+    }
+
     public async Task<GetUserDTO> CompleteProfileAsync(string auth0UserId, CompleteUserProfileRequest request)
     {
-        var user = await GetOrCreateCurrentUserAsync(auth0UserId);
+        var user = await GetRequiredCurrentUserAsync(auth0UserId);
         EnsureActive(user);
 
         ApplyProfileUpdate(user, request.Username, request.Firstname, request.Lastname, request.DiscordId, request.SteamId, request.RiotId);
@@ -52,10 +67,8 @@ public class UserService : IUserService
 
     public async Task<CurrentUserProfileResponse> GetCurrentUserAsync(string auth0UserId)
     {
-        var user = await GetOrCreateCurrentUserAsync(auth0UserId);
+        var user = await GetRequiredCurrentUserAsync(auth0UserId);
         EnsureActive(user);
-
-        await _dbContext.SaveChangesAsync();
 
         return new CurrentUserProfileResponse(user.IsComplete, new GetUserDTO(user));
     }
@@ -317,21 +330,6 @@ public class UserService : IUserService
 
         user.Anonymize(DateTime.UtcNow);
         await _dbContext.SaveChangesAsync();
-    }
-
-    private async Task<User> GetOrCreateCurrentUserAsync(string auth0UserId)
-    {
-        var normalizedAuth0UserId = NormalizeAuth0UserId(auth0UserId);
-        var auth0Profile = await _auth0ManagementService.GetUserProfileAsync(normalizedAuth0UserId);
-        var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Auth0UserId == normalizedAuth0UserId);
-
-        if (user == null)
-            return await CreateIncompleteUserAsync(normalizedAuth0UserId, auth0Profile);
-
-        if (!user.IsDeleted)
-            user.SyncAuth0Profile(auth0Profile.Email, auth0Profile.EmailVerified, DateTime.UtcNow);
-
-        return user;
     }
 
     private async Task<User> GetRequiredCurrentUserAsync(string auth0UserId)

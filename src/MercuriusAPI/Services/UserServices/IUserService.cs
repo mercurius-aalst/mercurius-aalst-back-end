@@ -5,6 +5,7 @@ namespace Mercurius.LAN.API.Services.UserServices;
 public interface IUserService
 {
     Task<GetUserDTO> CreateUserAsync(CreateUserProfileRequest request);
+    Task<GetUserDTO> CreateCurrentUserAsync(string auth0UserId, CompleteUserProfileRequest request);
     Task<GetUserDTO> CompleteProfileAsync(string auth0UserId, CompleteUserProfileRequest request);
     Task<CurrentUserProfileResponse> GetCurrentUserAsync(string auth0UserId);
     Task<PublicUserProfileDTO> GetPublicUserProfileByUsernameAsync(string username);

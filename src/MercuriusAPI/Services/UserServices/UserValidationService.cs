@@ -26,6 +26,15 @@ public class UserValidationService : IUserService
         return _inner.CreateUserAsync(request);
     }
 
+    public Task<GetUserDTO> CreateCurrentUserAsync(string auth0UserId, CompleteUserProfileRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(auth0UserId))
+            throw new ValidationException("Auth0 user id is required.");
+
+        ValidateProfileRequest(request.Username, request.Firstname, request.Lastname, request.DiscordId, request.SteamId, request.RiotId);
+        return _inner.CreateCurrentUserAsync(auth0UserId, request);
+    }
+
     public Task<GetUserDTO> CompleteProfileAsync(string auth0UserId, CompleteUserProfileRequest request)
     {
         if (string.IsNullOrWhiteSpace(auth0UserId))

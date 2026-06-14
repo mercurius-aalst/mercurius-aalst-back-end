@@ -73,6 +73,15 @@ Several backend PRs already address these areas, including public global search,
 - Do not introduce new packages unless the existing stack cannot reasonably solve the task.
 - If a required integration change alters API behavior, validation rules, auth behavior, privacy behavior, persistence behavior, or error handling, add or update OpenSpec coverage first.
 
+## Code design rules
+- Keep implementations straightforward and avoid unnecessary abstractions, wrapper methods, wrapper classes, and indirection that do not add clear readability, testability, performance, or maintainability value.
+- Avoid code duplication, but also avoid unnecessary code de-duplication that creates brittle shared abstractions or hides feature-specific behavior.
+- Reuse existing endpoints, services, DTOs, EF Core mappings, tests, and validation patterns where possible, but verify behavior to avoid regression failures.
+- Keep one primary class, record, entity, DTO, endpoint group, or service per file unless the additional type is a small private nested implementation detail.
+- Apply industry-standard design patterns only where they are appropriate and necessary for code cleanliness, performance, or long-term maintainability.
+- Avoid N+1 database queries, repeated service calls, unnecessary materialization, redundant method invocations, and other performance bottlenecks caused by query or code invocation patterns.
+- Keep dependencies between feature domains minimal. Prefer explicit contracts at boundaries rather than cross-domain coupling or shared mutable state.
+
 ## Before completing work
 - Run `dotnet test LAN.API.sln`.
 - Verify the relevant OpenSpec change exists for functional behavior changes.

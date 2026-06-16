@@ -13,7 +13,7 @@ public interface ITeamService
     Task<CurrentUserTeamSummaryDTO> GetCurrentUserTeamSummaryAsync(string auth0UserId);
     Task<PublicTeamProfileDTO> GetPublicTeamProfileAsync(string teamName);
     Task<IEnumerable<TeamInviteDTO>> GetUserInvitesAsync(Guid userId);
-    Task<IEnumerable<TeamInviteSummaryDTO>> GetCurrentUserInvitesAsync(bool isSender, string auth0UserId);
+    Task<IEnumerable<TeamInviteSummaryDTO>> GetCurrentUserInvitesAsync(string auth0UserId, bool isSender);
     Task<Team> GetTeamByIdAsync(Guid teamId);
     Task<Team> GetTeamByNameAsync(string name);
     Task<TeamInviteDTO> InviteUserAsync(Guid teamId, Guid userId);

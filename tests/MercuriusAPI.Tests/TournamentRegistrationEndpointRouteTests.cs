@@ -15,8 +15,8 @@ public class TournamentRegistrationEndpointRouteTests
     [InlineData("GET", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/me")]
     [InlineData("GET", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/eligibility/individual")]
     [InlineData("POST", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/individual")]
-    [InlineData("PUT", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/teams/{teamId:guid}/roster")]
-    [InlineData("PUT", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/teams/{teamId:guid}/roster/members/{rosterMemberId:guid}")]
+    [InlineData("PUT", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/teams/{teamId:guid}/rostermembers")]
+    [InlineData("PUT", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/teams/{teamId:guid}/rostermembers/{rosterMemberId:guid}")]
     public void CurrentUserRegistrationRoutes_RequireAuthorization(string method, string routePattern)
     {
         var endpoint = GetRegistrationRouteEndpoint(method, routePattern);

@@ -51,7 +51,7 @@ public static class TeamEndpoints
         group.MapGet("/me/invites", async (bool? isSender, ClaimsPrincipal user, ITeamService teamService) =>
         {
             var auth0UserId = GetAuth0UserId(user);
-            return await teamService.GetCurrentUserInvitesAsync(isSender ?? false, auth0UserId);
+            return await teamService.GetCurrentUserInvitesAsync(auth0UserId, isSender ?? false);
         })
         .RequireAuthorization();
 

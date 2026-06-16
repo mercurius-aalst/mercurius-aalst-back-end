@@ -82,15 +82,15 @@ public static class UserEndpoints
         .RequireAuthorization()
         .RequireRateLimiting(RateLimitPolicies.AuthenticatedSearch);
 
-        group.MapPost("/me/resend-verification-email", async (ClaimsPrincipal user, IUserService userService) =>
+        group.MapPost("/me", async (CurrentUserAccountAction action, ClaimsPrincipal user, IUserService userService) =>
         {
-            return await userService.ResendVerificationEmailAsync(GetAuth0UserId(user));
-        })
-        .RequireAuthorization();
-
-        group.MapPost("/me/password-reset", async (ClaimsPrincipal user, IUserService userService) =>
-        {
-            return await userService.SendPasswordResetEmailAsync(GetAuth0UserId(user));
+            var auth0UserId = GetAuth0UserId(user);
+            return action switch
+            {
+                CurrentUserAccountAction.ResendVerificationEmail => await userService.ResendVerificationEmailAsync(auth0UserId),
+                CurrentUserAccountAction.PasswordReset => await userService.SendPasswordResetEmailAsync(auth0UserId),
+                _ => throw new ArgumentOutOfRangeException(nameof(action))
+            };
         })
         .RequireAuthorization();
 
@@ -143,5 +143,11 @@ public static class UserEndpoints
             throw new UnauthorizedAccessException("Authenticated user id is missing.");
 
         return subject;
+    }
+
+    private enum CurrentUserAccountAction
+    {
+        ResendVerificationEmail = 1,
+        PasswordReset = 2
     }
 }

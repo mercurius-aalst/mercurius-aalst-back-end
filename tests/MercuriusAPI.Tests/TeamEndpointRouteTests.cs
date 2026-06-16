@@ -14,7 +14,6 @@ public class TeamEndpointRouteTests
     [InlineData("POST", "v{version:apiVersion}/lan/teams/")]
     [InlineData("GET", "v{version:apiVersion}/lan/teams/me/summary")]
     [InlineData("GET", "v{version:apiVersion}/lan/teams/me/invites")]
-    [InlineData("GET", "v{version:apiVersion}/lan/teams/me/sent-invites")]
     [InlineData("POST", "v{version:apiVersion}/lan/teams/{id}/leave")]
     [InlineData("POST", "v{version:apiVersion}/lan/teams/{id}/invites/{userId}")]
     [InlineData("DELETE", "v{version:apiVersion}/lan/teams/{id}/invites/{inviteId}")]
@@ -37,6 +36,7 @@ public class TeamEndpointRouteTests
     [InlineData("POST", "v{version:apiVersion}/lan/teams/{id}/users/invite/{userId}")]
     [InlineData("PUT", "v{version:apiVersion}/lan/teams/{id}/users/invite/{userId}")]
     [InlineData("GET", "v{version:apiVersion}/lan/teams/users/{userId}/invites")]
+    [InlineData("GET", "v{version:apiVersion}/lan/teams/me/sent-invites")]
     public void AdminOnlyTeamMutationRoutes_AreRemoved(string method, string routePattern)
     {
         var endpoints = GetTeamRouteEndpoints(method);

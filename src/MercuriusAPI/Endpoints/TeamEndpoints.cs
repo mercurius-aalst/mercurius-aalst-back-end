@@ -48,15 +48,10 @@ public static class TeamEndpoints
         })
         .RequireAuthorization();
 
-        group.MapGet("/me/invites", async (ClaimsPrincipal user, ITeamService teamService) =>
+        group.MapGet("/me/invites", async (bool? isSender, ClaimsPrincipal user, ITeamService teamService) =>
         {
-            return await teamService.GetCurrentUserInvitesAsync(GetAuth0UserId(user));
-        })
-        .RequireAuthorization();
-
-        group.MapGet("/me/sent-invites", async (ClaimsPrincipal user, ITeamService teamService) =>
-        {
-            return await teamService.GetCurrentUserSentInvitesAsync(GetAuth0UserId(user));
+            var auth0UserId = GetAuth0UserId(user);
+            return await teamService.GetCurrentUserInvitesAsync(isSender ?? false, auth0UserId);
         })
         .RequireAuthorization();
 

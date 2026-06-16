@@ -360,26 +360,18 @@ public class TeamService : ITeamService
         };
     }
 
-    public async Task<IEnumerable<TeamInviteSummaryDTO>> GetCurrentUserInvitesAsync(string auth0UserId)
+    public async Task<IEnumerable<TeamInviteSummaryDTO>> GetCurrentUserInvitesAsync(string auth0UserId, bool isSender = false)
     {
         var currentUser = await GetCurrentUserAsync(auth0UserId);
         await ExpirePendingInvitesAsync();
-        var invites = await GetPendingInviteSummariesQuery()
-            .Where(invite => invite.UserId == currentUser.Id)
-            .OrderBy(invite => invite.CreatedAt)
-            .ToListAsync();
-        return invites.Select(invite => new TeamInviteSummaryDTO(invite));
-    }
+        var invites = GetPendingInviteSummariesQuery();
+        if (isSender)
+            invites = invites.Where(invite => invite.Team.CaptainUserId == currentUser.Id);
+        else
+            invites = invites.Where(invite => invite.UserId == currentUser.Id);
 
-    public async Task<IEnumerable<TeamInviteSummaryDTO>> GetCurrentUserSentInvitesAsync(string auth0UserId)
-    {
-        var currentUser = await GetCurrentUserAsync(auth0UserId);
-        await ExpirePendingInvitesAsync();
-        var invites = await GetPendingInviteSummariesQuery()
-            .Where(invite => invite.Team.CaptainUserId == currentUser.Id)
-            .OrderBy(invite => invite.CreatedAt)
-            .ToListAsync();
-        return invites.Select(invite => new TeamInviteSummaryDTO(invite));
+        return invites.OrderBy(invite => invite.CreatedAt)
+            .Select(invite => new TeamInviteSummaryDTO(invite));
     }
 
     public async Task<TeamManagementSummaryDTO> LeaveTeamAsync(string auth0UserId, Guid teamId)

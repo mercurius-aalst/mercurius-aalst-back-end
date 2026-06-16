@@ -54,26 +54,24 @@ public static class GameEndpoints
             return await gameService.ReplaceSponsorPlacementsAsync(id, sponsorDTO);
         });
 
-        group.MapPost("/{id}/start", async (Guid id, IGameService gameService) =>
+        group.MapPost("/{id}", async (Guid id, GameLifecycleAction action, IGameService gameService) =>
         {
-            await gameService.StartGameAsync(id);
-        });
-
-        group.MapPost("/{id}/reset", async (Guid id, IGameService gameService) =>
-        {
-            await gameService.ResetGameAsync(id);
-        });
-
-        group.MapPost("/{id}/complete", async (Guid id, IGameService gameService) =>
-        {
-            return await gameService.CompleteGameAsync(id);
-        });
-
-        group.MapPost("/{id}/cancel", async (Guid id, IGameService gameService) =>
-        {
-            await gameService.CancelGameAsync(id);
+            return action switch
+            {
+                GameLifecycleAction.Start => await RunEmptyActionAsync(() => gameService.StartGameAsync(id)),
+                GameLifecycleAction.Reset => await RunEmptyActionAsync(() => gameService.ResetGameAsync(id)),
+                GameLifecycleAction.Complete => Results.Ok(await gameService.CompleteGameAsync(id)),
+                GameLifecycleAction.Cancel => await RunEmptyActionAsync(() => gameService.CancelGameAsync(id)),
+                _ => Results.BadRequest()
+            };
         });
 
         return group;
+    }
+
+    private static async Task<IResult> RunEmptyActionAsync(Func<Task> action)
+    {
+        await action();
+        return Results.Ok();
     }
 }

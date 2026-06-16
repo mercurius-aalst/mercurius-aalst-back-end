@@ -118,7 +118,7 @@ public class PublicParticipantPrivacyDTOTests
                     User = captain,
                     UserId = captain.Id,
                     IsCaptain = true,
-                    ConfirmationStatus = RosterMemberConfirmationStatus.AutoConfirmed
+                    SelectionStatus = RosterSelectionStatus.AutoConfirmed
                 },
                 new TournamentRegistrationRosterMember
                 {
@@ -129,7 +129,7 @@ public class PublicParticipantPrivacyDTOTests
                     TeamId = team.Id,
                     User = rosterMember,
                     UserId = rosterMember.Id,
-                    ConfirmationStatus = RosterMemberConfirmationStatus.Confirmed
+                    SelectionStatus = RosterSelectionStatus.Confirmed
                 }
             ]
         };
@@ -157,7 +157,7 @@ public class PublicParticipantPrivacyDTOTests
                     TeamId = team.Id,
                     User = pendingUser,
                     UserId = pendingUser.Id,
-                    ConfirmationStatus = RosterMemberConfirmationStatus.Pending
+                    SelectionStatus = RosterSelectionStatus.Pending
                 }
             ]
         });
@@ -168,7 +168,7 @@ public class PublicParticipantPrivacyDTOTests
         Assert.Contains("\"rosterMembers\":", json, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("\"username\":\"user6\"", json, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("\"username\":\"user7\"", json, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("\"confirmationStatus\":", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("\"SelectionStatus\":", json, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("\"createdAtUtc\":", json, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("\"updatedAtUtc\":", json, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("\"confirmationInviteId\":", json, StringComparison.OrdinalIgnoreCase);

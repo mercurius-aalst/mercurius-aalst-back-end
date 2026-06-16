@@ -11,6 +11,8 @@ namespace Mercurius.LAN.API.Services.RegistrationServices;
 
 public class TournamentRegistrationService : ITournamentRegistrationService
 {
+    private const string DeclinedSelectionStatus = "Declined";
+    private static readonly Guid[] NoExcludedRegistrationIds = [];
     private readonly MercuriusDBContext _dbContext;
     private readonly ITeamEventPublisher _eventPublisher;
 
@@ -33,7 +35,7 @@ public class TournamentRegistrationService : ITournamentRegistrationService
         var user = await GetCurrentUserAsync(auth0UserId);
         var game = await GetGameAsync(gameId);
         var team = await GetTeamWithMembersAsync(teamId);
-        var reasons = await GetTeamEligibilityFailuresAsync(game, team, user.Id, null);
+        var reasons = await GetTeamEligibilityFailuresAsync(game, team, user.Id, NoExcludedRegistrationIds);
         return new EligibilityResponseDTO(reasons.Count == 0, reasons);
     }
 
@@ -42,7 +44,7 @@ public class TournamentRegistrationService : ITournamentRegistrationService
         var user = await GetCurrentUserAsync(auth0UserId);
         var game = await GetGameAsync(gameId);
         var team = await GetTeamWithMembersAsync(teamId);
-        var reasons = await GetTeamEligibilityFailuresAsync(game, team, user.Id, null);
+        var reasons = await GetTeamEligibilityFailuresAsync(game, team, user.Id, NoExcludedRegistrationIds);
         reasons.AddRange(GetRosterSizeFailures(game, userIds));
 
         var distinctUserIds = userIds.Distinct().ToList();
@@ -53,7 +55,7 @@ public class TournamentRegistrationService : ITournamentRegistrationService
         var candidateResults = new List<RosterCandidateEligibilityDTO>();
         foreach (var candidateId in distinctUserIds)
         {
-            var candidateReasons = await GetRosterCandidateFailuresAsync(game.Id, team, candidateId, null);
+            var candidateReasons = await GetRosterCandidateFailuresAsync(game.Id, team, candidateId, NoExcludedRegistrationIds);
             candidateResults.Add(new RosterCandidateEligibilityDTO(
                 candidateId,
                 users.TryGetValue(candidateId, out var candidate) ? new PublicUserDTO(candidate) : null,
@@ -131,14 +133,19 @@ public class TournamentRegistrationService : ITournamentRegistrationService
                 registration.GameId == gameId &&
                 registration.TeamId == team.Id &&
                 registration.Kind == TournamentRegistrationKind.Team);
-        var excludedRegistrationId = existing?.Id;
+        var pendingSelectionsToDecline = await GetPendingSelectionRegistrationsForUserAsync(game.Id, user.Id, existing?.Id);
+        var excludedRegistrationIds = pendingSelectionsToDecline
+            .Select(registration => registration.Id)
+            .ToList();
+        if (existing is not null)
+            excludedRegistrationIds.Add(existing.Id);
 
-        var teamFailures = await GetTeamEligibilityFailuresAsync(game, team, user.Id, excludedRegistrationId);
+        var teamFailures = await GetTeamEligibilityFailuresAsync(game, team, user.Id, excludedRegistrationIds);
         var rosterFailures = GetRosterSizeFailures(game, request.UserIds);
         if (!request.UserIds.Contains(user.Id))
             rosterFailures.Add("captain_required");
         foreach (var candidateId in request.UserIds.Distinct())
-            rosterFailures.AddRange(await GetRosterCandidateFailuresAsync(game.Id, team, candidateId, excludedRegistrationId));
+            rosterFailures.AddRange(await GetRosterCandidateFailuresAsync(game.Id, team, candidateId, excludedRegistrationIds));
 
         var failures = teamFailures.Concat(rosterFailures).Distinct().ToList();
         if (failures.Count != 0)
@@ -146,6 +153,9 @@ public class TournamentRegistrationService : ITournamentRegistrationService
 
         if (existing is not null)
             await DeleteTransientTeamRegistrationAsync(existing);
+        var declinedSelectionEvents = CreatePendingSelectionEvents(pendingSelectionsToDecline, DeclinedSelectionStatus);
+        foreach (var pendingSelectionRegistration in pendingSelectionsToDecline)
+            await DeleteTransientTeamRegistrationAsync(pendingSelectionRegistration);
 
         var now = DateTime.UtcNow;
         var registration = new TournamentRegistration
@@ -170,28 +180,42 @@ public class TournamentRegistrationService : ITournamentRegistrationService
                 TeamId = team.Id,
                 UserId = memberId,
                 IsCaptain = isCaptain,
-                ConfirmationStatus = isCaptain ? RosterMemberConfirmationStatus.AutoConfirmed : RosterMemberConfirmationStatus.Pending,
+                SelectionStatus = isCaptain ? RosterSelectionStatus.AutoConfirmed : RosterSelectionStatus.Pending,
                 ConfirmedAtUtc = isCaptain ? now : null,
                 CreatedAtUtc = now,
                 UpdatedAtUtc = now
             });
         }
 
-        if (registration.RosterMembers.All(member => member.ConfirmationStatus != RosterMemberConfirmationStatus.Pending))
+        if (registration.RosterMembers.All(member => member.SelectionStatus != RosterSelectionStatus.Pending))
             registration.Activate(now);
 
         _dbContext.TournamentRegistrations.Add(registration);
-        var rosterConfirmationEvents = CreateRosterConfirmationEvents(registration);
+        var rosterSelectionEvents = CreateRosterSelectionEvents(registration);
 
         await SaveRegistrationChangesAsync("One or more roster members already has pending or active participation for this tournament.");
         var dto = new TournamentRegistrationDTO(await GetRegistrationByIdAsync(registration.Id));
         if (transaction is not null)
             await transaction.CommitAsync();
-        await PublishRosterConfirmationEventsAsync(rosterConfirmationEvents);
+        await PublishRosterSelectionEventsAsync(declinedSelectionEvents);
+        await PublishRosterSelectionEventsAsync(rosterSelectionEvents);
         return dto;
     }
 
-    public async Task<TournamentRegistrationDTO> ConfirmRosterAsync(string auth0UserId, Guid rosterMemberId)
+    public async Task<TournamentRegistrationDTO?> RespondToRosterSelectionAsync(string auth0UserId, Guid teamId, Guid rosterMemberId, RosterSelectionActionDTO request)
+    {
+        if (!Enum.IsDefined(request.Action))
+            throw new ValidationException("Unsupported roster selection action.");
+
+        return request.Action switch
+        {
+            RosterSelectionAction.Confirm => await ConfirmRosterSelectionAsync(auth0UserId, teamId, rosterMemberId),
+            RosterSelectionAction.Decline => await DeclineRosterSelectionAsync(auth0UserId, teamId, rosterMemberId),
+            _ => throw new ValidationException("Unsupported roster selection action.")
+        };
+    }
+
+    private async Task<TournamentRegistrationDTO> ConfirmRosterSelectionAsync(string auth0UserId, Guid teamId, Guid rosterMemberId)
     {
         await using var transaction = await BeginTransactionIfSupportedAsync();
         var user = await GetCurrentUserAsync(auth0UserId);
@@ -203,22 +227,22 @@ public class TournamentRegistrationService : ITournamentRegistrationService
                     .ThenInclude(team => team!.Members)
             .Include(roster => roster.TournamentRegistration)
                 .ThenInclude(registration => registration.Game)
-            .FirstOrDefaultAsync(roster => roster.Id == rosterMemberId && roster.UserId == user.Id);
-        if (member is null || member.ConfirmationStatus != RosterMemberConfirmationStatus.Pending)
-            throw new NotFoundException("Pending roster confirmation not found.");
+            .FirstOrDefaultAsync(roster => roster.Id == rosterMemberId && roster.TeamId == teamId && roster.UserId == user.Id);
+        if (member is null || member.SelectionStatus != RosterSelectionStatus.Pending)
+            throw new NotFoundException("Pending roster selection not found.");
 
         var registration = member.TournamentRegistration;
         EnsureScheduled(registration.Game);
         if (registration.Team is null)
             throw new ValidationException("Team registration is invalid.");
 
-        var candidateFailures = await GetRosterCandidateFailuresAsync(registration.GameId, registration.Team, user.Id, registration.Id);
+        var candidateFailures = await GetRosterCandidateFailuresAsync(registration.GameId, registration.Team, user.Id, [registration.Id]);
         if (candidateFailures.Count != 0)
             throw new ValidationException(string.Join(", ", candidateFailures));
 
         var now = DateTime.UtcNow;
         member.Confirm(now);
-        if (registration.RosterMembers.All(roster => roster.ConfirmationStatus is RosterMemberConfirmationStatus.AutoConfirmed or RosterMemberConfirmationStatus.Confirmed))
+        if (registration.RosterMembers.All(roster => roster.SelectionStatus is RosterSelectionStatus.AutoConfirmed or RosterSelectionStatus.Confirmed))
             registration.Activate(now);
         else
             registration.UpdatedAtUtc = now;
@@ -228,6 +252,31 @@ public class TournamentRegistrationService : ITournamentRegistrationService
         if (transaction is not null)
             await transaction.CommitAsync();
         return dto;
+    }
+
+    private async Task<TournamentRegistrationDTO?> DeclineRosterSelectionAsync(string auth0UserId, Guid teamId, Guid rosterMemberId)
+    {
+        await using var transaction = await BeginTransactionIfSupportedAsync();
+        var user = await GetCurrentUserAsync(auth0UserId);
+        var member = await _dbContext.TournamentRegistrationRosterMembers
+            .Include(roster => roster.TournamentRegistration)
+                .ThenInclude(registration => registration.RosterMembers)
+            .Include(roster => roster.TournamentRegistration)
+                .ThenInclude(registration => registration.Game)
+            .FirstOrDefaultAsync(roster => roster.Id == rosterMemberId && roster.TeamId == teamId && roster.UserId == user.Id);
+        if (member is null || member.SelectionStatus != RosterSelectionStatus.Pending)
+            throw new NotFoundException("Pending roster selection not found.");
+
+        var registration = member.TournamentRegistration;
+        EnsureScheduled(registration.Game);
+
+        var declinedSelectionEvents = CreatePendingSelectionEvents([registration], DeclinedSelectionStatus);
+        await DeleteTransientTeamRegistrationAsync(registration);
+        await _dbContext.SaveChangesAsync();
+        if (transaction is not null)
+            await transaction.CommitAsync();
+        await PublishRosterSelectionEventsAsync(declinedSelectionEvents);
+        return null;
     }
 
     public async Task UnregisterTeamAsync(string auth0UserId, Guid gameId, Guid teamId)
@@ -257,7 +306,7 @@ public class TournamentRegistrationService : ITournamentRegistrationService
         var individual = registrations.FirstOrDefault(registration => registration.UserId == user.Id);
         var pendingRoster = registrations
             .SelectMany(registration => registration.RosterMembers)
-            .FirstOrDefault(member => member.UserId == user.Id && member.ConfirmationStatus == RosterMemberConfirmationStatus.Pending);
+            .FirstOrDefault(member => member.UserId == user.Id && member.SelectionStatus == RosterSelectionStatus.Pending);
         var activeTeam = registrations.FirstOrDefault(registration =>
             registration.Kind == TournamentRegistrationKind.Team &&
             registration.Status == TournamentRegistrationStatus.Active &&
@@ -268,14 +317,14 @@ public class TournamentRegistrationService : ITournamentRegistrationService
         {
             GameId = gameId,
             IndividualRegistration = individual is null ? null : new TournamentRegistrationDTO(individual),
-            PendingRosterConfirmation = pendingRoster is null
+            PendingRosterSelection = pendingRoster is null
                 ? null
                 : new TournamentRosterMemberDTO
                 {
                     Id = pendingRoster.Id,
                     User = new PublicUserDTO(pendingRoster.User),
                     IsCaptain = pendingRoster.IsCaptain,
-                    ConfirmationStatus = pendingRoster.ConfirmationStatus
+                    SelectionStatus = pendingRoster.SelectionStatus
                 },
             ActiveTeamRegistration = activeTeam is null ? null : new TournamentRegistrationDTO(activeTeam),
             CaptainManagedRegistrations = captained.Select(registration => new TournamentRegistrationDTO(registration)).ToList(),
@@ -284,7 +333,7 @@ public class TournamentRegistrationService : ITournamentRegistrationService
                                     individual is null &&
                                     activeTeam is null &&
                                     pendingRoster is null,
-            CanConfirmRoster = pendingRoster is not null,
+            CanRespondToRosterSelection = pendingRoster is not null,
             CanUnregister = individual is not null || activeTeam is not null || captained.Any()
         };
     }
@@ -337,12 +386,12 @@ public class TournamentRegistrationService : ITournamentRegistrationService
             reasons.Add("not_individual_tournament");
         if (game.Status != GameStatus.Scheduled)
             reasons.Add("tournament_not_scheduled");
-        if (await HasAnyParticipationAsync(game.Id, userId, null))
+        if (await HasAnyParticipationAsync(game.Id, userId, NoExcludedRegistrationIds))
             reasons.Add("duplicate_participation");
         return reasons;
     }
 
-    private async Task<List<string>> GetTeamEligibilityFailuresAsync(Game game, Team team, Guid captainUserId, Guid? excludedRegistrationId)
+    private async Task<List<string>> GetTeamEligibilityFailuresAsync(Game game, Team team, Guid captainUserId, IReadOnlyCollection<Guid> excludedRegistrationIds)
     {
         var reasons = new List<string>();
         if (game.ParticipationMode != ParticipationMode.Team)
@@ -358,9 +407,9 @@ public class TournamentRegistrationService : ITournamentRegistrationService
         if (await _dbContext.TournamentRegistrations.AnyAsync(registration =>
                 registration.GameId == game.Id &&
                 registration.TeamId == team.Id &&
-                (!excludedRegistrationId.HasValue || registration.Id != excludedRegistrationId.Value)))
+                (excludedRegistrationIds.Count == 0 || !excludedRegistrationIds.Contains(registration.Id))))
             reasons.Add("team_already_registered");
-        if (await HasAnyParticipationAsync(game.Id, captainUserId, excludedRegistrationId))
+        if (await HasAnyParticipationAsync(game.Id, captainUserId, excludedRegistrationIds))
             reasons.Add("captain_duplicate_participation");
         return reasons;
     }
@@ -373,7 +422,7 @@ public class TournamentRegistrationService : ITournamentRegistrationService
         return reasons;
     }
 
-    private async Task<List<string>> GetRosterCandidateFailuresAsync(Guid gameId, Team team, Guid userId, Guid? excludedRegistrationId)
+    private async Task<List<string>> GetRosterCandidateFailuresAsync(Guid gameId, Team team, Guid userId, IReadOnlyCollection<Guid> excludedRegistrationIds)
     {
         var reasons = new List<string>();
         var user = await _dbContext.Users.FindAsync(userId);
@@ -381,45 +430,86 @@ public class TournamentRegistrationService : ITournamentRegistrationService
             reasons.Add("user_not_found");
         if (!team.Members.Any(member => member.Id == userId))
             reasons.Add("not_team_member");
-        if (await HasAnyParticipationAsync(gameId, userId, excludedRegistrationId))
+        if (await HasAnyParticipationAsync(gameId, userId, excludedRegistrationIds))
             reasons.Add("duplicate_participation");
         return reasons;
     }
 
-    private async Task<bool> HasAnyParticipationAsync(Guid gameId, Guid userId, Guid? excludedRegistrationId)
+    private async Task<bool> HasAnyParticipationAsync(Guid gameId, Guid userId, IReadOnlyCollection<Guid> excludedRegistrationIds)
     {
         return await _dbContext.TournamentRegistrations.AnyAsync(registration =>
                    registration.GameId == gameId &&
                    registration.UserId == userId &&
-                   (!excludedRegistrationId.HasValue || registration.Id != excludedRegistrationId.Value))
+                   (excludedRegistrationIds.Count == 0 || !excludedRegistrationIds.Contains(registration.Id)))
                || await _dbContext.TournamentRegistrationRosterMembers.AnyAsync(member =>
                    member.GameId == gameId &&
                    member.UserId == userId &&
-                   (!excludedRegistrationId.HasValue || member.TournamentRegistrationId != excludedRegistrationId.Value));
+                   (excludedRegistrationIds.Count == 0 || !excludedRegistrationIds.Contains(member.TournamentRegistrationId)));
     }
 
-    private static List<TournamentRosterConfirmationChangedEvent> CreateRosterConfirmationEvents(
+    private static List<TournamentRosterSelectionChangedEvent> CreateRosterSelectionEvents(
      TournamentRegistration registration)
     {
         return registration.RosterMembers
-            .Where(member => member.ConfirmationStatus == RosterMemberConfirmationStatus.Pending)
-            .Select(member => new TournamentRosterConfirmationChangedEvent(
+            .Where(member => member.SelectionStatus == RosterSelectionStatus.Pending)
+            .Select(member => new TournamentRosterSelectionChangedEvent(
                 registration.TeamId!.Value,
                 member.Id,
                 member.UserId,
-                nameof(RosterMemberConfirmationStatus.Pending)))
+                nameof(RosterSelectionStatus.Pending)))
             .ToList();
     }
 
-    private async Task PublishRosterConfirmationEventsAsync(IEnumerable<TournamentRosterConfirmationChangedEvent> rosterConfirmationEvents)
+    private static List<TournamentRosterSelectionChangedEvent> CreatePendingSelectionEvents(
+        IEnumerable<TournamentRegistration> registrations,
+        string status)
     {
-        foreach (var rosterConfirmationEvent in rosterConfirmationEvents)
+        return registrations
+            .Where(registration => registration.TeamId.HasValue)
+            .SelectMany(registration => registration.RosterMembers
+                .Where(member => member.SelectionStatus == RosterSelectionStatus.Pending)
+                .Select(member => new TournamentRosterSelectionChangedEvent(
+                    registration.TeamId!.Value,
+                    member.Id,
+                    member.UserId,
+                    status)))
+            .ToList();
+    }
+
+    private async Task<List<TournamentRegistration>> GetPendingSelectionRegistrationsForUserAsync(
+        Guid gameId,
+        Guid userId,
+        Guid? excludedRegistrationId)
+    {
+        var registrationIds = await _dbContext.TournamentRegistrationRosterMembers
+            .Where(member =>
+                member.GameId == gameId &&
+                member.UserId == userId &&
+                member.SelectionStatus == RosterSelectionStatus.Pending &&
+                member.TournamentRegistration.Status == TournamentRegistrationStatus.PendingConfirmation &&
+                (!excludedRegistrationId.HasValue || member.TournamentRegistrationId != excludedRegistrationId.Value))
+            .Select(member => member.TournamentRegistrationId)
+            .Distinct()
+            .ToListAsync();
+
+        if (registrationIds.Count == 0)
+            return [];
+
+        return await _dbContext.TournamentRegistrations
+            .Include(registration => registration.RosterMembers)
+            .Where(registration => registrationIds.Contains(registration.Id))
+            .ToListAsync();
+    }
+
+    private async Task PublishRosterSelectionEventsAsync(IEnumerable<TournamentRosterSelectionChangedEvent> rosterSelectionEvents)
+    {
+        foreach (var rosterSelectionEvent in rosterSelectionEvents)
         {
-            await _eventPublisher.RosterConfirmationChangedAsync(
-                rosterConfirmationEvent.TeamId,
-                rosterConfirmationEvent.RosterMemberId,
-                rosterConfirmationEvent.UserId,
-                rosterConfirmationEvent.Status);
+            await _eventPublisher.RosterSelectionChangedAsync(
+                rosterSelectionEvent.TeamId,
+                rosterSelectionEvent.RosterMemberId,
+                rosterSelectionEvent.UserId,
+                rosterSelectionEvent.Status);
         }
     }
 

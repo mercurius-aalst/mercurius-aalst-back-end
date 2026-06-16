@@ -193,7 +193,7 @@ public class TeamServicePublicProfileTests
                     User = captain,
                     UserId = captain.Id,
                     IsCaptain = true,
-                    ConfirmationStatus = RosterMemberConfirmationStatus.AutoConfirmed
+                    SelectionStatus = RosterSelectionStatus.AutoConfirmed
                 }
             ]
         });

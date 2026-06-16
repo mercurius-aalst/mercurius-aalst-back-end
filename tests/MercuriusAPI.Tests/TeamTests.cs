@@ -856,7 +856,7 @@ public class TeamTests
     }
 
     [Fact]
-    public async Task GetCurrentUserTeamSummaryAsync_DoesNotReturnRosterConfirmationsAsTeamInvites()
+    public async Task GetCurrentUserTeamSummaryAsync_DoesNotReturnRosterSelectionsAsTeamInvites()
     {
         await using var dbContext = CreateDbContext();
         var captain = CreateUser();
@@ -876,7 +876,7 @@ public class TeamTests
             TeamId = team.Id,
             User = member,
             UserId = member.Id,
-            ConfirmationStatus = RosterMemberConfirmationStatus.Pending
+            SelectionStatus = RosterSelectionStatus.Pending
         };
         dbContext.Users.AddRange(captain, member);
         dbContext.Teams.Add(team);
@@ -961,7 +961,7 @@ public class TeamTests
     }
 
     [Fact]
-    public async Task SignalRTeamEventPublisher_PushesRosterConfirmationEventsToUserAndTeamGroups()
+    public async Task SignalRTeamEventPublisher_PushesRosterSelectionEventsToUserAndTeamGroups()
     {
         var teamId = Guid.NewGuid();
         var rosterMemberId = Guid.NewGuid();
@@ -969,13 +969,13 @@ public class TeamTests
         var hubContext = new RecordingHubContext();
         var publisher = new SignalRTeamEventPublisher(hubContext);
 
-        await publisher.RosterConfirmationChangedAsync(teamId, rosterMemberId, affectedUserId, "Pending");
+        await publisher.RosterSelectionChangedAsync(teamId, rosterMemberId, affectedUserId, "Pending");
 
         var send = Assert.Single(hubContext.HubClients.Proxy.Sends);
-        Assert.Equal("TournamentRosterConfirmationChanged", send.Method);
+        Assert.Equal("TournamentRosterSelectionChanged", send.Method);
         Assert.Contains(SignalRTeamEventPublisher.GetUserGroup(affectedUserId), hubContext.HubClients.RecordedGroups);
         Assert.Contains(SignalRTeamEventPublisher.GetTeamGroup(teamId), hubContext.HubClients.RecordedGroups);
-        var payload = Assert.IsType<TournamentRosterConfirmationChangedEvent>(Assert.Single(send.Args));
+        var payload = Assert.IsType<TournamentRosterSelectionChangedEvent>(Assert.Single(send.Args));
         Assert.Equal(teamId, payload.TeamId);
         Assert.Equal(rosterMemberId, payload.RosterMemberId);
         Assert.Equal(affectedUserId, payload.UserId);
@@ -1062,9 +1062,9 @@ public class TeamTests
                 User = member,
                 UserId = member.Id,
                 IsCaptain = member.Id == captain.Id,
-                ConfirmationStatus = member.Id == captain.Id
-                    ? RosterMemberConfirmationStatus.AutoConfirmed
-                    : RosterMemberConfirmationStatus.Confirmed,
+                SelectionStatus = member.Id == captain.Id
+                    ? RosterSelectionStatus.AutoConfirmed
+                    : RosterSelectionStatus.Confirmed,
                 ConfirmedAtUtc = DateTime.UtcNow
             }).ToList()
         });
@@ -1130,7 +1130,7 @@ public class TeamTests
     private sealed class RecordingTeamEventPublisher : ITeamEventPublisher
     {
         public List<TeamInviteChangedEvent> InviteEvents { get; } = [];
-        public List<TournamentRosterConfirmationChangedEvent> RosterConfirmationEvents { get; } = [];
+        public List<TournamentRosterSelectionChangedEvent> RosterSelectionEvents { get; } = [];
         public List<TeamMembershipChangedEvent> MembershipEvents { get; } = [];
         public List<TeamCaptainTransferredEvent> CaptainEvents { get; } = [];
 
@@ -1140,9 +1140,9 @@ public class TeamTests
             return Task.CompletedTask;
         }
 
-        public Task RosterConfirmationChangedAsync(Guid teamId, Guid rosterMemberId, Guid affectedUserId, string status)
+        public Task RosterSelectionChangedAsync(Guid teamId, Guid rosterMemberId, Guid affectedUserId, string status)
         {
-            RosterConfirmationEvents.Add(new TournamentRosterConfirmationChangedEvent(teamId, rosterMemberId, affectedUserId, status));
+            RosterSelectionEvents.Add(new TournamentRosterSelectionChangedEvent(teamId, rosterMemberId, affectedUserId, status));
             return Task.CompletedTask;
         }
 

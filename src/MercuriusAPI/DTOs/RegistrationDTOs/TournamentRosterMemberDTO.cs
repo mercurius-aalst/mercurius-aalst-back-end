@@ -8,5 +8,5 @@ public class TournamentRosterMemberDTO
     public Guid Id { get; set; }
     public PublicUserDTO User { get; set; }
     public bool IsCaptain { get; set; }
-    public RosterMemberConfirmationStatus ConfirmationStatus { get; set; }
+    public RosterSelectionStatus SelectionStatus { get; set; }
 }

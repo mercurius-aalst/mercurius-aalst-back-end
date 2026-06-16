@@ -182,7 +182,9 @@ public partial class MercuriusDBContext : DbContext
         modelBuilder.Entity<TournamentRegistrationRosterMember>(entity =>
         {
             entity.HasKey(e => e.Id);
-            entity.Property(e => e.ConfirmationStatus).IsRequired();
+            entity.Property(e => e.SelectionStatus)
+                  .HasColumnName("ConfirmationStatus")
+                  .IsRequired();
             entity.Property(e => e.CreatedAtUtc).IsRequired();
             entity.Property(e => e.UpdatedAtUtc).IsRequired();
             entity.HasOne(e => e.TournamentRegistration)
@@ -205,7 +207,7 @@ public partial class MercuriusDBContext : DbContext
                   .IsUnique()
                   .HasDatabaseName("IX_TournamentRosterMembers_GameId_UserId_PendingActive");
             entity.HasIndex(e => new { e.GameId, e.TeamId, e.UserId });
-            entity.HasIndex(e => new { e.TournamentRegistrationId, e.ConfirmationStatus });
+            entity.HasIndex(e => new { e.TournamentRegistrationId, e.SelectionStatus });
         });
 
         modelBuilder.Entity<TeamInvite>(entity =>

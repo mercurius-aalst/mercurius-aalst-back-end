@@ -58,7 +58,7 @@ public static class TournamentRegistrationEndpoints
         })
         .RequireAuthorization();
 
-        group.MapPut("/teams/{teamId:guid}/roster", async (Guid gameId, Guid teamId, SubmitTeamRosterDTO request, ClaimsPrincipal user, ITournamentRegistrationService registrationService) =>
+        group.MapPut("/teams/{teamId:guid}/rostermembers", async (Guid gameId, Guid teamId, SubmitTeamRosterDTO request, ClaimsPrincipal user, ITournamentRegistrationService registrationService) =>
         {
             var requestWithRouteTeam = request with { TeamId = teamId };
             return await registrationService.SubmitTeamRosterAsync(GetAuth0UserId(user), gameId, requestWithRouteTeam);
@@ -72,9 +72,10 @@ public static class TournamentRegistrationEndpoints
         })
         .RequireAuthorization();
 
-        group.MapPost("/roster-confirmations/{rosterMemberId:guid}/confirm", async (Guid rosterMemberId, ClaimsPrincipal user, ITournamentRegistrationService registrationService) =>
+        group.MapPut("/teams/{teamId:guid}/rostermembers/{rosterMemberId:guid}", async (Guid teamId, Guid rosterMemberId, RosterSelectionActionDTO request, ClaimsPrincipal user, ITournamentRegistrationService registrationService) =>
         {
-            return await registrationService.ConfirmRosterAsync(GetAuth0UserId(user), rosterMemberId);
+            var result = await registrationService.RespondToRosterSelectionAsync(GetAuth0UserId(user), teamId, rosterMemberId, request);
+            return result is null ? Results.NoContent() : Results.Ok(result);
         })
         .RequireAuthorization();
 

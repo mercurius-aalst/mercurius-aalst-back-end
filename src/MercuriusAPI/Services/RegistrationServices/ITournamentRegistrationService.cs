@@ -10,7 +10,7 @@ public interface ITournamentRegistrationService
     Task<TournamentRegistrationDTO> RegisterIndividualAsync(string auth0UserId, Guid gameId);
     Task UnregisterIndividualAsync(string auth0UserId, Guid gameId);
     Task<TournamentRegistrationDTO> SubmitTeamRosterAsync(string auth0UserId, Guid gameId, SubmitTeamRosterDTO request);
-    Task<TournamentRegistrationDTO> ConfirmRosterAsync(string auth0UserId, Guid rosterMemberId);
+    Task<TournamentRegistrationDTO?> RespondToRosterSelectionAsync(string auth0UserId, Guid teamId, Guid rosterMemberId, RosterSelectionActionDTO request);
     Task UnregisterTeamAsync(string auth0UserId, Guid gameId, Guid teamId);
     Task<CurrentUserTournamentRegistrationStateDTO> GetCurrentUserStateAsync(string auth0UserId, Guid gameId);
     Task<IReadOnlyList<AdminTournamentRegistrationDTO>> GetAdminRegistrationsAsync(Guid gameId);

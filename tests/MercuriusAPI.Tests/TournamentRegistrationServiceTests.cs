@@ -138,7 +138,7 @@ public class TournamentRegistrationServiceTests
     }
 
     [Fact]
-    public async Task GetCurrentUserStateAsync_ReturnsPendingConfirmationAndCaptainManagedRegistration()
+    public async Task GetCurrentUserStateAsync_ReturnsPendingSelectionAndCaptainManagedRegistration()
     {
         await using var dbContext = CreateDbContext();
         var captain = CreateUser("captain");
@@ -155,9 +155,9 @@ public class TournamentRegistrationServiceTests
         var memberState = await service.GetCurrentUserStateAsync(member.Auth0UserId, game.Id);
         var captainState = await service.GetCurrentUserStateAsync(captain.Auth0UserId, game.Id);
 
-        Assert.True(memberState.CanConfirmRoster);
-        Assert.NotNull(memberState.PendingRosterConfirmation);
-        Assert.Equal(RosterMemberConfirmationStatus.Pending, memberState.PendingRosterConfirmation.ConfirmationStatus);
+        Assert.True(memberState.CanRespondToRosterSelection);
+        Assert.NotNull(memberState.PendingRosterSelection);
+        Assert.Equal(RosterSelectionStatus.Pending, memberState.PendingRosterSelection.SelectionStatus);
         Assert.False(memberState.CanRegisterIndividual);
         Assert.Contains(captainState.CaptainManagedRegistrations, registration => registration.Id == pending.Id);
         Assert.True(captainState.CanUnregister);
@@ -181,18 +181,23 @@ public class TournamentRegistrationServiceTests
         var pending = await service.SubmitTeamRosterAsync(captain.Auth0UserId, game.Id, new SubmitTeamRosterDTO(team.Id, [captain.Id, member.Id]));
 
         Assert.Equal(TournamentRegistrationStatus.PendingConfirmation, pending.Status);
-        Assert.Contains(pending.RosterMembers, roster => roster.User.Id == captain.Id && roster.ConfirmationStatus == RosterMemberConfirmationStatus.AutoConfirmed);
+        Assert.Contains(pending.RosterMembers, roster => roster.User.Id == captain.Id && roster.SelectionStatus == RosterSelectionStatus.AutoConfirmed);
         var memberRoster = Assert.Single(pending.RosterMembers.Where(roster => roster.User.Id == member.Id));
-        Assert.Equal(RosterMemberConfirmationStatus.Pending, memberRoster.ConfirmationStatus);
+        Assert.Equal(RosterSelectionStatus.Pending, memberRoster.SelectionStatus);
         Assert.Empty(await dbContext.TeamInvites.ToListAsync());
         Assert.True(await dbContext.TournamentRegistrationRosterMembers.AnyAsync(roster =>
             roster.UserId == member.Id &&
-            roster.ConfirmationStatus == RosterMemberConfirmationStatus.Pending)); Assert.Contains(publisher.RosterConfirmationEvents, evt => evt.TeamId == team.Id && evt.UserId == member.Id && evt.Status == nameof(RosterMemberConfirmationStatus.Pending));
+            roster.SelectionStatus == RosterSelectionStatus.Pending)); Assert.Contains(publisher.RosterSelectionEvents, evt => evt.TeamId == team.Id && evt.UserId == member.Id && evt.Status == nameof(RosterSelectionStatus.Pending));
 
-        var active = await service.ConfirmRosterAsync(member.Auth0UserId, memberRoster.Id);
+        var active = await service.RespondToRosterSelectionAsync(
+            member.Auth0UserId,
+            team.Id,
+            memberRoster.Id,
+            new RosterSelectionActionDTO(RosterSelectionAction.Confirm));
 
+        Assert.NotNull(active);
         Assert.Equal(TournamentRegistrationStatus.Active, active.Status);
-        Assert.Contains(active.RosterMembers, roster => roster.User.Id == member.Id && roster.ConfirmationStatus == RosterMemberConfirmationStatus.Confirmed);
+        Assert.Contains(active.RosterMembers, roster => roster.User.Id == member.Id && roster.SelectionStatus == RosterSelectionStatus.Confirmed);
     }
 
     [Fact]
@@ -256,7 +261,7 @@ public class TournamentRegistrationServiceTests
     }
 
     [Fact]
-    public async Task ConfirmRosterAsync_OnlyAllowsSelectedMember()
+    public async Task RespondToRosterSelectionAsync_OnlyAllowsSelectedMember()
     {
         await using var dbContext = CreateDbContext();
         var captain = CreateUser("captain");
@@ -272,11 +277,88 @@ public class TournamentRegistrationServiceTests
         var pending = await service.SubmitTeamRosterAsync(captain.Auth0UserId, game.Id, new SubmitTeamRosterDTO(team.Id, [captain.Id, member.Id]));
         var memberRoster = Assert.Single(pending.RosterMembers.Where(roster => roster.User.Id == member.Id));
 
-        await Assert.ThrowsAsync<NotFoundException>(() => service.ConfirmRosterAsync(other.Auth0UserId, memberRoster.Id));
-        Assert.True(await dbContext.TournamentRegistrationRosterMembers.AnyAsync(roster => roster.Id == memberRoster.Id && roster.ConfirmationStatus == RosterMemberConfirmationStatus.Pending));
-        var active = await service.ConfirmRosterAsync(member.Auth0UserId, memberRoster.Id);
+        await Assert.ThrowsAsync<NotFoundException>(() => service.RespondToRosterSelectionAsync(
+            member.Auth0UserId,
+            Guid.NewGuid(),
+            memberRoster.Id,
+            new RosterSelectionActionDTO(RosterSelectionAction.Confirm)));
+        await Assert.ThrowsAsync<NotFoundException>(() => service.RespondToRosterSelectionAsync(
+            other.Auth0UserId,
+            team.Id,
+            memberRoster.Id,
+            new RosterSelectionActionDTO(RosterSelectionAction.Confirm)));
+        Assert.True(await dbContext.TournamentRegistrationRosterMembers.AnyAsync(roster => roster.Id == memberRoster.Id && roster.SelectionStatus == RosterSelectionStatus.Pending));
+        var active = await service.RespondToRosterSelectionAsync(
+            member.Auth0UserId,
+            team.Id,
+            memberRoster.Id,
+            new RosterSelectionActionDTO(RosterSelectionAction.Confirm));
 
+        Assert.NotNull(active);
         Assert.Equal(TournamentRegistrationStatus.Active, active.Status);
+    }
+
+    [Fact]
+    public async Task RespondToRosterSelectionAsync_DeclineDeletesPendingRegistrationAndPublishesDeclinedEvents()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser("captain");
+        var firstMember = CreateUser("first");
+        var secondMember = CreateUser("second");
+        var team = CreateTeam(captain, firstMember, secondMember);
+        var game = CreateTeamGame(teamSize: 3);
+        dbContext.Users.AddRange(captain, firstMember, secondMember);
+        dbContext.Teams.Add(team);
+        dbContext.Games.Add(game);
+        await dbContext.SaveChangesAsync();
+        var publisher = new RecordingTeamEventPublisher();
+        var service = CreateService(dbContext, publisher);
+        var pending = await service.SubmitTeamRosterAsync(captain.Auth0UserId, game.Id, new SubmitTeamRosterDTO(team.Id, [captain.Id, firstMember.Id, secondMember.Id]));
+        var firstSelection = Assert.Single(pending.RosterMembers.Where(roster => roster.User.Id == firstMember.Id));
+
+        var result = await service.RespondToRosterSelectionAsync(
+            firstMember.Auth0UserId,
+            team.Id,
+            firstSelection.Id,
+            new RosterSelectionActionDTO(RosterSelectionAction.Decline));
+
+        Assert.Null(result);
+        Assert.False(await dbContext.TournamentRegistrations.AnyAsync(registration => registration.Id == pending.Id));
+        Assert.False(await dbContext.TournamentRegistrationRosterMembers.AnyAsync(roster => roster.TournamentRegistrationId == pending.Id));
+        Assert.Contains(publisher.RosterSelectionEvents, evt => evt.TeamId == team.Id && evt.UserId == firstMember.Id && evt.Status == "Declined");
+        Assert.Contains(publisher.RosterSelectionEvents, evt => evt.TeamId == team.Id && evt.UserId == secondMember.Id && evt.Status == "Declined");
+    }
+
+    [Fact]
+    public async Task SubmitTeamRosterAsync_DeclinesCurrentUsersPendingSelectionsForSameTournament()
+    {
+        await using var dbContext = CreateDbContext();
+        var invitingCaptain = CreateUser("inviting-captain");
+        var selectedCaptain = CreateUser("selected-captain");
+        var ownMember = CreateUser("own-member");
+        var invitingTeam = CreateTeam(invitingCaptain, selectedCaptain);
+        var ownTeam = CreateTeam(selectedCaptain, ownMember);
+        var game = CreateTeamGame(teamSize: 2);
+        dbContext.Users.AddRange(invitingCaptain, selectedCaptain, ownMember);
+        dbContext.Teams.AddRange(invitingTeam, ownTeam);
+        dbContext.Games.Add(game);
+        await dbContext.SaveChangesAsync();
+        var publisher = new RecordingTeamEventPublisher();
+        var service = CreateService(dbContext, publisher);
+        var pendingSelection = await service.SubmitTeamRosterAsync(invitingCaptain.Auth0UserId, game.Id, new SubmitTeamRosterDTO(invitingTeam.Id, [invitingCaptain.Id, selectedCaptain.Id]));
+        var selectedRosterMember = Assert.Single(pendingSelection.RosterMembers.Where(roster => roster.User.Id == selectedCaptain.Id));
+
+        var ownRegistration = await service.SubmitTeamRosterAsync(selectedCaptain.Auth0UserId, game.Id, new SubmitTeamRosterDTO(ownTeam.Id, [selectedCaptain.Id, ownMember.Id]));
+
+        Assert.Equal(TournamentRegistrationStatus.PendingConfirmation, ownRegistration.Status);
+        Assert.Equal(ownTeam.Id, ownRegistration.Team!.Id);
+        Assert.False(await dbContext.TournamentRegistrations.AnyAsync(registration => registration.Id == pendingSelection.Id));
+        Assert.False(await dbContext.TournamentRegistrationRosterMembers.AnyAsync(roster => roster.Id == selectedRosterMember.Id));
+        Assert.Contains(publisher.RosterSelectionEvents, evt => evt.TeamId == invitingTeam.Id && evt.UserId == selectedCaptain.Id && evt.Status == "Declined");
+        Assert.True(await dbContext.TournamentRegistrationRosterMembers.AnyAsync(roster =>
+            roster.TeamId == ownTeam.Id &&
+            roster.UserId == ownMember.Id &&
+            roster.SelectionStatus == RosterSelectionStatus.Pending));
     }
 
     [Fact]
@@ -301,7 +383,7 @@ public class TournamentRegistrationServiceTests
         Assert.True(await dbContext.TournamentRegistrationRosterMembers.AnyAsync(roster =>
             roster.TeamId == team.Id &&
             roster.UserId == member.Id &&
-            roster.ConfirmationStatus == RosterMemberConfirmationStatus.Pending));
+            roster.SelectionStatus == RosterSelectionStatus.Pending));
         Assert.False(await dbContext.TeamInvites.AnyAsync());
     }
 
@@ -329,7 +411,7 @@ public class TournamentRegistrationServiceTests
         Assert.True(await dbContext.TournamentRegistrationRosterMembers.AnyAsync(member =>
             member.UserId == secondMember.Id &&
             member.TeamId == team.Id &&
-            member.ConfirmationStatus == RosterMemberConfirmationStatus.Pending));
+            member.SelectionStatus == RosterSelectionStatus.Pending));
         Assert.False(await dbContext.TeamInvites.AnyAsync());
     }
 
@@ -385,10 +467,10 @@ public class TournamentRegistrationServiceTests
         Assert.Contains(registrations, registration =>
             registration.Id == pending.Id &&
             registration.Status == TournamentRegistrationStatus.PendingConfirmation &&
-            registration.RosterMembers.Any(member => member.ConfirmationStatus == RosterMemberConfirmationStatus.Pending));
+            registration.RosterMembers.Any(member => member.SelectionStatus == RosterSelectionStatus.Pending));
         Assert.Contains(registrations, registration =>
             registration.Status == TournamentRegistrationStatus.Active &&
-            registration.RosterMembers.Any(member => member.User.Id == activeMember.Id && member.ConfirmationStatus == RosterMemberConfirmationStatus.Confirmed));
+            registration.RosterMembers.Any(member => member.User.Id == activeMember.Id && member.SelectionStatus == RosterSelectionStatus.Confirmed));
     }
 
     private static TournamentRegistrationService CreateService(MercuriusDBContext dbContext, ITeamEventPublisher? publisher = null)
@@ -488,11 +570,11 @@ public class TournamentRegistrationServiceTests
                 User = member,
                 UserId = member.Id,
                 IsCaptain = member.Id == captain.Id,
-                ConfirmationStatus = member.Id == captain.Id
-                    ? RosterMemberConfirmationStatus.AutoConfirmed
+                SelectionStatus = member.Id == captain.Id
+                    ? RosterSelectionStatus.AutoConfirmed
                     : status == TournamentRegistrationStatus.Active
-                        ? RosterMemberConfirmationStatus.Confirmed
-                        : RosterMemberConfirmationStatus.Pending,
+                        ? RosterSelectionStatus.Confirmed
+                        : RosterSelectionStatus.Pending,
                 ConfirmedAtUtc = member.Id == captain.Id || status == TournamentRegistrationStatus.Active
                     ? DateTime.UtcNow
                     : null
@@ -503,7 +585,7 @@ public class TournamentRegistrationServiceTests
     private sealed class RecordingTeamEventPublisher : ITeamEventPublisher
     {
         public List<TeamInviteChangedEvent> InviteEvents { get; } = [];
-        public List<TournamentRosterConfirmationChangedEvent> RosterConfirmationEvents { get; } = [];
+        public List<TournamentRosterSelectionChangedEvent> RosterSelectionEvents { get; } = [];
 
         public Task InviteChangedAsync(Guid teamId, Guid inviteId, Guid affectedUserId, string status)
         {
@@ -511,9 +593,9 @@ public class TournamentRegistrationServiceTests
             return Task.CompletedTask;
         }
 
-        public Task RosterConfirmationChangedAsync(Guid teamId, Guid notificationId, Guid affectedUserId, string status)
+        public Task RosterSelectionChangedAsync(Guid teamId, Guid notificationId, Guid affectedUserId, string status)
         {
-            RosterConfirmationEvents.Add(new TournamentRosterConfirmationChangedEvent(teamId, notificationId, affectedUserId, status));
+            RosterSelectionEvents.Add(new TournamentRosterSelectionChangedEvent(teamId, notificationId, affectedUserId, status));
             return Task.CompletedTask;
         }
 
@@ -526,7 +608,7 @@ public class TournamentRegistrationServiceTests
     {
         public Task InviteChangedAsync(Guid teamId, Guid inviteId, Guid affectedUserId, string status) => Task.CompletedTask;
 
-        public Task RosterConfirmationChangedAsync(Guid teamId, Guid notificationId, Guid affectedUserId, string status)
+        public Task RosterSelectionChangedAsync(Guid teamId, Guid notificationId, Guid affectedUserId, string status)
         {
             throw new InvalidOperationException("event publishing failed");
         }

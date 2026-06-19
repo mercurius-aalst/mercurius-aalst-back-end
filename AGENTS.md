@@ -1,91 +1,86 @@
-# AGENTS.md
+# Engineering Guidelines
 
 ## Scope
+
 These instructions apply to the whole back-end repository.
 
-## Project
-Mercurius LAN party back-end API. The API source lives in `src/MercuriusAPI`, with tests in `tests/MercuriusAPI.Tests`.
+## Core Principles
 
-## Stack
-- ASP.NET Core Web API / minimal API endpoint mapping.
-- Target framework: `net10.0`.
-- Database: PostgreSQL via Entity Framework Core.
-- Auth: Auth0-backed JWT bearer authentication.
-- API versioning and Swagger are configured.
-- CORS policy currently targets `https://*.mercurius-aalst.be`.
-- Main solution: `LAN.API.sln`.
+- Keep behavior stable unless the task explicitly requests a functional change.
+- Prefer small, reviewable changes with clear validation.
+- Use OpenSpec for externally observable behavior changes.
+- Preserve public API JSON shapes unless the spec says otherwise.
+- Treat route, authorization, validation, persistence, and DTO changes as intentional contract changes only when OpenSpec explicitly requires them.
+- Do not combine route changes, persistence changes, and physical project moves in one PR.
+- Keep anonymous, authenticated, and admin-only authorization boundaries explicit.
+- Do not introduce `/v2` endpoints as a compatibility strategy.
+- Do not keep old routes solely for backward compatibility when OpenSpec calls for an in-place cleanup.
 
-## OpenSpec requirements
-This repository uses OpenSpec. Any functional behavior change must be accompanied by an OpenSpec change unless the task is explicitly limited to investigation, refactoring with no behavior change, documentation, formatting, or mechanical integration plumbing.
+## OpenSpec
 
-Before implementing a functional change:
-1. Inspect existing specs in `openspec/specs/`.
-2. If no suitable active change exists, create a new OpenSpec change under `openspec/changes/<change-id>/`.
-3. Include at minimum:
-   - `proposal.md`
-   - `tasks.md`
-   - spec deltas under `openspec/changes/<change-id>/specs/<capability>/spec.md`
-4. Use RFC 2119 language in specs: MUST, SHOULD, MAY.
-5. Keep implementation and tests aligned with the OpenSpec tasks.
-6. When completing work, update the OpenSpec task checklist.
+- Inspect existing specs before changing externally observable behavior.
+- Create or update an OpenSpec change before implementing route, request, response, validation, authorization, privacy, persistence, search, lifecycle, or event/projection behavior changes.
+- Include `proposal.md`, `tasks.md`, and relevant spec deltas for new OpenSpec changes.
+- Use RFC 2119 language in specs: MUST, SHOULD, MAY.
+- Keep implementation, tests, and task checklists aligned with the active OpenSpec change.
+- Pure refactoring, documentation, formatting, and mechanical integration plumbing do not require OpenSpec when behavior is unchanged.
 
-Integration-analysis-only work does not need a new OpenSpec change. Actual functional changes discovered during integration do need one.
+## Code Quality
 
-## Common commands
-Run commands from the repository root.
+- Keep implementations straightforward and avoid unnecessary wrappers, indirection, or pattern use.
+- Improve naming when touching unclear code.
+- Prefer cohesive methods and explicit domain/application concepts.
+- Remove duplication inside the touched scope, but avoid brittle shared abstractions.
+- Use design patterns only when they clarify responsibilities, boundaries, performance, security, or testability.
+- Keep one primary class, record, entity, DTO, endpoint group, or service per file unless an additional type is a small private nested detail.
+- Reuse existing components, services, DTOs, options, tests, configuration, and validation patterns where possible.
+- Keep feature-domain dependencies minimal and explicit.
+
+## Performance
+
+- Use `AsNoTracking` for read-only Entity Framework queries.
+- Prefer projections over `Include`-heavy loading when only read models are needed.
+- Avoid N+1 queries, repeated render-triggering work, redundant service calls, and unnecessary materialization.
+- Pass cancellation tokens through async flows.
+- Keep ordering and pagination deterministic.
+- Do not load large graphs, files, or navigation trees unless required.
+- Review touched queries for batching, filtering, indexes, and cross-module boundary impact.
+
+## API And Contracts
+
+- Preserve public JSON shapes unless OpenSpec explicitly requires a change.
+- Do not expose private user data, internal auth fields, deletion state, or account metadata through public endpoints.
+- Add or update tests for changed routes, DTO shapes, authorization rules, privacy rules, validation behavior, and OpenAPI metadata.
+- Keep public endpoints privacy-safe and mutation endpoints authorization-safe.
+- Do not expose EF entities, `DbContext`, repositories, `IQueryable`, or navigation properties through public APIs or module contracts.
+
+## Modular Monolith Boundaries
+
+- Modules own business capabilities and expose only intentional contracts.
+- Module contracts may expose DTOs, command records, query records, read models, snapshots, integration events, typed IDs, and facade interfaces.
+- Module contracts must not expose EF entities, `DbContext`, repositories, `IQueryable`, implementation services, validators, EF configurations, or navigation properties.
+- Implementation classes should become `internal` after extraction.
+- Use `InternalsVisibleTo` only for the matching test project.
+- Do not add implementation-to-implementation module references.
+- One business fact has one owner; other modules may store references, snapshots, projections, or cached decision data intentionally.
+
+## Branching
+
+- Perform the modular migration on `refactor/modular-monolith`.
+- Use one phase branch per phase, created from the latest `refactor/modular-monolith`.
+- Each phase branch must PR into `refactor/modular-monolith`.
+- Do not PR phase branches directly into `main`, `develop`, or earlier bugfix branches.
+- Stop after opening each phase PR and wait for human review and merge before starting the next phase.
+
+## Validation
+
+Run validation from the repository root before completing each phase:
 
 ```bash
-dotnet restore LAN.API.sln
-dotnet build LAN.API.sln
-dotnet test LAN.API.sln
-dotnet run --project src/MercuriusAPI/Mercurius.LAN.API.csproj
+dotnet restore
+dotnet build
+dotnet test
+dotnet format --verify-no-changes
 ```
 
-## Important files and directories
-- `src/MercuriusAPI/Program.cs`: application composition, auth, CORS, Swagger, middleware, endpoint registration.
-- `src/MercuriusAPI/Endpoints/`: minimal API route definitions.
-- `src/MercuriusAPI/DTOs/`: request/response contracts. Keep these aligned with the front-end `ILANClient`.
-- `src/MercuriusAPI/Services/`: domain and application logic.
-- `src/MercuriusAPI/Data/MercuriusDBContext.cs`: EF Core database context.
-- `src/MercuriusAPI/Migrations/`: EF Core migrations.
-- `tests/MercuriusAPI.Tests/`: automated tests.
-- `openspec/`: requirements/specification source. Functional behavior changes require spec coverage.
-
-## Front-end integration context
-The redesigned front-end expects API support for:
-- global search across users, teams, games, and tournaments;
-- privacy-safe public user profile lookup by username;
-- privacy-safe public team profile lookup by team name;
-- sponsor tier, placement, context, and game-detail sponsor presentation;
-- Auth0-backed current-user profile flows;
-- admin username deletion compatibility;
-- game, match, participant, placement, and schedule responses that match the front-end DTOs.
-
-Several backend PRs already address these areas, including public global search, public user profiles, public team profiles, team-name normalization, privacy-safe participant projections, Auth0-backed profile migration, schedule estimation, and front-end contract tests.
-
-## Integration rules
-- Do not change response JSON shapes casually. Check the front-end `ILANClient`, DTOs, and mock data first.
-- Public endpoints must not leak private user fields such as email, internal auth fields, deletion state, or private account metadata.
-- Keep anonymous, authenticated, and admin-only authorization boundaries explicit.
-- Add or update tests for every changed route, DTO shape, authorization rule, privacy rule, and validation behavior.
-- Prefer minimal API endpoints consistent with the current endpoint organization.
-- Prefer small, reviewable changes by endpoint/feature.
-- Do not introduce new packages unless the existing stack cannot reasonably solve the task.
-- If a required integration change alters API behavior, validation rules, auth behavior, privacy behavior, persistence behavior, or error handling, add or update OpenSpec coverage first.
-
-## Code design rules
-- Keep implementations straightforward and avoid unnecessary abstractions, wrapper methods, wrapper classes, and indirection that do not add clear readability, testability, performance, or maintainability value.
-- Avoid code duplication, but also avoid unnecessary code de-duplication that creates brittle shared abstractions or hides feature-specific behavior.
-- Reuse existing endpoints, services, DTOs, EF Core mappings, tests, and validation patterns where possible, but verify behavior to avoid regression failures.
-- Keep one primary class, record, entity, DTO, endpoint group, or service per file unless the additional type is a small private nested implementation detail.
-- Apply industry-standard design patterns only where they are appropriate and necessary for code cleanliness, performance, or long-term maintainability.
-- Avoid N+1 database queries, repeated service calls, unnecessary materialization, redundant method invocations, and other performance bottlenecks caused by query or code invocation patterns.
-- Keep dependencies between feature domains minimal. Prefer explicit contracts at boundaries rather than cross-domain coupling or shared mutable state.
-
-## Before completing work
-- Run `dotnet test LAN.API.sln`.
-- Verify the relevant OpenSpec change exists for functional behavior changes.
-- Update the relevant OpenSpec task checklist.
-- Note any migration impact.
-- Note any front-end contract impact.
-- Note any CORS, Auth0, environment variable, or deployment configuration changes.
+Also note API startup, OpenAPI generation, route impact, DTO/JSON impact, database impact, configuration impact, and known risks in the PR description.

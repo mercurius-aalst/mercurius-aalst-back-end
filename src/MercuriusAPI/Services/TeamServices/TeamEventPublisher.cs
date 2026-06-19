@@ -59,6 +59,6 @@ public class NullTeamEventPublisher : ITeamEventPublisher
 }
 
 public record TeamInviteChangedEvent(Guid TeamId, Guid InviteId, Guid UserId, string Status);
-public record TournamentRosterConfirmationChangedEvent(Guid TeamId, Guid RosterMemberId, Guid UserId, string Status); 
+public record TournamentRosterConfirmationChangedEvent(Guid TeamId, Guid RosterMemberId, Guid UserId, string Status);
 public record TeamMembershipChangedEvent(Guid TeamId, Guid UserId, string Action);
 public record TeamCaptainTransferredEvent(Guid TeamId, Guid NewCaptainUserId);

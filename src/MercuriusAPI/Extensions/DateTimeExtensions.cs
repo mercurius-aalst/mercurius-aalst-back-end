@@ -7,7 +7,7 @@
             public DateTime EnsureUtc()
             {
                 return dateTime.Kind switch
-                { 
+                {
                     DateTimeKind.Utc => dateTime,
                     DateTimeKind.Local => dateTime.ToUniversalTime(),
 
@@ -17,6 +17,6 @@
                     _ => throw new ArgumentOutOfRangeException(nameof(dateTime))
                 };
             }
-        }    
+        }
     }
 }

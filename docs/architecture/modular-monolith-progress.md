@@ -46,9 +46,9 @@ Do not start the next phase from an unmerged previous phase branch.
   - PR: [#96 Add modular monolith implementation plan](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/96)
   - Notes: Adds the full phase-by-phase implementation plan to the repository. No behavior change.
 
-- [ ] Phase 2 - Baseline safety net and contract freeze
+- [x] Phase 2 - Baseline safety net and contract freeze
   - Branch: `refactor/phase-2`
-  - PR: pending
+  - PR: [#97 Phase 2: add baseline contract safety tests](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/97)
   - Notes: Add route/security/OpenAPI/DTO/privacy behavior tests. No production behavior change.
 
 - [ ] Phase 3 - Monolith code quality and boundary preparation

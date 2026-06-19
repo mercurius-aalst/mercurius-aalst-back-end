@@ -8,9 +8,9 @@ This is the handoff tracker for the modular monolith migration. Update it whenev
 
 - Integration branch: `refactor/modular-monolith`
 - Current branch: `refactor/phase-1-progress-tracker`
-- Current PR: pending
+- Current PR: [#95 Add modular monolith progress tracker](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/95)
 - PR target: `refactor/modular-monolith`
-- State: progress tracker follow-up ready to open
+- State: progress tracker follow-up in review
 - Next action: merge this progress tracker follow-up, then update local `refactor/modular-monolith` and start Phase 2 from it.
 
 ## Resume Checklist
@@ -30,7 +30,7 @@ Do not start the next phase from an unmerged phase branch.
 | Phase | Branch | Status | PR | Notes |
 | --- | --- | --- | --- | --- |
 | 1. AGENTS.md guardrails and refactor branch setup | `refactor/phase-1` | Merged | [#94](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/94) | Documentation/guardrails only. No behavior change. |
-| 1 follow-up. Progress tracker | `refactor/phase-1-progress-tracker` | In progress | | Adds this repo-local handoff tracker. No behavior change. |
+| 1 follow-up. Progress tracker | `refactor/phase-1-progress-tracker` | In review | [#95](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/95) | Adds this repo-local handoff tracker. No behavior change. |
 | 2. Baseline safety net and contract freeze | `refactor/phase-2` | Pending | | Add route/security/OpenAPI/DTO/privacy behavior tests. No production behavior change. |
 | 3. Monolith code quality and boundary preparation | `refactor/phase-3` | Pending | | Prepare existing monolith code before physical moves. |
 | 4. Platform extraction | `refactor/phase-4` | Pending | | Extract host/platform infrastructure without route or persistence redesign. |

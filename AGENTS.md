@@ -71,6 +71,7 @@ These instructions apply to the whole back-end repository.
 - Each phase branch must PR into `refactor/modular-monolith`.
 - Do not PR phase branches directly into `main`, `develop`, or earlier bugfix branches.
 - Stop after opening each phase PR and wait for human review and merge before starting the next phase.
+- In `docs/architecture/modular-monolith-progress.md`, check a phase only when its PR is created; before starting new work, verify on GitHub that the last checked phase PR is merged.
 
 ## Validation
 

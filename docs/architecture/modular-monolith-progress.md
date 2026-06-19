@@ -2,53 +2,132 @@
 
 Last updated: 2026-06-19
 
-This is the handoff tracker for the modular monolith migration. Update it whenever a phase PR is opened, merged, blocked, or split.
+This tracker is the repo-local handoff ledger for the modular monolith migration. It records which phase PRs have been created. GitHub remains the source of truth for whether those PRs are open, closed, or merged.
 
-## Current Status
+## Checkbox Semantics
 
-- Integration branch: `refactor/modular-monolith`
-- Current branch: `refactor/phase-1-progress-tracker`
-- Current PR: [#95 Add modular monolith progress tracker](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/95)
-- PR target: `refactor/modular-monolith`
-- State: progress tracker follow-up in review
-- Next action: merge this progress tracker follow-up, then update local `refactor/modular-monolith` and start Phase 2 from it.
+- `[x]` means the phase PR has been created.
+- `[ ]` means the phase PR has not been created yet.
+- A checked phase is not automatically complete. Always verify the linked PR state on GitHub.
+- Do not update a checkbox only because a PR merged. The checkbox already records the durable handoff event: PR created.
+- Update this file when opening a new phase PR, splitting a phase into multiple PRs, adding a blocker note, or correcting the phase queue.
 
-## Resume Checklist
+## Resume Protocol
 
-After the current phase PR is merged:
+Before starting work:
 
 1. Fetch the latest remote refs.
-2. Switch to `refactor/modular-monolith`.
-3. Fast-forward it from `origin/refactor/modular-monolith`.
-4. Create the next phase branch from that updated integration branch.
-5. Update this file with the new phase branch and PR status.
+2. Find the last checked item in the phase PR ledger.
+3. Open the linked GitHub PR for that last checked item.
+4. Verify that the PR targets `refactor/modular-monolith`.
+5. If the PR is not merged, stop and wait for human review/merge.
+6. If the PR is merged, switch to `refactor/modular-monolith` and fast-forward it from `origin/refactor/modular-monolith`.
+7. Start the next unchecked phase from the updated `refactor/modular-monolith`.
+8. When the next phase PR is opened, check that phase and add the PR link in this file.
 
-Do not start the next phase from an unmerged phase branch.
+Do not start the next phase from an unmerged previous phase branch.
 
-## Phase Queue
+## Phase PR Ledger
 
-| Phase | Branch | Status | PR | Notes |
-| --- | --- | --- | --- | --- |
-| 1. AGENTS.md guardrails and refactor branch setup | `refactor/phase-1` | Merged | [#94](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/94) | Documentation/guardrails only. No behavior change. |
-| 1 follow-up. Progress tracker | `refactor/phase-1-progress-tracker` | In review | [#95](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/95) | Adds this repo-local handoff tracker. No behavior change. |
-| 2. Baseline safety net and contract freeze | `refactor/phase-2` | Pending | | Add route/security/OpenAPI/DTO/privacy behavior tests. No production behavior change. |
-| 3. Monolith code quality and boundary preparation | `refactor/phase-3` | Pending | | Prepare existing monolith code before physical moves. |
-| 4. Platform extraction | `refactor/phase-4` | Pending | | Extract host/platform infrastructure without route or persistence redesign. |
-| 5. Solution and project skeleton | `refactor/phase-5` | Pending | | Create module/project skeletons. |
-| 6. Contracts before implementations | `refactor/phase-6` | Pending | | Introduce contracts without leaking EF or implementation details. |
-| 7. Teams extraction | `refactor/phase-7` | Pending | | Move Teams into its module while preserving routes and JSON. |
-| 8. Realtime split | `refactor/phase-8` | Pending | | Separate realtime concerns from Teams/business logic. |
-| 9. Eventing/outbox/inbox | `refactor/phase-9` | Pending | | Add reliable cross-module integration plumbing. |
-| 10. Identity extraction | `refactor/phase-10` | Pending | | Move user/profile/Auth0 ownership into Identity. |
-| 11. Competition extraction | `refactor/phase-11` | Pending | | Move games, matches, registrations, rosters, and placements. |
-| 12. Sponsorship extraction | `refactor/phase-12` | Pending | | Move sponsor ownership and document placement ownership. |
-| 13. Media extraction | `refactor/phase-13` | Pending | | Move file/image storage concerns. |
-| 14. Discovery/Search extraction | `refactor/phase-14` | Pending | | Move search into projections and Discovery. |
-| 15. Persistence boundary tightening | `refactor/phase-15` | Pending | | Move mappings and tighten persistence ownership. |
-| 16. Endpoint simplification in place | `refactor/phase-16` | Pending | | Resource-oriented cleanup with OpenSpec. No `/v2`. |
-| 17. Tighten internals and public surface | `refactor/phase-17` | Pending | | Make module implementation details internal and add architecture tests. |
-| 18. Test suite reshaping | `refactor/phase-18` | Pending | | Reshape tests around API, module behavior, events, and architecture. |
-| 19. Remove transitional adapters and clean up | `refactor/phase-19` | Pending | | Delete old paths/adapters and run final architecture checks. |
+- [x] Phase 1 - AGENTS.md guardrails and refactor branch setup
+  - Branch: `refactor/phase-1`
+  - PR: [#94 Phase 1: document modular monolith guardrails](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/94)
+  - Notes: Documentation/guardrails only. No behavior change.
+
+- [x] Phase 1 follow-up - progress tracker
+  - Branch: `refactor/phase-1-progress-tracker`
+  - PR: [#95 Add modular monolith progress tracker](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/95)
+  - Notes: Adds this repo-local handoff tracker. No behavior change.
+
+- [ ] Phase 2 - Baseline safety net and contract freeze
+  - Branch: `refactor/phase-2`
+  - PR: pending
+  - Notes: Add route/security/OpenAPI/DTO/privacy behavior tests. No production behavior change.
+
+- [ ] Phase 3 - Monolith code quality and boundary preparation
+  - Branch: `refactor/phase-3`
+  - PR: pending
+  - Notes: Prepare existing monolith code before physical moves.
+
+- [ ] Phase 4 - Platform extraction
+  - Branch: `refactor/phase-4`
+  - PR: pending
+  - Notes: Extract host/platform infrastructure without route or persistence redesign.
+
+- [ ] Phase 5 - Solution and project skeleton
+  - Branch: `refactor/phase-5`
+  - PR: pending
+  - Notes: Create module/project skeletons.
+
+- [ ] Phase 6 - Contracts before implementations
+  - Branch: `refactor/phase-6`
+  - PR: pending
+  - Notes: Introduce contracts without leaking EF or implementation details.
+
+- [ ] Phase 7 - Teams extraction
+  - Branch: `refactor/phase-7`
+  - PR: pending
+  - Notes: Move Teams into its module while preserving routes and JSON.
+
+- [ ] Phase 8 - Realtime split
+  - Branch: `refactor/phase-8`
+  - PR: pending
+  - Notes: Separate realtime concerns from Teams/business logic.
+
+- [ ] Phase 9 - Eventing/outbox/inbox
+  - Branch: `refactor/phase-9`
+  - PR: pending
+  - Notes: Add reliable cross-module integration plumbing.
+
+- [ ] Phase 10 - Identity extraction
+  - Branch: `refactor/phase-10`
+  - PR: pending
+  - Notes: Move user/profile/Auth0 ownership into Identity.
+
+- [ ] Phase 11 - Competition extraction
+  - Branch: `refactor/phase-11`
+  - PR: pending
+  - Notes: Move games, matches, registrations, rosters, and placements.
+
+- [ ] Phase 12 - Sponsorship extraction
+  - Branch: `refactor/phase-12`
+  - PR: pending
+  - Notes: Move sponsor ownership and document placement ownership.
+
+- [ ] Phase 13 - Media extraction
+  - Branch: `refactor/phase-13`
+  - PR: pending
+  - Notes: Move file/image storage concerns.
+
+- [ ] Phase 14 - Discovery/Search extraction
+  - Branch: `refactor/phase-14`
+  - PR: pending
+  - Notes: Move search into projections and Discovery.
+
+- [ ] Phase 15 - Persistence boundary tightening
+  - Branch: `refactor/phase-15`
+  - PR: pending
+  - Notes: Move mappings and tighten persistence ownership.
+
+- [ ] Phase 16 - Endpoint simplification in place
+  - Branch: `refactor/phase-16`
+  - PR: pending
+  - Notes: Resource-oriented cleanup with OpenSpec. No `/v2`.
+
+- [ ] Phase 17 - Tighten internals and public surface
+  - Branch: `refactor/phase-17`
+  - PR: pending
+  - Notes: Make module implementation details internal and add architecture tests.
+
+- [ ] Phase 18 - Test suite reshaping
+  - Branch: `refactor/phase-18`
+  - PR: pending
+  - Notes: Reshape tests around API, module behavior, events, and architecture.
+
+- [ ] Phase 19 - Remove transitional adapters and clean up
+  - Branch: `refactor/phase-19`
+  - PR: pending
+  - Notes: Delete old paths/adapters and run final architecture checks.
 
 ## Phase 1 Handoff Notes
 
@@ -82,7 +161,8 @@ Validation limitations:
 
 ## Handoff Rules
 
-- Keep this tracker in the phase PR when its status changes.
-- Include the current branch, PR number, validation results, blockers, and next action.
-- If a phase is split, add rows using suffixes such as `refactor/phase-7a-teams-contract-adapters`.
-- Do not mark a phase complete in this file until its PR has merged into `refactor/modular-monolith`.
+- The last checked item is the PR that must be verified before any new phase starts.
+- If that PR is open, wait for human review/merge.
+- If that PR is closed without merge, ask for human direction before continuing.
+- If that PR is merged, start the next unchecked phase from the updated `refactor/modular-monolith`.
+- If a phase is split, add the split PRs as separate checked items when each PR is created.

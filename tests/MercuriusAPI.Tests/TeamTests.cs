@@ -226,7 +226,7 @@ public class TeamTests
             sqlOperation.Sql.Contains("INSERT INTO \"TeamUser\"", StringComparison.Ordinal));
     }
 
-    
+
 
     [Fact]
     public void ChangeCaptain_ChangesCaptain_WhenUserIsTeamMember()

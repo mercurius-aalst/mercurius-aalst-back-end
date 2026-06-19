@@ -96,6 +96,7 @@ OpenSpec is not required for internal refactoring that preserves behavior, but t
 - Open each phase PR into `refactor/modular-monolith`.
 - Do not start the next phase from an unmerged phase branch.
 - Do not PR phase branches directly into `main`, `develop`, or an earlier bugfix branch.
+- Keep `modular-monolith-progress.md` updated so another agent can resume the migration without relying on chat history.
 
 ## Per-Phase Validation
 

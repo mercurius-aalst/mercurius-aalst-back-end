@@ -4,6 +4,8 @@ Last updated: 2026-06-19
 
 This tracker is the repo-local handoff ledger for the modular monolith migration. It records which phase PRs have been created. GitHub remains the source of truth for whether those PRs are open, closed, or merged.
 
+Full phase instructions live in `docs/architecture/modular-monolith-implementation-plan.md`.
+
 ## Checkbox Semantics
 
 - `[x]` means the phase PR has been created.
@@ -38,6 +40,11 @@ Do not start the next phase from an unmerged previous phase branch.
   - Branch: `refactor/phase-1-progress-tracker`
   - PR: [#95 Add modular monolith progress tracker](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/95)
   - Notes: Adds this repo-local handoff tracker. No behavior change.
+
+- [x] Phase 1 follow-up - implementation plan
+  - Branch: `refactor/phase-1-implementation-plan`
+  - PR: [#96 Add modular monolith implementation plan](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/96)
+  - Notes: Adds the full phase-by-phase implementation plan to the repository. No behavior change.
 
 - [ ] Phase 2 - Baseline safety net and contract freeze
   - Branch: `refactor/phase-2`

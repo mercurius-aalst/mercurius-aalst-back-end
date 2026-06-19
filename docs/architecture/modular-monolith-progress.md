@@ -41,9 +41,9 @@ Do not start the next phase from an unmerged previous phase branch.
   - PR: [#95 Add modular monolith progress tracker](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/95)
   - Notes: Adds this repo-local handoff tracker. No behavior change.
 
-- [ ] Phase 1 follow-up - implementation plan
+- [x] Phase 1 follow-up - implementation plan
   - Branch: `refactor/phase-1-implementation-plan`
-  - PR: pending
+  - PR: [#96 Add modular monolith implementation plan](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/96)
   - Notes: Adds the full phase-by-phase implementation plan to the repository. No behavior change.
 
 - [ ] Phase 2 - Baseline safety net and contract freeze

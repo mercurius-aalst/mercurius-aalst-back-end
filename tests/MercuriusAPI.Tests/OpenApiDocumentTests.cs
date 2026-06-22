@@ -1,8 +1,6 @@
 using System.Security.Claims;
 using Mercurius.LAN.API.Endpoints;
-using Mercurius.LAN.API.Extensions;
 using Mercurius.LAN.API.Hubs;
-using Mercurius.LAN.API.Routing;
 using Mercurius.LAN.API.Services.GameServices;
 using Mercurius.LAN.API.Services.MatchServices;
 using Mercurius.LAN.API.Services.RegistrationServices;
@@ -10,6 +8,9 @@ using Mercurius.LAN.API.Services.SearchServices;
 using Mercurius.LAN.API.Services.SponsorServices;
 using Mercurius.LAN.API.Services.TeamServices;
 using Mercurius.LAN.API.Services.UserServices;
+using Mercurius.Platform.Http;
+using Mercurius.Platform.Realtime;
+using Mercurius.Platform.Swagger;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
@@ -76,20 +77,14 @@ public class OpenApiDocumentTests
     {
         var builder = WebApplication.CreateBuilder();
         builder.Logging.ClearProviders();
-        builder.Services.ConfigureVersionedSwagger();
+        builder.Services.AddMercuriusSwagger(
+            builder.Environment,
+            includeXmlComments: false,
+            useEnumSchemaFilter: true);
         builder.Services.AddAuthorization();
-        builder.Services.AddSignalR();
+        builder.Services.AddMercuriusRealtime();
         RegisterEndpointServices(builder.Services);
-        builder.Services.Configure<RouteOptions>(options =>
-        {
-            options.ConstraintMap["nonguid"] = typeof(NonGuidRouteConstraint);
-        });
-
-        var jwtBuilder = new JWTBuilder(builder);
-        jwtBuilder.AddJWTSecuredSwaggerGen(options =>
-        {
-            options.UseEnumSchemaFilter = true;
-        });
+        builder.Services.AddMercuriusHttpConventions();
 
         var app = builder.Build();
         app.Services.GetRequiredService<IHttpContextAccessor>().HttpContext = new DefaultHttpContext

@@ -1,16 +1,21 @@
-﻿using Imageflow.Server;
 using Mercurius.LAN.API.Data;
 using Mercurius.LAN.API.Endpoints;
 using Mercurius.LAN.API.Extensions;
 using Mercurius.LAN.API.Hubs;
 using Mercurius.LAN.API.Middleware;
 using Mercurius.LAN.API.Options;
-using Mercurius.LAN.API.Routing;
 using Mercurius.LAN.API.Services.Auth0;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Mercurius.Platform.Authentication;
+using Mercurius.Platform.Cors;
+using Mercurius.Platform.Http;
+using Mercurius.Platform.Images;
+using Mercurius.Platform.Migrations;
+using Mercurius.Platform.ProblemDetails;
+using Mercurius.Platform.RateLimiting;
+using Mercurius.Platform.Realtime;
+using Mercurius.Platform.Security;
+using Mercurius.Platform.Swagger;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
-using System.Text.Json.Serialization;
 
 namespace Mercurius.LAN.API;
 
@@ -20,107 +25,33 @@ public class Program
     {
         var builder = WebApplication.CreateBuilder(args);
         builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
-                             .AddEnvironmentVariables("Mercurius.LAN.API_");
+            .AddEnvironmentVariables("Mercurius.LAN.API_");
 
         builder.Services.AddDbContext<MercuriusDBContext>(options =>
             options.UseNpgsql(builder.Configuration.GetConnectionString("MercuriusDB")));
 
         builder.Services.AddValidation();
-
-
-        builder.Services.ConfigureVersionedSwagger();
-        builder.Services.AddServiceDependencies();
+        builder.Services.AddMercuriusSwagger(
+            builder.Environment,
+            includeXmlComments: true,
+            useEnumSchemaFilter: true);
+        builder.Services.AddApplicationServices();
         builder.Services.Configure<Auth0ManagementOptions>(builder.Configuration.GetSection(Auth0ManagementOptions.SectionName));
         builder.Services.AddHttpClient<IAuth0ManagementService, Auth0ManagementService>();
-        builder.Services.AddProblemDetails();
-        builder.Services.AddExceptionHandler<ApiExceptionHandler>();
-        builder.Services.Configure<RouteOptions>(options =>
-        {
-            options.ConstraintMap["nonguid"] = typeof(NonGuidRouteConstraint);
-        });
-
-        builder.Services.ConfigureHttpJsonOptions(options =>
-        {
-            options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
-        });
-
-        var auth0Settings = builder.Configuration.GetSection("Auth0");
-        var auth0Authority = auth0Settings["Authority"]?.TrimEnd('/');
-
-        builder.Services.AddAuthentication(options =>
-        {
-            options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-            options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-        })
-        .AddJwtBearer(options =>
-        {
-            options.Authority = auth0Authority;
-            options.Audience = auth0Settings["Audience"];
-            options.MapInboundClaims = false;
-            options.TokenValidationParameters = new TokenValidationParameters
-            {
-                ValidateIssuer = true,
-                ValidateAudience = true,
-                ValidateLifetime = true,
-                ValidateIssuerSigningKey = true,
-                RequireSignedTokens = true,
-                NameClaimType = "sub",
-                RoleClaimType = auth0Settings["RoleClaimType"],
-                ValidAlgorithms = [SecurityAlgorithms.RsaSha256]
-            };
-        });
-        builder.Services.AddAuthorization();
-        builder.Services.AddSignalR();
-        builder.Services.AddApiRateLimiting(builder.Configuration);
-
-        var jwtBuilder = new JWTBuilder(builder);
-        jwtBuilder.AddJWTSecuredSwaggerGen(options =>
-        {
-            options.IncludeXMLComments = true;
-            options.UseEnumSchemaFilter = true;
-        });
-        builder.Services.AddCors(options =>
-        {
-            options.AddPolicy("AllowMercuriusAalst", policy =>
-            {
-                policy.WithOrigins("https://*.mercurius-aalst.be")
-            .SetIsOriginAllowedToAllowWildcardSubdomains()
-                .AllowAnyHeader()
-                .AllowAnyMethod();
-            });
-        });
+        builder.Services.AddMercuriusProblemDetails<ApiExceptionHandler>();
+        builder.Services.AddMercuriusHttpConventions();
+        builder.Services.AddMercuriusAuthentication(builder.Configuration);
+        builder.Services.AddMercuriusRealtime();
+        builder.Services.AddMercuriusRateLimiting(builder.Configuration);
+        builder.Services.AddMercuriusCors();
 
         var app = builder.Build();
-        app.UseCors("AllowMercuriusAalst");
-        // Apply pending migrations on startup
-        using (var scope = app.Services.CreateScope())
-        {
-            var dbContext = scope.ServiceProvider.GetRequiredService<MercuriusDBContext>();
-            dbContext.Database.Migrate();
-        }
-
-        app.UseExceptionHandler();
-
-        app.UseHttpsRedirection();
-
-
-        // Add ImageFlow middleware to serve and optimize images
-        var imgflowOptions = new ImageflowMiddlewareOptions
-        {
-            AllowDiskCaching = true, // Enable disk caching
-            AllowCaching = true, // Enable stream caching
-            DefaultCacheControlString = "public, max-age=31536000" // Cache images for 1 year
-        }.MapPath("/images", app.Configuration["FileStorage:Location"]);
-
-        app.UseImageflow(imgflowOptions);
-        app.UseStaticFiles();
-
-
-        app.UseAuthentication();
-        app.UseAuthorization();
-        app.UseRateLimiter();
-
-        app.UseSecuredSwaggerUI();
+        app.UseMercuriusCors();
+        app.ApplyMercuriusMigrations<MercuriusDBContext>();
+        app.UseMercuriusExceptionHandling();
+        app.UseMercuriusImages();
+        app.UseMercuriusSecurityPipeline();
+        app.UseMercuriusSwaggerUI();
 
         app.MapGameEndpoints();
         app.MapTournamentRegistrationEndpoints();

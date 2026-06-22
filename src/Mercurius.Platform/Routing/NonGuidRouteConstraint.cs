@@ -1,7 +1,7 @@
 using System.Globalization;
 using Microsoft.AspNetCore.Routing;
 
-namespace Mercurius.LAN.API.Routing;
+namespace Mercurius.Platform.Routing;
 
 public sealed class NonGuidRouteConstraint : IRouteConstraint
 {

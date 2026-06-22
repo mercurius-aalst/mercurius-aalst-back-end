@@ -1,0 +1,41 @@
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+
+namespace Mercurius.Platform.Authentication;
+
+public static class MercuriusAuthenticationExtensions
+{
+    public static IServiceCollection AddMercuriusAuthentication(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        var auth0Settings = configuration.GetSection("Auth0");
+        var auth0Authority = auth0Settings["Authority"]?.TrimEnd('/');
+
+        services.AddAuthentication(options =>
+        {
+            options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+            options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+        })
+        .AddJwtBearer(options =>
+        {
+            options.Authority = auth0Authority;
+            options.Audience = auth0Settings["Audience"];
+            options.MapInboundClaims = false;
+            options.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateLifetime = true,
+                ValidateIssuerSigningKey = true,
+                RequireSignedTokens = true,
+                NameClaimType = "sub",
+                RoleClaimType = auth0Settings["RoleClaimType"],
+                ValidAlgorithms = [SecurityAlgorithms.RsaSha256]
+            };
+        });
+        services.AddAuthorization();
+
+        return services;
+    }
+}

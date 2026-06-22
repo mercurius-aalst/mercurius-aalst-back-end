@@ -3,6 +3,7 @@ using Mercurius.LAN.API.DTOs.Auth;
 using Mercurius.LAN.API.Extensions;
 using Mercurius.LAN.API.Services.SearchServices;
 using Mercurius.LAN.API.Services.UserServices;
+using Mercurius.Platform.RateLimiting;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
 

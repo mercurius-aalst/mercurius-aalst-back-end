@@ -2,17 +2,13 @@ using System.Globalization;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
 
-namespace Mercurius.LAN.API.Extensions;
+namespace Mercurius.Platform.RateLimiting;
 
-public static class RateLimitPolicies
+public static class MercuriusRateLimitingExtensions
 {
-    public const string AnonymousSearch = "anonymous-search";
-    public const string AuthenticatedSearch = "authenticated-search";
-}
-
-public static class RateLimitingConfiguration
-{
-    public static IServiceCollection AddApiRateLimiting(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddMercuriusRateLimiting(
+        this IServiceCollection services,
+        IConfiguration configuration)
     {
         var rateLimitingSection = configuration.GetSection("RateLimiting");
         var globalPermitLimit = Math.Max(1, rateLimitingSection.GetValue("GlobalPermitLimit", 120));
@@ -47,7 +43,10 @@ public static class RateLimitingConfiguration
         return services;
     }
 
-    private static RateLimitPartition<string> CreateFixedWindowPartition(HttpContext httpContext, int permitLimit, TimeSpan window)
+    private static RateLimitPartition<string> CreateFixedWindowPartition(
+        HttpContext httpContext,
+        int permitLimit,
+        TimeSpan window)
     {
         return RateLimitPartition.GetFixedWindowLimiter(
             GetPartitionKey(httpContext),

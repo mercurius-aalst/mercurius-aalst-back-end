@@ -1,5 +1,5 @@
 using System.Net;
-using Mercurius.LAN.API.Extensions;
+using Mercurius.Platform.RateLimiting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Configuration;
@@ -11,7 +11,7 @@ namespace Mercurius.LAN.API.Tests;
 public class RateLimitingConfigurationTests
 {
     [Fact]
-    public async Task AddApiRateLimiting_RegistersGlobalLimiter()
+    public async Task AddMercuriusRateLimiting_RegistersGlobalLimiter()
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -21,7 +21,7 @@ public class RateLimitingConfigurationTests
             })
             .Build();
         var services = new ServiceCollection();
-        services.AddApiRateLimiting(configuration);
+        services.AddMercuriusRateLimiting(configuration);
         await using var provider = services.BuildServiceProvider();
         var options = provider.GetRequiredService<IOptions<RateLimiterOptions>>().Value;
         var httpContext = new DefaultHttpContext();

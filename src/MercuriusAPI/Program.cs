@@ -5,16 +5,7 @@ using Mercurius.LAN.API.Hubs;
 using Mercurius.LAN.API.Middleware;
 using Mercurius.LAN.API.Options;
 using Mercurius.LAN.API.Services.Auth0;
-using Mercurius.Platform.Authentication;
-using Mercurius.Platform.Cors;
-using Mercurius.Platform.Http;
-using Mercurius.Platform.Images;
-using Mercurius.Platform.Migrations;
-using Mercurius.Platform.ProblemDetails;
-using Mercurius.Platform.RateLimiting;
-using Mercurius.Platform.Realtime;
-using Mercurius.Platform.Security;
-using Mercurius.Platform.Swagger;
+using Mercurius.Platform.Extensions;
 using Microsoft.EntityFrameworkCore;
 
 namespace Mercurius.LAN.API;

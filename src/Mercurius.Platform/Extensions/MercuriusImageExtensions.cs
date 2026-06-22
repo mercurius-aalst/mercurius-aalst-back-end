@@ -1,6 +1,6 @@
 using Imageflow.Server;
 
-namespace Mercurius.Platform.Images;
+namespace Mercurius.Platform.Extensions;
 
 public static class MercuriusImageExtensions
 {

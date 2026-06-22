@@ -1,4 +1,4 @@
-namespace Mercurius.Platform.Realtime;
+namespace Mercurius.Platform.Extensions;
 
 public static class MercuriusRealtimeExtensions
 {

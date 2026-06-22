@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Diagnostics;
 
-namespace Mercurius.Platform.ProblemDetails;
+namespace Mercurius.Platform.Extensions;
 
 public static class MercuriusProblemDetailsExtensions
 {

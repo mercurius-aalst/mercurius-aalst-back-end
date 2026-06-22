@@ -1,8 +1,7 @@
 using System.Text.Json.Serialization;
-using Mercurius.Platform.Routing;
 using Microsoft.AspNetCore.Routing;
 
-namespace Mercurius.Platform.Http;
+namespace Mercurius.Platform.Extensions;
 
 public static class MercuriusHttpExtensions
 {

@@ -1,8 +1,7 @@
 using Mercurius.LAN.API.Endpoints;
 using Mercurius.LAN.API.Services.UserServices;
-using Mercurius.Platform.Http;
-using Mercurius.Platform.RateLimiting;
-using Mercurius.Platform.Routing;
+using Mercurius.Platform;
+using Mercurius.Platform.Extensions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;

@@ -1,4 +1,4 @@
-namespace Mercurius.Platform.Security;
+namespace Mercurius.Platform.Extensions;
 
 public static class MercuriusSecurityPipelineExtensions
 {

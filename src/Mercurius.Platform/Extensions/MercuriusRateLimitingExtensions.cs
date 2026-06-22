@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
 
-namespace Mercurius.Platform.RateLimiting;
+namespace Mercurius.Platform.Extensions;
 
 public static class MercuriusRateLimitingExtensions
 {

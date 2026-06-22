@@ -1,7 +1,5 @@
-using Mercurius.Platform.Authentication;
-using Mercurius.Platform.Cors;
-using Mercurius.Platform.Http;
-using Mercurius.Platform.Routing;
+using Mercurius.Platform;
+using Mercurius.Platform.Extensions;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Cors.Infrastructure;

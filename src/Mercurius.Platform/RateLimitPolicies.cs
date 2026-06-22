@@ -1,4 +1,4 @@
-namespace Mercurius.Platform.RateLimiting;
+namespace Mercurius.Platform;
 
 public static class RateLimitPolicies
 {

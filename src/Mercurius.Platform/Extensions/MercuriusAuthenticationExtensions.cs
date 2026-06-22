@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 
-namespace Mercurius.Platform.Authentication;
+namespace Mercurius.Platform.Extensions;
 
 public static class MercuriusAuthenticationExtensions
 {

@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 
-namespace Mercurius.Platform.Migrations;
+namespace Mercurius.Platform.Extensions;
 
 public static class MercuriusMigrationExtensions
 {

@@ -1,4 +1,4 @@
-namespace Mercurius.Platform.Cors;
+namespace Mercurius.Platform.Extensions;
 
 public static class MercuriusCorsExtensions
 {

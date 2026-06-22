@@ -1,5 +1,5 @@
 using System.Net;
-using Mercurius.Platform.RateLimiting;
+using Mercurius.Platform.Extensions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Configuration;

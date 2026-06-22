@@ -1,10 +1,11 @@
 using Asp.Versioning;
 using Asp.Versioning.ApiExplorer;
+using Mercurius.Platform.Swagger;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.OpenApi.Models;
 
-namespace Mercurius.Platform.Swagger;
+namespace Mercurius.Platform.Extensions;
 
 public static class MercuriusSwaggerExtensions
 {

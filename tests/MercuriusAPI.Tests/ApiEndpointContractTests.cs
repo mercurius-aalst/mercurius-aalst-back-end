@@ -163,7 +163,7 @@ public class ApiEndpointContractTests
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddAuthorization();
         builder.Services.AddApiVersioning();
-        builder.Services.AddRealtime();
+        builder.Services.AddRealtimeNotificationServices();
         RegisterEndpointServices(builder.Services);
         builder.Services.AddHttpConventions();
 

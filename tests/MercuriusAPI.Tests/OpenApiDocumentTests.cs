@@ -81,7 +81,7 @@ public class OpenApiDocumentTests
             includeXmlComments: false,
             useEnumSchemaFilter: true);
         builder.Services.AddAuthorization();
-        builder.Services.AddRealtime();
+        builder.Services.AddRealtimeNotificationServices();
         RegisterEndpointServices(builder.Services);
         builder.Services.AddHttpConventions();
 

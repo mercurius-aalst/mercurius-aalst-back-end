@@ -222,6 +222,7 @@ Patterns are allowed only when they fit the problem:
 ```
 
 Avoid pattern theater. Do not introduce abstractions that only wrap a single line or obscure simple code.
+To validate code quality run the dotnet-clean-code-audit skill focussed on the made changes and implement the suggested changes made by this skill untill no more high and medium severity issues remain.
 
 ### Performance policy
 
@@ -238,7 +239,7 @@ For every touched query/service, Codex must check:
 - will this query still work efficiently after module boundaries are introduced?
 ```
 
-Do not change behavior for performance unless tests and OpenSpec allow it.
+Do not change behavior for performance unless tests and OpenSpec allow it. To validate performance, run dotnet-performance-audit skill focussed on the made changes. Implement the suggested changes made by this skill untill no more high and medium severity issues remain.
 
 ### Public contract policy
 

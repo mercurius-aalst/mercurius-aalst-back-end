@@ -1,6 +1,6 @@
 # Modular Monolith Migration Progress
 
-Last updated: 2026-06-19
+Last updated: 2026-06-22
 
 This tracker is the repo-local handoff ledger for the modular monolith migration. It records which phase PRs have been created. GitHub remains the source of truth for whether those PRs are open, closed, or merged.
 
@@ -51,9 +51,9 @@ Do not start the next phase from an unmerged previous phase branch.
   - PR: [#97 Phase 2: add baseline contract safety tests](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/97)
   - Notes: Add route/security/OpenAPI/DTO/privacy behavior tests. No production behavior change.
 
-- [ ] Phase 3 - Monolith code quality and boundary preparation
+- [x] Phase 3 - Monolith code quality and boundary preparation
   - Branch: `refactor/phase-3`
-  - PR: pending
+  - PR: [#98 Phase 3: prepare monolith service boundaries](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/98)
   - Notes: Prepare existing monolith code before physical moves.
 
 - [ ] Phase 4 - Platform extraction

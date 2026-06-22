@@ -113,7 +113,7 @@ public class TeamTests
     }
 
     [Fact]
-    public async Task GetTeamByNameAsync_ReturnsTeam_When_CasingDiffers()
+    public async Task GetTeamByNameAsync_ReturnsTeamDto_When_CasingDiffers()
     {
         await using var dbContext = CreateDbContext();
         var captain = CreateUser();
@@ -783,7 +783,7 @@ public class TeamTests
 
         await teamService.DeleteTeamAsync(captain.Auth0UserId, team.Id);
 
-        Assert.Empty(teamService.GetAllTeams());
+        Assert.Empty(await teamService.GetAllTeamsAsync());
         Assert.Empty(await teamService.SearchTeamsByNameAsync("alp"));
         await Assert.ThrowsAsync<NotFoundException>(() => teamService.GetTeamByIdAsync(team.Id));
         await Assert.ThrowsAsync<NotFoundException>(() => teamService.GetPublicTeamProfileAsync("alpha"));

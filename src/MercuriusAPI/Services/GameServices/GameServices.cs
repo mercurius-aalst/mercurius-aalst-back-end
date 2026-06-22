@@ -47,53 +47,29 @@ public class GameService : IGameService
 
         _dbContext.Games.Add(game);
         await _dbContext.SaveChangesAsync();
-        return new GetGameDTO(await GetGameByIdAsync(game.Id));
-    }
-    public async Task<Game> GetGameByIdAsync(Guid gameId)
-    {
-        var game = await CreateDetailedGameQuery()
-            .Include(g => g.TournamentRegistrations)
-                .ThenInclude(registration => registration.User)
-            .Include(g => g.TournamentRegistrations)
-                .ThenInclude(registration => registration.Team)
-                    .ThenInclude(team => team!.Members)
-            .Include(g => g.TournamentRegistrations)
-                .ThenInclude(registration => registration.RosterMembers)
-                    .ThenInclude(member => member.User)
-            .Include(g => g.Matches)
-            .Include(g => g.Placements)
-                .ThenInclude(p => p.Users)
-            .Include(g => g.Placements)
-                .ThenInclude(p => p.Teams)
-            .Include(g => g.SponsorPlacement)
-                .ThenInclude(placement => placement!.Sponsor)
-            .FirstOrDefaultAsync(g => g.Id == gameId);
-        if (game is null)
-            throw new NotFoundException($"{nameof(Game)} not found");
-        return game;
+        return await GetGameByIdAsync(game.Id);
     }
 
-    public IEnumerable<GetGameDTO> GetAllGames()
+    public async Task<GetGameDTO> GetGameByIdAsync(Guid gameId, CancellationToken cancellationToken = default)
     {
-        return CreateDetailedGameQuery()
-            .Include(g => g.TournamentRegistrations)
-                .ThenInclude(registration => registration.User)
-            .Include(g => g.TournamentRegistrations)
-                .ThenInclude(registration => registration.Team)
-                    .ThenInclude(team => team!.Members)
-            .Include(g => g.TournamentRegistrations)
-                .ThenInclude(registration => registration.RosterMembers)
-                    .ThenInclude(member => member.User)
-            .Include(g => g.Matches)
-            .Include(g => g.SponsorPlacement)
-                .ThenInclude(placement => placement!.Sponsor)
-            .ToList()
-            .Select(g => new GetGameDTO(g));
+        var game = await CreateGameDetailsReadQuery()
+            .FirstOrDefaultAsync(g => g.Id == gameId, cancellationToken);
+        if (game is null)
+            throw new NotFoundException($"{nameof(Game)} not found");
+        return new GetGameDTO(game);
+    }
+
+    public async Task<IEnumerable<GetGameDTO>> GetAllGamesAsync(CancellationToken cancellationToken = default)
+    {
+        var games = await CreateGameListReadQuery()
+            .ToListAsync(cancellationToken);
+
+        return games.Select(g => new GetGameDTO(g));
     }
 
     public async Task<GetGameDTO> UpdateGameAsync(Guid id, UpdateGameDTO gameDTO)
     {
-        var game = await GetGameByIdAsync(id);
+        var game = await GetGameForMutationAsync(id);
         if (game.Name != gameDTO.Name && await CheckIfGameNameExistsInCurrentSeasonAsync(gameDTO.Name))
             throw new ValidationException($"Game {gameDTO.Name} already exists");
 
@@ -115,12 +91,12 @@ public class GameService : IGameService
         }
 
         await _dbContext.SaveChangesAsync();
-        return new GetGameDTO(await GetGameByIdAsync(game.Id));
+        return await GetGameByIdAsync(game.Id);
     }
 
     public async Task DeleteGameAsync(Guid id)
     {
-        var game = await GetGameByIdAsync(id);
+        var game = await GetGameForMutationAsync(id);
         if (game.Status == GameStatus.InProgress)
             throw new ValidationException("Game cannot be deleted when already in progress.");
         _dbContext.Games.Remove(game);
@@ -129,14 +105,14 @@ public class GameService : IGameService
 
     public async Task CancelGameAsync(Guid id)
     {
-        var game = await GetGameByIdAsync(id);
+        var game = await GetGameForMutationAsync(id);
         game.Cancel();
         await _dbContext.SaveChangesAsync();
     }
 
     public async Task StartGameAsync(Guid id)
     {
-        var game = await GetGameByIdAsync(id);
+        var game = await GetGameForMutationAsync(id);
         game.Start();
         var matchGenerator = _matchGeneratorFactory.GetMatchModerator(game.BracketType);
         game.Matches = matchGenerator.GenerateMatchesForGame(game).ToList();
@@ -147,7 +123,7 @@ public class GameService : IGameService
 
     public async Task<IEnumerable<GetPlacementDTO>> CompleteGameAsync(Guid id)
     {
-        var game = await GetGameByIdAsync(id);
+        var game = await GetGameForMutationAsync(id);
         game.Complete();
 
         var matchModerator = _matchGeneratorFactory.GetMatchModerator(game.BracketType);
@@ -159,14 +135,14 @@ public class GameService : IGameService
 
     public async Task ResetGameAsync(Guid id)
     {
-        var game = await GetGameByIdAsync(id);
+        var game = await GetGameForMutationAsync(id);
         game.Reset();
         await _dbContext.SaveChangesAsync();
     }
 
     public async Task<GetGameDTO> ReplaceSponsorPlacementsAsync(Guid id, ReplaceGameSponsorsDTO sponsorDTO)
     {
-        var game = await GetGameByIdAsync(id);
+        var game = await GetGameForMutationAsync(id);
         var placements = sponsorDTO.SponsorPlacements ?? [];
         if (placements.Count > 1)
             throw new ValidationException("A game can only have one sponsor.");
@@ -203,7 +179,7 @@ public class GameService : IGameService
         }
         await _dbContext.SaveChangesAsync();
 
-        return new GetGameDTO(await GetGameByIdAsync(game.Id));
+        return await GetGameByIdAsync(game.Id);
     }
 
     private async Task<bool> CheckIfGameNameExistsInCurrentSeasonAsync(string name)
@@ -211,11 +187,52 @@ public class GameService : IGameService
         return await _dbContext.Games.AnyAsync(g => g.Name == name);
     }
 
-    private IQueryable<Game> CreateDetailedGameQuery()
+    private async Task<Game> GetGameForMutationAsync(Guid gameId)
+    {
+        var game = await CreateGameDetailsQuery()
+            .FirstOrDefaultAsync(g => g.Id == gameId);
+        if (game is null)
+            throw new NotFoundException($"{nameof(Game)} not found");
+
+        return game;
+    }
+
+    private IQueryable<Game> CreateGameDetailsReadQuery()
+    {
+        return CreateGameDetailsQuery()
+            .AsNoTracking();
+    }
+
+    private IQueryable<Game> CreateGameListReadQuery()
+    {
+        return CreateGameListQuery()
+            .AsNoTracking();
+    }
+
+    private IQueryable<Game> CreateGameDetailsQuery()
+    {
+        return CreateGameListQuery()
+            .Include(g => g.Placements)
+                .ThenInclude(p => p.Users)
+            .Include(g => g.Placements)
+                .ThenInclude(p => p.Teams);
+    }
+
+    private IQueryable<Game> CreateGameListQuery()
     {
         return _dbContext.Games
+            .Include(g => g.TournamentRegistrations)
+                .ThenInclude(registration => registration.User)
+            .Include(g => g.TournamentRegistrations)
+                .ThenInclude(registration => registration.Team)
+                    .ThenInclude(team => team!.Members)
+            .Include(g => g.TournamentRegistrations)
+                .ThenInclude(registration => registration.RosterMembers)
+                    .ThenInclude(member => member.User)
+            .Include(g => g.Matches)
             .Include(g => g.Placements)
-            .Include(g => g.SponsorPlacement);
+            .Include(g => g.SponsorPlacement)
+                .ThenInclude(placement => placement!.Sponsor);
     }
 
     private static void ApplySponsorPlacement(GameSponsorPlacement gameSponsorPlacement, GameSponsorPlacementInputDTO placement, Guid gameId)

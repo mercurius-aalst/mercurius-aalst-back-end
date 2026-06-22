@@ -24,7 +24,7 @@ public class MatchService : IMatchService
         return new GetMatchDTO(match);
     }
 
-    public async Task<Match> GetMatchByIdForUpdateAsync(Guid id)
+    private async Task<Match> GetMatchByIdForUpdateAsync(Guid id)
     {
         var match = await _dbContext.Matches
             .Include(m => m.WinnerNextMatch)
@@ -63,19 +63,20 @@ public class MatchService : IMatchService
         return match;
     }
 
-    public async Task<Match> GetMatchByIdAsync(Guid id)
+    public async Task<GetMatchDTO> GetMatchByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var match = await _dbContext.Matches
+            .AsNoTracking()
             .Include(m => m.UserParticipant1)
             .Include(m => m.UserParticipant2)
             .Include(m => m.TeamParticipant1)
             .Include(m => m.TeamParticipant2)
-            .FirstOrDefaultAsync(m => m.Id == id);
+            .FirstOrDefaultAsync(m => m.Id == id, cancellationToken);
 
         if (match is null)
             throw new NotFoundException($"{nameof(Match)} not found");
 
-        return match;
+        return new GetMatchDTO(match);
     }
 }
 

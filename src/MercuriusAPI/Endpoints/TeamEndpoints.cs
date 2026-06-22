@@ -24,15 +24,15 @@ public static class TeamEndpoints
             .MapToApiVersion(new ApiVersion(1, 0))
             .WithTags("Public Teams");
 
-        group.MapGet("/", (ITeamService teamService) =>
+        group.MapGet("/", async (ITeamService teamService, CancellationToken cancellationToken) =>
         {
-            return teamService.GetAllTeams();
+            return await teamService.GetAllTeamsAsync(cancellationToken);
         })
         .AllowAnonymous();
 
-        group.MapGet("/{id:guid}", async (Guid id, ITeamService teamService) =>
+        group.MapGet("/{id:guid}", async (Guid id, ITeamService teamService, CancellationToken cancellationToken) =>
         {
-            return new GetTeamDTO(await teamService.GetTeamByIdAsync(id));
+            return await teamService.GetTeamByIdAsync(id, cancellationToken);
         })
         .AllowAnonymous();
 

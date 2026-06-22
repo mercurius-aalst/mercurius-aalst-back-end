@@ -93,18 +93,21 @@ public class TeamService : ITeamService
         await _dbContext.SaveChangesAsync();
     }
 
-    public IEnumerable<GetTeamDTO> GetAllTeams()
+    public async Task<IEnumerable<GetTeamDTO>> GetAllTeamsAsync(CancellationToken cancellationToken = default)
     {
-        return GetTeamWithMembersQuery()
-            .Select(t => new GetTeamDTO(t));
+        var teams = await GetTeamWithMembersReadQuery()
+            .ToListAsync(cancellationToken);
+
+        return teams.Select(team => new GetTeamDTO(team));
     }
-    public async Task<Team> GetTeamByIdAsync(Guid teamId)
+
+    public async Task<GetTeamDTO> GetTeamByIdAsync(Guid teamId, CancellationToken cancellationToken = default)
     {
-        var team = await GetTeamDetailsQuery()
-            .FirstOrDefaultAsync(t => t.Id == teamId);
+        var team = await GetTeamWithMembersReadQuery()
+            .FirstOrDefaultAsync(t => t.Id == teamId, cancellationToken);
         if (team is null)
             throw new NotFoundException($"{nameof(Team)} not found");
-        return team;
+        return new GetTeamDTO(team);
     }
 
     public async Task<PublicTeamProfileDTO> GetPublicTeamProfileAsync(string teamName)
@@ -154,14 +157,14 @@ public class TeamService : ITeamService
         };
     }
 
-    public async Task<Team> GetTeamByNameAsync(string name)
+    public async Task<GetTeamDTO> GetTeamByNameAsync(string name, CancellationToken cancellationToken = default)
     {
         var normalizedName = Team.NormalizeName(name);
-        var team = await GetTeamWithMembersQuery()
-            .FirstOrDefaultAsync(t => t.NormalizedName == normalizedName);
+        var team = await GetTeamWithMembersReadQuery()
+            .FirstOrDefaultAsync(t => t.NormalizedName == normalizedName, cancellationToken);
         if (team is null)
             throw new NotFoundException($"{nameof(Team)} not found");
-        return team;
+        return new GetTeamDTO(team);
     }
 
     public async Task<GetTeamDTO> RemoveMemberAsync(Guid id, Guid userId)
@@ -182,7 +185,7 @@ public class TeamService : ITeamService
             throw new NotFoundException($"{nameof(Team)} not found");
 
         EnsureCaptain(team, currentUser.Id);
-        if (await IsTeamInMemberRemovalBlockingTournamentAsync(teamId, userId))
+        if (await IsUserInProtectedTournamentRosterAsync(teamId, userId))
             throw new ValidationException("Cannot remove a member from a team that is part of an in-progress tournament roster.");
 
         team.RemoveMember(userId);
@@ -218,7 +221,7 @@ public class TeamService : ITeamService
         return new GetTeamDTO(team);
     }
 
-    public async Task<IEnumerable<GetTeamDTO>> SearchTeamsByNameAsync(string query, int? limit = null)
+    public async Task<IEnumerable<GetTeamDTO>> SearchTeamsByNameAsync(string query, int? limit = null, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(query))
             return [];
@@ -226,17 +229,18 @@ public class TeamService : ITeamService
         var normalizedQuery = query.Trim().ToLowerInvariant();
         var resultLimit = Math.Clamp(limit.GetValueOrDefault(MaxTeamSearchResults), 1, MaxTeamSearchResults);
 
-        return await GetTeamWithMembersQuery()
+        var teams = await GetTeamWithMembersReadQuery()
             .Where(t => t.NormalizedName.StartsWith(normalizedQuery))
             .OrderBy(t => t.Name)
             .Take(resultLimit)
-            .Select(t => new GetTeamDTO(t))
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
+
+        return teams.Select(team => new GetTeamDTO(team));
     }
 
     public async Task<TeamInviteDTO> InviteUserAsync(Guid teamId, Guid userId)
     {
-        var team = await GetTeamByIdAsync(teamId);
+        var team = await GetTeamForInviteMutationAsync(teamId);
         if (!await _dbContext.Users.AnyAsync(u => u.Id == userId))
             throw new NotFoundException($"{nameof(User)} not found");
         await ExpirePendingInvitesAsync(teamId, userId);
@@ -248,7 +252,7 @@ public class TeamService : ITeamService
     public async Task<TeamInviteDTO> InviteUserAsync(string auth0UserId, Guid teamId, Guid userId)
     {
         var currentUser = await GetCurrentUserAsync(auth0UserId);
-        var team = await GetTeamByIdAsync(teamId);
+        var team = await GetTeamForInviteMutationAsync(teamId);
         EnsureCaptain(team, currentUser.Id);
 
         if (!await _dbContext.Users.AnyAsync(u => u.Id == userId && !u.IsDeleted))
@@ -392,7 +396,7 @@ public class TeamService : ITeamService
             throw new ValidationException("The captain cannot leave a team without transferring captainship.");
         if (!team.Members.Any(member => member.Id == currentUser.Id))
             throw new NotFoundException($"{nameof(User)} not found in {team.Name}");
-        if (await IsTeamInLeaveBlockingTournamentAsync(teamId, currentUser.Id))
+        if (await IsUserInProtectedTournamentRosterAsync(teamId, currentUser.Id))
             throw new ValidationException("Cannot leave a team that is part of a protected tournament roster.");
 
         team.RemoveMember(currentUser.Id);
@@ -489,15 +493,7 @@ public class TeamService : ITeamService
             throw new UnauthorizedAccessException("Only the team captain can perform this action.");
     }
 
-    private async Task<bool> IsTeamInLeaveBlockingTournamentAsync(Guid teamId, Guid userId)
-    {
-        return await _dbContext.TournamentRegistrationRosterMembers.AnyAsync(member =>
-            member.TeamId == teamId &&
-            member.UserId == userId &&
-            (member.Game.Status == GameStatus.Scheduled || member.Game.Status == GameStatus.InProgress));
-    }
-
-    private async Task<bool> IsTeamInMemberRemovalBlockingTournamentAsync(Guid teamId, Guid userId)
+    private async Task<bool> IsUserInProtectedTournamentRosterAsync(Guid teamId, Guid userId)
     {
         return await _dbContext.TournamentRegistrationRosterMembers.AnyAsync(member =>
             member.TeamId == teamId &&
@@ -557,6 +553,16 @@ public class TeamService : ITeamService
             (!excludedTeamId.HasValue || t.Id != excludedTeamId.Value));
     }
 
+    private async Task<Team> GetTeamForInviteMutationAsync(Guid teamId)
+    {
+        var team = await GetTeamDetailsQuery()
+            .FirstOrDefaultAsync(t => t.Id == teamId);
+        if (team is null)
+            throw new NotFoundException($"{nameof(Team)} not found");
+
+        return team;
+    }
+
     private IQueryable<Team> GetTeamDetailsQuery()
     {
         return GetTeamWithMembersQuery()
@@ -567,6 +573,13 @@ public class TeamService : ITeamService
     {
         return GetActiveTeamsQuery()
             .Include(t => t.Captain)
+            .Include(t => t.Members);
+    }
+
+    private IQueryable<Team> GetTeamWithMembersReadQuery()
+    {
+        return GetActiveTeamsQuery()
+            .AsNoTracking()
             .Include(t => t.Members);
     }
 

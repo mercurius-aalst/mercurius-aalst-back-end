@@ -22,15 +22,15 @@ public static class GameEndpoints
             .WithTags("Games")
             .RequireAuthorization(new AuthorizeAttribute { Roles = "admin" });
 
-        group.MapGet("/", (IGameService gameService) =>
+        group.MapGet("/", async (IGameService gameService, CancellationToken cancellationToken) =>
         {
-            return gameService.GetAllGames();
+            return await gameService.GetAllGamesAsync(cancellationToken);
         })
         .AllowAnonymous();
 
-        group.MapGet("/{id}", async (Guid id, IGameService gameService) =>
+        group.MapGet("/{id}", async (Guid id, IGameService gameService, CancellationToken cancellationToken) =>
         {
-            return new GetGameDTO(await gameService.GetGameByIdAsync(id));
+            return await gameService.GetGameByIdAsync(id, cancellationToken);
         })
         .AllowAnonymous();
 

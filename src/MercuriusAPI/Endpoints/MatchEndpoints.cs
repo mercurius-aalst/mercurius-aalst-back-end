@@ -24,9 +24,9 @@ public static class MatchEndpoints
             return await matchService.UpdateMatchAsync(id, updateMatchDTO);
         });
 
-        group.MapGet("/{id}", async (Guid id, IMatchService matchService) =>
+        group.MapGet("/{id}", async (Guid id, IMatchService matchService, CancellationToken cancellationToken) =>
         {
-            return new GetMatchDTO(await matchService.GetMatchByIdAsync(id));
+            return await matchService.GetMatchByIdAsync(id, cancellationToken);
         })
         .AllowAnonymous();
 

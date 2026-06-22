@@ -3,9 +3,11 @@ using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
 using Swashbuckle.AspNetCore.SwaggerGen;
 
-namespace Mercurius.Platform.Swagger;
+namespace Platform.Swagger;
 
-internal sealed class ConfigureSwaggerOptions(IApiVersionDescriptionProvider provider)
+internal sealed class ConfigureSwaggerOptions(
+    IApiVersionDescriptionProvider provider,
+    IOptions<SwaggerDocumentOptions> documentOptions)
     : IConfigureNamedOptions<SwaggerGenOptions>
 {
     public void Configure(SwaggerGenOptions options)
@@ -21,11 +23,11 @@ internal sealed class ConfigureSwaggerOptions(IApiVersionDescriptionProvider pro
         Configure(options);
     }
 
-    private static OpenApiInfo CreateVersionInfo(ApiVersionDescription description)
+    private OpenApiInfo CreateVersionInfo(ApiVersionDescription description)
     {
         var info = new OpenApiInfo
         {
-            Title = "Mercurius API",
+            Title = documentOptions.Value.Title,
             Version = description.ApiVersion.ToString()
         };
 

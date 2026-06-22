@@ -1,10 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 
-namespace Mercurius.Platform.Extensions;
+namespace Platform.Extensions;
 
-public static class MercuriusMigrationExtensions
+public static class MigrationExtensions
 {
-    public static WebApplication ApplyMercuriusMigrations<TDbContext>(this WebApplication app)
+    public static WebApplication ApplyMigrations<TDbContext>(this WebApplication app)
         where TDbContext : DbContext
     {
         using var scope = app.Services.CreateScope();

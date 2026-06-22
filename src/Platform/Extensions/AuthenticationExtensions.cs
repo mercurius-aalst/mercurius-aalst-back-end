@@ -1,15 +1,14 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 
-namespace Mercurius.Platform.Extensions;
+namespace Platform.Extensions;
 
-public static class MercuriusAuthenticationExtensions
+public static class AuthenticationExtensions
 {
-    public static IServiceCollection AddMercuriusAuthentication(
+    public static IServiceCollection AddAuth0JwtAuthentication(
         this IServiceCollection services,
-        IConfiguration configuration)
+        IConfigurationSection auth0Settings)
     {
-        var auth0Settings = configuration.GetSection("Auth0");
         var auth0Authority = auth0Settings["Authority"]?.TrimEnd('/');
 
         services.AddAuthentication(options =>

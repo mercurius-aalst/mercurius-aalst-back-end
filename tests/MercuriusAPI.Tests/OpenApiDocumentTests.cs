@@ -8,7 +8,7 @@ using Mercurius.LAN.API.Services.SearchServices;
 using Mercurius.LAN.API.Services.SponsorServices;
 using Mercurius.LAN.API.Services.TeamServices;
 using Mercurius.LAN.API.Services.UserServices;
-using Mercurius.Platform.Extensions;
+using Platform.Extensions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
@@ -75,14 +75,15 @@ public class OpenApiDocumentTests
     {
         var builder = WebApplication.CreateBuilder();
         builder.Logging.ClearProviders();
-        builder.Services.AddMercuriusSwagger(
+        builder.Services.AddVersionedSwagger(
             builder.Environment,
+            documentTitle: "Mercurius API",
             includeXmlComments: false,
             useEnumSchemaFilter: true);
         builder.Services.AddAuthorization();
-        builder.Services.AddMercuriusRealtime();
+        builder.Services.AddRealtime();
         RegisterEndpointServices(builder.Services);
-        builder.Services.AddMercuriusHttpConventions();
+        builder.Services.AddHttpConventions();
 
         var app = builder.Build();
         app.Services.GetRequiredService<IHttpContextAccessor>().HttpContext = new DefaultHttpContext

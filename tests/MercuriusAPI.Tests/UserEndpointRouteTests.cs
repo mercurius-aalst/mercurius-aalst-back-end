@@ -1,7 +1,8 @@
 using Mercurius.LAN.API.Endpoints;
+using Mercurius.LAN.API.Configuration;
 using Mercurius.LAN.API.Services.UserServices;
-using Mercurius.Platform;
-using Mercurius.Platform.Extensions;
+using Platform;
+using Platform.Extensions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -112,7 +113,7 @@ public class UserEndpointRouteTests
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddAuthorization();
         builder.Services.AddApiVersioning();
-        builder.Services.AddMercuriusHttpConventions();
+        builder.Services.AddHttpConventions();
         builder.Services.AddScoped<IUserService>(_ => throw new NotSupportedException());
 
         var app = builder.Build();

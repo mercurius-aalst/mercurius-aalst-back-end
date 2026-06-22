@@ -1,5 +1,5 @@
-using Mercurius.Platform;
-using Mercurius.Platform.Extensions;
+using Platform;
+using Platform.Extensions;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Cors.Infrastructure;
@@ -13,10 +13,10 @@ using System.Text.Json.Serialization;
 
 namespace Mercurius.LAN.API.Tests;
 
-public class MercuriusPlatformRegistrationTests
+public class PlatformRegistrationTests
 {
     [Fact]
-    public void AddMercuriusAuthentication_PreservesAuth0JwtValidationSettings()
+    public void AddAuth0JwtAuthentication_PreservesAuth0JwtValidationSettings()
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -29,7 +29,7 @@ public class MercuriusPlatformRegistrationTests
         var services = new ServiceCollection();
         services.AddLogging();
 
-        services.AddMercuriusAuthentication(configuration);
+        services.AddAuth0JwtAuthentication(configuration.GetSection("Auth0"));
 
         using var provider = services.BuildServiceProvider();
         var authentication = provider.GetRequiredService<IOptions<AuthenticationOptions>>().Value;
@@ -52,14 +52,15 @@ public class MercuriusPlatformRegistrationTests
     }
 
     [Fact]
-    public void AddMercuriusCors_PreservesWildcardSubdomainPolicy()
+    public void AddWildcardSubdomainCors_PreservesWildcardSubdomainPolicy()
     {
+        const string policyName = "AllowApplication";
         var services = new ServiceCollection();
-        services.AddMercuriusCors();
+        services.AddWildcardSubdomainCors(policyName, "https://*.mercurius-aalst.be");
 
         using var provider = services.BuildServiceProvider();
         var options = provider.GetRequiredService<IOptions<CorsOptions>>().Value;
-        var policy = options.GetPolicy(MercuriusCorsExtensions.PolicyName);
+        var policy = options.GetPolicy(policyName);
 
         Assert.NotNull(policy);
         Assert.True(policy.IsOriginAllowed("https://app.mercurius-aalst.be"));
@@ -68,10 +69,10 @@ public class MercuriusPlatformRegistrationTests
     }
 
     [Fact]
-    public void AddMercuriusHttpConventions_RegistersRouteConstraintAndEnumSerialization()
+    public void AddHttpConventions_RegistersRouteConstraintAndEnumSerialization()
     {
         var services = new ServiceCollection();
-        services.AddMercuriusHttpConventions();
+        services.AddHttpConventions();
 
         using var provider = services.BuildServiceProvider();
         var routeOptions = provider.GetRequiredService<IOptions<RouteOptions>>().Value;

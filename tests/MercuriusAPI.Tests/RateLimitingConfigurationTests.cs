@@ -1,5 +1,6 @@
 using System.Net;
-using Mercurius.Platform.Extensions;
+using Platform;
+using Platform.Extensions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Configuration;
@@ -11,7 +12,7 @@ namespace Mercurius.LAN.API.Tests;
 public class RateLimitingConfigurationTests
 {
     [Fact]
-    public async Task AddMercuriusRateLimiting_RegistersGlobalLimiter()
+    public async Task AddFixedWindowRateLimiting_RegistersGlobalLimiter()
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -21,7 +22,16 @@ public class RateLimitingConfigurationTests
             })
             .Build();
         var services = new ServiceCollection();
-        services.AddMercuriusRateLimiting(configuration);
+        var rateLimitingSection = configuration.GetSection("RateLimiting");
+        services.AddFixedWindowRateLimiting(new FixedWindowRateLimitingOptions
+        {
+            GlobalPermitLimit = rateLimitingSection.GetValue("GlobalPermitLimit", 120),
+            PolicyPermitLimit = rateLimitingSection.GetValue("SearchPermitLimit", 30),
+            Window = TimeSpan.FromSeconds(rateLimitingSection.GetValue("WindowSeconds", 60)),
+            UnconditionalPolicyName = "anonymous-search",
+            ConditionalPolicyName = "authenticated-search",
+            ConditionalQueryParameterName = "query"
+        });
         await using var provider = services.BuildServiceProvider();
         var options = provider.GetRequiredService<IOptions<RateLimiterOptions>>().Value;
         var httpContext = new DefaultHttpContext();

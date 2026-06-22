@@ -36,6 +36,6 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="..\Mercurius.Platform\Mercurius.Platform.csproj" />
+		<ProjectReference Include="..\Platform\Platform.csproj" />
 	</ItemGroup>
 </Project>

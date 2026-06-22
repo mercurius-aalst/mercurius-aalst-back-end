@@ -1,4 +1,4 @@
-namespace Mercurius.Platform;
+namespace Mercurius.LAN.API.Configuration;
 
 public static class RateLimitPolicies
 {

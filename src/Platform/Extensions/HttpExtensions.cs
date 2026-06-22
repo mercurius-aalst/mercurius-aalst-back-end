@@ -1,11 +1,11 @@
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Routing;
 
-namespace Mercurius.Platform.Extensions;
+namespace Platform.Extensions;
 
-public static class MercuriusHttpExtensions
+public static class HttpExtensions
 {
-    public static IServiceCollection AddMercuriusHttpConventions(this IServiceCollection services)
+    public static IServiceCollection AddHttpConventions(this IServiceCollection services)
     {
         services.Configure<RouteOptions>(options =>
         {

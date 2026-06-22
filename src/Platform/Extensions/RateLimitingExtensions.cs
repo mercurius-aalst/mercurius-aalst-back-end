@@ -2,30 +2,29 @@ using System.Globalization;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
 
-namespace Mercurius.Platform.Extensions;
+namespace Platform.Extensions;
 
-public static class MercuriusRateLimitingExtensions
+public static class RateLimitingExtensions
 {
-    public static IServiceCollection AddMercuriusRateLimiting(
+    public static IServiceCollection AddFixedWindowRateLimiting(
         this IServiceCollection services,
-        IConfiguration configuration)
+        FixedWindowRateLimitingOptions settings)
     {
-        var rateLimitingSection = configuration.GetSection("RateLimiting");
-        var globalPermitLimit = Math.Max(1, rateLimitingSection.GetValue("GlobalPermitLimit", 120));
-        var searchPermitLimit = Math.Max(1, rateLimitingSection.GetValue("SearchPermitLimit", 30));
-        var window = TimeSpan.FromSeconds(Math.Max(1, rateLimitingSection.GetValue("WindowSeconds", 60)));
+        var globalPermitLimit = Math.Max(1, settings.GlobalPermitLimit);
+        var policyPermitLimit = Math.Max(1, settings.PolicyPermitLimit);
+        var window = settings.Window > TimeSpan.Zero ? settings.Window : TimeSpan.FromSeconds(1);
 
         services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
             options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
-                CreateFixedWindowPartition(httpContext, globalPermitLimit, window));
-            options.AddPolicy(RateLimitPolicies.AnonymousSearch, httpContext =>
-                CreateFixedWindowPartition(httpContext, searchPermitLimit, window));
-            options.AddPolicy(RateLimitPolicies.AuthenticatedSearch, httpContext =>
-                httpContext.Request.Query.ContainsKey("query")
-                    ? CreateFixedWindowPartition(httpContext, searchPermitLimit, window)
-                    : RateLimitPartition.GetNoLimiter(GetPartitionKey(httpContext)));
+                CreateFixedWindowPartition(httpContext, globalPermitLimit, window, settings.UserIdentifierClaimType));
+            options.AddPolicy(settings.UnconditionalPolicyName, httpContext =>
+                CreateFixedWindowPartition(httpContext, policyPermitLimit, window, settings.UserIdentifierClaimType));
+            options.AddPolicy(settings.ConditionalPolicyName, httpContext =>
+                httpContext.Request.Query.ContainsKey(settings.ConditionalQueryParameterName)
+                    ? CreateFixedWindowPartition(httpContext, policyPermitLimit, window, settings.UserIdentifierClaimType)
+                    : RateLimitPartition.GetNoLimiter(GetPartitionKey(httpContext, settings.UserIdentifierClaimType)));
             options.OnRejected = async (context, cancellationToken) =>
             {
                 if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
@@ -35,7 +34,7 @@ public static class MercuriusRateLimitingExtensions
                 }
 
                 await context.HttpContext.Response.WriteAsJsonAsync(
-                    new { error = "Too many requests. Please try again later." },
+                    new { error = settings.RejectionMessage },
                     cancellationToken);
             };
         });
@@ -46,10 +45,11 @@ public static class MercuriusRateLimitingExtensions
     private static RateLimitPartition<string> CreateFixedWindowPartition(
         HttpContext httpContext,
         int permitLimit,
-        TimeSpan window)
+        TimeSpan window,
+        string userIdentifierClaimType)
     {
         return RateLimitPartition.GetFixedWindowLimiter(
-            GetPartitionKey(httpContext),
+            GetPartitionKey(httpContext, userIdentifierClaimType),
             _ => new FixedWindowRateLimiterOptions
             {
                 PermitLimit = permitLimit,
@@ -60,9 +60,9 @@ public static class MercuriusRateLimitingExtensions
             });
     }
 
-    private static string GetPartitionKey(HttpContext httpContext)
+    private static string GetPartitionKey(HttpContext httpContext, string userIdentifierClaimType)
     {
-        var subject = httpContext.User.FindFirst("sub")?.Value;
+        var subject = httpContext.User.FindFirst(userIdentifierClaimType)?.Value;
         if (!string.IsNullOrWhiteSpace(subject))
             return $"user:{subject}";
 

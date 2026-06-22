@@ -20,7 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\MercuriusAPI\Mercurius.LAN.API.csproj" />
-    <ProjectReference Include="..\..\src\Mercurius.Platform\Mercurius.Platform.csproj" />
+    <ProjectReference Include="..\..\src\Platform\Platform.csproj" />
   </ItemGroup>
 
   <ItemGroup>

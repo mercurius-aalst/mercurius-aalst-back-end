@@ -7,7 +7,7 @@ using Mercurius.LAN.API.Services.SearchServices;
 using Mercurius.LAN.API.Services.SponsorServices;
 using Mercurius.LAN.API.Services.TeamServices;
 using Mercurius.LAN.API.Services.UserServices;
-using Mercurius.Platform.Extensions;
+using Platform.Extensions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -163,9 +163,9 @@ public class ApiEndpointContractTests
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddAuthorization();
         builder.Services.AddApiVersioning();
-        builder.Services.AddMercuriusRealtime();
+        builder.Services.AddRealtime();
         RegisterEndpointServices(builder.Services);
-        builder.Services.AddMercuriusHttpConventions();
+        builder.Services.AddHttpConventions();
 
         var app = builder.Build();
         app.MapGameEndpoints();

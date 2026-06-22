@@ -1,17 +1,17 @@
 using Asp.Versioning;
 using Asp.Versioning.ApiExplorer;
-using Mercurius.Platform.Swagger;
+using Platform.Swagger;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.FileProviders;
 using Microsoft.OpenApi.Models;
 
-namespace Mercurius.Platform.Extensions;
+namespace Platform.Extensions;
 
-public static class MercuriusSwaggerExtensions
+public static class SwaggerExtensions
 {
-    public static IServiceCollection AddMercuriusSwagger(
+    public static IServiceCollection AddVersionedSwagger(
         this IServiceCollection services,
         IHostEnvironment environment,
+        string documentTitle,
         bool includeXmlComments,
         bool useEnumSchemaFilter)
     {
@@ -29,6 +29,7 @@ public static class MercuriusSwaggerExtensions
         });
 
         services.ConfigureOptions<ConfigureSwaggerOptions>();
+        services.Configure<SwaggerDocumentOptions>(options => options.Title = documentTitle);
         services.TryAddSingleton<IHttpContextAccessor, HttpContextAccessor>();
 
         services.ConfigureSwaggerGen(options =>
@@ -75,15 +76,12 @@ public static class MercuriusSwaggerExtensions
         return services;
     }
 
-    public static WebApplication UseMercuriusSwaggerUI(this WebApplication app)
+    public static WebApplication UseVersionedSwaggerUI(
+        this WebApplication app,
+        string? customJavascriptPath = null)
     {
         var apiVersionProvider = app.Services.GetRequiredService<IApiVersionDescriptionProvider>();
 
-        app.UseStaticFiles(new StaticFileOptions
-        {
-            FileProvider = new PhysicalFileProvider(Path.Combine(AppContext.BaseDirectory, "staticfiles")),
-            RequestPath = "/staticfiles"
-        });
         app.UseSwagger();
         app.UseSwaggerUI(options =>
         {
@@ -94,7 +92,8 @@ public static class MercuriusSwaggerExtensions
                     description.GroupName.ToUpperInvariant());
             }
 
-            options.InjectJavascript("/staticfiles/swagger-custom.js");
+            if (!string.IsNullOrWhiteSpace(customJavascriptPath))
+                options.InjectJavascript(customJavascriptPath);
         });
 
         return app;

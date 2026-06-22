@@ -1,17 +1,22 @@
 using Mercurius.LAN.API.Data;
+using Mercurius.LAN.API.Configuration;
 using Mercurius.LAN.API.Endpoints;
 using Mercurius.LAN.API.Extensions;
 using Mercurius.LAN.API.Hubs;
 using Mercurius.LAN.API.Middleware;
 using Mercurius.LAN.API.Options;
 using Mercurius.LAN.API.Services.Auth0;
-using Mercurius.Platform.Extensions;
+using Platform;
+using Platform.Extensions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
 
 namespace Mercurius.LAN.API;
 
 public class Program
 {
+    private const string CorsPolicyName = "AllowMercuriusAalst";
+
     public static void Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
@@ -22,27 +27,47 @@ public class Program
             options.UseNpgsql(builder.Configuration.GetConnectionString("MercuriusDB")));
 
         builder.Services.AddValidation();
-        builder.Services.AddMercuriusSwagger(
+        builder.Services.AddVersionedSwagger(
             builder.Environment,
+            documentTitle: "Mercurius API",
             includeXmlComments: true,
             useEnumSchemaFilter: true);
         builder.Services.AddApplicationServices();
         builder.Services.Configure<Auth0ManagementOptions>(builder.Configuration.GetSection(Auth0ManagementOptions.SectionName));
         builder.Services.AddHttpClient<IAuth0ManagementService, Auth0ManagementService>();
-        builder.Services.AddMercuriusProblemDetails<ApiExceptionHandler>();
-        builder.Services.AddMercuriusHttpConventions();
-        builder.Services.AddMercuriusAuthentication(builder.Configuration);
-        builder.Services.AddMercuriusRealtime();
-        builder.Services.AddMercuriusRateLimiting(builder.Configuration);
-        builder.Services.AddMercuriusCors();
+        builder.Services.AddApiProblemDetails<ApiExceptionHandler>();
+        builder.Services.AddHttpConventions();
+        builder.Services.AddAuth0JwtAuthentication(builder.Configuration.GetSection("Auth0"));
+        builder.Services.AddRealtime();
+        var rateLimitingSection = builder.Configuration.GetSection("RateLimiting");
+        builder.Services.AddFixedWindowRateLimiting(new FixedWindowRateLimitingOptions
+        {
+            GlobalPermitLimit = rateLimitingSection.GetValue("GlobalPermitLimit", 120),
+            PolicyPermitLimit = rateLimitingSection.GetValue("SearchPermitLimit", 30),
+            Window = TimeSpan.FromSeconds(rateLimitingSection.GetValue("WindowSeconds", 60)),
+            UnconditionalPolicyName = RateLimitPolicies.AnonymousSearch,
+            ConditionalPolicyName = RateLimitPolicies.AuthenticatedSearch,
+            ConditionalQueryParameterName = "query"
+        });
+        builder.Services.AddWildcardSubdomainCors(
+            CorsPolicyName,
+            allowedOrigin: "https://*.mercurius-aalst.be");
 
         var app = builder.Build();
-        app.UseMercuriusCors();
-        app.ApplyMercuriusMigrations<MercuriusDBContext>();
-        app.UseMercuriusExceptionHandling();
-        app.UseMercuriusImages();
-        app.UseMercuriusSecurityPipeline();
-        app.UseMercuriusSwaggerUI();
+        app.UseCors(CorsPolicyName);
+        app.ApplyMigrations<MercuriusDBContext>();
+        app.UseApiExceptionHandling();
+        app.UseImageflowWithCaching(
+            requestPath: "/images",
+            storagePath: app.Configuration["FileStorage:Location"],
+            cacheControl: "public, max-age=31536000");
+        app.UseSecurityPipeline();
+        app.UseStaticFiles(new StaticFileOptions
+        {
+            FileProvider = new PhysicalFileProvider(Path.Combine(AppContext.BaseDirectory, "staticfiles")),
+            RequestPath = "/staticfiles"
+        });
+        app.UseVersionedSwaggerUI(customJavascriptPath: "/staticfiles/swagger-custom.js");
 
         app.MapGameEndpoints();
         app.MapTournamentRegistrationEndpoints();

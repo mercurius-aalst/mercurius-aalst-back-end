@@ -1,6 +1,5 @@
 using Mercurius.LAN.API.Endpoints;
 using Mercurius.LAN.API.Hubs;
-using Mercurius.LAN.API.Routing;
 using Mercurius.LAN.API.Services.GameServices;
 using Mercurius.LAN.API.Services.MatchServices;
 using Mercurius.LAN.API.Services.RegistrationServices;
@@ -8,6 +7,7 @@ using Mercurius.LAN.API.Services.SearchServices;
 using Mercurius.LAN.API.Services.SponsorServices;
 using Mercurius.LAN.API.Services.TeamServices;
 using Mercurius.LAN.API.Services.UserServices;
+using Platform.Extensions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -163,12 +163,9 @@ public class ApiEndpointContractTests
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddAuthorization();
         builder.Services.AddApiVersioning();
-        builder.Services.AddSignalR();
+        builder.Services.AddRealtimeNotificationServices();
         RegisterEndpointServices(builder.Services);
-        builder.Services.Configure<RouteOptions>(options =>
-        {
-            options.ConstraintMap["nonguid"] = typeof(NonGuidRouteConstraint);
-        });
+        builder.Services.AddHttpConventions();
 
         var app = builder.Build();
         app.MapGameEndpoints();

@@ -1,4 +1,5 @@
 using Asp.Versioning;
+using Mercurius.LAN.API.Configuration;
 using Mercurius.LAN.API.DTOs.Auth;
 using Mercurius.LAN.API.Extensions;
 using Mercurius.LAN.API.Services.SearchServices;

@@ -1,12 +1,13 @@
 using Mercurius.LAN.API.Endpoints;
-using Mercurius.LAN.API.Extensions;
+using Mercurius.LAN.API.Configuration;
 using Mercurius.LAN.API.Services.UserServices;
+using Platform;
+using Platform.Extensions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
-using Mercurius.LAN.API.Routing;
 
 namespace Mercurius.LAN.API.Tests;
 
@@ -112,10 +113,7 @@ public class UserEndpointRouteTests
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddAuthorization();
         builder.Services.AddApiVersioning();
-        builder.Services.Configure<RouteOptions>(options =>
-        {
-            options.ConstraintMap["nonguid"] = typeof(NonGuidRouteConstraint);
-        });
+        builder.Services.AddHttpConventions();
         builder.Services.AddScoped<IUserService>(_ => throw new NotSupportedException());
 
         var app = builder.Build();

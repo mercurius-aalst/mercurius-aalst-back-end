@@ -56,9 +56,9 @@ Do not start the next phase from an unmerged previous phase branch.
   - PR: [#98 Phase 3: prepare monolith service boundaries](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/98)
   - Notes: Prepare existing monolith code before physical moves.
 
-- [ ] Phase 4 - Platform extraction
+- [x] Phase 4 - Platform extraction
   - Branch: `refactor/phase-4`
-  - PR: pending
+  - PR: [#99 Phase 4: extract platform infrastructure](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/99)
   - Notes: Extract host/platform infrastructure without route or persistence redesign.
 
 - [ ] Phase 5 - Solution and project skeleton

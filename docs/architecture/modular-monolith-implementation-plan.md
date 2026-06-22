@@ -222,6 +222,7 @@ Patterns are allowed only when they fit the problem:
 ```
 
 Avoid pattern theater. Do not introduce abstractions that only wrap a single line or obscure simple code.
+To validate code quality run the dotnet-clean-code-audit skill focussed on the made changes and implement the suggested changes made by this skill untill no more high and medium severity issues remain.
 
 ### Performance policy
 
@@ -238,7 +239,7 @@ For every touched query/service, Codex must check:
 - will this query still work efficiently after module boundaries are introduced?
 ```
 
-Do not change behavior for performance unless tests and OpenSpec allow it.
+Do not change behavior for performance unless tests and OpenSpec allow it. To validate performance, run dotnet-performance-audit skill focussed on the made changes. Implement the suggested changes made by this skill untill no more high and medium severity issues remain.
 
 ### Public contract policy
 
@@ -305,7 +306,7 @@ The intended end state is:
 Mercurius.Api
 
 Mercurius.SharedKernel
-Mercurius.Platform
+Platform
 
 Mercurius.Modules.Identity
 Mercurius.Modules.Identity.Contracts
@@ -329,7 +330,7 @@ Mercurius.Modules.Media.Contracts
 The API host should eventually compose the application roughly like this:
 
 ```csharp
-builder.Services.AddMercuriusPlatform(builder.Configuration);
+builder.Services.AddPlatform(builder.Configuration);
 
 builder.Services.AddIdentityModule(builder.Configuration);
 builder.Services.AddTeamsModule(builder.Configuration);
@@ -830,12 +831,12 @@ This is a pure refactor. Do not alter runtime behavior.
 
 ## Tasks
 
-### 4.1 Create Mercurius.Platform
+### 4.1 Create Platform
 
 Create:
 
 ```text
-src/Mercurius.Platform
+src/Platform
 ```
 
 Move cross-cutting setup into focused extension methods.
@@ -843,22 +844,22 @@ Move cross-cutting setup into focused extension methods.
 Service registration examples:
 
 ```csharp
-builder.Services.AddMercuriusValidation();
-builder.Services.AddMercuriusSwagger();
-builder.Services.AddMercuriusAuth(configuration);
-builder.Services.AddMercuriusProblemDetails();
-builder.Services.AddMercuriusRateLimiting(configuration);
-builder.Services.AddMercuriusCors(configuration);
-builder.Services.AddMercuriusRealtime();
+builder.Services.AddValidation();
+builder.Services.AddVersionedSwagger(...);
+builder.Services.AddAuth0JwtAuthentication(...);
+builder.Services.AddApiProblemDetails<TExceptionHandler>();
+builder.Services.AddFixedWindowRateLimiting(...);
+builder.Services.AddWildcardSubdomainCors(...);
+builder.Services.AddRealtime();
 ```
 
 Pipeline examples:
 
 ```csharp
-app.UseMercuriusExceptionHandling();
-app.UseMercuriusSwaggerUI();
-app.UseMercuriusImages();
-app.UseMercuriusSecurityPipeline();
+app.UseApiExceptionHandling();
+app.UseVersionedSwaggerUI();
+app.UseImageflowWithCaching(...);
+app.UseSecurityPipeline();
 ```
 
 ### 4.2 Preserve behavior exactly
@@ -883,7 +884,7 @@ Do not alter:
 If the app currently applies pending migrations at startup, keep the same behavior but move it behind:
 
 ```csharp
-app.ApplyMercuriusMigrations();
+app.ApplyMigrations<TDbContext>();
 ```
 
 Do not decide in this phase whether production should auto-migrate.
@@ -2301,7 +2302,7 @@ Create:
 
 ```text
 tests/Mercurius.Api.Tests
-tests/Mercurius.Platform.Tests
+tests/Platform.Tests
 tests/Mercurius.Modules.Identity.Tests
 tests/Mercurius.Modules.Teams.Tests
 tests/Mercurius.Modules.Competition.Tests

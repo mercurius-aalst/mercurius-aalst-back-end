@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Http;
+using Mercurius.Modules.Teams.Models;
 
-namespace Mercurius.Modules.Teams.Api;
+namespace Mercurius.Modules.Teams.Services;
 
 public interface ITeamsEndpointService
 {

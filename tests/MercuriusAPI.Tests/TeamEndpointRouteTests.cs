@@ -1,5 +1,5 @@
 using Mercurius.Modules.Teams;
-using Mercurius.Modules.Teams.Api;
+using Mercurius.Modules.Teams.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;

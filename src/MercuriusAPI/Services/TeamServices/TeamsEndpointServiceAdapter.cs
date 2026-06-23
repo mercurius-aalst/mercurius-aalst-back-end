@@ -1,6 +1,7 @@
 using Mercurius.LAN.API.DTOs.Auth;
 using Mercurius.LAN.API.DTOs.TeamDTOs;
-using Mercurius.Modules.Teams.Api;
+using Mercurius.Modules.Teams.Models;
+using Mercurius.Modules.Teams.Services;
 
 namespace Mercurius.LAN.API.Services.TeamServices;
 

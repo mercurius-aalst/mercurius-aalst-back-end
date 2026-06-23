@@ -7,7 +7,7 @@ using Mercurius.LAN.API.Services.SearchServices;
 using Mercurius.LAN.API.Services.SponsorServices;
 using Mercurius.LAN.API.Services.TeamServices;
 using Mercurius.LAN.API.Services.UserServices;
-using Mercurius.Modules.Teams.Api;
+using Mercurius.Modules.Teams.Services;
 
 namespace Mercurius.LAN.API.Extensions;
 

@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace Mercurius.Modules.Teams.Api;
+namespace Mercurius.Modules.Teams.Models;
 
 public sealed class TransferCaptainRequest
 {

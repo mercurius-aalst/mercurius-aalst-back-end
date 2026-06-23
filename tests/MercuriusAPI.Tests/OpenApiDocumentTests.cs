@@ -8,7 +8,7 @@ using Mercurius.LAN.API.Services.SearchServices;
 using Mercurius.LAN.API.Services.SponsorServices;
 using Mercurius.LAN.API.Services.UserServices;
 using Mercurius.Modules.Teams;
-using Mercurius.Modules.Teams.Api;
+using Mercurius.Modules.Teams.Services;
 using Platform.Extensions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;

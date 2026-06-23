@@ -1,14 +1,14 @@
-namespace Mercurius.Modules.Teams.Api;
+namespace Mercurius.Modules.Teams.Models;
 
-public sealed class TeamInviteSummaryResponse
+public sealed class TeamInviteResponse
 {
     public Guid Id { get; set; }
     public Guid TeamId { get; set; }
-    public string TeamName { get; set; } = string.Empty;
-    public string? TeamLogoUrl { get; set; }
     public Guid UserId { get; set; }
-    public string? Username { get; set; }
     public string Status { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
     public DateTime ExpiresAt { get; set; }
+    public DateTime? RespondedAt { get; set; }
+    public DateTime? CancelledAt { get; set; }
+    public DateTime? ExpiredAt { get; set; }
 }

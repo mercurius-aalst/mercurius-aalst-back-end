@@ -24,5 +24,6 @@ public interface ICompetitionModule
     Task<RegistrationEligibility> CheckTeamRegistrationEligibilityAsync(
         GameId gameId,
         TeamId teamId,
+        UserId requestedBy,
         CancellationToken cancellationToken = default);
 }

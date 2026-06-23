@@ -1,6 +1,6 @@
 # Modular Monolith Migration Progress
 
-Last updated: 2026-06-22
+Last updated: 2026-06-23
 
 This tracker is the repo-local handoff ledger for the modular monolith migration. It records which phase PRs have been created. GitHub remains the source of truth for whether those PRs are open, closed, or merged.
 
@@ -61,10 +61,10 @@ Do not start the next phase from an unmerged previous phase branch.
   - PR: [#99 Phase 4: extract platform infrastructure](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/99)
   - Notes: Extract host/platform infrastructure without route or persistence redesign.
 
-- [ ] Phase 5 - Solution and project skeleton
+- [x] Phase 5 - Solution and project skeleton
   - Branch: `refactor/phase-5`
-  - PR: pending
-  - Notes: Create module/project skeletons.
+  - PR: [#100 Phase 5: introduce module project skeleton](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/100)
+  - Notes: Create `Modules.Shared` plus empty module implementation/contracts project skeletons. No behavior change.
 
 - [ ] Phase 6 - Contracts before implementations
   - Branch: `refactor/phase-6`

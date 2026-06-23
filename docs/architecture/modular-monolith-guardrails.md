@@ -18,9 +18,9 @@ Allowed dependencies:
 
 - API host may reference module implementation projects for composition.
 - Module implementations may reference their own contracts.
-- Module implementations may reference SharedKernel.
+- Module implementations may reference Modules.Shared.
 - Module implementations may reference Platform only when infrastructure concerns require it.
-- Module contracts may reference SharedKernel.
+- Module contracts may reference Modules.Shared.
 - Competition may reference Teams.Contracts and Identity.Contracts.
 - Discovery may reference Teams.Contracts, Competition.Contracts, Sponsorship.Contracts, and Identity.Contracts.
 

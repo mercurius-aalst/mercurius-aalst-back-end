@@ -305,7 +305,7 @@ The intended end state is:
 ```text
 Mercurius.Api
 
-Mercurius.SharedKernel
+Modules.Shared
 Platform
 
 Mercurius.Modules.Identity
@@ -475,9 +475,9 @@ Discovery -> Sponsorship.Contracts
 Discovery -> Identity.Contracts
 API Host -> module implementation projects
 Module implementation -> own Contracts
-Module implementation -> SharedKernel
+Module implementation -> Modules.Shared
 Module implementation -> Platform only where required
-Module contracts -> SharedKernel only
+Module contracts -> Modules.Shared only
 ```
 
 Not allowed:
@@ -938,7 +938,7 @@ Do not move business code in this phase.
 Create:
 
 ```text
-src/Mercurius.SharedKernel
+src/Modules.Shared
 
 src/Modules/Identity/Mercurius.Modules.Identity
 src/Modules/Identity/Mercurius.Modules.Identity.Contracts
@@ -969,15 +969,15 @@ Initial reference direction:
 Mercurius.Api
   -> all module implementation projects
   -> Platform
-  -> SharedKernel
+  -> Modules.Shared
 
 Module implementation
   -> its own Contracts
-  -> SharedKernel
+  -> Modules.Shared
   -> Platform only where required
 
 Module contracts
-  -> SharedKernel only
+  -> Modules.Shared only
 ```
 
 Avoid implementation-to-implementation module references.
@@ -1064,7 +1064,7 @@ public readonly record struct SponsorId(Guid Value);
 public readonly record struct TournamentRegistrationId(Guid Value);
 ```
 
-Typed IDs can live in module contracts or `SharedKernel`. Prefer the location that minimizes cross-module coupling.
+Typed IDs can live in module contracts or `Modules.Shared`. Prefer the location that minimizes cross-module coupling.
 
 ### 6.2 Define module facades
 

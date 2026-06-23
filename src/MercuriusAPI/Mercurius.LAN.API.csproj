@@ -36,6 +36,13 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<ProjectReference Include="..\Modules.Shared\Modules.Shared.csproj" />
+		<ProjectReference Include="..\Modules\Competition\Mercurius.Modules.Competition\Mercurius.Modules.Competition.csproj" />
+		<ProjectReference Include="..\Modules\Discovery\Mercurius.Modules.Discovery\Mercurius.Modules.Discovery.csproj" />
+		<ProjectReference Include="..\Modules\Identity\Mercurius.Modules.Identity\Mercurius.Modules.Identity.csproj" />
+		<ProjectReference Include="..\Modules\Media\Mercurius.Modules.Media\Mercurius.Modules.Media.csproj" />
+		<ProjectReference Include="..\Modules\Sponsorship\Mercurius.Modules.Sponsorship\Mercurius.Modules.Sponsorship.csproj" />
+		<ProjectReference Include="..\Modules\Teams\Mercurius.Modules.Teams\Mercurius.Modules.Teams.csproj" />
 		<ProjectReference Include="..\Platform\Platform.csproj" />
 	</ItemGroup>
 </Project>

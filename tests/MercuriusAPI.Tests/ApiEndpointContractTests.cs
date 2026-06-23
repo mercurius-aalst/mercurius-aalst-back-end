@@ -5,8 +5,9 @@ using Mercurius.LAN.API.Services.MatchServices;
 using Mercurius.LAN.API.Services.RegistrationServices;
 using Mercurius.LAN.API.Services.SearchServices;
 using Mercurius.LAN.API.Services.SponsorServices;
-using Mercurius.LAN.API.Services.TeamServices;
 using Mercurius.LAN.API.Services.UserServices;
+using Mercurius.Modules.Teams;
+using Mercurius.Modules.Teams.Api;
 using Platform.Extensions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
@@ -171,7 +172,7 @@ public class ApiEndpointContractTests
         app.MapGameEndpoints();
         app.MapTournamentRegistrationEndpoints();
         app.MapMatchEndpoints();
-        app.MapTeamEndpoints();
+        app.MapTeamsModule();
         app.MapSponsorEndpoints();
         app.MapUserEndpoints();
         app.MapSearchEndpoints();
@@ -188,7 +189,7 @@ public class ApiEndpointContractTests
         services.AddScoped<IGameService>(_ => throw new NotSupportedException());
         services.AddScoped<ITournamentRegistrationService>(_ => throw new NotSupportedException());
         services.AddScoped<IMatchService>(_ => throw new NotSupportedException());
-        services.AddScoped<ITeamService>(_ => throw new NotSupportedException());
+        services.AddScoped<ITeamsEndpointService>(_ => throw new NotSupportedException());
         services.AddScoped<ISponsorService>(_ => throw new NotSupportedException());
         services.AddScoped<IUserService>(_ => throw new NotSupportedException());
         services.AddScoped<ISearchService>(_ => throw new NotSupportedException());

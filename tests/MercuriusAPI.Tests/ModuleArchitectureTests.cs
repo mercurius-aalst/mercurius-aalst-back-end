@@ -88,6 +88,16 @@ public class ModuleArchitectureTests
 
     [Theory]
     [MemberData(nameof(Modules))]
+    public void ModuleContracts_ExposeModuleFacadeInterface(string moduleName)
+    {
+        var assembly = Assembly.Load($"Mercurius.Modules.{moduleName}.Contracts");
+        var expectedInterfaceName = $"Mercurius.Modules.{moduleName}.Contracts.I{moduleName}Module";
+
+        Assert.NotNull(assembly.GetType(expectedInterfaceName, throwOnError: false, ignoreCase: false));
+    }
+
+    [Theory]
+    [MemberData(nameof(Modules))]
     public void ModuleContracts_DoNotExposeEntityFrameworkOrQueryableTypes(string moduleName)
     {
         var assembly = Assembly.Load($"Mercurius.Modules.{moduleName}.Contracts");
@@ -103,6 +113,33 @@ public class ModuleArchitectureTests
         Assert.True(
             forbiddenTypes.Length == 0,
             $"Contract assembly exposes forbidden types: {string.Join(", ", forbiddenTypes)}");
+    }
+
+    [Fact]
+    public void ModulesShared_ExposesTypedIds()
+    {
+        var assembly = Assembly.Load("Modules.Shared");
+        var expectedTypedIds = new Dictionary<string, Type>
+        {
+            ["GameId"] = typeof(Guid),
+            ["MatchId"] = typeof(Guid),
+            ["SponsorId"] = typeof(int),
+            ["SponsorPlacementId"] = typeof(int),
+            ["TeamId"] = typeof(Guid),
+            ["TeamInviteId"] = typeof(Guid),
+            ["TournamentRegistrationId"] = typeof(Guid),
+            ["TournamentRosterMemberId"] = typeof(Guid),
+            ["UserId"] = typeof(Guid)
+        };
+
+        foreach (var (typeName, valueType) in expectedTypedIds)
+        {
+            var type = assembly.GetType($"Mercurius.Modules.Shared.{typeName}", throwOnError: false, ignoreCase: false);
+
+            Assert.NotNull(type);
+            Assert.True(type!.IsValueType, $"{typeName} must be a value type.");
+            Assert.Equal(valueType, type.GetProperty("Value")?.PropertyType);
+        }
     }
 
     private static HashSet<string> GetProjectReferences(string projectPath)

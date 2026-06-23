@@ -66,9 +66,9 @@ Do not start the next phase from an unmerged previous phase branch.
   - PR: [#100 Phase 5: introduce module project skeleton](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/100)
   - Notes: Create `Modules.Shared` plus empty module implementation/contracts project skeletons. No behavior change.
 
-- [ ] Phase 6 - Contracts before implementations
+- [x] Phase 6 - Contracts before implementations
   - Branch: `refactor/phase-6`
-  - PR: pending
+  - PR: [#101 Phase 6: introduce module contracts](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/101)
   - Notes: Introduce contracts without leaking EF or implementation details.
 
 - [ ] Phase 7 - Teams extraction

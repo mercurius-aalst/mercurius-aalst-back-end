@@ -40,7 +40,7 @@ public class Program
         builder.Services.AddApiProblemDetails<ApiExceptionHandler>();
         builder.Services.AddHttpConventions();
         builder.Services.AddAuth0JwtAuthentication(builder.Configuration.GetSection("Auth0"));
-        builder.Services.AddRealtimeNotificationServices();
+        builder.Services.AddRealtimeNotificationServices<TeamManagementHub>();
         var rateLimitingSection = builder.Configuration.GetSection("RateLimiting");
         builder.Services.AddFixedWindowRateLimiting(new FixedWindowRateLimitingOptions
         {
@@ -56,6 +56,7 @@ public class Program
             allowedOrigin: "https://*.mercurius-aalst.be");
 
         var app = builder.Build();
+        app.UseTransportSecurity(app.Environment);
         app.UseCors(CorsPolicyName);
         app.ApplyMigrations<MercuriusDBContext>();
         app.UseApiExceptionHandling();

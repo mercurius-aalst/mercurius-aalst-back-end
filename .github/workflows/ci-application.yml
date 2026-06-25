@@ -42,7 +42,10 @@ jobs:
       run: dotnet build
 
     - name: Test
-      run: dotnet test
+      run: dotnet test --no-build
+
+    - name: Format
+      run: dotnet format --verify-no-changes
 
   build-image:
     runs-on: ubuntu-24.04

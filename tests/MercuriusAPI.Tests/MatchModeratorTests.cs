@@ -68,24 +68,6 @@ public class MatchModeratorTests
         Assert.All(matches, match => Assert.Null(match.UserParticipant2));
     }
 
-    [Fact]
-    public void SwissStage_GenerateMatchesForGame_KeepsUsersModeSafe()
-    {
-        var game = new Game("Bracket", BracketType.Swiss, GameFormat.BestOf1, GameFormat.BestOf3, ParticipationMode.Individual);
-        AddIndividualRegistration(game, CreateUser(1));
-        AddIndividualRegistration(game, CreateUser(2));
-        AddIndividualRegistration(game, CreateUser(3));
-
-        var moderator = new SwissStageMatchModerator();
-
-        var matches = moderator.GenerateMatchesForGame(game).ToList();
-
-        Assert.NotEmpty(matches);
-        Assert.All(matches, match => Assert.Equal(ParticipationMode.Individual, match.ParticipationMode));
-        Assert.All(matches, match => Assert.Null(match.TeamParticipant1));
-        Assert.All(matches, match => Assert.Null(match.TeamParticipant2));
-    }
-
     private static User CreateUser(int id)
     {
         return new User

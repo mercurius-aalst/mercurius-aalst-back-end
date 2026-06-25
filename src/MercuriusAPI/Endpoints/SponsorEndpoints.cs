@@ -21,9 +21,9 @@ public static class SponsorEndpoints
             .WithTags("Sponsors")
             .RequireAuthorization(new AuthorizeAttribute { Roles = "admin" });
 
-        group.MapGet("/", (ISponsorService sponsorService) =>
+        group.MapGet("/", async (ISponsorService sponsorService, CancellationToken cancellationToken) =>
         {
-            return sponsorService.GetSponsors();
+            return await sponsorService.GetSponsorsAsync(cancellationToken);
         })
         .AllowAnonymous();
 

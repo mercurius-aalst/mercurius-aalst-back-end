@@ -1,6 +1,6 @@
-namespace Mercurius.Modules.Teams.Models;
+namespace Mercurius.Modules.Teams.DTOs;
 
-public sealed class PublicUserResponse
+public sealed class PublicUserResponseDTO
 {
     public Guid Id { get; set; }
     public string Username { get; set; } = string.Empty;

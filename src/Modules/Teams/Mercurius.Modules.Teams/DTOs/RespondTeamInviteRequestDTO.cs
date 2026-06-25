@@ -1,8 +1,8 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace Mercurius.Modules.Teams.Models;
+namespace Mercurius.Modules.Teams.DTOs;
 
-public sealed class RespondTeamInviteRequest
+public sealed class RespondTeamInviteRequestDTO
 {
     [Required]
     public bool Accept { get; set; }

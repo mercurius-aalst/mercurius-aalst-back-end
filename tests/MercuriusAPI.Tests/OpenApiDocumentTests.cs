@@ -113,7 +113,7 @@ public class OpenApiDocumentTests
         services.AddScoped<IGameService>(_ => throw new NotSupportedException());
         services.AddScoped<ITournamentRegistrationService>(_ => throw new NotSupportedException());
         services.AddScoped<IMatchService>(_ => throw new NotSupportedException());
-        services.AddScoped<ITeamsEndpointService>(_ => throw new NotSupportedException());
+        services.AddScoped<ITeamService>(_ => throw new NotSupportedException());
         services.AddScoped<ISponsorService>(_ => throw new NotSupportedException());
         services.AddScoped<IUserService>(_ => throw new NotSupportedException());
         services.AddScoped<ISearchService>(_ => throw new NotSupportedException());

@@ -1,8 +1,8 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace Mercurius.Modules.Teams.Models;
+namespace Mercurius.Modules.Teams.DTOs;
 
-public sealed class CreateTeamRequest
+public sealed class CreateTeamRequestDTO
 {
     [Required]
     [StringLength(100, MinimumLength = 1)]

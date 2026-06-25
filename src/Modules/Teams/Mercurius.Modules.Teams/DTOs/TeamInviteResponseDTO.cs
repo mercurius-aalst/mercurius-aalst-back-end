@@ -1,6 +1,6 @@
-namespace Mercurius.Modules.Teams.Models;
+namespace Mercurius.Modules.Teams.DTOs;
 
-public sealed class TeamInviteResponse
+public sealed class TeamInviteResponseDTO
 {
     public Guid Id { get; set; }
     public Guid TeamId { get; set; }

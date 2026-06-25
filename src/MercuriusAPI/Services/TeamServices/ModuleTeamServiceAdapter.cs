@@ -1,33 +1,34 @@
 using Mercurius.LAN.API.DTOs.Auth;
 using Mercurius.LAN.API.DTOs.TeamDTOs;
-using Mercurius.Modules.Teams.Models;
-using Mercurius.Modules.Teams.Services;
+using Mercurius.Modules.Teams.DTOs;
+using ModuleTeamLogoResponseDTO = Mercurius.Modules.Teams.DTOs.TeamLogoResponseDTO;
+using ModuleTeamService = Mercurius.Modules.Teams.Services.ITeamService;
 
 namespace Mercurius.LAN.API.Services.TeamServices;
 
-public sealed class TeamsEndpointServiceAdapter : ITeamsEndpointService
+public sealed class ModuleTeamServiceAdapter : ModuleTeamService
 {
     private readonly ITeamService _teamService;
 
-    public TeamsEndpointServiceAdapter(ITeamService teamService)
+    public ModuleTeamServiceAdapter(ITeamService teamService)
     {
         _teamService = teamService;
     }
 
-    public async Task<IReadOnlyList<TeamResponse>> GetAllTeamsAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<TeamResponseDTO>> GetAllTeamsAsync(CancellationToken cancellationToken = default)
     {
         var teams = await _teamService.GetAllTeamsAsync(cancellationToken);
         return teams.Select(MapTeam).ToList();
     }
 
-    public async Task<TeamResponse> GetTeamByIdAsync(Guid teamId, CancellationToken cancellationToken = default)
+    public async Task<TeamResponseDTO> GetTeamByIdAsync(Guid teamId, CancellationToken cancellationToken = default)
     {
         return MapTeam(await _teamService.GetTeamByIdAsync(teamId, cancellationToken));
     }
 
-    public async Task<TeamManagementSummaryResponse> CreateCurrentUserTeamAsync(
+    public async Task<TeamManagementSummaryResponseDTO> CreateCurrentUserTeamAsync(
         string auth0UserId,
-        CreateTeamRequest request,
+        CreateTeamRequestDTO request,
         CancellationToken cancellationToken = default)
     {
         var team = await _teamService.CreateCurrentUserTeamAsync(
@@ -41,13 +42,13 @@ public sealed class TeamsEndpointServiceAdapter : ITeamsEndpointService
         return MapManagementSummary(team);
     }
 
-    public async Task<CurrentUserTeamSummaryResponse> GetCurrentUserTeamSummaryAsync(
+    public async Task<CurrentUserTeamSummaryResponseDTO> GetCurrentUserTeamSummaryAsync(
         string auth0UserId,
         CancellationToken cancellationToken = default)
     {
         var summary = await _teamService.GetCurrentUserTeamSummaryAsync(auth0UserId);
 
-        return new CurrentUserTeamSummaryResponse
+        return new CurrentUserTeamSummaryResponseDTO
         {
             CaptainedTeams = summary.CaptainedTeams.Select(MapManagementSummary).ToList(),
             MemberTeams = summary.MemberTeams.Select(MapManagementSummary).ToList(),
@@ -56,7 +57,7 @@ public sealed class TeamsEndpointServiceAdapter : ITeamsEndpointService
         };
     }
 
-    public async Task<IReadOnlyList<TeamInviteSummaryResponse>> GetCurrentUserInvitesAsync(
+    public async Task<IReadOnlyList<TeamInviteSummaryResponseDTO>> GetCurrentUserInvitesAsync(
         string auth0UserId,
         CancellationToken cancellationToken = default)
     {
@@ -64,7 +65,7 @@ public sealed class TeamsEndpointServiceAdapter : ITeamsEndpointService
         return invites.Select(MapInviteSummary).ToList();
     }
 
-    public async Task<IReadOnlyList<TeamInviteSummaryResponse>> GetCurrentUserSentInvitesAsync(
+    public async Task<IReadOnlyList<TeamInviteSummaryResponseDTO>> GetCurrentUserSentInvitesAsync(
         string auth0UserId,
         CancellationToken cancellationToken = default)
     {
@@ -72,7 +73,7 @@ public sealed class TeamsEndpointServiceAdapter : ITeamsEndpointService
         return invites.Select(MapInviteSummary).ToList();
     }
 
-    public async Task<TeamManagementSummaryResponse> LeaveTeamAsync(
+    public async Task<TeamManagementSummaryResponseDTO> LeaveTeamAsync(
         string auth0UserId,
         Guid teamId,
         CancellationToken cancellationToken = default)
@@ -80,7 +81,7 @@ public sealed class TeamsEndpointServiceAdapter : ITeamsEndpointService
         return MapManagementSummary(await _teamService.LeaveTeamAsync(auth0UserId, teamId));
     }
 
-    public async Task<TeamManagementSummaryResponse> RemoveMemberAsync(
+    public async Task<TeamManagementSummaryResponseDTO> RemoveMemberAsync(
         string auth0UserId,
         Guid teamId,
         Guid userId,
@@ -94,7 +95,7 @@ public sealed class TeamsEndpointServiceAdapter : ITeamsEndpointService
         return _teamService.DeleteTeamAsync(auth0UserId, teamId);
     }
 
-    public async Task<TeamInviteResponse> InviteUserAsync(
+    public async Task<TeamInviteResponseDTO> InviteUserAsync(
         string auth0UserId,
         Guid teamId,
         Guid userId,
@@ -103,7 +104,7 @@ public sealed class TeamsEndpointServiceAdapter : ITeamsEndpointService
         return MapInvite(await _teamService.InviteUserAsync(auth0UserId, teamId, userId));
     }
 
-    public async Task<TeamInviteResponse> CancelInviteAsync(
+    public async Task<TeamInviteResponseDTO> CancelInviteAsync(
         string auth0UserId,
         Guid teamId,
         Guid inviteId,
@@ -112,7 +113,7 @@ public sealed class TeamsEndpointServiceAdapter : ITeamsEndpointService
         return MapInvite(await _teamService.CancelInviteAsync(auth0UserId, teamId, inviteId));
     }
 
-    public async Task<TeamInviteResponse> RespondToInviteAsync(
+    public async Task<TeamInviteResponseDTO> RespondToInviteAsync(
         string auth0UserId,
         Guid inviteId,
         bool accept,
@@ -121,7 +122,7 @@ public sealed class TeamsEndpointServiceAdapter : ITeamsEndpointService
         return MapInvite(await _teamService.RespondToInviteAsync(auth0UserId, inviteId, accept));
     }
 
-    public async Task<TeamManagementSummaryResponse> TransferCaptainAsync(
+    public async Task<TeamManagementSummaryResponseDTO> TransferCaptainAsync(
         string auth0UserId,
         Guid teamId,
         Guid newCaptainUserId,
@@ -130,41 +131,41 @@ public sealed class TeamsEndpointServiceAdapter : ITeamsEndpointService
         return MapManagementSummary(await _teamService.TransferCaptainAsync(auth0UserId, teamId, newCaptainUserId));
     }
 
-    public async Task<TeamLogoResponse> UploadTeamLogoAsync(
+    public async Task<ModuleTeamLogoResponseDTO> UploadTeamLogoAsync(
         string auth0UserId,
         Guid teamId,
         IFormFile logo,
         CancellationToken cancellationToken = default)
     {
         var logoResponse = await _teamService.UploadTeamLogoAsync(auth0UserId, teamId, logo);
-        return new TeamLogoResponse(logoResponse.TeamId, logoResponse.LogoUrl);
+        return new ModuleTeamLogoResponseDTO(logoResponse.TeamId, logoResponse.LogoUrl);
     }
 
-    public async Task<TeamLogoResponse> RemoveTeamLogoAsync(
+    public async Task<ModuleTeamLogoResponseDTO> RemoveTeamLogoAsync(
         string auth0UserId,
         Guid teamId,
         CancellationToken cancellationToken = default)
     {
         var logoResponse = await _teamService.RemoveTeamLogoAsync(auth0UserId, teamId);
-        return new TeamLogoResponse(logoResponse.TeamId, logoResponse.LogoUrl);
+        return new ModuleTeamLogoResponseDTO(logoResponse.TeamId, logoResponse.LogoUrl);
     }
 
-    public async Task<PublicTeamProfileResponse> GetPublicTeamProfileAsync(
+    public async Task<PublicTeamProfileResponseDTO> GetPublicTeamProfileAsync(
         string teamName,
         CancellationToken cancellationToken = default)
     {
         var profile = await _teamService.GetPublicTeamProfileAsync(teamName);
 
-        return new PublicTeamProfileResponse
+        return new PublicTeamProfileResponseDTO
         {
             TeamName = profile.TeamName,
             CaptainUsername = profile.CaptainUsername,
             LogoUrl = profile.LogoUrl,
-            Members = profile.Members.Select(member => new PublicTeamMemberResponse
+            Members = profile.Members.Select(member => new PublicTeamMemberResponseDTO
             {
                 Username = member.Username
             }).ToList(),
-            Tournaments = profile.Tournaments.Select(tournament => new PublicTeamTournamentResponse
+            Tournaments = profile.Tournaments.Select(tournament => new PublicTeamTournamentResponseDTO
             {
                 GameId = tournament.GameId,
                 Name = tournament.Name
@@ -172,9 +173,9 @@ public sealed class TeamsEndpointServiceAdapter : ITeamsEndpointService
         };
     }
 
-    private static TeamResponse MapTeam(GetTeamDTO team)
+    private static TeamResponseDTO MapTeam(GetTeamDTO team)
     {
-        return new TeamResponse
+        return new TeamResponseDTO
         {
             Id = team.Id,
             Name = team.Name,
@@ -184,9 +185,9 @@ public sealed class TeamsEndpointServiceAdapter : ITeamsEndpointService
         };
     }
 
-    private static TeamManagementSummaryResponse MapManagementSummary(TeamManagementSummaryDTO team)
+    private static TeamManagementSummaryResponseDTO MapManagementSummary(TeamManagementSummaryDTO team)
     {
-        return new TeamManagementSummaryResponse
+        return new TeamManagementSummaryResponseDTO
         {
             Id = team.Id,
             Name = team.Name,
@@ -197,9 +198,9 @@ public sealed class TeamsEndpointServiceAdapter : ITeamsEndpointService
         };
     }
 
-    private static TeamInviteResponse MapInvite(TeamInviteDTO invite)
+    private static TeamInviteResponseDTO MapInvite(TeamInviteDTO invite)
     {
-        return new TeamInviteResponse
+        return new TeamInviteResponseDTO
         {
             Id = invite.Id,
             TeamId = invite.TeamId,
@@ -213,9 +214,9 @@ public sealed class TeamsEndpointServiceAdapter : ITeamsEndpointService
         };
     }
 
-    private static TeamInviteSummaryResponse MapInviteSummary(TeamInviteSummaryDTO invite)
+    private static TeamInviteSummaryResponseDTO MapInviteSummary(TeamInviteSummaryDTO invite)
     {
-        return new TeamInviteSummaryResponse
+        return new TeamInviteSummaryResponseDTO
         {
             Id = invite.Id,
             TeamId = invite.TeamId,
@@ -229,9 +230,9 @@ public sealed class TeamsEndpointServiceAdapter : ITeamsEndpointService
         };
     }
 
-    private static PublicUserResponse MapPublicUser(PublicUserDTO user)
+    private static PublicUserResponseDTO MapPublicUser(PublicUserDTO user)
     {
-        return new PublicUserResponse
+        return new PublicUserResponseDTO
         {
             Id = user.Id,
             Username = user.Username,

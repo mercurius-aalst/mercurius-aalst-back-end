@@ -222,7 +222,6 @@ Patterns are allowed only when they fit the problem:
 ```
 
 Avoid pattern theater. Do not introduce abstractions that only wrap a single line or obscure simple code.
-To validate code quality run the dotnet-clean-code-audit skill focussed on the made changes and implement the suggested changes made by this skill untill no more high and medium severity issues remain.
 
 ### Performance policy
 
@@ -239,7 +238,7 @@ For every touched query/service, Codex must check:
 - will this query still work efficiently after module boundaries are introduced?
 ```
 
-Do not change behavior for performance unless tests and OpenSpec allow it. To validate performance, run dotnet-performance-audit skill focussed on the made changes. Implement the suggested changes made by this skill untill no more high and medium severity issues remain.
+Do not change behavior for performance unless tests and OpenSpec allow it.
 
 ### Public contract policy
 
@@ -295,6 +294,15 @@ Allowed public surface:
 ```
 
 Use `InternalsVisibleTo` only for the matching test assembly. Never use it to let one module access another module's internals.
+
+### Validation policies
+This step must not be skipped and is an integral gateway before creating a PR.
+To maintain performance, clean and secure code, run:
+- dotnet-performance-audit skill
+- dotnet-clean-code-audit
+- dotnet-security-audit 
+
+Implement the suggested changes made by these skills untill no more high and medium severity issues remain.
 
 ---
 

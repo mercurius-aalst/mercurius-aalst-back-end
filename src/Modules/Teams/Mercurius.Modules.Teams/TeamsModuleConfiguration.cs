@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Mercurius.Modules.Teams.Api;
+using Mercurius.Modules.Teams.Endpoints;
 
 namespace Mercurius.Modules.Teams;
 

@@ -76,9 +76,9 @@ Do not start the next phase from an unmerged previous phase branch.
   - PR: [#102 Phase 7: route Teams through module boundary](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/102)
   - Notes: Map Teams through `MapTeamsModule` while preserving routes and JSON. EF-backed Teams implementation remains transitional pending Realtime, Identity, and persistence phases.
 
-- [ ] Phase 8 - Realtime split
+- [x] Phase 8 - Realtime split
   - Branch: `refactor/phase-8`
-  - PR: pending
+  - PR: [#103 Phase 8: split realtime from module synchronization](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/103)
   - Notes: Separate realtime concerns from Teams/business logic.
 
 - [ ] Phase 9 - Eventing/outbox/inbox

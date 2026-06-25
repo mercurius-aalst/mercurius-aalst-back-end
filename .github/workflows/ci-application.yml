@@ -5,14 +5,9 @@ on:
   pull_request:
     branches:
     - main
-    - refactor/modular-monolith
     paths: 
     - src/**
-    - tests/**
     - Dockerfile
-    - LAN.API.sln
-    - global.json
-    - .github/workflows/ci-application.yml
     types: 
     - opened
     - synchronize
@@ -44,13 +39,13 @@ jobs:
       run: dotnet restore
 
     - name: Build
-      run: dotnet build --no-restore
+      run: dotnet build
 
     - name: Test
       run: dotnet test --no-build
 
     - name: Format
-      run: dotnet format --verify-no-changes --no-restore
+      run: dotnet format --verify-no-changes
 
   build-image:
     runs-on: ubuntu-24.04

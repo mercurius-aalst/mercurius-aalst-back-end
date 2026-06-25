@@ -56,6 +56,7 @@ public class Program
             allowedOrigin: "https://*.mercurius-aalst.be");
 
         var app = builder.Build();
+        app.UseTransportSecurity(app.Environment);
         app.UseCors(CorsPolicyName);
         app.ApplyMigrations<MercuriusDBContext>();
         app.UseApiExceptionHandling();

@@ -7,6 +7,6 @@ public interface ISponsorService
     Task<GetSponsorDTO> CreateSponsorAsync(CreateSponsorDTO sponsorDTO);
     Task DeleteSponsorAsync(int id);
     Task<GetSponsorDTO> GetSponsorByIdAsync(int id);
-    IEnumerable<GetSponsorDTO> GetSponsors();
+    Task<IReadOnlyList<GetSponsorDTO>> GetSponsorsAsync(CancellationToken cancellationToken = default);
     Task<GetSponsorDTO> UpdateSponsorAsync(int id, UpdateSponsorDTO sponsorDTO);
 }

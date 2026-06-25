@@ -253,6 +253,7 @@ public class TournamentRegistrationServiceTests
         Assert.Contains("roster_candidate_ineligible", eligibility.ReasonCodes);
         Assert.Contains(eligibility.Candidates, candidate => candidate.UserId == outsider.Id && candidate.ReasonCodes.Contains("not_team_member"));
         Assert.Contains(eligibility.Candidates, candidate => candidate.UserId == deleted.Id && candidate.ReasonCodes.Contains("user_not_found"));
+        Assert.Contains(eligibility.Candidates, candidate => candidate.UserId == deleted.Id && candidate.User is null);
     }
 
     [Fact]

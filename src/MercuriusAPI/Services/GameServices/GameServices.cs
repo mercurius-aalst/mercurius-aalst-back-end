@@ -221,6 +221,7 @@ public class GameService : IGameService
     private IQueryable<Game> CreateGameListQuery()
     {
         return _dbContext.Games
+            .AsSplitQuery()
             .Include(g => g.TournamentRegistrations)
                 .ThenInclude(registration => registration.User)
             .Include(g => g.TournamentRegistrations)

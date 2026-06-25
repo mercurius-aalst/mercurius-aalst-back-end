@@ -45,6 +45,7 @@ public class DoubleEliminationMatchModerator : IMatchModerator
     /// <param name="game">The game for which matches are to be generated.</param>
     /// <param name="participants">The participants in the tournament.</param>
     /// <param name="matches">The list to which generated matches will be added.</param>
+    /// <param name="assignParticipants">Assigns the selected participants to the created match.</param>
     private void GenerateUpperBracketMatches<TParticipant>(Game game, IReadOnlyCollection<TParticipant> participants, List<Match> matches, Action<Match, TParticipant?, TParticipant?> assignParticipants)
         where TParticipant : class
     {
@@ -155,6 +156,7 @@ public class DoubleEliminationMatchModerator : IMatchModerator
     /// <param name="matchIndex">The index of the match.</param>
     /// <param name="totalMatches">The total number of matches in the tournament.</param>
     /// <param name="firstRoundMatchCount">The number of matches in the first round.</param>
+    /// <param name="assignParticipants">Assigns the selected participants to the match.</param>
     private void AssignParticipantsToMatch<TParticipant>(TParticipant?[] slots, Match match, int matchIndex, int totalMatches, int firstRoundMatchCount, Action<Match, TParticipant?, TParticipant?> assignParticipants)
         where TParticipant : class
     {

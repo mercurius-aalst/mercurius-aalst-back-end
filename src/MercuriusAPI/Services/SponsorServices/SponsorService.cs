@@ -3,6 +3,7 @@ using Mercurius.LAN.API.DTOs.SponsorDTOs;
 using Mercurius.LAN.API.Exceptions;
 using Mercurius.LAN.API.Models;
 using Mercurius.LAN.API.Services.Files;
+using Microsoft.EntityFrameworkCore;
 
 namespace Mercurius.LAN.API.Services.SponsorServices;
 
@@ -16,9 +17,12 @@ public class SponsorService : ISponsorService
         _dbContext = dbContext;
         _fileService = fileService;
     }
-    public IEnumerable<GetSponsorDTO> GetSponsors()
+    public async Task<IReadOnlyList<GetSponsorDTO>> GetSponsorsAsync(CancellationToken cancellationToken = default)
     {
-        return _dbContext.Sponsors.Select(sp => new GetSponsorDTO(sp));
+        return await _dbContext.Sponsors
+            .AsNoTracking()
+            .Select(sponsor => new GetSponsorDTO(sponsor))
+            .ToListAsync(cancellationToken);
     }
 
     public async Task<GetSponsorDTO> GetSponsorByIdAsync(int id)

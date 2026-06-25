@@ -47,18 +47,19 @@ public class TournamentRegistrationService : ITournamentRegistrationService
 
         var distinctUserIds = userIds.Distinct().ToList();
         var users = await _dbContext.Users
-            .Where(candidate => distinctUserIds.Contains(candidate.Id))
+            .AsNoTracking()
+            .Where(candidate => distinctUserIds.Contains(candidate.Id) && !candidate.IsDeleted)
             .ToDictionaryAsync(candidate => candidate.Id);
+        var candidateFailures = await GetRosterCandidateFailuresAsync(game.Id, team, distinctUserIds, null);
 
         var candidateResults = new List<RosterCandidateEligibilityDTO>();
         foreach (var candidateId in distinctUserIds)
         {
-            var candidateReasons = await GetRosterCandidateFailuresAsync(game.Id, team, candidateId, null);
             candidateResults.Add(new RosterCandidateEligibilityDTO(
                 candidateId,
                 users.TryGetValue(candidateId, out var candidate) ? new PublicUserDTO(candidate) : null,
-                candidateReasons.Count == 0,
-                candidateReasons));
+                candidateFailures[candidateId].Count == 0,
+                candidateFailures[candidateId]));
         }
 
         if (candidateResults.Any(candidate => !candidate.Eligible))
@@ -137,8 +138,13 @@ public class TournamentRegistrationService : ITournamentRegistrationService
         var rosterFailures = GetRosterSizeFailures(game, request.UserIds);
         if (!request.UserIds.Contains(user.Id))
             rosterFailures.Add("captain_required");
-        foreach (var candidateId in request.UserIds.Distinct())
-            rosterFailures.AddRange(await GetRosterCandidateFailuresAsync(game.Id, team, candidateId, excludedRegistrationId));
+        var candidateFailures = await GetRosterCandidateFailuresAsync(
+            game.Id,
+            team,
+            request.UserIds.Distinct().ToList(),
+            excludedRegistrationId);
+        foreach (var failure in candidateFailures.Values.SelectMany(static failures => failures))
+            rosterFailures.Add(failure);
 
         var failures = teamFailures.Concat(rosterFailures).Distinct().ToList();
         if (failures.Count != 0)
@@ -375,15 +381,64 @@ public class TournamentRegistrationService : ITournamentRegistrationService
 
     private async Task<List<string>> GetRosterCandidateFailuresAsync(Guid gameId, Team team, Guid userId, Guid? excludedRegistrationId)
     {
-        var reasons = new List<string>();
-        var user = await _dbContext.Users.FindAsync(userId);
-        if (user is null || user.IsDeleted)
-            reasons.Add("user_not_found");
-        if (!team.Members.Any(member => member.Id == userId))
-            reasons.Add("not_team_member");
-        if (await HasAnyParticipationAsync(gameId, userId, excludedRegistrationId))
-            reasons.Add("duplicate_participation");
-        return reasons;
+        var failures = await GetRosterCandidateFailuresAsync(gameId, team, [userId], excludedRegistrationId);
+        return failures[userId];
+    }
+
+    private async Task<Dictionary<Guid, List<string>>> GetRosterCandidateFailuresAsync(
+        Guid gameId,
+        Team team,
+        IReadOnlyCollection<Guid> userIds,
+        Guid? excludedRegistrationId)
+    {
+        var distinctUserIds = userIds.Distinct().ToList();
+        if (distinctUserIds.Count == 0)
+            return [];
+
+        var activeUserIds = (await _dbContext.Users
+                .AsNoTracking()
+                .Where(user => distinctUserIds.Contains(user.Id) && !user.IsDeleted)
+                .Select(user => user.Id)
+                .ToListAsync())
+            .ToHashSet();
+        var teamMemberIds = team.Members.Select(member => member.Id).ToHashSet();
+
+        var directParticipationUserIds = await _dbContext.TournamentRegistrations
+            .AsNoTracking()
+            .Where(registration =>
+                registration.GameId == gameId &&
+                registration.UserId.HasValue &&
+                distinctUserIds.Contains(registration.UserId.Value) &&
+                (!excludedRegistrationId.HasValue || registration.Id != excludedRegistrationId.Value))
+            .Select(registration => registration.UserId!.Value)
+            .ToListAsync();
+
+        var rosterParticipationUserIds = await _dbContext.TournamentRegistrationRosterMembers
+            .AsNoTracking()
+            .Where(member =>
+                member.GameId == gameId &&
+                distinctUserIds.Contains(member.UserId) &&
+                (!excludedRegistrationId.HasValue || member.TournamentRegistrationId != excludedRegistrationId.Value))
+            .Select(member => member.UserId)
+            .ToListAsync();
+        var participatingUserIds = directParticipationUserIds
+            .Concat(rosterParticipationUserIds)
+            .ToHashSet();
+
+        return distinctUserIds.ToDictionary(
+            userId => userId,
+            userId =>
+            {
+                var reasons = new List<string>();
+                if (!activeUserIds.Contains(userId))
+                    reasons.Add("user_not_found");
+                if (!teamMemberIds.Contains(userId))
+                    reasons.Add("not_team_member");
+                if (participatingUserIds.Contains(userId))
+                    reasons.Add("duplicate_participation");
+
+                return reasons;
+            });
     }
 
     private async Task<bool> HasAnyParticipationAsync(Guid gameId, Guid userId, Guid? excludedRegistrationId)

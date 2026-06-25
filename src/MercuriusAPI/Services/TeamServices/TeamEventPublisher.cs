@@ -1,5 +1,4 @@
-using Mercurius.LAN.API.Hubs;
-using Microsoft.AspNetCore.SignalR;
+using Platform.Realtime;
 
 namespace Mercurius.LAN.API.Services.TeamServices;
 
@@ -11,43 +10,46 @@ public interface ITeamEventPublisher
     Task CaptainTransferredAsync(Guid teamId, Guid newCaptainUserId);
 }
 
-public class SignalRTeamEventPublisher : ITeamEventPublisher
+public class RealtimeTeamEventPublisher : ITeamEventPublisher
 {
-    private readonly IHubContext<TeamManagementHub> _hubContext;
+    private readonly IRealtimePublisher _realtimePublisher;
 
-    public SignalRTeamEventPublisher(IHubContext<TeamManagementHub> hubContext)
+    public RealtimeTeamEventPublisher(IRealtimePublisher realtimePublisher)
     {
-        _hubContext = hubContext;
+        _realtimePublisher = realtimePublisher;
     }
 
     public Task InviteChangedAsync(Guid teamId, Guid inviteId, Guid affectedUserId, string status)
     {
-        return _hubContext.Clients.Group(GetUserGroup(affectedUserId))
-            .SendAsync("TeamInviteChanged", new TeamInviteChangedEvent(teamId, inviteId, affectedUserId, status));
+        return _realtimePublisher.PublishAsync(new RealtimePublishRequest<TeamInviteChangedEvent>(
+            "TeamInviteChanged",
+            new TeamInviteChangedEvent(teamId, inviteId, affectedUserId, status),
+            [TeamRealtimeGroups.GetUserGroup(affectedUserId)]));
     }
 
     public Task MembershipChangedAsync(Guid teamId, Guid affectedUserId, string action)
     {
-        return _hubContext.Clients.Group(GetTeamGroup(teamId))
-            .SendAsync("TeamMembershipChanged", new TeamMembershipChangedEvent(teamId, affectedUserId, action));
+        return _realtimePublisher.PublishAsync(new RealtimePublishRequest<TeamMembershipChangedEvent>(
+            "TeamMembershipChanged",
+            new TeamMembershipChangedEvent(teamId, affectedUserId, action),
+            [TeamRealtimeGroups.GetTeamGroup(teamId)]));
     }
 
     public Task RosterConfirmationChangedAsync(Guid teamId, Guid rosterMemberId, Guid affectedUserId, string status)
     {
-        return _hubContext.Clients.Groups([GetUserGroup(affectedUserId), GetTeamGroup(teamId)])
-            .SendAsync(
-                "TournamentRosterConfirmationChanged",
-                new TournamentRosterConfirmationChangedEvent(teamId, rosterMemberId, affectedUserId, status));
+        return _realtimePublisher.PublishAsync(new RealtimePublishRequest<TournamentRosterConfirmationChangedEvent>(
+            "TournamentRosterConfirmationChanged",
+            new TournamentRosterConfirmationChangedEvent(teamId, rosterMemberId, affectedUserId, status),
+            [TeamRealtimeGroups.GetUserGroup(affectedUserId), TeamRealtimeGroups.GetTeamGroup(teamId)]));
     }
 
     public Task CaptainTransferredAsync(Guid teamId, Guid newCaptainUserId)
     {
-        return _hubContext.Clients.Group(GetTeamGroup(teamId))
-            .SendAsync("TeamCaptainTransferred", new TeamCaptainTransferredEvent(teamId, newCaptainUserId));
+        return _realtimePublisher.PublishAsync(new RealtimePublishRequest<TeamCaptainTransferredEvent>(
+            "TeamCaptainTransferred",
+            new TeamCaptainTransferredEvent(teamId, newCaptainUserId),
+            [TeamRealtimeGroups.GetTeamGroup(teamId)]));
     }
-
-    public static string GetTeamGroup(Guid teamId) => $"team:{teamId:N}";
-    public static string GetUserGroup(Guid userId) => $"user:{userId:N}";
 }
 
 public class NullTeamEventPublisher : ITeamEventPublisher

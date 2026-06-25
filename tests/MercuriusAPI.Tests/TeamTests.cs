@@ -6,6 +6,8 @@ using Mercurius.LAN.API.Migrations;
 using Mercurius.LAN.API.Hubs;
 using Mercurius.LAN.API.Services.Files;
 using Mercurius.LAN.API.Services.TeamServices;
+using Mercurius.Modules.Shared;
+using Platform.Realtime;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
@@ -961,25 +963,49 @@ public class TeamTests
     }
 
     [Fact]
-    public async Task SignalRTeamEventPublisher_PushesRosterConfirmationEventsToUserAndTeamGroups()
+    public async Task RealtimeTeamEventPublisher_PushesRosterConfirmationEventsToUserAndTeamGroups()
     {
         var teamId = Guid.NewGuid();
         var rosterMemberId = Guid.NewGuid();
         var affectedUserId = Guid.NewGuid();
         var hubContext = new RecordingHubContext();
-        var publisher = new SignalRTeamEventPublisher(hubContext);
+        var realtimePublisher = new SignalRRealtimePublisher<TeamManagementHub>(hubContext);
+        var publisher = new RealtimeTeamEventPublisher(realtimePublisher);
 
         await publisher.RosterConfirmationChangedAsync(teamId, rosterMemberId, affectedUserId, "Pending");
 
         var send = Assert.Single(hubContext.HubClients.Proxy.Sends);
         Assert.Equal("TournamentRosterConfirmationChanged", send.Method);
-        Assert.Contains(SignalRTeamEventPublisher.GetUserGroup(affectedUserId), hubContext.HubClients.RecordedGroups);
-        Assert.Contains(SignalRTeamEventPublisher.GetTeamGroup(teamId), hubContext.HubClients.RecordedGroups);
+        Assert.Contains(TeamRealtimeGroups.GetUserGroup(affectedUserId), hubContext.HubClients.RecordedGroups);
+        Assert.Contains(TeamRealtimeGroups.GetTeamGroup(teamId), hubContext.HubClients.RecordedGroups);
         var payload = Assert.IsType<TournamentRosterConfirmationChangedEvent>(Assert.Single(send.Args));
         Assert.Equal(teamId, payload.TeamId);
         Assert.Equal(rosterMemberId, payload.RosterMemberId);
         Assert.Equal(affectedUserId, payload.UserId);
         Assert.Equal("Pending", payload.Status);
+    }
+
+    [Fact]
+    public async Task TeamRealtimeAuthorizer_AllowsOnlyActiveTeamMembers()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var member = CreateUser();
+        var outsider = CreateUser();
+        var deletedCaptain = CreateUser();
+        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
+        var deletedTeam = new Team("Deleted", deletedCaptain) { Id = Guid.NewGuid() };
+        team.Members.Add(member);
+        deletedTeam.Delete(DateTime.UtcNow);
+        dbContext.Users.AddRange(captain, member, outsider, deletedCaptain);
+        dbContext.Teams.AddRange(team, deletedTeam);
+        await dbContext.SaveChangesAsync();
+        var authorizer = new EfTeamRealtimeAuthorizer(dbContext);
+
+        Assert.True(await authorizer.CanSubscribeToTeamAsync(new TeamId(team.Id), new UserId(captain.Id)));
+        Assert.True(await authorizer.CanSubscribeToTeamAsync(new TeamId(team.Id), new UserId(member.Id)));
+        Assert.False(await authorizer.CanSubscribeToTeamAsync(new TeamId(team.Id), new UserId(outsider.Id)));
+        Assert.False(await authorizer.CanSubscribeToTeamAsync(new TeamId(deletedTeam.Id), new UserId(deletedCaptain.Id)));
     }
 
     [Fact]

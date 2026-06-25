@@ -7,6 +7,7 @@ using Mercurius.LAN.API.Services.SearchServices;
 using Mercurius.LAN.API.Services.SponsorServices;
 using Mercurius.LAN.API.Services.TeamServices;
 using Mercurius.LAN.API.Services.UserServices;
+using Mercurius.Modules.Teams.Contracts;
 using ModuleTeamService = Mercurius.Modules.Teams.Services.ITeamService;
 
 namespace Mercurius.LAN.API.Extensions;
@@ -17,7 +18,8 @@ public static class ApplicationServiceRegistration
     {
         services.AddTransient<ITeamService, TeamService>();
         services.AddTransient<ModuleTeamService, ModuleTeamServiceAdapter>();
-        services.AddTransient<ITeamEventPublisher, SignalRTeamEventPublisher>();
+        services.AddTransient<ITeamEventPublisher, RealtimeTeamEventPublisher>();
+        services.AddTransient<ITeamRealtimeAuthorizer, EfTeamRealtimeAuthorizer>();
         services.AddTransient<IGameService, GameService>();
         services.AddTransient<ITournamentRegistrationService, TournamentRegistrationService>();
         services.AddTransient<IMatchService, MatchService>();

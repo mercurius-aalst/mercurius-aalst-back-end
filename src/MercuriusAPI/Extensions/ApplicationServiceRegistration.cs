@@ -35,7 +35,6 @@ public static class ApplicationServiceRegistration
         services.AddTransient<IMatchModeratorFactory, MatchModeratorFactory>();
         services.AddTransient<SingleEliminationMatchModerator>();
         services.AddTransient<DoubleEliminationMatchModerator>();
-        services.AddTransient<SwissStageMatchModerator>();
         services.AddTransient<RoundRobinMatchModerator>();
 
         return services;

@@ -1,5 +1,5 @@
-using Mercurius.LAN.API.Endpoints;
-using Mercurius.LAN.API.Services.TeamServices;
+using Mercurius.Modules.Teams;
+using Mercurius.Modules.Teams.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -58,7 +58,7 @@ public class TeamEndpointRouteTests
         builder.Services.AddScoped<ITeamService>(_ => throw new NotSupportedException());
 
         var app = builder.Build();
-        app.MapTeamEndpoints();
+        app.MapTeamsModule();
 
         return ((IEndpointRouteBuilder)app).DataSources
             .SelectMany(source => source.Endpoints)

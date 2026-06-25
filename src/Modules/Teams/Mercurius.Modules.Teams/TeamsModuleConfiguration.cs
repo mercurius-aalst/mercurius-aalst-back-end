@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Mercurius.Modules.Teams.Endpoints;
 
 namespace Mercurius.Modules.Teams;
 
@@ -15,6 +16,7 @@ public static class TeamsModuleConfiguration
 
     public static IEndpointRouteBuilder MapTeamsModule(this IEndpointRouteBuilder endpoints)
     {
+        endpoints.MapTeamEndpoints();
         return endpoints;
     }
 }

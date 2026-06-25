@@ -71,10 +71,10 @@ Do not start the next phase from an unmerged previous phase branch.
   - PR: [#101 Phase 6: introduce module contracts](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/101)
   - Notes: Introduce contracts without leaking EF or implementation details.
 
-- [ ] Phase 7 - Teams extraction
+- [x] Phase 7 - Teams extraction
   - Branch: `refactor/phase-7`
-  - PR: pending
-  - Notes: Move Teams into its module while preserving routes and JSON.
+  - PR: [#102 Phase 7: route Teams through module boundary](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/102)
+  - Notes: Map Teams through `MapTeamsModule` while preserving routes and JSON. EF-backed Teams implementation remains transitional pending Realtime, Identity, and persistence phases.
 
 - [ ] Phase 8 - Realtime split
   - Branch: `refactor/phase-8`

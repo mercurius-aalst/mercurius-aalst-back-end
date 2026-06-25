@@ -6,6 +6,7 @@ using Mercurius.LAN.API.Hubs;
 using Mercurius.LAN.API.Middleware;
 using Mercurius.LAN.API.Options;
 using Mercurius.LAN.API.Services.Auth0;
+using Mercurius.Modules.Teams;
 using Platform;
 using Platform.Extensions;
 using Microsoft.EntityFrameworkCore;
@@ -32,6 +33,7 @@ public class Program
             documentTitle: "Mercurius API",
             includeXmlComments: true,
             useEnumSchemaFilter: true);
+        builder.Services.AddTeamsModule(builder.Configuration);
         builder.Services.AddApplicationServices();
         builder.Services.Configure<Auth0ManagementOptions>(builder.Configuration.GetSection(Auth0ManagementOptions.SectionName));
         builder.Services.AddHttpClient<IAuth0ManagementService, Auth0ManagementService>();
@@ -72,7 +74,7 @@ public class Program
         app.MapGameEndpoints();
         app.MapTournamentRegistrationEndpoints();
         app.MapMatchEndpoints();
-        app.MapTeamEndpoints();
+        app.MapTeamsModule();
         app.MapSponsorEndpoints();
         app.MapUserEndpoints();
         app.MapSearchEndpoints();

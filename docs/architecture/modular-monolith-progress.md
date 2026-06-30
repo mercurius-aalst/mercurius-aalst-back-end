@@ -1,6 +1,6 @@
 # Modular Monolith Migration Progress
 
-Last updated: 2026-06-23
+Last updated: 2026-06-30
 
 This tracker is the repo-local handoff ledger for the modular monolith migration. It records which phase PRs have been created. GitHub remains the source of truth for whether those PRs are open, closed, or merged.
 
@@ -81,9 +81,9 @@ Do not start the next phase from an unmerged previous phase branch.
   - PR: [#103 Phase 8: split realtime from module synchronization](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/103)
   - Notes: Separate realtime concerns from Teams/business logic.
 
-- [ ] Phase 9 - Eventing/outbox/inbox
+- [x] Phase 9 - Eventing/outbox/inbox
   - Branch: `refactor/phase-9`
-  - PR: pending
+  - PR: [#104 Phase 9: introduce module eventing infrastructure](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/104)
   - Notes: Add reliable cross-module integration plumbing.
 
 - [ ] Phase 10 - Identity extraction

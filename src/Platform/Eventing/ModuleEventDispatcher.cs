@@ -1,28 +1,25 @@
-using System.Collections;
-using System.Reflection;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Platform.Eventing.Persistence;
 
 namespace Platform.Eventing;
 
-public sealed class ModuleEventDispatcher : IModuleEventDispatcher
+internal sealed class ModuleEventDispatcher : IModuleEventDispatcher
 {
     private const int LastErrorMaxLength = 4000;
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
     private readonly IModuleEventDbContext _dbContext;
     private readonly ModuleEventTypeRegistry _eventTypes;
-    private readonly IServiceProvider _serviceProvider;
+    private readonly IReadOnlyCollection<IModuleEventHandlerInvoker> _handlers;
 
     public ModuleEventDispatcher(
         IModuleEventDbContext dbContext,
         ModuleEventTypeRegistry eventTypes,
-        IServiceProvider serviceProvider)
+        IEnumerable<IModuleEventHandlerInvoker> handlers)
     {
         _dbContext = dbContext;
         _eventTypes = eventTypes;
-        _serviceProvider = serviceProvider;
+        _handlers = handlers.ToArray();
     }
 
     public async Task<int> DispatchPendingAsync(int batchSize = 50, CancellationToken cancellationToken = default)
@@ -56,8 +53,8 @@ public sealed class ModuleEventDispatcher : IModuleEventDispatcher
                 ?? throw new InvalidOperationException($"Module event payload '{message.EventType}' deserialized to null.");
 
             var context = new ModuleEventContext(message.Id, message.EventType, message.OccurredAtUtc);
-            foreach (var handler in ResolveHandlers(payloadType))
-                await DispatchToHandlerAsync(handler, payloadType, payload, context, cancellationToken);
+            foreach (var handler in _handlers.Where(handler => handler.PayloadType == payloadType))
+                await DispatchToHandlerAsync(handler, payload, context, cancellationToken);
 
             message.ProcessedAtUtc = DateTime.UtcNow;
             message.LastAttemptAtUtc = message.ProcessedAtUtc;
@@ -89,24 +86,13 @@ public sealed class ModuleEventDispatcher : IModuleEventDispatcher
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    private IReadOnlyList<object> ResolveHandlers(Type payloadType)
-    {
-        var handlerInterface = typeof(IModuleEventHandler<>).MakeGenericType(payloadType);
-        var enumerableType = typeof(IEnumerable<>).MakeGenericType(handlerInterface);
-        var handlers = (IEnumerable)_serviceProvider.GetRequiredService(enumerableType);
-
-        return handlers.Cast<object>().ToList();
-    }
-
     private async Task DispatchToHandlerAsync(
-        object handler,
-        Type payloadType,
+        IModuleEventHandlerInvoker handler,
         object payload,
         ModuleEventContext context,
         CancellationToken cancellationToken)
     {
-        var handlerInterface = typeof(IModuleEventHandler<>).MakeGenericType(payloadType);
-        var consumerName = (string?)handlerInterface.GetProperty(nameof(IModuleEventHandler<object>.ConsumerName))?.GetValue(handler);
+        var consumerName = handler.ConsumerName;
         if (string.IsNullOrWhiteSpace(consumerName))
             throw new InvalidOperationException($"Module event handler '{handler.GetType().FullName}' must provide a consumer name.");
 
@@ -117,12 +103,7 @@ public sealed class ModuleEventDispatcher : IModuleEventDispatcher
             return;
         }
 
-        var handleMethod = handlerInterface.GetMethod(nameof(IModuleEventHandler<object>.HandleAsync), BindingFlags.Public | BindingFlags.Instance)
-            ?? throw new InvalidOperationException($"Module event handler '{handler.GetType().FullName}' is missing HandleAsync.");
-        var handleTask = (Task?)handleMethod.Invoke(handler, [payload, context, cancellationToken])
-            ?? throw new InvalidOperationException($"Module event handler '{handler.GetType().FullName}' returned null.");
-
-        await handleTask;
+        await handler.HandleAsync(payload, context, cancellationToken);
         _dbContext.InboxMessages.Add(new InboxMessage
         {
             ConsumerName = consumerName,

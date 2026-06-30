@@ -27,7 +27,9 @@ public static class ModuleEventingExtensions
         where TPayload : notnull
         where THandler : class, IModuleEventHandler<TPayload>
     {
+        services.AddTransient<THandler>();
         services.AddTransient<IModuleEventHandler<TPayload>, THandler>();
+        services.AddTransient<IModuleEventHandlerInvoker, ModuleEventHandlerInvoker<TPayload, THandler>>();
         return services;
     }
 }

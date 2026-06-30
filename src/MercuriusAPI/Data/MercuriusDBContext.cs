@@ -1,10 +1,11 @@
 using Mercurius.LAN.API.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using Platform.Eventing.Persistence;
 
 namespace Mercurius.LAN.API.Data;
 
-public partial class MercuriusDBContext : DbContext
+public partial class MercuriusDBContext : DbContext, IModuleEventDbContext
 {
     public MercuriusDBContext()
     {
@@ -24,6 +25,8 @@ public partial class MercuriusDBContext : DbContext
     public DbSet<GameSponsorPlacement> GameSponsorPlacements { get; set; }
     public DbSet<TournamentRegistration> TournamentRegistrations { get; set; }
     public DbSet<TournamentRegistrationRosterMember> TournamentRegistrationRosterMembers { get; set; }
+    public DbSet<OutboxMessage> OutboxMessages { get; set; }
+    public DbSet<InboxMessage> InboxMessages { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -61,6 +64,7 @@ public partial class MercuriusDBContext : DbContext
             entity.Property(e => e.NormalizedName).IsRequired().HasMaxLength(100);
             entity.Property(e => e.LogoUrl).HasMaxLength(260);
             entity.Property(e => e.IsDeleted).IsRequired();
+            entity.Property(e => e.Version).IsRequired();
             entity.HasIndex(e => e.NormalizedName)
                   .IsUnique()
                   .HasFilter("\"IsDeleted\" = false");
@@ -295,6 +299,30 @@ public partial class MercuriusDBContext : DbContext
                   .HasForeignKey(e => e.SponsorId)
                   .OnDelete(DeleteBehavior.Cascade);
             entity.HasIndex(e => e.GameId).IsUnique();
+        });
+
+        modelBuilder.Entity<OutboxMessage>(entity =>
+        {
+            entity.ToTable("outbox_messages", "platform");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.EventType).HasColumnName("event_type").IsRequired().HasMaxLength(300);
+            entity.Property(e => e.Payload).HasColumnName("payload").IsRequired();
+            entity.Property(e => e.OccurredAtUtc).HasColumnName("occurred_at_utc").IsRequired();
+            entity.Property(e => e.RetryCount).HasColumnName("retry_count").IsRequired();
+            entity.Property(e => e.LastAttemptAtUtc).HasColumnName("last_attempt_at_utc");
+            entity.Property(e => e.ProcessedAtUtc).HasColumnName("processed_at_utc");
+            entity.Property(e => e.LastError).HasColumnName("last_error").HasMaxLength(4000);
+            entity.HasIndex(e => new { e.ProcessedAtUtc, e.OccurredAtUtc });
+        });
+
+        modelBuilder.Entity<InboxMessage>(entity =>
+        {
+            entity.ToTable("inbox_messages", "platform");
+            entity.HasKey(e => new { e.ConsumerName, e.MessageId });
+            entity.Property(e => e.ConsumerName).HasColumnName("consumer_name").HasMaxLength(200).IsRequired();
+            entity.Property(e => e.MessageId).HasColumnName("message_id").IsRequired();
+            entity.Property(e => e.ProcessedAtUtc).HasColumnName("processed_at_utc").IsRequired();
         });
 
         OnModelCreatingPartial(modelBuilder);

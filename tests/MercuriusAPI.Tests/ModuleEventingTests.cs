@@ -1,0 +1,463 @@
+using Mercurius.LAN.API.Data;
+using Mercurius.LAN.API.DTOs.TeamDTOs;
+using Mercurius.LAN.API.Migrations;
+using Mercurius.LAN.API.Models;
+using Mercurius.LAN.API.Services.TeamServices;
+using Mercurius.Modules.Teams.Contracts;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Migrations.Operations;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Platform.Eventing;
+using Platform.Eventing.Persistence;
+using Platform.Extensions;
+
+namespace Mercurius.LAN.API.Tests;
+
+public class ModuleEventingTests
+{
+    private static int _nextId;
+
+    [Fact]
+    public async Task Publisher_PersistsPendingOutboxMessage()
+    {
+        await using var dbContext = CreateDbContext();
+        var publisher = new ModuleEventPublisher(dbContext, CreateRegistry());
+
+        var messageId = publisher.Publish(new TestModuleEvent("alpha", 1));
+        await dbContext.SaveChangesAsync();
+
+        var message = await dbContext.OutboxMessages.SingleAsync();
+        Assert.Equal(messageId, message.Id);
+        Assert.Equal("test.module-event.v1", message.EventType);
+        Assert.Contains("alpha", message.Payload, StringComparison.Ordinal);
+        Assert.Null(message.ProcessedAtUtc);
+        Assert.Equal(0, message.RetryCount);
+    }
+
+    [Fact]
+    public async Task Dispatcher_InvokesHandlerAndMarksMessageProcessed()
+    {
+        var state = new HandlerState();
+        await using var provider = CreateEventingProvider(
+            state,
+            services => services.AddModuleEventHandler<TestModuleEvent, RecordingHandler>());
+        using var scope = provider.CreateScope();
+
+        await PublishTestEventAsync(scope.ServiceProvider);
+        var processed = await scope.ServiceProvider
+            .GetRequiredService<IModuleEventDispatcher>()
+            .DispatchPendingAsync();
+
+        var dbContext = scope.ServiceProvider.GetRequiredService<MercuriusDBContext>();
+        var outbox = await dbContext.OutboxMessages.SingleAsync();
+        Assert.Equal(1, processed);
+        Assert.NotNull(outbox.ProcessedAtUtc);
+        Assert.Single(await dbContext.InboxMessages.ToListAsync());
+        Assert.Equal(1, state.RecordingHandlerCalls);
+    }
+
+    [Fact]
+    public async Task Dispatcher_RecordsRetryStateWhenHandlerFails()
+    {
+        var state = new HandlerState { ThrowAlways = true };
+        await using var provider = CreateEventingProvider(
+            state,
+            services => services.AddModuleEventHandler<TestModuleEvent, ThrowingHandler>());
+        using var scope = provider.CreateScope();
+
+        await PublishTestEventAsync(scope.ServiceProvider);
+        var processed = await scope.ServiceProvider
+            .GetRequiredService<IModuleEventDispatcher>()
+            .DispatchPendingAsync();
+
+        var dbContext = scope.ServiceProvider.GetRequiredService<MercuriusDBContext>();
+        var outbox = await dbContext.OutboxMessages.SingleAsync();
+        Assert.Equal(0, processed);
+        Assert.Null(outbox.ProcessedAtUtc);
+        Assert.Equal(1, outbox.RetryCount);
+        Assert.Contains("planned handler failure", outbox.LastError, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Dispatcher_DoesNotCommitFailedHandlerEntityChangesWithRetryState()
+    {
+        var user = CreateUser();
+        var originalUsername = user.Username;
+        var state = new HandlerState { UserId = user.Id };
+        await using var provider = CreateEventingProvider(
+            state,
+            services => services.AddModuleEventHandler<TestModuleEvent, MutatingThrowingHandler>());
+        using var scope = provider.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<MercuriusDBContext>();
+        dbContext.Users.Add(user);
+        await dbContext.SaveChangesAsync();
+
+        await PublishTestEventAsync(scope.ServiceProvider);
+        var processed = await scope.ServiceProvider
+            .GetRequiredService<IModuleEventDispatcher>()
+            .DispatchPendingAsync();
+
+        dbContext.ChangeTracker.Clear();
+        var outbox = await dbContext.OutboxMessages.SingleAsync();
+        var persistedUser = await dbContext.Users.SingleAsync(storedUser => storedUser.Id == user.Id);
+        Assert.Equal(0, processed);
+        Assert.Equal(1, outbox.RetryCount);
+        Assert.Null(outbox.ProcessedAtUtc);
+        Assert.Equal(originalUsername, persistedUser.Username);
+    }
+
+    [Fact]
+    public async Task Dispatcher_SkipsConsumerThatAlreadyProcessedMessage()
+    {
+        var state = new HandlerState();
+        await using var provider = CreateEventingProvider(
+            state,
+            services => services.AddModuleEventHandler<TestModuleEvent, RecordingHandler>());
+        using var scope = provider.CreateScope();
+
+        var messageId = await PublishTestEventAsync(scope.ServiceProvider);
+        var dbContext = scope.ServiceProvider.GetRequiredService<MercuriusDBContext>();
+        dbContext.InboxMessages.Add(new InboxMessage
+        {
+            ConsumerName = RecordingHandler.Name,
+            MessageId = messageId,
+            ProcessedAtUtc = DateTime.UtcNow
+        });
+        await dbContext.SaveChangesAsync();
+
+        await scope.ServiceProvider.GetRequiredService<IModuleEventDispatcher>().DispatchPendingAsync();
+
+        Assert.Equal(0, state.RecordingHandlerCalls);
+        Assert.NotNull((await dbContext.OutboxMessages.SingleAsync()).ProcessedAtUtc);
+    }
+
+    [Fact]
+    public async Task Dispatcher_RetryDoesNotRepeatPreviouslyCompletedConsumer()
+    {
+        var state = new HandlerState { ThrowOnce = true };
+        await using var provider = CreateEventingProvider(
+            state,
+            services =>
+            {
+                services.AddModuleEventHandler<TestModuleEvent, RecordingHandler>();
+                services.AddModuleEventHandler<TestModuleEvent, FlakyHandler>();
+            });
+        using var scope = provider.CreateScope();
+
+        await PublishTestEventAsync(scope.ServiceProvider);
+        await scope.ServiceProvider.GetRequiredService<IModuleEventDispatcher>().DispatchPendingAsync();
+        await scope.ServiceProvider.GetRequiredService<IModuleEventDispatcher>().DispatchPendingAsync();
+
+        var dbContext = scope.ServiceProvider.GetRequiredService<MercuriusDBContext>();
+        var outbox = await dbContext.OutboxMessages.SingleAsync();
+        Assert.Equal(1, state.RecordingHandlerCalls);
+        Assert.Equal(2, state.FlakyHandlerCalls);
+        Assert.Equal(1, outbox.RetryCount);
+        Assert.NotNull(outbox.ProcessedAtUtc);
+        Assert.Equal(2, await dbContext.InboxMessages.CountAsync());
+    }
+
+    [Fact]
+    public void ProjectionVersionGuard_IdentifiesOnlyOlderVersionsAsStale()
+    {
+        Assert.True(ProjectionVersionGuard.IsStale(incomingVersion: 2, storedVersion: 3));
+        Assert.False(ProjectionVersionGuard.IsStale(incomingVersion: 3, storedVersion: 3));
+        Assert.False(ProjectionVersionGuard.IsStale(incomingVersion: 4, storedVersion: 3));
+    }
+
+    [Fact]
+    public async Task Dispatcher_TestProjectionIgnoresStaleTeamVersion()
+    {
+        var projection = new TeamProjectionState { Name = "Newer name", Version = 2 };
+        var services = new ServiceCollection();
+        services.AddDbContext<MercuriusDBContext>(options => options.UseInMemoryDatabase(Guid.NewGuid().ToString()));
+        services.AddSingleton(projection);
+        services.AddModuleEventing<MercuriusDBContext>(options => options.RegisterEvent<TeamRenamedIntegrationEvent>());
+        services.AddModuleEventHandler<TeamRenamedIntegrationEvent, TeamRenamedProjectionHandler>();
+        await using var provider = services.BuildServiceProvider();
+        using var scope = provider.CreateScope();
+        var publisher = scope.ServiceProvider.GetRequiredService<IModuleEventPublisher>();
+        var dbContext = scope.ServiceProvider.GetRequiredService<MercuriusDBContext>();
+
+        publisher.Publish(new TeamRenamedIntegrationEvent(new Mercurius.Modules.Shared.TeamId(Guid.NewGuid()), 1, "Older name"));
+        await dbContext.SaveChangesAsync();
+        await scope.ServiceProvider.GetRequiredService<IModuleEventDispatcher>().DispatchPendingAsync();
+
+        Assert.Equal("Newer name", projection.Name);
+        Assert.Equal(2, projection.Version);
+    }
+
+    [Fact]
+    public void ModuleEventingMigration_AddsPlatformOutboxInboxAndTeamVersion()
+    {
+        var migration = new ModuleEventingInfrastructure();
+        var operations = migration.UpOperations.ToList();
+
+        Assert.Contains(operations, operation =>
+            operation is EnsureSchemaOperation ensureSchema &&
+            ensureSchema.Name == "platform");
+        Assert.Contains(operations, operation =>
+            operation is AddColumnOperation addColumn &&
+            addColumn.Table == "Teams" &&
+            addColumn.Name == "Version");
+        Assert.Contains(operations, operation =>
+            operation is CreateTableOperation createTable &&
+            createTable.Schema == "platform" &&
+            createTable.Name == "outbox_messages");
+        Assert.Contains(operations, operation =>
+            operation is CreateTableOperation createTable &&
+            createTable.Schema == "platform" &&
+            createTable.Name == "inbox_messages" &&
+            createTable.PrimaryKey?.Columns.SequenceEqual(["consumer_name", "message_id"]) == true);
+    }
+
+    [Fact]
+    public async Task TeamsLifecycleMutations_IncrementVersionAndEnqueueDurableEvents()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var invited = CreateUser();
+        dbContext.Users.AddRange(captain, invited);
+        await dbContext.SaveChangesAsync();
+        var teamService = CreateTeamService(dbContext);
+
+        var created = await teamService.CreateCurrentUserTeamAsync(captain.Auth0UserId, new CreateTeamDTO { Name = "Alpha" });
+        await teamService.InviteUserAsync(captain.Auth0UserId, created.Id, invited.Id);
+        await teamService.RespondToInviteAsync(invited.Auth0UserId, (await dbContext.TeamInvites.SingleAsync()).Id, true);
+        await teamService.UpdateTeamAsync(created.Id, new UpdateTeamDTO { Name = "Bravo" });
+        await teamService.RemoveMemberAsync(captain.Auth0UserId, created.Id, invited.Id);
+        await teamService.DeleteTeamAsync(captain.Auth0UserId, created.Id);
+
+        var team = await dbContext.Teams.IgnoreQueryFilters().SingleAsync(team => team.Id == created.Id);
+        var eventTypes = await dbContext.OutboxMessages
+            .OrderBy(message => message.OccurredAtUtc)
+            .ThenBy(message => message.Id)
+            .Select(message => message.EventType)
+            .ToListAsync();
+
+        Assert.Equal(5, team.Version);
+        Assert.Contains(typeof(TeamCreatedIntegrationEvent).FullName!, eventTypes);
+        Assert.Contains(typeof(TeamMemberAddedIntegrationEvent).FullName!, eventTypes);
+        Assert.Contains(typeof(TeamRenamedIntegrationEvent).FullName!, eventTypes);
+        Assert.Contains(typeof(TeamMemberRemovedIntegrationEvent).FullName!, eventTypes);
+        Assert.Contains(typeof(TeamDeletedIntegrationEvent).FullName!, eventTypes);
+    }
+
+    [Fact]
+    public async Task TransferCaptainAsync_IncrementsVersionAndEnqueuesDurableEvent()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var newCaptain = CreateUser();
+        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
+        team.Members.Add(newCaptain);
+        dbContext.Users.AddRange(captain, newCaptain);
+        dbContext.Teams.Add(team);
+        await dbContext.SaveChangesAsync();
+        var teamService = CreateTeamService(dbContext);
+
+        await teamService.TransferCaptainAsync(captain.Auth0UserId, team.Id, newCaptain.Id);
+
+        Assert.Equal(1, team.Version);
+        var outbox = await dbContext.OutboxMessages.SingleAsync();
+        Assert.Equal(typeof(TeamCaptainTransferredIntegrationEvent).FullName, outbox.EventType);
+    }
+
+    private static async Task<Guid> PublishTestEventAsync(IServiceProvider serviceProvider)
+    {
+        var publisher = serviceProvider.GetRequiredService<IModuleEventPublisher>();
+        var dbContext = serviceProvider.GetRequiredService<MercuriusDBContext>();
+        var messageId = publisher.Publish(new TestModuleEvent("alpha", 1));
+        await dbContext.SaveChangesAsync();
+        return messageId;
+    }
+
+    private static ServiceProvider CreateEventingProvider(
+        HandlerState state,
+        Action<IServiceCollection> configureHandlers)
+    {
+        var services = new ServiceCollection();
+        services.AddDbContext<MercuriusDBContext>(options => options.UseInMemoryDatabase(Guid.NewGuid().ToString()));
+        services.AddSingleton(state);
+        services.AddModuleEventing<MercuriusDBContext>(options => options.RegisterEvent<TestModuleEvent>("test.module-event.v1"));
+        configureHandlers(services);
+
+        return services.BuildServiceProvider();
+    }
+
+    private static ModuleEventTypeRegistry CreateRegistry()
+    {
+        return new ModuleEventTypeRegistry(new ModuleEventingOptions()
+            .RegisterEvent<TestModuleEvent>("test.module-event.v1"));
+    }
+
+    private static MercuriusDBContext CreateDbContext()
+    {
+        var options = new DbContextOptionsBuilder<MercuriusDBContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        return new MercuriusDBContext(options);
+    }
+
+    private static TeamService CreateTeamService(MercuriusDBContext dbContext)
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["TeamInvite:ResendCooldownDays"] = "7",
+                ["TeamInvite:ExpirationDays"] = "14",
+                ["TeamInvite:RetentionDays"] = "90",
+                ["TeamInvite:DeclinedResendLimit"] = "3"
+            })
+            .Build();
+        var options = new ModuleEventingOptions()
+            .RegisterEvent<TeamCreatedIntegrationEvent>()
+            .RegisterEvent<TeamRenamedIntegrationEvent>()
+            .RegisterEvent<TeamDeletedIntegrationEvent>()
+            .RegisterEvent<TeamMemberAddedIntegrationEvent>()
+            .RegisterEvent<TeamMemberRemovedIntegrationEvent>()
+            .RegisterEvent<TeamCaptainTransferredIntegrationEvent>();
+        var moduleEventPublisher = new ModuleEventPublisher(dbContext, new ModuleEventTypeRegistry(options));
+
+        return new TeamService(dbContext, configuration, eventPublisher: new NullTeamEventPublisher(), moduleEventPublisher: moduleEventPublisher);
+    }
+
+    private static User CreateUser()
+    {
+        var id = Interlocked.Increment(ref _nextId);
+        return new User
+        {
+            Id = Guid.NewGuid(),
+            Auth0UserId = $"auth0|event-user{id}",
+            Username = $"event-user{id}",
+            Firstname = $"Event{id}",
+            Lastname = $"User{id}",
+            Email = $"event-user{id}@example.com"
+        };
+    }
+
+    private sealed record TestModuleEvent(string Name, long Version);
+
+    private sealed class HandlerState
+    {
+        public bool ThrowAlways { get; set; }
+        public bool ThrowOnce { get; set; }
+        public Guid UserId { get; set; }
+        public int RecordingHandlerCalls { get; set; }
+        public int FlakyHandlerCalls { get; set; }
+    }
+
+    private sealed class TeamProjectionState
+    {
+        public string Name { get; set; } = string.Empty;
+        public long Version { get; set; }
+    }
+
+    private sealed class RecordingHandler : IModuleEventHandler<TestModuleEvent>
+    {
+        public const string Name = "recording-consumer";
+        private readonly HandlerState _state;
+
+        public RecordingHandler(HandlerState state)
+        {
+            _state = state;
+        }
+
+        public string ConsumerName => Name;
+
+        public Task HandleAsync(TestModuleEvent payload, ModuleEventContext context, CancellationToken cancellationToken = default)
+        {
+            _state.RecordingHandlerCalls++;
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class ThrowingHandler : IModuleEventHandler<TestModuleEvent>
+    {
+        private readonly HandlerState _state;
+
+        public ThrowingHandler(HandlerState state)
+        {
+            _state = state;
+        }
+
+        public string ConsumerName => "throwing-consumer";
+
+        public Task HandleAsync(TestModuleEvent payload, ModuleEventContext context, CancellationToken cancellationToken = default)
+        {
+            if (_state.ThrowAlways)
+                throw new InvalidOperationException("planned handler failure");
+
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FlakyHandler : IModuleEventHandler<TestModuleEvent>
+    {
+        private readonly HandlerState _state;
+
+        public FlakyHandler(HandlerState state)
+        {
+            _state = state;
+        }
+
+        public string ConsumerName => "flaky-consumer";
+
+        public Task HandleAsync(TestModuleEvent payload, ModuleEventContext context, CancellationToken cancellationToken = default)
+        {
+            _state.FlakyHandlerCalls++;
+            if (_state.ThrowOnce)
+            {
+                _state.ThrowOnce = false;
+                throw new InvalidOperationException("planned handler failure");
+            }
+
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class MutatingThrowingHandler : IModuleEventHandler<TestModuleEvent>
+    {
+        private readonly MercuriusDBContext _dbContext;
+        private readonly HandlerState _state;
+
+        public MutatingThrowingHandler(MercuriusDBContext dbContext, HandlerState state)
+        {
+            _dbContext = dbContext;
+            _state = state;
+        }
+
+        public string ConsumerName => "mutating-throwing-consumer";
+
+        public async Task HandleAsync(TestModuleEvent payload, ModuleEventContext context, CancellationToken cancellationToken = default)
+        {
+            var user = await _dbContext.Users.SingleAsync(user => user.Id == _state.UserId, cancellationToken);
+            user.Username = "mutated-before-failure";
+            throw new InvalidOperationException("planned handler failure after entity mutation");
+        }
+    }
+
+    private sealed class TeamRenamedProjectionHandler : IModuleEventHandler<TeamRenamedIntegrationEvent>
+    {
+        private readonly TeamProjectionState _projection;
+
+        public TeamRenamedProjectionHandler(TeamProjectionState projection)
+        {
+            _projection = projection;
+        }
+
+        public string ConsumerName => "test-team-projection";
+
+        public Task HandleAsync(TeamRenamedIntegrationEvent payload, ModuleEventContext context, CancellationToken cancellationToken = default)
+        {
+            if (ProjectionVersionGuard.IsStale(payload.Version, _projection.Version))
+                return Task.CompletedTask;
+
+            _projection.Name = payload.Name;
+            _projection.Version = payload.Version;
+            return Task.CompletedTask;
+        }
+    }
+}

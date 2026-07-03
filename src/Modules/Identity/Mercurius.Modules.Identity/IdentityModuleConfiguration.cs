@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Mercurius.Modules.Identity.Endpoints;
+using Mercurius.Modules.Identity.Contracts;
 using Mercurius.Modules.Identity.Options;
 using Mercurius.Modules.Identity.Services;
 using Mercurius.Modules.Identity.Services.Auth0;
@@ -15,6 +16,7 @@ public static class IdentityModuleConfiguration
         IConfiguration configuration)
     {
         services.Configure<Auth0ManagementOptions>(configuration.GetSection(Auth0ManagementOptions.SectionName));
+        services.AddTransient<IIdentityModule, IdentityModuleFacade>();
         services.AddHttpClient<IAuth0ManagementService, Auth0ManagementService>();
         services.AddTransient<UserService>();
         services.AddTransient<IUserService>(serviceProvider =>

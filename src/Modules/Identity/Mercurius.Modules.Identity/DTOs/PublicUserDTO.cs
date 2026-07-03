@@ -5,8 +5,8 @@ namespace Mercurius.Modules.Identity.DTOs;
 public class PublicUserDTO
 {
     public Guid Id { get; set; }
-    public string Username { get; set; }
-    public string DisplayName { get; set; }
+    public string Username { get; set; } = string.Empty;
+    public string DisplayName { get; set; } = string.Empty;
     public string? DiscordId { get; set; }
     public string? SteamId { get; set; }
     public string? RiotId { get; set; }

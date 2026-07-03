@@ -9,15 +9,15 @@ public class CreateUserProfileRequest
 
     [Required]
     [StringLength(32, MinimumLength = 3)]
-    public string Username { get; set; }
+    public string Username { get; set; } = string.Empty;
 
     [Required]
     [StringLength(100, MinimumLength = 1)]
-    public string Firstname { get; set; }
+    public string Firstname { get; set; } = string.Empty;
 
     [Required]
     [StringLength(100, MinimumLength = 1)]
-    public string Lastname { get; set; }
+    public string Lastname { get; set; } = string.Empty;
 
     [EmailAddress]
     [StringLength(254)]

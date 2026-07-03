@@ -34,7 +34,7 @@ public class UserService : IUserService
 
     public async Task<IEnumerable<GetUserDTO>> GetAllUsersAsync()
     {
-        return await _dbContext.Users.Select(u => new GetUserDTO(u)).ToListAsync();
+        return await _dbContext.Users.AsNoTracking().Select(u => new GetUserDTO(u)).ToListAsync();
     }
 
     public async Task<GetUserDTO> CreateUserAsync(CreateUserProfileRequest request)
@@ -309,7 +309,7 @@ public class UserService : IUserService
 
     public async Task<GetUserDTO> GetUserByIdAsync(Guid id)
     {
-        var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == id);
+        var user = await _dbContext.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == id);
         if (user == null)
             throw new NotFoundException($"User with ID {id} not found.");
         return new GetUserDTO(user);

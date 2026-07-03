@@ -12,6 +12,7 @@ public class Team
     public string? LogoUrl { get; set; }
     public bool IsDeleted { get; set; }
     public DateTime? DeletedAtUtc { get; set; }
+    public long Version { get; set; }
 
     public IList<User> Members { get; set; } = new List<User>();
     public IList<TeamInvite> TeamInvites { get; set; } = new List<TeamInvite>();

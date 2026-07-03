@@ -3,6 +3,10 @@ using Mercurius.LAN.API.DTOs.TeamDTOs;
 using Mercurius.LAN.API.Migrations;
 using Mercurius.LAN.API.Models;
 using Mercurius.LAN.API.Services.TeamServices;
+using Mercurius.Modules.Identity.Contracts;
+using Mercurius.Modules.Identity.DTOs;
+using Mercurius.Modules.Identity.Services;
+using Mercurius.Modules.Identity.Services.Auth0;
 using Mercurius.Modules.Teams.Contracts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
@@ -286,6 +290,50 @@ public class ModuleEventingTests
         Assert.Equal(typeof(TeamCaptainTransferredIntegrationEvent).FullName, outbox.EventType);
     }
 
+    [Fact]
+    public async Task UserProfileUpdate_EnqueuesDurableProfileEvents()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = CreateUser();
+        dbContext.Users.Add(user);
+        await dbContext.SaveChangesAsync();
+        var userService = CreateUserService(dbContext);
+
+        await userService.UpdateCurrentUserAsync(user.Auth0UserId, new UpdateUserProfileRequest
+        {
+            Username = "updateduser",
+            Firstname = "Updated",
+            Lastname = "User"
+        });
+
+        var eventTypes = await dbContext.OutboxMessages
+            .Select(message => message.EventType)
+            .ToListAsync();
+
+        Assert.Contains(typeof(UserProfileChangedIntegrationEvent).FullName!, eventTypes);
+        Assert.Contains(typeof(UsernameChangedIntegrationEvent).FullName!, eventTypes);
+    }
+
+    [Fact]
+    public async Task UserAnonymize_EnqueuesDurableDeletionEvents()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = CreateUser();
+        dbContext.Users.Add(user);
+        await dbContext.SaveChangesAsync();
+        var userService = CreateUserService(dbContext);
+
+        await userService.AnonymizeCurrentUserAsync(user.Auth0UserId);
+
+        var eventTypes = await dbContext.OutboxMessages
+            .Select(message => message.EventType)
+            .ToListAsync();
+
+        Assert.Contains(typeof(UserAnonymizedIntegrationEvent).FullName!, eventTypes);
+        Assert.Contains(typeof(UserDeletedIntegrationEvent).FullName!, eventTypes);
+        Assert.Contains(typeof(UserProfileChangedIntegrationEvent).FullName!, eventTypes);
+    }
+
     private static async Task<Guid> PublishTestEventAsync(IServiceProvider serviceProvider)
     {
         var publisher = serviceProvider.GetRequiredService<IModuleEventPublisher>();
@@ -333,6 +381,14 @@ public class ModuleEventingTests
         return new TeamService(dbContext, configuration, eventPublisher: new NullTeamEventPublisher(), moduleEventPublisher: moduleEventPublisher);
     }
 
+    private static UserService CreateUserService(MercuriusDBContext dbContext)
+    {
+        return new UserService(
+            dbContext,
+            new NoopAuth0ManagementService(),
+            new ModuleEventPublisher(dbContext));
+    }
+
     private static User CreateUser()
     {
         var id = Interlocked.Increment(ref _nextId);
@@ -350,6 +406,26 @@ public class ModuleEventingTests
     private sealed record TestModuleEvent(string Name, long Version);
 
     private sealed record OtherModuleEvent(string Name);
+
+    private sealed class NoopAuth0ManagementService : IAuth0ManagementService
+    {
+        public Task<Auth0ProfileSnapshot> GetUserProfileAsync(
+            string auth0UserId,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new Auth0ProfileSnapshot(null, null, false));
+        }
+
+        public Task SendVerificationEmailAsync(string auth0UserId, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task SendPasswordResetEmailAsync(string email, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+    }
 
     private sealed class HandlerState
     {

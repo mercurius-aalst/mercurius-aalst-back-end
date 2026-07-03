@@ -17,6 +17,7 @@ public static class ApplicationServiceRegistration
     public static IServiceCollection AddApplicationServices(this IServiceCollection services)
     {
         services.AddTransient<ITeamService, TeamService>();
+        services.Decorate<ITeamService, TeamEventPublishingDecorator>();
         services.AddTransient<ModuleTeamService, ModuleTeamServiceAdapter>();
         services.AddTransient<ITeamEventPublisher, RealtimeTeamEventPublisher>();
         services.AddTransient<ITeamRealtimeAuthorizer, EfTeamRealtimeAuthorizer>();

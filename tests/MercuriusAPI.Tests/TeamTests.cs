@@ -7,6 +7,7 @@ using Mercurius.LAN.API.Hubs;
 using Mercurius.LAN.API.Services.Files;
 using Mercurius.LAN.API.Services.TeamServices;
 using Mercurius.Modules.Shared;
+using Platform.Eventing;
 using Platform.Realtime;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.SignalR;
@@ -963,6 +964,61 @@ public class TeamTests
     }
 
     [Fact]
+    public async Task InviteUserAsync_PreservesOriginalException_WhenExpiredInvitePublishFails()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var member = CreateUser();
+        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
+        team.Members.Add(member);
+        dbContext.Users.AddRange(captain, member);
+        dbContext.Teams.Add(team);
+        dbContext.TeamInvites.Add(new TeamInvite
+        {
+            Id = Guid.NewGuid(),
+            Team = team,
+            TeamId = team.Id,
+            User = member,
+            UserId = member.Id,
+            Status = TeamInviteStatus.Pending,
+            CreatedAt = DateTime.UtcNow.AddDays(-10),
+            ExpiresAt = DateTime.UtcNow.AddDays(-1)
+        });
+        await dbContext.SaveChangesAsync();
+
+        var teamService = CreateTeamService(dbContext, eventPublisher: new ThrowingInviteChangedTeamEventPublisher());
+
+        var exception = await Assert.ThrowsAsync<ValidationException>(() =>
+            teamService.InviteUserAsync(captain.Auth0UserId, team.Id, member.Id));
+
+        Assert.Equal("User is already in the team", exception.Message);
+    }
+
+    [Fact]
+    public async Task TransferCaptainAsync_DoesNotPublishRealtime_WhenDurableEventPublishingFails()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var newCaptain = CreateUser();
+        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
+        team.Members.Add(newCaptain);
+        dbContext.Users.AddRange(captain, newCaptain);
+        dbContext.Teams.Add(team);
+        await dbContext.SaveChangesAsync();
+
+        var publisher = new RecordingTeamEventPublisher();
+        var teamService = CreateTeamService(
+            dbContext,
+            eventPublisher: publisher,
+            moduleEventPublisher: new ThrowingModuleEventPublisher());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            teamService.TransferCaptainAsync(captain.Auth0UserId, team.Id, newCaptain.Id));
+
+        Assert.Empty(publisher.CaptainEvents);
+    }
+
+    [Fact]
     public async Task RealtimeTeamEventPublisher_PushesRosterConfirmationEventsToUserAndTeamGroups()
     {
         var teamId = Guid.NewGuid();
@@ -1105,10 +1161,11 @@ public class TeamTests
         return new UniqueConstraintDbContext(options);
     }
 
-    private static TeamService CreateTeamService(
+    private static ITeamService CreateTeamService(
         MercuriusDBContext dbContext,
         IFileService? fileService = null,
-        ITeamEventPublisher? eventPublisher = null)
+        ITeamEventPublisher? eventPublisher = null,
+        IModuleEventPublisher? moduleEventPublisher = null)
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -1120,7 +1177,11 @@ public class TeamTests
             })
             .Build();
 
-        return new TeamService(dbContext, configuration, fileService, eventPublisher);
+        return new TeamEventPublishingDecorator(
+            new TeamService(dbContext, configuration, fileService),
+            dbContext,
+            eventPublisher ?? new NullTeamEventPublisher(),
+            moduleEventPublisher);
     }
 
     private static IFormFile CreateFormFile(string contentType = "image/png")
@@ -1182,6 +1243,38 @@ public class TeamTests
         {
             CaptainEvents.Add(new TeamCaptainTransferredEvent(teamId, newCaptainUserId));
             return Task.CompletedTask;
+        }
+    }
+
+    private sealed class ThrowingInviteChangedTeamEventPublisher : ITeamEventPublisher
+    {
+        public Task InviteChangedAsync(Guid teamId, Guid inviteId, Guid affectedUserId, string status)
+        {
+            throw new InvalidOperationException("Invite publish failed.");
+        }
+
+        public Task RosterConfirmationChangedAsync(Guid teamId, Guid rosterMemberId, Guid affectedUserId, string status)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task MembershipChangedAsync(Guid teamId, Guid affectedUserId, string action)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task CaptainTransferredAsync(Guid teamId, Guid newCaptainUserId)
+        {
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class ThrowingModuleEventPublisher : IModuleEventPublisher
+    {
+        public Guid Publish<TPayload>(TPayload payload, DateTime? occurredAtUtc = null)
+            where TPayload : notnull
+        {
+            throw new InvalidOperationException("Durable event publish failed.");
         }
     }
 

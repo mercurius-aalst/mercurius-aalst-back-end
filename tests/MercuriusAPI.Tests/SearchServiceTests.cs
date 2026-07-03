@@ -3,6 +3,7 @@ using System.Reflection;
 using Mercurius.LAN.API.Data;
 using Mercurius.LAN.API.Models;
 using Mercurius.LAN.API.Services.SearchServices;
+using Mercurius.Modules.Shared.Search;
 using Microsoft.EntityFrameworkCore;
 
 namespace Mercurius.LAN.API.Tests;

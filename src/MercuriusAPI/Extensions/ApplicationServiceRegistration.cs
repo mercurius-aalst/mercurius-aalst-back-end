@@ -6,7 +6,6 @@ using Mercurius.LAN.API.Services.RegistrationServices;
 using Mercurius.LAN.API.Services.SearchServices;
 using Mercurius.LAN.API.Services.SponsorServices;
 using Mercurius.LAN.API.Services.TeamServices;
-using Mercurius.LAN.API.Services.UserServices;
 using Mercurius.Modules.Teams.Contracts;
 using ModuleTeamService = Mercurius.Modules.Teams.Services.ITeamService;
 
@@ -25,9 +24,6 @@ public static class ApplicationServiceRegistration
         services.AddTransient<IMatchService, MatchService>();
         services.AddTransient<ISponsorService, SponsorService>();
         services.AddTransient<ISearchService, SearchService>();
-
-        services.AddTransient<IUserService, UserService>();
-        services.Decorate<IUserService, UserValidationService>();
 
         services.AddTransient<IFileService, FileService>();
         services.Decorate<IFileService, FileValidationService>();

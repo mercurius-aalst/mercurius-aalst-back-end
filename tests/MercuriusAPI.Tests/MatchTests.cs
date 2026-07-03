@@ -1,5 +1,5 @@
 using Mercurius.LAN.API.DTOs.MatchDTOs;
-using Mercurius.LAN.API.Exceptions;
+using Mercurius.Modules.Shared.Exceptions;
 using Mercurius.LAN.API.Models;
 using DataAnnotations = System.ComponentModel.DataAnnotations;
 

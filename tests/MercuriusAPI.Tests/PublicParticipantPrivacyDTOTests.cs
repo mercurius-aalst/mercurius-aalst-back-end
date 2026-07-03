@@ -1,5 +1,5 @@
 using System.Text.Json;
-using Mercurius.LAN.API.DTOs.Auth;
+using Mercurius.Modules.Identity.DTOs;
 using Mercurius.LAN.API.DTOs.GameDTOs;
 using Mercurius.LAN.API.DTOs.PlacementDTOs;
 using Mercurius.LAN.API.DTOs.TeamDTOs;

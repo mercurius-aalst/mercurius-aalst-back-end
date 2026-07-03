@@ -2,7 +2,7 @@ using System.Text;
 using Mercurius.LAN.API.Data;
 using Mercurius.LAN.API.DTOs.GameDTOs;
 using Mercurius.LAN.API.DTOs.SponsorDTOs;
-using Mercurius.LAN.API.Exceptions;
+using Mercurius.Modules.Shared.Exceptions;
 using Mercurius.LAN.API.Models;
 using Mercurius.LAN.API.Services.Files;
 using Mercurius.LAN.API.Services.GameServices;

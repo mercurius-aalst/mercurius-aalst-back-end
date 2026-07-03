@@ -1,8 +1,8 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using System.Net;
 
-namespace Mercurius.LAN.API.Exceptions;
+namespace Mercurius.Modules.Shared.Exceptions;
 
 public class ExceptionFilter : IActionFilter
 {

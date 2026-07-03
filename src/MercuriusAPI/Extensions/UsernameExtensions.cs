@@ -4,6 +4,6 @@ public static class UsernameExtensions
 {
     public static string NormalizeUsername(this string username)
     {
-        return Services.UserServices.UserProfileValidationHelper.NormalizeUsername(username);
+        return Mercurius.Modules.Identity.Services.UserProfileValidationHelper.NormalizeUsername(username);
     }
 }

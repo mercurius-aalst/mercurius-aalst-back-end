@@ -1,4 +1,4 @@
-using Mercurius.LAN.API.Exceptions;
+using Mercurius.Modules.Shared.Exceptions;
 using Mercurius.LAN.API.Extensions;
 using Mercurius.LAN.API.Models;
 using Mercurius.LAN.API.Services.MatchServices.Helpers;

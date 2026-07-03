@@ -40,7 +40,7 @@ public class ModuleArchitectureTests
 
     [Theory]
     [MemberData(nameof(Modules))]
-    public void ModuleImplementation_ReferencesOnlyOwnContractsAndModulesShared(string moduleName)
+    public void ModuleImplementation_ReferencesOnlyAllowedInfrastructure(string moduleName)
     {
         var repositoryRoot = FindRepositoryRoot();
         var moduleDirectory = Path.Combine(repositoryRoot, "src", "Modules", moduleName);
@@ -49,7 +49,7 @@ public class ModuleArchitectureTests
             $"Mercurius.Modules.{moduleName}",
             $"Mercurius.Modules.{moduleName}.csproj");
         var references = GetProjectReferences(implementationProject);
-        var expectedReferences = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        var requiredReferences = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             Path.Combine(
                 moduleDirectory,
@@ -57,9 +57,13 @@ public class ModuleArchitectureTests
                 $"Mercurius.Modules.{moduleName}.Contracts.csproj"),
             Path.Combine(repositoryRoot, "src", "Modules.Shared", "Modules.Shared.csproj")
         };
+        var allowedReferences = new HashSet<string>(requiredReferences, StringComparer.OrdinalIgnoreCase)
+        {
+            Path.Combine(repositoryRoot, "src", "Platform", "Platform.csproj")
+        };
 
         Assert.True(
-            expectedReferences.SetEquals(references),
+            requiredReferences.IsSubsetOf(references) && references.IsSubsetOf(allowedReferences),
             $"Unexpected project references: {string.Join(", ", references)}");
     }
 

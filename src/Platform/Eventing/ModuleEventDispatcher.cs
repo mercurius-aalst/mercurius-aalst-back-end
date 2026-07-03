@@ -1,5 +1,8 @@
+using System.Collections;
+using System.Reflection;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Platform.Eventing.Persistence;
 
 namespace Platform.Eventing;
@@ -9,17 +12,14 @@ internal sealed class ModuleEventDispatcher : IModuleEventDispatcher
     private const int LastErrorMaxLength = 4000;
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
     private readonly IModuleEventDbContext _dbContext;
-    private readonly ModuleEventTypeRegistry _eventTypes;
-    private readonly IReadOnlyCollection<IModuleEventHandlerInvoker> _handlers;
+    private readonly IServiceProvider _serviceProvider;
 
     public ModuleEventDispatcher(
         IModuleEventDbContext dbContext,
-        ModuleEventTypeRegistry eventTypes,
-        IEnumerable<IModuleEventHandlerInvoker> handlers)
+        IServiceProvider serviceProvider)
     {
         _dbContext = dbContext;
-        _eventTypes = eventTypes;
-        _handlers = handlers.ToArray();
+        _serviceProvider = serviceProvider;
     }
 
     public async Task<int> DispatchPendingAsync(int batchSize = 50, CancellationToken cancellationToken = default)
@@ -48,13 +48,14 @@ internal sealed class ModuleEventDispatcher : IModuleEventDispatcher
     {
         try
         {
-            var payloadType = _eventTypes.GetPayloadType(message.EventType);
+            var payloadType = ModuleEventTypeNames.Resolve(message.EventType);
             var payload = JsonSerializer.Deserialize(message.Payload, payloadType, SerializerOptions)
                 ?? throw new InvalidOperationException($"Module event payload '{message.EventType}' deserialized to null.");
 
             var context = new ModuleEventContext(message.Id, message.EventType, message.OccurredAtUtc);
-            foreach (var handler in _handlers.Where(handler => handler.PayloadType == payloadType))
-                await DispatchToHandlerAsync(handler, payload, context, cancellationToken);
+            // Each handler commits its own inbox marker, so retries skip already completed consumers.
+            foreach (var handler in ResolveHandlers(payloadType))
+                await DispatchToHandlerAsync(handler, payloadType, payload, context, cancellationToken);
 
             message.ProcessedAtUtc = DateTime.UtcNow;
             message.LastAttemptAtUtc = message.ProcessedAtUtc;
@@ -86,13 +87,24 @@ internal sealed class ModuleEventDispatcher : IModuleEventDispatcher
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    private IReadOnlyCollection<object> ResolveHandlers(Type payloadType)
+    {
+        var handlerInterface = typeof(IModuleEventHandler<>).MakeGenericType(payloadType);
+        var enumerableType = typeof(IEnumerable<>).MakeGenericType(handlerInterface);
+        var handlers = (IEnumerable)_serviceProvider.GetRequiredService(enumerableType);
+
+        return handlers.Cast<object>().ToArray();
+    }
+
     private async Task DispatchToHandlerAsync(
-        IModuleEventHandlerInvoker handler,
+        object handler,
+        Type payloadType,
         object payload,
         ModuleEventContext context,
         CancellationToken cancellationToken)
     {
-        var consumerName = handler.ConsumerName;
+        var handlerInterface = typeof(IModuleEventHandler<>).MakeGenericType(payloadType);
+        var consumerName = (string?)handlerInterface.GetProperty(nameof(IModuleEventHandler<object>.ConsumerName))?.GetValue(handler);
         if (string.IsNullOrWhiteSpace(consumerName))
             throw new InvalidOperationException($"Module event handler '{handler.GetType().FullName}' must provide a consumer name.");
 
@@ -103,7 +115,12 @@ internal sealed class ModuleEventDispatcher : IModuleEventDispatcher
             return;
         }
 
-        await handler.HandleAsync(payload, context, cancellationToken);
+        var handleMethod = handlerInterface.GetMethod(nameof(IModuleEventHandler<object>.HandleAsync), BindingFlags.Public | BindingFlags.Instance)
+            ?? throw new InvalidOperationException($"Module event handler '{handler.GetType().FullName}' is missing HandleAsync.");
+        var handleTask = (Task?)handleMethod.Invoke(handler, [payload, context, cancellationToken])
+            ?? throw new InvalidOperationException($"Module event handler '{handler.GetType().FullName}' returned null.");
+
+        await handleTask;
         _dbContext.InboxMessages.Add(new InboxMessage
         {
             ConsumerName = consumerName,

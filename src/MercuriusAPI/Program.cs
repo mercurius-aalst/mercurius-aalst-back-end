@@ -7,7 +7,6 @@ using Mercurius.LAN.API.Middleware;
 using Mercurius.LAN.API.Options;
 using Mercurius.LAN.API.Services.Auth0;
 using Mercurius.Modules.Teams;
-using Mercurius.Modules.Teams.Contracts;
 using Platform;
 using Platform.Extensions;
 using Microsoft.EntityFrameworkCore;
@@ -27,13 +26,7 @@ public class Program
 
         builder.Services.AddDbContext<MercuriusDBContext>(options =>
             options.UseNpgsql(builder.Configuration.GetConnectionString("MercuriusDB")));
-        builder.Services.AddModuleEventing<MercuriusDBContext>(options => options
-            .RegisterEvent<TeamCreatedIntegrationEvent>()
-            .RegisterEvent<TeamRenamedIntegrationEvent>()
-            .RegisterEvent<TeamDeletedIntegrationEvent>()
-            .RegisterEvent<TeamMemberAddedIntegrationEvent>()
-            .RegisterEvent<TeamMemberRemovedIntegrationEvent>()
-            .RegisterEvent<TeamCaptainTransferredIntegrationEvent>());
+        builder.Services.AddModuleEventing<MercuriusDBContext>();
 
         builder.Services.AddValidation();
         builder.Services.AddVersionedSwagger(

@@ -7,15 +7,9 @@ namespace Platform.Extensions;
 public static class ModuleEventingExtensions
 {
     public static IServiceCollection AddModuleEventing<TDbContext>(
-        this IServiceCollection services,
-        Action<ModuleEventingOptions>? configure = null)
+        this IServiceCollection services)
         where TDbContext : class, IModuleEventDbContext
     {
-        var options = new ModuleEventingOptions();
-        configure?.Invoke(options);
-
-        services.TryAddSingleton(options);
-        services.TryAddSingleton<ModuleEventTypeRegistry>();
         services.TryAddScoped<IModuleEventDbContext>(provider => provider.GetRequiredService<TDbContext>());
         services.TryAddScoped<IModuleEventPublisher, ModuleEventPublisher>();
         services.TryAddScoped<IModuleEventDispatcher, ModuleEventDispatcher>();
@@ -27,9 +21,7 @@ public static class ModuleEventingExtensions
         where TPayload : notnull
         where THandler : class, IModuleEventHandler<TPayload>
     {
-        services.AddTransient<THandler>();
         services.AddTransient<IModuleEventHandler<TPayload>, THandler>();
-        services.AddTransient<IModuleEventHandlerInvoker, ModuleEventHandlerInvoker<TPayload, THandler>>();
         return services;
     }
 }

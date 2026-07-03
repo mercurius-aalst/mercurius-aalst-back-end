@@ -22,14 +22,14 @@ public class ModuleEventingTests
     public async Task Publisher_PersistsPendingOutboxMessage()
     {
         await using var dbContext = CreateDbContext();
-        var publisher = new ModuleEventPublisher(dbContext, CreateRegistry());
+        var publisher = new ModuleEventPublisher(dbContext);
 
         var messageId = publisher.Publish(new TestModuleEvent("alpha", 1));
         await dbContext.SaveChangesAsync();
 
         var message = await dbContext.OutboxMessages.SingleAsync();
         Assert.Equal(messageId, message.Id);
-        Assert.Equal("test.module-event.v1", message.EventType);
+        Assert.Equal(typeof(TestModuleEvent).FullName, message.EventType);
         Assert.Contains("alpha", message.Payload, StringComparison.Ordinal);
         Assert.Null(message.ProcessedAtUtc);
         Assert.Equal(0, message.RetryCount);
@@ -55,6 +55,28 @@ public class ModuleEventingTests
         Assert.NotNull(outbox.ProcessedAtUtc);
         Assert.Single(await dbContext.InboxMessages.ToListAsync());
         Assert.Equal(1, state.RecordingHandlerCalls);
+    }
+
+    [Fact]
+    public async Task Dispatcher_InvokesOnlyHandlersForThePublishedEventType()
+    {
+        var state = new HandlerState();
+        await using var provider = CreateEventingProvider(
+            state,
+            services =>
+            {
+                services.AddModuleEventHandler<TestModuleEvent, RecordingHandler>();
+                services.AddModuleEventHandler<OtherModuleEvent, OtherRecordingHandler>();
+            });
+        using var scope = provider.CreateScope();
+
+        await PublishTestEventAsync(scope.ServiceProvider);
+        await scope.ServiceProvider
+            .GetRequiredService<IModuleEventDispatcher>()
+            .DispatchPendingAsync();
+
+        Assert.Equal(1, state.RecordingHandlerCalls);
+        Assert.Equal(0, state.OtherRecordingHandlerCalls);
     }
 
     [Fact]
@@ -173,7 +195,7 @@ public class ModuleEventingTests
         var services = new ServiceCollection();
         services.AddDbContext<MercuriusDBContext>(options => options.UseInMemoryDatabase(Guid.NewGuid().ToString()));
         services.AddSingleton(projection);
-        services.AddModuleEventing<MercuriusDBContext>(options => options.RegisterEvent<TeamRenamedIntegrationEvent>());
+        services.AddModuleEventing<MercuriusDBContext>();
         services.AddModuleEventHandler<TeamRenamedIntegrationEvent, TeamRenamedProjectionHandler>();
         await using var provider = services.BuildServiceProvider();
         using var scope = provider.CreateScope();
@@ -280,16 +302,10 @@ public class ModuleEventingTests
         var services = new ServiceCollection();
         services.AddDbContext<MercuriusDBContext>(options => options.UseInMemoryDatabase(Guid.NewGuid().ToString()));
         services.AddSingleton(state);
-        services.AddModuleEventing<MercuriusDBContext>(options => options.RegisterEvent<TestModuleEvent>("test.module-event.v1"));
+        services.AddModuleEventing<MercuriusDBContext>();
         configureHandlers(services);
 
         return services.BuildServiceProvider();
-    }
-
-    private static ModuleEventTypeRegistry CreateRegistry()
-    {
-        return new ModuleEventTypeRegistry(new ModuleEventingOptions()
-            .RegisterEvent<TestModuleEvent>("test.module-event.v1"));
     }
 
     private static MercuriusDBContext CreateDbContext()
@@ -312,14 +328,7 @@ public class ModuleEventingTests
                 ["TeamInvite:DeclinedResendLimit"] = "3"
             })
             .Build();
-        var options = new ModuleEventingOptions()
-            .RegisterEvent<TeamCreatedIntegrationEvent>()
-            .RegisterEvent<TeamRenamedIntegrationEvent>()
-            .RegisterEvent<TeamDeletedIntegrationEvent>()
-            .RegisterEvent<TeamMemberAddedIntegrationEvent>()
-            .RegisterEvent<TeamMemberRemovedIntegrationEvent>()
-            .RegisterEvent<TeamCaptainTransferredIntegrationEvent>();
-        var moduleEventPublisher = new ModuleEventPublisher(dbContext, new ModuleEventTypeRegistry(options));
+        var moduleEventPublisher = new ModuleEventPublisher(dbContext);
 
         return new TeamService(dbContext, configuration, eventPublisher: new NullTeamEventPublisher(), moduleEventPublisher: moduleEventPublisher);
     }
@@ -340,12 +349,15 @@ public class ModuleEventingTests
 
     private sealed record TestModuleEvent(string Name, long Version);
 
+    private sealed record OtherModuleEvent(string Name);
+
     private sealed class HandlerState
     {
         public bool ThrowAlways { get; set; }
         public bool ThrowOnce { get; set; }
         public Guid UserId { get; set; }
         public int RecordingHandlerCalls { get; set; }
+        public int OtherRecordingHandlerCalls { get; set; }
         public int FlakyHandlerCalls { get; set; }
     }
 
@@ -390,6 +402,24 @@ public class ModuleEventingTests
             if (_state.ThrowAlways)
                 throw new InvalidOperationException("planned handler failure");
 
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class OtherRecordingHandler : IModuleEventHandler<OtherModuleEvent>
+    {
+        private readonly HandlerState _state;
+
+        public OtherRecordingHandler(HandlerState state)
+        {
+            _state = state;
+        }
+
+        public string ConsumerName => "other-recording-consumer";
+
+        public Task HandleAsync(OtherModuleEvent payload, ModuleEventContext context, CancellationToken cancellationToken = default)
+        {
+            _state.OtherRecordingHandlerCalls++;
             return Task.CompletedTask;
         }
     }

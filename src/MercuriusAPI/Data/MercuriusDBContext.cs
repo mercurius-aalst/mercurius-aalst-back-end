@@ -1,5 +1,6 @@
 using Mercurius.LAN.API.Models;
 using Mercurius.Modules.Identity.Infrastructure;
+using Mercurius.Modules.Teams.Domain;
 using Mercurius.Modules.Teams.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;

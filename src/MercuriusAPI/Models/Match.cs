@@ -1,3 +1,4 @@
+using Mercurius.Modules.Teams.Domain;
 using Mercurius.Modules.Shared.Exceptions;
 
 namespace Mercurius.LAN.API.Models;

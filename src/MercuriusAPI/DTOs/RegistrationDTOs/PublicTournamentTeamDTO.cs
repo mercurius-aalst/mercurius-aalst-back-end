@@ -1,4 +1,5 @@
 using Mercurius.LAN.API.Models;
+using Mercurius.Modules.Teams.Domain;
 
 namespace Mercurius.LAN.API.DTOs.RegistrationDTOs;
 

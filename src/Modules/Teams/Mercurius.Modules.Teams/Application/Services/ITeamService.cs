@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Http;
 
 namespace Mercurius.Modules.Teams.Services;
 
-public interface ITeamService
+internal interface ITeamService
 {
     Task<GetTeamDTO> CreateTeamAsync(CreateTeamDTO teamDTO);
     Task<TeamManagementSummaryDTO> CreateCurrentUserTeamAsync(string auth0UserId, CreateTeamDTO teamDTO);

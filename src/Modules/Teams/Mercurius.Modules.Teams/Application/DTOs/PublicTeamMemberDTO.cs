@@ -1,6 +1,6 @@
 namespace Mercurius.Modules.Teams.DTOs;
 
-public class PublicTeamMemberDTO
+internal class PublicTeamMemberDTO
 {
     public string Username { get; set; } = string.Empty;
 

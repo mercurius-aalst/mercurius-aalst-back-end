@@ -3,7 +3,7 @@ using Mercurius.Modules.Teams.Domain;
 
 namespace Mercurius.Modules.Teams.DTOs;
 
-public class CurrentUserTeamSummaryDTO
+internal class CurrentUserTeamSummaryDTO
 {
     public IEnumerable<TeamManagementSummaryDTO> CaptainedTeams { get; set; } = [];
     public IEnumerable<TeamManagementSummaryDTO> MemberTeams { get; set; } = [];
@@ -11,7 +11,7 @@ public class CurrentUserTeamSummaryDTO
     public IEnumerable<TeamInviteSummaryDTO> SentPendingInvites { get; set; } = [];
 }
 
-public class TeamManagementSummaryDTO
+internal class TeamManagementSummaryDTO
 {
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
@@ -35,7 +35,7 @@ public class TeamManagementSummaryDTO
     }
 }
 
-public class TeamInviteSummaryDTO
+internal class TeamInviteSummaryDTO
 {
     public Guid Id { get; set; }
     public Guid TeamId { get; set; }

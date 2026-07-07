@@ -3,7 +3,7 @@ using Mercurius.Modules.Teams.Domain;
 
 namespace Mercurius.Modules.Teams.DTOs;
 
-public class GetTeamDTO
+internal class GetTeamDTO
 {
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;

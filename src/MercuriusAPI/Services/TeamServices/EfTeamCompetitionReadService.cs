@@ -1,7 +1,7 @@
 using Mercurius.LAN.API.Data;
 using Mercurius.LAN.API.Models;
-using Mercurius.Modules.Teams.DTOs;
-using Mercurius.Modules.Teams.Services;
+using Mercurius.Modules.Shared;
+using Mercurius.Modules.Teams.Contracts;
 using Microsoft.EntityFrameworkCore;
 
 namespace Mercurius.LAN.API.Services.TeamServices;
@@ -15,7 +15,7 @@ public sealed class EfTeamCompetitionReadService : ITeamCompetitionReadService
         _dbContext = dbContext;
     }
 
-    public async Task<IReadOnlyList<PublicTeamTournamentDTO>> GetPublicTeamTournamentsAsync(Guid teamId, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<PublicTeamTournamentSummary>> GetPublicTeamTournamentsAsync(Guid teamId, CancellationToken cancellationToken = default)
     {
         return await _dbContext.TournamentRegistrations
             .AsNoTracking()
@@ -23,13 +23,11 @@ public sealed class EfTeamCompetitionReadService : ITeamCompetitionReadService
                 registration.TeamId == teamId &&
                 registration.Status == TournamentRegistrationStatus.Active &&
                 registration.Game.Status != GameStatus.Canceled)
-            .Select(registration => new PublicTeamTournamentDTO
-            {
-                GameId = registration.GameId,
-                Name = registration.Game.Name
-            })
-            .OrderBy(tournament => tournament.Name)
-            .ThenBy(tournament => tournament.GameId)
+            .OrderBy(registration => registration.Game.Name)
+            .ThenBy(registration => registration.GameId)
+            .Select(registration => new PublicTeamTournamentSummary(
+                new GameId(registration.GameId),
+                registration.Game.Name))
             .ToListAsync(cancellationToken);
     }
 

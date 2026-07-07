@@ -8,6 +8,7 @@ using Mercurius.Modules.Teams.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.AspNetCore.Http;
+using ITeamCompetitionReadService = Mercurius.Modules.Teams.Contracts.ITeamCompetitionReadService;
 
 namespace Mercurius.Modules.Teams.Services;
 
@@ -161,6 +162,12 @@ internal sealed class TeamService : ITeamService
             LogoUrl = team.LogoUrl,
             Members = members,
             Tournaments = tournaments
+                .Select(tournament => new PublicTeamTournamentDTO
+                {
+                    GameId = tournament.GameId.Value,
+                    Name = tournament.Name
+                })
+                .ToList()
         };
     }
 

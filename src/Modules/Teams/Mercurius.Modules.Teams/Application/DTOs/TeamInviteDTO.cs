@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Mercurius.Modules.Teams.DTOs;
 
-public class TeamInviteDTO
+internal class TeamInviteDTO
 {
     public Guid Id { get; set; }
     public Guid TeamId { get; set; }
@@ -34,7 +34,7 @@ public class TeamInviteDTO
     }
 }
 
-public class CreateTeamInviteDTO
+internal class CreateTeamInviteDTO
 {
     [Required]
     public Guid TeamId { get; set; }
@@ -42,13 +42,13 @@ public class CreateTeamInviteDTO
     public Guid UserId { get; set; }
 }
 
-public class RespondTeamInviteDTO
+internal class RespondTeamInviteDTO
 {
     [Required]
     public bool Accept { get; set; }
 }
 
-public class TransferCaptainDTO
+internal class TransferCaptainDTO
 {
     [Required]
     public Guid NewCaptainUserId { get; set; }

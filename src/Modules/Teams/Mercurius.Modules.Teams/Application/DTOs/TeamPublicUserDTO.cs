@@ -3,7 +3,7 @@ using Mercurius.Modules.Identity.Domain;
 
 namespace Mercurius.Modules.Teams.DTOs;
 
-public class TeamPublicUserDTO
+internal class TeamPublicUserDTO
 {
     public Guid Id { get; set; }
     public string Username { get; set; } = string.Empty;

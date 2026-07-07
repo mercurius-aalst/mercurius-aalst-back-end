@@ -1,11 +1,11 @@
-using Mercurius.LAN.API.DTOs.Auth;
+using Mercurius.Modules.Identity.DTOs;
 using Mercurius.LAN.API.Data;
-using Mercurius.LAN.API.Exceptions;
+using Mercurius.Modules.Shared.Exceptions;
 using Mercurius.LAN.API.Migrations;
 using Mercurius.LAN.API.Models;
-using Mercurius.LAN.API.Services.SearchServices;
-using Mercurius.LAN.API.Services.Auth0;
-using Mercurius.LAN.API.Services.UserServices;
+using Mercurius.Modules.Shared.Search;
+using Mercurius.Modules.Identity.Services.Auth0;
+using Mercurius.Modules.Identity.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;

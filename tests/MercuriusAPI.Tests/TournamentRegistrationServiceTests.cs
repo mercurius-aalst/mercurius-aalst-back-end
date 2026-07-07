@@ -1,10 +1,11 @@
 using Mercurius.LAN.API.Data;
 using Mercurius.LAN.API.DTOs.RegistrationDTOs;
-using Mercurius.LAN.API.Exceptions;
+using Mercurius.Modules.Shared.Exceptions;
 using Mercurius.LAN.API.Migrations;
 using Mercurius.LAN.API.Models;
 using Mercurius.LAN.API.Services.RegistrationServices;
 using Mercurius.LAN.API.Services.TeamServices;
+using Mercurius.Modules.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
 
@@ -394,7 +395,10 @@ public class TournamentRegistrationServiceTests
 
     private static TournamentRegistrationService CreateService(MercuriusDBContext dbContext, ITeamEventPublisher? publisher = null)
     {
-        return new TournamentRegistrationService(dbContext, publisher ?? new NullTeamEventPublisher());
+        return new TournamentRegistrationService(
+            dbContext,
+            publisher ?? new NullTeamEventPublisher(),
+            new IdentityModuleFacade(dbContext));
     }
 
     private static MercuriusDBContext CreateDbContext()

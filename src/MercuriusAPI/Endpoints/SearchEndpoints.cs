@@ -1,7 +1,8 @@
 using Asp.Versioning;
 using Mercurius.LAN.API.Configuration;
-using Mercurius.LAN.API.Exceptions;
 using Mercurius.LAN.API.Services.SearchServices;
+using Mercurius.Modules.Shared.Exceptions;
+using Mercurius.Modules.Shared.Search;
 
 namespace Mercurius.LAN.API.Endpoints;
 

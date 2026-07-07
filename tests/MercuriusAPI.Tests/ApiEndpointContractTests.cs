@@ -4,8 +4,10 @@ using Mercurius.LAN.API.Services.GameServices;
 using Mercurius.LAN.API.Services.MatchServices;
 using Mercurius.LAN.API.Services.RegistrationServices;
 using Mercurius.LAN.API.Services.SearchServices;
+using Mercurius.Modules.Shared.Search;
 using Mercurius.LAN.API.Services.SponsorServices;
-using Mercurius.LAN.API.Services.UserServices;
+using Mercurius.Modules.Identity;
+using Mercurius.Modules.Identity.Services;
 using Mercurius.Modules.Teams;
 using Mercurius.Modules.Teams.Services;
 using Platform.Extensions;
@@ -174,7 +176,7 @@ public class ApiEndpointContractTests
         app.MapMatchEndpoints();
         app.MapTeamsModule();
         app.MapSponsorEndpoints();
-        app.MapUserEndpoints();
+        app.MapIdentityModule();
         app.MapSearchEndpoints();
         app.MapHub<TeamManagementHub>("/v1/lan/team-events").RequireAuthorization();
 

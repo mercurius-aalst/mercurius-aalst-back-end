@@ -1,8 +1,9 @@
 using Mercurius.LAN.API.Data;
 using Mercurius.LAN.API.DTOs.TeamDTOs;
-using Mercurius.LAN.API.Exceptions;
+using Mercurius.Modules.Shared.Exceptions;
 using Mercurius.LAN.API.Models;
 using Mercurius.LAN.API.Services.TeamServices;
+using Mercurius.Modules.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 
@@ -126,7 +127,10 @@ public class TeamServicePublicProfileTests
             })
             .Build();
 
-        return new TeamService(dbContext, configuration);
+        return new TeamService(
+            dbContext,
+            configuration,
+            new IdentityModuleFacade(dbContext));
     }
 
     private static MercuriusDBContext CreateDbContext()

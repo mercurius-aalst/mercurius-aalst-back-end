@@ -1,6 +1,7 @@
 using Mercurius.LAN.API.Endpoints;
 using Mercurius.LAN.API.Configuration;
-using Mercurius.LAN.API.Services.UserServices;
+using Mercurius.Modules.Identity;
+using Mercurius.Modules.Identity.Services;
 using Platform;
 using Platform.Extensions;
 using Microsoft.AspNetCore.Authorization;
@@ -117,7 +118,7 @@ public class UserEndpointRouteTests
         builder.Services.AddScoped<IUserService>(_ => throw new NotSupportedException());
 
         var app = builder.Build();
-        app.MapUserEndpoints();
+        app.MapIdentityModule();
 
         return ((IEndpointRouteBuilder)app).DataSources
             .SelectMany(source => source.Endpoints)

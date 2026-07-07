@@ -1,8 +1,9 @@
 using Mercurius.LAN.API.Data;
 using Mercurius.LAN.API.DTOs.TeamDTOs;
-using Mercurius.LAN.API.Exceptions;
+using Mercurius.Modules.Shared.Exceptions;
 using Mercurius.LAN.API.Models;
 using Mercurius.LAN.API.Services.Files;
+using Mercurius.Modules.Identity.Contracts;
 using Mercurius.Modules.Shared;
 using Microsoft.EntityFrameworkCore;
 using Platform.Eventing;
@@ -23,6 +24,7 @@ public class TeamService : ITeamService
     private readonly IFileService? _fileService;
     private readonly ITeamEventPublisher _eventPublisher;
     private readonly IModuleEventPublisher? _moduleEventPublisher;
+    private readonly IIdentityModule _identityModule;
     private readonly int _inviteResendCooldownDays;
     private readonly int _inviteExpirationDays;
     private readonly int _inviteRetentionDays;
@@ -31,6 +33,7 @@ public class TeamService : ITeamService
     public TeamService(
         MercuriusDBContext dbContext,
         IConfiguration configuration,
+        IIdentityModule identityModule,
         IFileService? fileService = null,
         ITeamEventPublisher? eventPublisher = null,
         IModuleEventPublisher? moduleEventPublisher = null)
@@ -39,6 +42,7 @@ public class TeamService : ITeamService
         _fileService = fileService;
         _eventPublisher = eventPublisher ?? new NullTeamEventPublisher();
         _moduleEventPublisher = moduleEventPublisher;
+        _identityModule = identityModule ?? throw new ArgumentNullException(nameof(identityModule));
         _inviteResendCooldownDays = configuration.GetSection("TeamInvite:ResendCooldownDays").Get<int>();
         _inviteExpirationDays = configuration.GetSection("TeamInvite:ExpirationDays").Get<int?>() ?? 14;
         _inviteRetentionDays = configuration.GetSection("TeamInvite:RetentionDays").Get<int?>() ?? 90;
@@ -50,10 +54,15 @@ public class TeamService : ITeamService
         var normalizedTeamName = Team.NormalizeName(teamDTO.Name);
         if (await CheckIfTeamNameExistsAsync(normalizedTeamName))
             throw new ValidationException($"Teamname {teamDTO.Name} already in use");
-        var captain = await _dbContext.Users.FindAsync(teamDTO.CaptainUserId);
-        if (captain is null)
+        var captain = await GetUserProfileAsync(teamDTO.CaptainUserId);
+        if (captain is null || captain.IsDeleted)
             throw new NotFoundException($"{nameof(User)} not found");
-        var team = new Team(teamDTO.Name, captain);
+        var captainReference = GetUserReference(captain);
+        var team = new Team(teamDTO.Name, captain.Id.Value)
+        {
+            Captain = captainReference
+        };
+        team.Members.Add(captainReference);
         _dbContext.Teams.Add(team);
         PublishTeamCreated(team);
         await SaveTeamChangesAsync(teamDTO.Name);
@@ -63,13 +72,19 @@ public class TeamService : ITeamService
     public async Task<TeamManagementSummaryDTO> CreateCurrentUserTeamAsync(string auth0UserId, CreateTeamDTO teamDTO)
     {
         var currentUser = await GetCurrentUserAsync(auth0UserId);
-        await EnsureCaptainLimitAsync(currentUser.Id);
+        await EnsureCaptainLimitAsync(currentUser.Id.Value);
 
         var normalizedTeamName = Team.NormalizeName(teamDTO.Name);
         if (await CheckIfTeamNameExistsAsync(normalizedTeamName))
             throw new ValidationException($"Teamname {teamDTO.Name} already in use");
 
-        var team = new Team(teamDTO.Name, currentUser) { Id = Guid.NewGuid() };
+        var captainReference = GetUserReference(currentUser);
+        var team = new Team(teamDTO.Name, currentUser.Id.Value)
+        {
+            Id = Guid.NewGuid(),
+            Captain = captainReference
+        };
+        team.Members.Add(captainReference);
         _dbContext.Teams.Add(team);
         PublishTeamCreated(team);
         await SaveTeamChangesAsync(teamDTO.Name);
@@ -101,7 +116,7 @@ public class TeamService : ITeamService
         if (team is null)
             throw new NotFoundException($"{nameof(Team)} not found");
 
-        EnsureCaptain(team, currentUser.Id);
+        EnsureCaptain(team, currentUser.Id.Value);
         if (await IsTeamInDeleteBlockingTournamentAsync(teamId))
             throw new ValidationException("Cannot delete a team that is actively participating in a game or tournament.");
 
@@ -202,7 +217,7 @@ public class TeamService : ITeamService
         if (team is null)
             throw new NotFoundException($"{nameof(Team)} not found");
 
-        EnsureCaptain(team, currentUser.Id);
+        EnsureCaptain(team, currentUser.Id.Value);
         if (await IsUserInProtectedTournamentRosterAsync(teamId, userId))
             throw new ValidationException("Cannot remove a member from a team that is part of an in-progress tournament roster.");
 
@@ -266,7 +281,7 @@ public class TeamService : ITeamService
     public async Task<TeamInviteDTO> InviteUserAsync(Guid teamId, Guid userId)
     {
         var team = await GetTeamForInviteMutationAsync(teamId);
-        if (!await _dbContext.Users.AnyAsync(u => u.Id == userId))
+        if (await GetUserProfileAsync(userId) is null)
             throw new NotFoundException($"{nameof(User)} not found");
         await ExpirePendingInvitesAsync(teamId, userId);
         var invite = team.InviteUser(userId, _inviteResendCooldownDays, _inviteExpirationDays, _declinedInviteResendLimit);
@@ -278,9 +293,10 @@ public class TeamService : ITeamService
     {
         var currentUser = await GetCurrentUserAsync(auth0UserId);
         var team = await GetTeamForInviteMutationAsync(teamId);
-        EnsureCaptain(team, currentUser.Id);
+        EnsureCaptain(team, currentUser.Id.Value);
 
-        if (!await _dbContext.Users.AnyAsync(u => u.Id == userId && !u.IsDeleted))
+        var invitedUser = await GetUserProfileAsync(userId);
+        if (invitedUser is null || invitedUser.IsDeleted)
             throw new NotFoundException($"{nameof(User)} not found");
 
         await ExpirePendingInvitesAsync(teamId, userId);
@@ -299,7 +315,7 @@ public class TeamService : ITeamService
         if (invite is null)
             throw new NotFoundException("Invite not found");
 
-        EnsureCaptain(invite.Team, currentUser.Id);
+        EnsureCaptain(invite.Team, currentUser.Id.Value);
         invite.Cancel();
         await _dbContext.SaveChangesAsync();
         await _eventPublisher.InviteChangedAsync(teamId, invite.Id, invite.UserId, invite.Status.ToString());
@@ -328,7 +344,7 @@ public class TeamService : ITeamService
         var invite = await _dbContext.TeamInvites
             .Include(ti => ti.User)
             .Include(ti => ti.Team)
-            .FirstOrDefaultAsync(i => i.Id == inviteId && i.UserId == currentUser.Id);
+            .FirstOrDefaultAsync(i => i.Id == inviteId && i.UserId == currentUser.Id.Value);
         if (invite == null)
             throw new NotFoundException("No pending invite found");
 
@@ -367,12 +383,12 @@ public class TeamService : ITeamService
         await CleanupTerminalInvitesAsync();
 
         var captainedTeams = await TeamManagementQuery()
-            .Where(team => team.CaptainUserId == currentUser.Id)
+            .Where(team => team.CaptainUserId == currentUser.Id.Value)
             .OrderBy(team => team.Name)
             .ToListAsync();
 
         var memberTeams = await TeamManagementQuery()
-            .Where(team => team.Members.Any(member => member.Id == currentUser.Id))
+            .Where(team => team.Members.Any(member => member.Id == currentUser.Id.Value))
             .OrderBy(team => team.Name)
             .ToListAsync();
 
@@ -381,12 +397,12 @@ public class TeamService : ITeamService
             CaptainedTeams = captainedTeams.Select(team => new TeamManagementSummaryDTO(team)),
             MemberTeams = memberTeams.Select(team => new TeamManagementSummaryDTO(team)),
             ReceivedPendingInvites = (await GetPendingInviteSummariesQuery()
-                .Where(invite => invite.UserId == currentUser.Id)
+                .Where(invite => invite.UserId == currentUser.Id.Value)
                 .OrderBy(invite => invite.CreatedAt)
                 .ToListAsync())
                 .Select(invite => new TeamInviteSummaryDTO(invite)),
             SentPendingInvites = (await GetPendingInviteSummariesQuery()
-                .Where(invite => invite.Team.CaptainUserId == currentUser.Id)
+                .Where(invite => invite.Team.CaptainUserId == currentUser.Id.Value)
                 .OrderBy(invite => invite.CreatedAt)
                 .ToListAsync())
                 .Select(invite => new TeamInviteSummaryDTO(invite))
@@ -398,7 +414,7 @@ public class TeamService : ITeamService
         var currentUser = await GetCurrentUserAsync(auth0UserId);
         await ExpirePendingInvitesAsync();
         var invites = await GetPendingInviteSummariesQuery()
-            .Where(invite => invite.UserId == currentUser.Id)
+            .Where(invite => invite.UserId == currentUser.Id.Value)
             .OrderBy(invite => invite.CreatedAt)
             .ToListAsync();
         return invites.Select(invite => new TeamInviteSummaryDTO(invite));
@@ -409,7 +425,7 @@ public class TeamService : ITeamService
         var currentUser = await GetCurrentUserAsync(auth0UserId);
         await ExpirePendingInvitesAsync();
         var invites = await GetPendingInviteSummariesQuery()
-            .Where(invite => invite.Team.CaptainUserId == currentUser.Id)
+            .Where(invite => invite.Team.CaptainUserId == currentUser.Id.Value)
             .OrderBy(invite => invite.CreatedAt)
             .ToListAsync();
         return invites.Select(invite => new TeamInviteSummaryDTO(invite));
@@ -421,17 +437,17 @@ public class TeamService : ITeamService
         var team = await GetTeamWithMembersQuery().FirstOrDefaultAsync(t => t.Id == teamId);
         if (team is null)
             throw new NotFoundException($"{nameof(Team)} not found");
-        if (team.CaptainUserId == currentUser.Id)
+        if (team.CaptainUserId == currentUser.Id.Value)
             throw new ValidationException("The captain cannot leave a team without transferring captainship.");
-        if (!team.Members.Any(member => member.Id == currentUser.Id))
+        if (!team.Members.Any(member => member.Id == currentUser.Id.Value))
             throw new NotFoundException($"{nameof(User)} not found in {team.Name}");
-        if (await IsUserInProtectedTournamentRosterAsync(teamId, currentUser.Id))
+        if (await IsUserInProtectedTournamentRosterAsync(teamId, currentUser.Id.Value))
             throw new ValidationException("Cannot leave a team that is part of a protected tournament roster.");
 
-        team.RemoveMember(currentUser.Id);
-        PublishTeamMemberRemoved(team, currentUser.Id);
+        team.RemoveMember(currentUser.Id.Value);
+        PublishTeamMemberRemoved(team, currentUser.Id.Value);
         await _dbContext.SaveChangesAsync();
-        await _eventPublisher.MembershipChangedAsync(team.Id, currentUser.Id, "Left");
+        await _eventPublisher.MembershipChangedAsync(team.Id, currentUser.Id.Value, "Left");
         return new TeamManagementSummaryDTO(team);
     }
 
@@ -444,7 +460,7 @@ public class TeamService : ITeamService
         if (team is null)
             throw new NotFoundException($"{nameof(Team)} not found");
 
-        EnsureCaptain(team, currentUser.Id);
+        EnsureCaptain(team, currentUser.Id.Value);
         await EnsureCaptainLimitAsync(newCaptainUserId, teamId);
         team.ChangeCaptain(newCaptainUserId);
         PublishTeamCaptainTransferred(team, newCaptainUserId);
@@ -463,7 +479,7 @@ public class TeamService : ITeamService
         if (team is null)
             throw new NotFoundException($"{nameof(Team)} not found");
 
-        EnsureCaptain(team, currentUser.Id);
+        EnsureCaptain(team, currentUser.Id.Value);
         var previousLogo = team.LogoUrl;
         var logoUrl = await _fileService.SaveImageAsync(logo);
         team.LogoUrl = logoUrl;
@@ -482,7 +498,7 @@ public class TeamService : ITeamService
         if (team is null)
             throw new NotFoundException($"{nameof(Team)} not found");
 
-        EnsureCaptain(team, currentUser.Id);
+        EnsureCaptain(team, currentUser.Id.Value);
         var previousLogo = team.LogoUrl;
         team.LogoUrl = null;
         await _dbContext.SaveChangesAsync();
@@ -495,17 +511,43 @@ public class TeamService : ITeamService
         return !string.IsNullOrWhiteSpace(username);
     }
 
-    private async Task<User> GetCurrentUserAsync(string auth0UserId)
+    private async Task<UserProfileSummary> GetCurrentUserAsync(string auth0UserId)
     {
         if (string.IsNullOrWhiteSpace(auth0UserId))
             throw new UnauthorizedAccessException("Authenticated user id is missing.");
 
-        var normalizedAuth0UserId = auth0UserId.Trim();
-        var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Auth0UserId == normalizedAuth0UserId && !u.IsDeleted);
-        if (user is null)
+        var user = await _identityModule.GetUserProfileByAuth0IdAsync(auth0UserId);
+
+        if (user is null || user.IsDeleted)
             throw new NotFoundException("Current user profile was not found.");
 
         return user;
+    }
+
+    private async Task<UserProfileSummary?> GetUserProfileAsync(Guid userId)
+    {
+        return await _identityModule.GetUserProfileAsync(new UserId(userId));
+    }
+
+    private User GetUserReference(UserProfileSummary user)
+    {
+        var trackedUser = _dbContext.ChangeTracker
+            .Entries<User>()
+            .FirstOrDefault(entry => entry.Entity.Id == user.Id.Value)
+            ?.Entity;
+        if (trackedUser is not null)
+            return trackedUser;
+
+        var userReference = new User
+        {
+            Id = user.Id.Value,
+            Username = user.Username,
+            DiscordId = user.DiscordId,
+            SteamId = user.SteamId,
+            RiotId = user.RiotId
+        };
+        _dbContext.Users.Attach(userReference);
+        return userReference;
     }
 
     private async Task EnsureCaptainLimitAsync(Guid captainUserId, Guid? excludedTeamId = null)

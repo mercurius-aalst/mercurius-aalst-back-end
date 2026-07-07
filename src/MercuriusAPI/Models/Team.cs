@@ -1,4 +1,4 @@
-using Mercurius.LAN.API.Exceptions;
+using Mercurius.Modules.Shared.Exceptions;
 
 namespace Mercurius.LAN.API.Models;
 
@@ -28,6 +28,12 @@ public class Team
         Captain = captain;
         CaptainUserId = captain.Id;
         Members.Add(captain);
+    }
+
+    public Team(string name, Guid captainUserId)
+    {
+        UpdateName(name);
+        CaptainUserId = captainUserId;
     }
 
     public void UpdateName(string name)

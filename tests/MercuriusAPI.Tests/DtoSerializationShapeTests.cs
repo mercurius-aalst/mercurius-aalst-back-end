@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Mercurius.LAN.API.DTOs.Auth;
+using Mercurius.LAN.API.DTOs.UserDTOs;
+using Mercurius.Modules.Identity.DTOs;
 using Mercurius.LAN.API.DTOs.GameDTOs;
 using Mercurius.LAN.API.DTOs.MatchDTOs;
 using Mercurius.LAN.API.DTOs.RegistrationDTOs;

@@ -1,6 +1,7 @@
 using Mercurius.LAN.API.Data;
 using Mercurius.LAN.API.DTOs.SearchDTOs;
-using Mercurius.LAN.API.Exceptions;
+using Mercurius.Modules.Shared.Exceptions;
+using Mercurius.Modules.Shared.Search;
 using Microsoft.EntityFrameworkCore;
 
 namespace Mercurius.LAN.API.Services.SearchServices;

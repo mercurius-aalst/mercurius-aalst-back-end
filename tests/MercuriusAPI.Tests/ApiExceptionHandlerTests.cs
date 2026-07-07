@@ -1,5 +1,5 @@
 using System.Text;
-using Mercurius.LAN.API.Exceptions;
+using Mercurius.Modules.Shared.Exceptions;
 using Mercurius.LAN.API.Middleware;
 using Microsoft.AspNetCore.Http;
 

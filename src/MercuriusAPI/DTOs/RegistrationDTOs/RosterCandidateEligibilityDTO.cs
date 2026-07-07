@@ -1,4 +1,4 @@
-using Mercurius.LAN.API.DTOs.Auth;
+using Mercurius.LAN.API.DTOs.UserDTOs;
 
 namespace Mercurius.LAN.API.DTOs.RegistrationDTOs;
 

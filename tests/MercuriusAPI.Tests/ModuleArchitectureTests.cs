@@ -1,5 +1,7 @@
 using System.Reflection;
 using System.Xml.Linq;
+using Mercurius.Modules.Identity.Services;
+using Platform.Eventing;
 
 namespace Mercurius.LAN.API.Tests;
 
@@ -40,7 +42,7 @@ public class ModuleArchitectureTests
 
     [Theory]
     [MemberData(nameof(Modules))]
-    public void ModuleImplementation_ReferencesOnlyOwnContractsAndModulesShared(string moduleName)
+    public void ModuleImplementation_ReferencesOnlyAllowedInfrastructure(string moduleName)
     {
         var repositoryRoot = FindRepositoryRoot();
         var moduleDirectory = Path.Combine(repositoryRoot, "src", "Modules", moduleName);
@@ -49,7 +51,7 @@ public class ModuleArchitectureTests
             $"Mercurius.Modules.{moduleName}",
             $"Mercurius.Modules.{moduleName}.csproj");
         var references = GetProjectReferences(implementationProject);
-        var expectedReferences = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        var requiredReferences = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             Path.Combine(
                 moduleDirectory,
@@ -57,9 +59,13 @@ public class ModuleArchitectureTests
                 $"Mercurius.Modules.{moduleName}.Contracts.csproj"),
             Path.Combine(repositoryRoot, "src", "Modules.Shared", "Modules.Shared.csproj")
         };
+        var allowedReferences = new HashSet<string>(requiredReferences, StringComparer.OrdinalIgnoreCase)
+        {
+            Path.Combine(repositoryRoot, "src", "Platform", "Platform.csproj")
+        };
 
         Assert.True(
-            expectedReferences.SetEquals(references),
+            requiredReferences.IsSubsetOf(references) && references.IsSubsetOf(allowedReferences),
             $"Unexpected project references: {string.Join(", ", references)}");
     }
 
@@ -142,6 +148,16 @@ public class ModuleArchitectureTests
         }
     }
 
+    [Fact]
+    public void IdentityUserService_DoesNotPublishIntegrationEventsDirectly()
+    {
+        var userServiceDependencies = GetDeclaredDependencyTypes(typeof(UserService));
+        var publishingDecoratorDependencies = GetDeclaredDependencyTypes(typeof(UserIntegrationEventPublishingService));
+
+        Assert.DoesNotContain(typeof(IModuleEventPublisher), userServiceDependencies);
+        Assert.Contains(typeof(IModuleEventPublisher), publishingDecoratorDependencies);
+    }
+
     private static HashSet<string> GetProjectReferences(string projectPath)
     {
         var projectDirectory = Path.GetDirectoryName(projectPath)!;
@@ -153,6 +169,19 @@ public class ModuleArchitectureTests
             .Where(include => !string.IsNullOrWhiteSpace(include))
             .Select(include => Path.GetFullPath(Path.Combine(projectDirectory, include!)))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static Type[] GetDeclaredDependencyTypes(Type type)
+    {
+        const BindingFlags declaredMembers =
+            BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly;
+
+        return type
+            .GetConstructors(declaredMembers)
+            .SelectMany(constructor => constructor.GetParameters())
+            .Select(parameter => parameter.ParameterType)
+            .Concat(type.GetFields(declaredMembers).Select(field => field.FieldType))
+            .ToArray();
     }
 
     private static IEnumerable<Type> GetPublicApiTypes(Type exportedType)

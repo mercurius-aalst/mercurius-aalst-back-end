@@ -1,5 +1,5 @@
-﻿
-using Mercurius.LAN.API.Exceptions;
+
+using Mercurius.Modules.Shared.Exceptions;
 
 namespace Mercurius.LAN.API.Services.Files;
 

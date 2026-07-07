@@ -1,4 +1,4 @@
-using Mercurius.LAN.API.Exceptions;
+using Mercurius.Modules.Shared.Exceptions;
 using Mercurius.LAN.API.Data;
 using Mercurius.LAN.API.DTOs.TeamDTOs;
 using Mercurius.LAN.API.Models;
@@ -6,6 +6,7 @@ using Mercurius.LAN.API.Migrations;
 using Mercurius.LAN.API.Hubs;
 using Mercurius.LAN.API.Services.Files;
 using Mercurius.LAN.API.Services.TeamServices;
+using Mercurius.Modules.Identity;
 using Mercurius.Modules.Shared;
 using Platform.Realtime;
 using Microsoft.AspNetCore.Http;
@@ -1120,7 +1121,12 @@ public class TeamTests
             })
             .Build();
 
-        return new TeamService(dbContext, configuration, fileService, eventPublisher);
+        return new TeamService(
+            dbContext,
+            configuration,
+            new IdentityModuleFacade(dbContext),
+            fileService,
+            eventPublisher);
     }
 
     private static IFormFile CreateFormFile(string contentType = "image/png")

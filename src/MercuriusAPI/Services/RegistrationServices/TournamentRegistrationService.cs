@@ -1,6 +1,8 @@
 using Mercurius.LAN.API.Data;
-using Mercurius.Modules.Identity.DTOs;
+using Mercurius.LAN.API.DTOs.UserDTOs;
 using Mercurius.LAN.API.DTOs.RegistrationDTOs;
+using Mercurius.Modules.Identity.Contracts;
+using Mercurius.Modules.Shared;
 using Mercurius.Modules.Shared.Exceptions;
 using Mercurius.LAN.API.Models;
 using Mercurius.LAN.API.Services.TeamServices;
@@ -13,43 +15,45 @@ public class TournamentRegistrationService : ITournamentRegistrationService
 {
     private readonly MercuriusDBContext _dbContext;
     private readonly ITeamEventPublisher _eventPublisher;
+    private readonly IIdentityModule _identityModule;
 
-    public TournamentRegistrationService(MercuriusDBContext dbContext, ITeamEventPublisher eventPublisher)
+    public TournamentRegistrationService(
+        MercuriusDBContext dbContext,
+        ITeamEventPublisher eventPublisher,
+        IIdentityModule identityModule)
     {
         _dbContext = dbContext;
         _eventPublisher = eventPublisher;
+        _identityModule = identityModule;
     }
 
     public async Task<EligibilityResponseDTO> CheckIndividualEligibilityAsync(string auth0UserId, Guid gameId)
     {
-        var user = await GetCurrentUserAsync(auth0UserId);
+        var userId = await GetCurrentUserIdAsync(auth0UserId);
         var game = await GetGameAsync(gameId);
-        var reasons = await GetIndividualEligibilityFailuresAsync(game, user.Id);
+        var reasons = await GetIndividualEligibilityFailuresAsync(game, userId);
         return new EligibilityResponseDTO(reasons.Count == 0, reasons);
     }
 
     public async Task<EligibilityResponseDTO> CheckTeamEligibilityAsync(string auth0UserId, Guid gameId, Guid teamId)
     {
-        var user = await GetCurrentUserAsync(auth0UserId);
+        var userId = await GetCurrentUserIdAsync(auth0UserId);
         var game = await GetGameAsync(gameId);
         var team = await GetTeamWithMembersAsync(teamId);
-        var reasons = await GetTeamEligibilityFailuresAsync(game, team, user.Id, null);
+        var reasons = await GetTeamEligibilityFailuresAsync(game, team, userId, null);
         return new EligibilityResponseDTO(reasons.Count == 0, reasons);
     }
 
     public async Task<RosterCandidateEligibilityResponseDTO> CheckRosterEligibilityAsync(string auth0UserId, Guid gameId, Guid teamId, IReadOnlyList<Guid> userIds)
     {
-        var user = await GetCurrentUserAsync(auth0UserId);
+        var userId = await GetCurrentUserIdAsync(auth0UserId);
         var game = await GetGameAsync(gameId);
         var team = await GetTeamWithMembersAsync(teamId);
-        var reasons = await GetTeamEligibilityFailuresAsync(game, team, user.Id, null);
+        var reasons = await GetTeamEligibilityFailuresAsync(game, team, userId, null);
         reasons.AddRange(GetRosterSizeFailures(game, userIds));
 
         var distinctUserIds = userIds.Distinct().ToList();
-        var users = await _dbContext.Users
-            .AsNoTracking()
-            .Where(candidate => distinctUserIds.Contains(candidate.Id) && !candidate.IsDeleted)
-            .ToDictionaryAsync(candidate => candidate.Id);
+        var users = await GetActiveUserProfilesByIdAsync(distinctUserIds);
         var candidateFailures = await GetRosterCandidateFailuresAsync(game.Id, team, distinctUserIds, null);
 
         var candidateResults = new List<RosterCandidateEligibilityDTO>();
@@ -71,9 +75,9 @@ public class TournamentRegistrationService : ITournamentRegistrationService
     public async Task<TournamentRegistrationDTO> RegisterIndividualAsync(string auth0UserId, Guid gameId)
     {
         await using var transaction = await BeginTransactionIfSupportedAsync();
-        var user = await GetCurrentUserAsync(auth0UserId);
+        var userId = await GetCurrentUserIdAsync(auth0UserId);
         var game = await GetGameAsync(gameId);
-        var reasons = await GetIndividualEligibilityFailuresAsync(game, user.Id);
+        var reasons = await GetIndividualEligibilityFailuresAsync(game, userId);
         if (reasons.Count != 0)
             throw new ValidationException(string.Join(", ", reasons));
 
@@ -84,8 +88,8 @@ public class TournamentRegistrationService : ITournamentRegistrationService
             GameId = game.Id,
             Kind = TournamentRegistrationKind.Individual,
             Status = TournamentRegistrationStatus.Active,
-            RegisteredByUserId = user.Id,
-            UserId = user.Id,
+            RegisteredByUserId = userId,
+            UserId = userId,
             CreatedAtUtc = now,
             UpdatedAtUtc = now
         };
@@ -101,14 +105,14 @@ public class TournamentRegistrationService : ITournamentRegistrationService
     public async Task UnregisterIndividualAsync(string auth0UserId, Guid gameId)
     {
         await using var transaction = await BeginTransactionIfSupportedAsync();
-        var user = await GetCurrentUserAsync(auth0UserId);
+        var userId = await GetCurrentUserIdAsync(auth0UserId);
         var game = await GetGameAsync(gameId);
         EnsureScheduled(game);
 
         var registration = await _dbContext.TournamentRegistrations
             .FirstOrDefaultAsync(r =>
                 r.GameId == gameId &&
-                r.UserId == user.Id &&
+                r.UserId == userId &&
                 r.Kind == TournamentRegistrationKind.Individual &&
                 r.Status == TournamentRegistrationStatus.Active);
         if (registration is null)
@@ -123,7 +127,7 @@ public class TournamentRegistrationService : ITournamentRegistrationService
     public async Task<TournamentRegistrationDTO> SubmitTeamRosterAsync(string auth0UserId, Guid gameId, SubmitTeamRosterDTO request)
     {
         await using var transaction = await BeginTransactionIfSupportedAsync();
-        var user = await GetCurrentUserAsync(auth0UserId);
+        var userId = await GetCurrentUserIdAsync(auth0UserId);
         var game = await GetGameAsync(gameId);
         var team = await GetTeamWithMembersAsync(request.TeamId);
         var existing = await _dbContext.TournamentRegistrations
@@ -134,9 +138,9 @@ public class TournamentRegistrationService : ITournamentRegistrationService
                 registration.Kind == TournamentRegistrationKind.Team);
         var excludedRegistrationId = existing?.Id;
 
-        var teamFailures = await GetTeamEligibilityFailuresAsync(game, team, user.Id, excludedRegistrationId);
+        var teamFailures = await GetTeamEligibilityFailuresAsync(game, team, userId, excludedRegistrationId);
         var rosterFailures = GetRosterSizeFailures(game, request.UserIds);
-        if (!request.UserIds.Contains(user.Id))
+        if (!request.UserIds.Contains(userId))
             rosterFailures.Add("captain_required");
         var candidateFailures = await GetRosterCandidateFailuresAsync(
             game.Id,
@@ -160,7 +164,7 @@ public class TournamentRegistrationService : ITournamentRegistrationService
             GameId = game.Id,
             Kind = TournamentRegistrationKind.Team,
             Status = TournamentRegistrationStatus.PendingConfirmation,
-            RegisteredByUserId = user.Id,
+            RegisteredByUserId = userId,
             TeamId = team.Id,
             CreatedAtUtc = now,
             UpdatedAtUtc = now
@@ -200,7 +204,7 @@ public class TournamentRegistrationService : ITournamentRegistrationService
     public async Task<TournamentRegistrationDTO> ConfirmRosterAsync(string auth0UserId, Guid rosterMemberId)
     {
         await using var transaction = await BeginTransactionIfSupportedAsync();
-        var user = await GetCurrentUserAsync(auth0UserId);
+        var userId = await GetCurrentUserIdAsync(auth0UserId);
         var member = await _dbContext.TournamentRegistrationRosterMembers
             .Include(roster => roster.TournamentRegistration)
                 .ThenInclude(registration => registration.RosterMembers)
@@ -209,7 +213,7 @@ public class TournamentRegistrationService : ITournamentRegistrationService
                     .ThenInclude(team => team!.Members)
             .Include(roster => roster.TournamentRegistration)
                 .ThenInclude(registration => registration.Game)
-            .FirstOrDefaultAsync(roster => roster.Id == rosterMemberId && roster.UserId == user.Id);
+            .FirstOrDefaultAsync(roster => roster.Id == rosterMemberId && roster.UserId == userId);
         if (member is null || member.ConfirmationStatus != RosterMemberConfirmationStatus.Pending)
             throw new NotFoundException("Pending roster confirmation not found.");
 
@@ -218,7 +222,7 @@ public class TournamentRegistrationService : ITournamentRegistrationService
         if (registration.Team is null)
             throw new ValidationException("Team registration is invalid.");
 
-        var candidateFailures = await GetRosterCandidateFailuresAsync(registration.GameId, registration.Team, user.Id, registration.Id);
+        var candidateFailures = await GetRosterCandidateFailuresAsync(registration.GameId, registration.Team, userId, registration.Id);
         if (candidateFailures.Count != 0)
             throw new ValidationException(string.Join(", ", candidateFailures));
 
@@ -239,11 +243,11 @@ public class TournamentRegistrationService : ITournamentRegistrationService
     public async Task UnregisterTeamAsync(string auth0UserId, Guid gameId, Guid teamId)
     {
         await using var transaction = await BeginTransactionIfSupportedAsync();
-        var user = await GetCurrentUserAsync(auth0UserId);
+        var userId = await GetCurrentUserIdAsync(auth0UserId);
         var game = await GetGameAsync(gameId);
         EnsureScheduled(game);
         var team = await GetTeamWithMembersAsync(teamId);
-        EnsureCaptain(team, user.Id);
+        EnsureCaptain(team, userId);
 
         var registration = await GetTeamRegistrationForMutationAsync(gameId, teamId);
         await DeleteTransientTeamRegistrationAsync(registration);
@@ -254,21 +258,21 @@ public class TournamentRegistrationService : ITournamentRegistrationService
 
     public async Task<CurrentUserTournamentRegistrationStateDTO> GetCurrentUserStateAsync(string auth0UserId, Guid gameId)
     {
-        var user = await GetCurrentUserAsync(auth0UserId);
+        var userId = await GetCurrentUserIdAsync(auth0UserId);
         var game = await GetGameAsync(gameId);
         var registrations = await GetRegistrationQuery()
             .Where(registration => registration.GameId == gameId)
             .ToListAsync();
 
-        var individual = registrations.FirstOrDefault(registration => registration.UserId == user.Id);
+        var individual = registrations.FirstOrDefault(registration => registration.UserId == userId);
         var pendingRoster = registrations
             .SelectMany(registration => registration.RosterMembers)
-            .FirstOrDefault(member => member.UserId == user.Id && member.ConfirmationStatus == RosterMemberConfirmationStatus.Pending);
+            .FirstOrDefault(member => member.UserId == userId && member.ConfirmationStatus == RosterMemberConfirmationStatus.Pending);
         var activeTeam = registrations.FirstOrDefault(registration =>
             registration.Kind == TournamentRegistrationKind.Team &&
             registration.Status == TournamentRegistrationStatus.Active &&
-            registration.RosterMembers.Any(member => member.UserId == user.Id));
-        var captained = registrations.Where(registration => registration.Team?.CaptainUserId == user.Id).ToList();
+            registration.RosterMembers.Any(member => member.UserId == userId));
+        var captained = registrations.Where(registration => registration.Team?.CaptainUserId == userId).ToList();
 
         return new CurrentUserTournamentRegistrationStateDTO
         {
@@ -311,7 +315,7 @@ public class TournamentRegistrationService : ITournamentRegistrationService
     public async Task RemoveIndividualAsAdminAsync(Guid gameId, Guid userId, string? reason, string? adminAuth0UserId)
     {
         await using var transaction = await BeginTransactionIfSupportedAsync();
-        var admin = string.IsNullOrWhiteSpace(adminAuth0UserId) ? null : await GetCurrentUserAsync(adminAuth0UserId);
+        _ = string.IsNullOrWhiteSpace(adminAuth0UserId) ? (Guid?)null : await GetCurrentUserIdAsync(adminAuth0UserId);
         var registration = await _dbContext.TournamentRegistrations.FirstOrDefaultAsync(registration =>
             registration.GameId == gameId &&
             registration.UserId == userId &&
@@ -328,7 +332,7 @@ public class TournamentRegistrationService : ITournamentRegistrationService
     public async Task RemoveTeamAsAdminAsync(Guid gameId, Guid teamId, string? reason, string? adminAuth0UserId)
     {
         await using var transaction = await BeginTransactionIfSupportedAsync();
-        var admin = string.IsNullOrWhiteSpace(adminAuth0UserId) ? null : await GetCurrentUserAsync(adminAuth0UserId);
+        _ = string.IsNullOrWhiteSpace(adminAuth0UserId) ? (Guid?)null : await GetCurrentUserIdAsync(adminAuth0UserId);
         var registration = await GetTeamRegistrationForMutationAsync(gameId, teamId);
         await DeleteTransientTeamRegistrationAsync(registration);
         await _dbContext.SaveChangesAsync();
@@ -395,12 +399,7 @@ public class TournamentRegistrationService : ITournamentRegistrationService
         if (distinctUserIds.Count == 0)
             return [];
 
-        var activeUserIds = (await _dbContext.Users
-                .AsNoTracking()
-                .Where(user => distinctUserIds.Contains(user.Id) && !user.IsDeleted)
-                .Select(user => user.Id)
-                .ToListAsync())
-            .ToHashSet();
+        var activeUserIds = (await GetActiveUserProfilesByIdAsync(distinctUserIds)).Keys.ToHashSet();
         var teamMemberIds = team.Members.Select(member => member.Id).ToHashSet();
 
         var directParticipationUserIds = await _dbContext.TournamentRegistrations
@@ -530,17 +529,26 @@ public class TournamentRegistrationService : ITournamentRegistrationService
         return team;
     }
 
-    private async Task<User> GetCurrentUserAsync(string auth0UserId)
+    private async Task<Guid> GetCurrentUserIdAsync(string auth0UserId)
     {
         if (string.IsNullOrWhiteSpace(auth0UserId))
             throw new UnauthorizedAccessException("Authenticated user id is missing.");
 
-        var normalizedAuth0UserId = auth0UserId.Trim();
-        var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Auth0UserId == normalizedAuth0UserId && !u.IsDeleted);
-        if (user is null)
+        var user = await _identityModule.GetUserProfileByAuth0IdAsync(auth0UserId.Trim());
+        if (user is null || user.IsDeleted)
             throw new NotFoundException("Current user profile was not found.");
 
-        return user;
+        return user.Id.Value;
+    }
+
+    private async Task<IReadOnlyDictionary<Guid, UserProfileSummary>> GetActiveUserProfilesByIdAsync(IReadOnlyCollection<Guid> userIds)
+    {
+        var profiles = await _identityModule.GetUsersByIdsAsync(
+            userIds.Select(userId => new UserId(userId)).ToArray());
+
+        return profiles.Values
+            .Where(user => !user.IsDeleted)
+            .ToDictionary(user => user.Id.Value);
     }
 
     private static void EnsureScheduled(Game game)

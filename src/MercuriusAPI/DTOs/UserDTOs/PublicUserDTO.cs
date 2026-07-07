@@ -1,6 +1,7 @@
+using Mercurius.Modules.Identity.Contracts;
 using Mercurius.Modules.Identity.Domain;
 
-namespace Mercurius.Modules.Identity.DTOs;
+namespace Mercurius.LAN.API.DTOs.UserDTOs;
 
 public class PublicUserDTO
 {
@@ -18,6 +19,16 @@ public class PublicUserDTO
     public PublicUserDTO(User user)
     {
         Id = user.Id;
+        Username = string.IsNullOrWhiteSpace(user.Username) ? "Incomplete profile" : user.Username;
+        DisplayName = Username;
+        DiscordId = user.DiscordId;
+        SteamId = user.SteamId;
+        RiotId = user.RiotId;
+    }
+
+    public PublicUserDTO(UserProfileSummary user)
+    {
+        Id = user.Id.Value;
         Username = string.IsNullOrWhiteSpace(user.Username) ? "Incomplete profile" : user.Username;
         DisplayName = Username;
         DiscordId = user.DiscordId;

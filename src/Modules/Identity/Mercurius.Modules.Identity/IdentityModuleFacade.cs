@@ -92,6 +92,9 @@ public sealed class IdentityModuleFacade : IIdentityModule
             new UserId(user.Id),
             user.Username,
             user.DisplayName,
-            user.IsDeleted);
+            user.IsDeleted,
+            user.DiscordId,
+            user.SteamId,
+            user.RiotId);
     }
 }

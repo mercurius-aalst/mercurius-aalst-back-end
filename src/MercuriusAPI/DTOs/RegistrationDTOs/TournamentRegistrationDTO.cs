@@ -1,5 +1,5 @@
-using Mercurius.Modules.Identity.DTOs;
 using Mercurius.LAN.API.DTOs.TeamDTOs;
+using Mercurius.LAN.API.DTOs.UserDTOs;
 using Mercurius.LAN.API.Models;
 
 namespace Mercurius.LAN.API.DTOs.RegistrationDTOs;

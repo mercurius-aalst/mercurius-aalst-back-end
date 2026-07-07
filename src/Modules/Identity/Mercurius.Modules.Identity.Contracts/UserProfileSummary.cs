@@ -6,4 +6,7 @@ public sealed record UserProfileSummary(
     UserId Id,
     string? Username,
     string DisplayName,
-    bool IsDeleted);
+    bool IsDeleted,
+    string? DiscordId,
+    string? SteamId,
+    string? RiotId);

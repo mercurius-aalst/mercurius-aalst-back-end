@@ -24,7 +24,7 @@ public class TeamService : ITeamService
     private readonly IFileService? _fileService;
     private readonly ITeamEventPublisher _eventPublisher;
     private readonly IModuleEventPublisher? _moduleEventPublisher;
-    private readonly IIdentityModule? _identityModule;
+    private readonly IIdentityModule _identityModule;
     private readonly int _inviteResendCooldownDays;
     private readonly int _inviteExpirationDays;
     private readonly int _inviteRetentionDays;
@@ -33,16 +33,16 @@ public class TeamService : ITeamService
     public TeamService(
         MercuriusDBContext dbContext,
         IConfiguration configuration,
+        IIdentityModule identityModule,
         IFileService? fileService = null,
         ITeamEventPublisher? eventPublisher = null,
-        IModuleEventPublisher? moduleEventPublisher = null,
-        IIdentityModule? identityModule = null)
+        IModuleEventPublisher? moduleEventPublisher = null)
     {
         _dbContext = dbContext;
         _fileService = fileService;
         _eventPublisher = eventPublisher ?? new NullTeamEventPublisher();
         _moduleEventPublisher = moduleEventPublisher;
-        _identityModule = identityModule;
+        _identityModule = identityModule ?? throw new ArgumentNullException(nameof(identityModule));
         _inviteResendCooldownDays = configuration.GetSection("TeamInvite:ResendCooldownDays").Get<int>();
         _inviteExpirationDays = configuration.GetSection("TeamInvite:ExpirationDays").Get<int?>() ?? 14;
         _inviteRetentionDays = configuration.GetSection("TeamInvite:RetentionDays").Get<int?>() ?? 90;
@@ -54,10 +54,15 @@ public class TeamService : ITeamService
         var normalizedTeamName = Team.NormalizeName(teamDTO.Name);
         if (await CheckIfTeamNameExistsAsync(normalizedTeamName))
             throw new ValidationException($"Teamname {teamDTO.Name} already in use");
-        var captain = await _dbContext.Users.FindAsync(teamDTO.CaptainUserId);
-        if (captain is null)
+        var captain = await GetUserProfileAsync(teamDTO.CaptainUserId);
+        if (captain is null || captain.IsDeleted)
             throw new NotFoundException($"{nameof(User)} not found");
-        var team = new Team(teamDTO.Name, captain);
+        var captainReference = GetUserReference(captain);
+        var team = new Team(teamDTO.Name, captain.Id.Value)
+        {
+            Captain = captainReference
+        };
+        team.Members.Add(captainReference);
         _dbContext.Teams.Add(team);
         PublishTeamCreated(team);
         await SaveTeamChangesAsync(teamDTO.Name);
@@ -73,11 +78,13 @@ public class TeamService : ITeamService
         if (await CheckIfTeamNameExistsAsync(normalizedTeamName))
             throw new ValidationException($"Teamname {teamDTO.Name} already in use");
 
-        var captain = await _dbContext.Users.FindAsync(currentUser.Id.Value);
-        if (captain is null)
-            throw new NotFoundException($"{nameof(User)} not found");
-
-        var team = new Team(teamDTO.Name, captain) { Id = Guid.NewGuid() };
+        var captainReference = GetUserReference(currentUser);
+        var team = new Team(teamDTO.Name, currentUser.Id.Value)
+        {
+            Id = Guid.NewGuid(),
+            Captain = captainReference
+        };
+        team.Members.Add(captainReference);
         _dbContext.Teams.Add(team);
         PublishTeamCreated(team);
         await SaveTeamChangesAsync(teamDTO.Name);
@@ -509,9 +516,7 @@ public class TeamService : ITeamService
         if (string.IsNullOrWhiteSpace(auth0UserId))
             throw new UnauthorizedAccessException("Authenticated user id is missing.");
 
-        var user = _identityModule is null
-            ? await GetUserProfileByAuth0IdFallbackAsync(auth0UserId)
-            : await _identityModule.GetUserProfileByAuth0IdAsync(auth0UserId);
+        var user = await _identityModule.GetUserProfileByAuth0IdAsync(auth0UserId);
 
         if (user is null || user.IsDeleted)
             throw new NotFoundException("Current user profile was not found.");
@@ -521,33 +526,28 @@ public class TeamService : ITeamService
 
     private async Task<UserProfileSummary?> GetUserProfileAsync(Guid userId)
     {
-        if (_identityModule is not null)
-            return await _identityModule.GetUserProfileAsync(new UserId(userId));
-
-        return await _dbContext.Users
-            .AsNoTracking()
-            .Where(user => user.Id == userId)
-            .Select(user => new UserProfileSummary(
-                new UserId(user.Id),
-                user.Username,
-                user.DisplayName,
-                user.IsDeleted))
-            .FirstOrDefaultAsync();
+        return await _identityModule.GetUserProfileAsync(new UserId(userId));
     }
 
-    private async Task<UserProfileSummary?> GetUserProfileByAuth0IdFallbackAsync(string auth0UserId)
+    private User GetUserReference(UserProfileSummary user)
     {
-        var normalizedAuth0UserId = auth0UserId.Trim();
+        var trackedUser = _dbContext.ChangeTracker
+            .Entries<User>()
+            .FirstOrDefault(entry => entry.Entity.Id == user.Id.Value)
+            ?.Entity;
+        if (trackedUser is not null)
+            return trackedUser;
 
-        return await _dbContext.Users
-            .AsNoTracking()
-            .Where(user => user.Auth0UserId == normalizedAuth0UserId)
-            .Select(user => new UserProfileSummary(
-                new UserId(user.Id),
-                user.Username,
-                user.DisplayName,
-                user.IsDeleted))
-            .FirstOrDefaultAsync();
+        var userReference = new User
+        {
+            Id = user.Id.Value,
+            Username = user.Username,
+            DiscordId = user.DiscordId,
+            SteamId = user.SteamId,
+            RiotId = user.RiotId
+        };
+        _dbContext.Users.Attach(userReference);
+        return userReference;
     }
 
     private async Task EnsureCaptainLimitAsync(Guid captainUserId, Guid? excludedTeamId = null)

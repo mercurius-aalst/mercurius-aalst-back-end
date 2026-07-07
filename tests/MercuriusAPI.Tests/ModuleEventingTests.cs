@@ -3,6 +3,7 @@ using Mercurius.LAN.API.DTOs.TeamDTOs;
 using Mercurius.LAN.API.Migrations;
 using Mercurius.LAN.API.Models;
 using Mercurius.LAN.API.Services.TeamServices;
+using Mercurius.Modules.Identity;
 using Mercurius.Modules.Identity.Contracts;
 using Mercurius.Modules.Identity.DTOs;
 using Mercurius.Modules.Identity.Services;
@@ -378,7 +379,12 @@ public class ModuleEventingTests
             .Build();
         var moduleEventPublisher = new ModuleEventPublisher(dbContext);
 
-        return new TeamService(dbContext, configuration, eventPublisher: new NullTeamEventPublisher(), moduleEventPublisher: moduleEventPublisher);
+        return new TeamService(
+            dbContext,
+            configuration,
+            new IdentityModuleFacade(dbContext),
+            eventPublisher: new NullTeamEventPublisher(),
+            moduleEventPublisher: moduleEventPublisher);
     }
 
     private static IUserService CreateUserService(MercuriusDBContext dbContext)

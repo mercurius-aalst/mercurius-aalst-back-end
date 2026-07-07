@@ -35,7 +35,7 @@ public class UserService : IUserService
             auth0UserId,
             new Auth0ProfileSnapshot(request.Email, request.EmailVerified, false));
 
-        ApplyProfileUpdate(user, request.Username, request.Firstname, request.Lastname, request.DiscordId, request.SteamId, request.RiotId);
+        await ApplyProfileUpdateAsync(user, request.Username, request.Firstname, request.Lastname, request.DiscordId, request.SteamId, request.RiotId);
 
         await SaveProfileChangesAsync();
         return new GetUserDTO(user);
@@ -48,9 +48,27 @@ public class UserService : IUserService
             throw new ValidationException("Current user profile already exists.");
 
         var auth0Profile = await _auth0ManagementService.GetUserProfileAsync(normalizedAuth0UserId);
+        return await CreateCurrentUserAsync(normalizedAuth0UserId, request, auth0Profile);
+    }
+
+    internal async Task<Auth0ProfileSnapshot> GetAuth0ProfileForCurrentUserCreationAsync(string auth0UserId)
+    {
+        var normalizedAuth0UserId = NormalizeAuth0UserId(auth0UserId);
+        if (await _dbContext.Users.AnyAsync(u => u.Auth0UserId == normalizedAuth0UserId))
+            throw new ValidationException("Current user profile already exists.");
+
+        return await _auth0ManagementService.GetUserProfileAsync(normalizedAuth0UserId);
+    }
+
+    internal async Task<GetUserDTO> CreateCurrentUserAsync(
+        string auth0UserId,
+        CompleteUserProfileRequest request,
+        Auth0ProfileSnapshot auth0Profile)
+    {
+        var normalizedAuth0UserId = NormalizeAuth0UserId(auth0UserId);
         var user = await CreateIncompleteUserAsync(normalizedAuth0UserId, auth0Profile);
 
-        ApplyProfileUpdate(user, request.Username, request.Firstname, request.Lastname, request.DiscordId, request.SteamId, request.RiotId);
+        await ApplyProfileUpdateAsync(user, request.Username, request.Firstname, request.Lastname, request.DiscordId, request.SteamId, request.RiotId);
 
         await SaveProfileChangesAsync();
         return new GetUserDTO(user);
@@ -61,7 +79,7 @@ public class UserService : IUserService
         var user = await GetRequiredCurrentUserAsync(auth0UserId);
         EnsureActive(user);
 
-        ApplyProfileUpdate(user, request.Username, request.Firstname, request.Lastname, request.DiscordId, request.SteamId, request.RiotId);
+        await ApplyProfileUpdateAsync(user, request.Username, request.Firstname, request.Lastname, request.DiscordId, request.SteamId, request.RiotId);
 
         await SaveProfileChangesAsync();
         return new GetUserDTO(user);
@@ -203,7 +221,7 @@ public class UserService : IUserService
         var user = await GetRequiredCurrentUserAsync(auth0UserId);
         EnsureActive(user);
 
-        ApplyProfileUpdate(user, request.Username, request.Firstname, request.Lastname, request.DiscordId, request.SteamId, request.RiotId);
+        await ApplyProfileUpdateAsync(user, request.Username, request.Firstname, request.Lastname, request.DiscordId, request.SteamId, request.RiotId);
 
         await SaveProfileChangesAsync();
         return new GetUserDTO(user);
@@ -307,7 +325,7 @@ public class UserService : IUserService
         if (user == null)
             throw new NotFoundException($"User with ID {id} not found.");
 
-        ApplyProfileUpdate(user, request.Username, request.Firstname, request.Lastname, request.DiscordId, request.SteamId, request.RiotId);
+        await ApplyProfileUpdateAsync(user, request.Username, request.Firstname, request.Lastname, request.DiscordId, request.SteamId, request.RiotId);
 
         await SaveProfileChangesAsync();
 
@@ -368,7 +386,7 @@ public class UserService : IUserService
         return user;
     }
 
-    private void ApplyProfileUpdate(
+    private async Task ApplyProfileUpdateAsync(
         User user,
         string username,
         string firstname,
@@ -388,8 +406,11 @@ public class UserService : IUserService
 
         var normalizedUsername = UserProfileValidationHelper.NormalizeUsername(trimmedUsername);
 
-        if (_dbContext.Users.Any(u => u.NormalizedUsername == normalizedUsername && u.Id != user.Id && !u.IsDeleted))
+        if (!string.Equals(user.NormalizedUsername, normalizedUsername, StringComparison.Ordinal) &&
+            await _dbContext.Users.AnyAsync(u => u.NormalizedUsername == normalizedUsername && u.Id != user.Id && !u.IsDeleted))
+        {
             throw new ValidationException("Username already exists");
+        }
 
         var normalizedFirstname = UserProfileValidationHelper.NormalizeRequiredText(firstname, "Firstname");
         var normalizedLastname = UserProfileValidationHelper.NormalizeRequiredText(lastname, "Lastname");

@@ -33,6 +33,15 @@ public sealed class UserIntegrationEventPublishingService : IUserService
 
     public async Task<GetUserDTO> CreateCurrentUserAsync(string auth0UserId, CompleteUserProfileRequest request)
     {
+        if (_inner is UserService userService)
+        {
+            var auth0Profile = await userService.GetAuth0ProfileForCurrentUserCreationAsync(auth0UserId);
+
+            return await ExecuteProfileMutationAsync(
+                () => userService.CreateCurrentUserAsync(auth0UserId, request, auth0Profile),
+                before: null);
+        }
+
         return await ExecuteProfileMutationAsync(
             () => _inner.CreateCurrentUserAsync(auth0UserId, request),
             before: null);

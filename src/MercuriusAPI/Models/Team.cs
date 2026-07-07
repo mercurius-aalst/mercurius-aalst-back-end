@@ -30,6 +30,12 @@ public class Team
         Members.Add(captain);
     }
 
+    public Team(string name, Guid captainUserId)
+    {
+        UpdateName(name);
+        CaptainUserId = captainUserId;
+    }
+
     public void UpdateName(string name)
     {
         var displayName = NormalizeDisplayName(name);

@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Mercurius.Modules.Teams.DTOs;
 
-public sealed class CreateTeamRequestDTO
+internal sealed class CreateTeamRequestDTO
 {
     [Required]
     [StringLength(100, MinimumLength = 1)]

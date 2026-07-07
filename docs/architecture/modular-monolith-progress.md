@@ -86,9 +86,9 @@ Do not start the next phase from an unmerged previous phase branch.
   - PR: [#104 Phase 9: introduce module eventing infrastructure](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/104)
   - Notes: Add reliable cross-module integration plumbing.
 
-- [ ] Phase 10 - Identity extraction
+- [x] Phase 10 - Identity extraction
   - Branch: `refactor/phase-10`
-  - PR: pending
+  - PR: [#106 Phase 10: move Identity into its module](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/106)
   - Notes: Move user/profile/Auth0 ownership into Identity.
 
 - [ ] Phase 11 - Competition extraction

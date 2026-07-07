@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Mercurius.Modules.Teams.Services;
 
-public sealed class EfTeamRealtimeAuthorizer : ITeamRealtimeAuthorizer
+internal sealed class EfTeamRealtimeAuthorizer : ITeamRealtimeAuthorizer
 {
     private readonly ITeamsDbContext _dbContext;
 

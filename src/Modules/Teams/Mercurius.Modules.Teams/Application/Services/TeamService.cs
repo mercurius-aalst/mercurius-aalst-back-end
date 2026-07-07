@@ -11,7 +11,7 @@ using Microsoft.AspNetCore.Http;
 
 namespace Mercurius.Modules.Teams.Services;
 
-public class TeamService : ITeamService
+internal sealed class TeamService : ITeamService
 {
     private const int MaxCaptainedTeams = 2;
     private const int MaxTeamSearchResults = 25;

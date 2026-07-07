@@ -10,7 +10,7 @@ public interface ITeamEventPublisher
     Task CaptainTransferredAsync(Guid teamId, Guid newCaptainUserId);
 }
 
-public class RealtimeTeamEventPublisher : ITeamEventPublisher
+internal sealed class RealtimeTeamEventPublisher : ITeamEventPublisher
 {
     private readonly IRealtimePublisher _realtimePublisher;
 
@@ -52,7 +52,7 @@ public class RealtimeTeamEventPublisher : ITeamEventPublisher
     }
 }
 
-public class NullTeamEventPublisher : ITeamEventPublisher
+internal sealed class NullTeamEventPublisher : ITeamEventPublisher
 {
     public Task InviteChangedAsync(Guid teamId, Guid inviteId, Guid affectedUserId, string status) => Task.CompletedTask;
     public Task RosterConfirmationChangedAsync(Guid teamId, Guid rosterMemberId, Guid affectedUserId, string status) => Task.CompletedTask;

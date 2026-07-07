@@ -16,7 +16,7 @@ using TeamRenamedIntegrationEvent = Mercurius.Modules.Teams.Contracts.TeamRename
 
 namespace Mercurius.Modules.Teams.Services;
 
-public sealed class TeamEventPublishingDecorator : ITeamService
+internal sealed class TeamEventPublishingDecorator : ITeamService
 {
     private readonly ITeamService _inner;
     private readonly ITeamsDbContext _dbContext;

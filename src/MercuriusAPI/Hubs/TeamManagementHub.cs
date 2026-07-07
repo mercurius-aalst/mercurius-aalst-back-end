@@ -1,5 +1,5 @@
 using Mercurius.LAN.API.Data;
-using Mercurius.LAN.API.Services.TeamServices;
+using Mercurius.Modules.Teams.Services;
 using Mercurius.Modules.Shared;
 using Mercurius.Modules.Teams.Contracts;
 using Microsoft.AspNetCore.Authorization;

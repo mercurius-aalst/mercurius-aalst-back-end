@@ -5,7 +5,7 @@ using Mercurius.Modules.Identity.Contracts;
 using Mercurius.Modules.Shared;
 using Mercurius.Modules.Shared.Exceptions;
 using Mercurius.LAN.API.Models;
-using Mercurius.LAN.API.Services.TeamServices;
+using Mercurius.Modules.Teams.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 

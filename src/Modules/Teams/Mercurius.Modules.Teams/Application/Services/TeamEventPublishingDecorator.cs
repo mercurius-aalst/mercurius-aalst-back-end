@@ -1,7 +1,8 @@
-using Mercurius.LAN.API.Data;
-using Mercurius.LAN.API.DTOs.TeamDTOs;
-using Mercurius.LAN.API.Models;
+using Mercurius.Modules.Teams.DTOs;
+using Mercurius.Modules.Teams.Domain;
 using Mercurius.Modules.Shared;
+using Mercurius.Modules.Teams.Infrastructure;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Platform.Eventing;
@@ -13,18 +14,18 @@ using TeamMemberAddedIntegrationEvent = Mercurius.Modules.Teams.Contracts.TeamMe
 using TeamMemberRemovedIntegrationEvent = Mercurius.Modules.Teams.Contracts.TeamMemberRemovedIntegrationEvent;
 using TeamRenamedIntegrationEvent = Mercurius.Modules.Teams.Contracts.TeamRenamedIntegrationEvent;
 
-namespace Mercurius.LAN.API.Services.TeamServices;
+namespace Mercurius.Modules.Teams.Services;
 
 public sealed class TeamEventPublishingDecorator : ITeamService
 {
     private readonly ITeamService _inner;
-    private readonly MercuriusDBContext _dbContext;
+    private readonly ITeamsDbContext _dbContext;
     private readonly ITeamEventPublisher _teamEventPublisher;
     private readonly IModuleEventPublisher? _moduleEventPublisher;
 
     public TeamEventPublishingDecorator(
         ITeamService inner,
-        MercuriusDBContext dbContext,
+        ITeamsDbContext dbContext,
         ITeamEventPublisher? teamEventPublisher = null,
         IModuleEventPublisher? moduleEventPublisher = null)
     {

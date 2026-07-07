@@ -1,6 +1,6 @@
 using Platform.Realtime;
 
-namespace Mercurius.LAN.API.Services.TeamServices;
+namespace Mercurius.Modules.Teams.Services;
 
 public interface ITeamEventPublisher
 {

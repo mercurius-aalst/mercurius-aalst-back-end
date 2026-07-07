@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace Mercurius.LAN.API.DTOs.TeamDTOs;
+namespace Mercurius.Modules.Teams.DTOs;
 
 public class CreateTeamDTO
 {

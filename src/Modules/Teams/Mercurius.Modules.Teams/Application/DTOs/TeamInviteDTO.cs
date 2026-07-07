@@ -1,7 +1,7 @@
-using Mercurius.LAN.API.Models;
+using Mercurius.Modules.Teams.Domain;
 using System.ComponentModel.DataAnnotations;
 
-namespace Mercurius.LAN.API.DTOs.TeamDTOs;
+namespace Mercurius.Modules.Teams.DTOs;
 
 public class TeamInviteDTO
 {

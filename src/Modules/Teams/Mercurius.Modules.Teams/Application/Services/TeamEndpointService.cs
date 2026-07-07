@@ -1,16 +1,13 @@
-using Mercurius.LAN.API.DTOs.UserDTOs;
-using Mercurius.LAN.API.DTOs.TeamDTOs;
 using Mercurius.Modules.Teams.DTOs;
-using ModuleTeamLogoResponseDTO = Mercurius.Modules.Teams.DTOs.TeamLogoResponseDTO;
-using ModuleTeamService = Mercurius.Modules.Teams.Services.ITeamService;
+using Microsoft.AspNetCore.Http;
 
-namespace Mercurius.LAN.API.Services.TeamServices;
+namespace Mercurius.Modules.Teams.Services;
 
-public sealed class ModuleTeamServiceAdapter : ModuleTeamService
+internal sealed class TeamEndpointService : ITeamEndpointService
 {
     private readonly ITeamService _teamService;
 
-    public ModuleTeamServiceAdapter(ITeamService teamService)
+    public TeamEndpointService(ITeamService teamService)
     {
         _teamService = teamService;
     }
@@ -131,23 +128,23 @@ public sealed class ModuleTeamServiceAdapter : ModuleTeamService
         return MapManagementSummary(await _teamService.TransferCaptainAsync(auth0UserId, teamId, newCaptainUserId));
     }
 
-    public async Task<ModuleTeamLogoResponseDTO> UploadTeamLogoAsync(
+    public async Task<TeamLogoResponseDTO> UploadTeamLogoAsync(
         string auth0UserId,
         Guid teamId,
         IFormFile logo,
         CancellationToken cancellationToken = default)
     {
         var logoResponse = await _teamService.UploadTeamLogoAsync(auth0UserId, teamId, logo);
-        return new ModuleTeamLogoResponseDTO(logoResponse.TeamId, logoResponse.LogoUrl);
+        return new TeamLogoResponseDTO(logoResponse.TeamId, logoResponse.LogoUrl);
     }
 
-    public async Task<ModuleTeamLogoResponseDTO> RemoveTeamLogoAsync(
+    public async Task<TeamLogoResponseDTO> RemoveTeamLogoAsync(
         string auth0UserId,
         Guid teamId,
         CancellationToken cancellationToken = default)
     {
         var logoResponse = await _teamService.RemoveTeamLogoAsync(auth0UserId, teamId);
-        return new ModuleTeamLogoResponseDTO(logoResponse.TeamId, logoResponse.LogoUrl);
+        return new TeamLogoResponseDTO(logoResponse.TeamId, logoResponse.LogoUrl);
     }
 
     public async Task<PublicTeamProfileResponseDTO> GetPublicTeamProfileAsync(
@@ -230,7 +227,7 @@ public sealed class ModuleTeamServiceAdapter : ModuleTeamService
         };
     }
 
-    private static PublicUserResponseDTO MapPublicUser(PublicUserDTO user)
+    private static PublicUserResponseDTO MapPublicUser(TeamPublicUserDTO user)
     {
         return new PublicUserResponseDTO
         {

@@ -1,6 +1,7 @@
-using Mercurius.LAN.API.DTOs.TeamDTOs;
+using Mercurius.Modules.Teams.DTOs;
+using Microsoft.AspNetCore.Http;
 
-namespace Mercurius.LAN.API.Services.TeamServices;
+namespace Mercurius.Modules.Teams.Services;
 
 public interface ITeamService
 {

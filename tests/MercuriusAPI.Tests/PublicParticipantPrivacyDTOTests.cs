@@ -2,8 +2,9 @@ using System.Text.Json;
 using Mercurius.LAN.API.DTOs.UserDTOs;
 using Mercurius.LAN.API.DTOs.GameDTOs;
 using Mercurius.LAN.API.DTOs.PlacementDTOs;
-using Mercurius.LAN.API.DTOs.TeamDTOs;
+using Mercurius.Modules.Teams.DTOs;
 using Mercurius.LAN.API.Models;
+using ApiPublicUserDTO = Mercurius.LAN.API.DTOs.UserDTOs.PublicUserDTO;
 
 namespace Mercurius.LAN.API.Tests;
 
@@ -12,9 +13,9 @@ public class PublicParticipantPrivacyDTOTests
     private static readonly JsonSerializerOptions WebJson = new(JsonSerializerDefaults.Web);
 
     [Fact]
-    public void PublicUserDTO_ContainsOnlyPublicIdentityFields()
+    public void TeamPublicUserDTO_ContainsOnlyPublicIdentityFields()
     {
-        var json = Serialize(new PublicUserDTO(CreateUser(1)));
+        var json = Serialize(new ApiPublicUserDTO(CreateUser(1)));
 
         Assert.Contains("\"id\":", json, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("\"username\":\"user1\"", json, StringComparison.OrdinalIgnoreCase);

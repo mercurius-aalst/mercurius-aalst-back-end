@@ -1,12 +1,13 @@
 using Mercurius.LAN.API.Models;
 using Mercurius.Modules.Identity.Infrastructure;
+using Mercurius.Modules.Teams.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Platform.Eventing.Persistence;
 
 namespace Mercurius.LAN.API.Data;
 
-public partial class MercuriusDBContext : DbContext, IModuleEventDbContext, IIdentityDbContext
+public partial class MercuriusDBContext : DbContext, IModuleEventDbContext, IIdentityDbContext, ITeamsDbContext
 {
     public MercuriusDBContext()
     {

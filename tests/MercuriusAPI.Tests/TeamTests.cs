@@ -1,11 +1,12 @@
 using Mercurius.Modules.Shared.Exceptions;
 using Mercurius.LAN.API.Data;
-using Mercurius.LAN.API.DTOs.TeamDTOs;
+using Mercurius.Modules.Teams.DTOs;
 using Mercurius.LAN.API.Models;
 using Mercurius.LAN.API.Migrations;
 using Mercurius.LAN.API.Hubs;
 using Mercurius.LAN.API.Services.Files;
 using Mercurius.LAN.API.Services.TeamServices;
+using Mercurius.Modules.Teams.Services;
 using Mercurius.Modules.Identity;
 using Mercurius.Modules.Shared;
 using Platform.Eventing;
@@ -1164,7 +1165,7 @@ public class TeamTests
 
     private static ITeamService CreateTeamService(
         MercuriusDBContext dbContext,
-        IFileService? fileService = null,
+        ITeamLogoStorage? fileService = null,
         ITeamEventPublisher? eventPublisher = null,
         IModuleEventPublisher? moduleEventPublisher = null)
     {
@@ -1179,7 +1180,12 @@ public class TeamTests
             .Build();
 
         return new TeamEventPublishingDecorator(
-            new TeamService(dbContext, configuration, new IdentityModuleFacade(dbContext), fileService),
+            new TeamService(
+                dbContext,
+                configuration,
+                new IdentityModuleFacade(dbContext),
+                fileService,
+                new EfTeamCompetitionReadService(dbContext)),
             dbContext,
             eventPublisher ?? new NullTeamEventPublisher(),
             moduleEventPublisher);
@@ -1195,7 +1201,7 @@ public class TeamTests
         };
     }
 
-    private sealed class StubFileService : IFileService
+    private sealed class StubFileService : IFileService, ITeamLogoStorage
     {
         private readonly string _imageUrl;
 

@@ -1,35 +1,40 @@
-using Mercurius.LAN.API.Data;
-using Mercurius.LAN.API.DTOs.TeamDTOs;
+using Mercurius.Modules.Teams.DTOs;
 using Mercurius.Modules.Shared.Exceptions;
-using Mercurius.LAN.API.Models;
-using Mercurius.LAN.API.Services.Files;
+using Mercurius.Modules.Teams.Domain;
 using Mercurius.Modules.Identity.Contracts;
+using Mercurius.Modules.Identity.Domain;
 using Mercurius.Modules.Shared;
+using Mercurius.Modules.Teams.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.AspNetCore.Http;
 
-namespace Mercurius.LAN.API.Services.TeamServices;
+namespace Mercurius.Modules.Teams.Services;
 
 public class TeamService : ITeamService
 {
     private const int MaxCaptainedTeams = 2;
     private const int MaxTeamSearchResults = 25;
-    private readonly MercuriusDBContext _dbContext;
-    private readonly IFileService? _fileService;
+    private readonly ITeamsDbContext _dbContext;
+    private readonly ITeamLogoStorage? _logoStorage;
     private readonly IIdentityModule _identityModule;
+    private readonly ITeamCompetitionReadService _competitionReadService;
     private readonly int _inviteResendCooldownDays;
     private readonly int _inviteExpirationDays;
     private readonly int _inviteRetentionDays;
     private readonly int _declinedInviteResendLimit;
 
     public TeamService(
-        MercuriusDBContext dbContext,
+        ITeamsDbContext dbContext,
         IConfiguration configuration,
         IIdentityModule identityModule,
-        IFileService? fileService = null)
+        ITeamLogoStorage? logoStorage = null,
+        ITeamCompetitionReadService? competitionReadService = null)
     {
         _dbContext = dbContext;
-        _fileService = fileService;
+        _logoStorage = logoStorage;
         _identityModule = identityModule ?? throw new ArgumentNullException(nameof(identityModule));
+        _competitionReadService = competitionReadService ?? new NullTeamCompetitionReadService();
         _inviteResendCooldownDays = configuration.GetSection("TeamInvite:ResendCooldownDays").Get<int>();
         _inviteExpirationDays = configuration.GetSection("TeamInvite:ExpirationDays").Get<int?>() ?? 14;
         _inviteRetentionDays = configuration.GetSection("TeamInvite:RetentionDays").Get<int?>() ?? 90;
@@ -99,7 +104,7 @@ public class TeamService : ITeamService
             throw new NotFoundException($"{nameof(Team)} not found");
 
         EnsureCaptain(team, currentUser.Id.Value);
-        if (await IsTeamInDeleteBlockingTournamentAsync(teamId))
+        if (await _competitionReadService.IsTeamInDeleteBlockingTournamentAsync(teamId))
             throw new ValidationException("Cannot delete a team that is actively participating in a game or tournament.");
 
         team.Delete(DateTime.UtcNow);
@@ -136,20 +141,7 @@ public class TeamService : ITeamService
         if (team is null)
             throw new NotFoundException($"{nameof(Team)} not found");
 
-        var tournaments = await _dbContext.TournamentRegistrations
-            .AsNoTracking()
-            .Where(registration =>
-                registration.TeamId == team.Id &&
-                registration.Status == TournamentRegistrationStatus.Active &&
-                registration.Game.Status != GameStatus.Canceled)
-            .Select(registration => new PublicTeamTournamentDTO
-            {
-                GameId = registration.GameId,
-                Name = registration.Game.Name
-            })
-            .OrderBy(tournament => tournament.Name)
-            .ThenBy(tournament => tournament.GameId)
-            .ToListAsync();
+        var tournaments = await _competitionReadService.GetPublicTeamTournamentsAsync(team.Id);
 
         var members = team.Members
             .Select(member => member.Username)
@@ -198,7 +190,7 @@ public class TeamService : ITeamService
             throw new NotFoundException($"{nameof(Team)} not found");
 
         EnsureCaptain(team, currentUser.Id.Value);
-        if (await IsUserInProtectedTournamentRosterAsync(teamId, userId))
+        if (await _competitionReadService.IsUserInProtectedTournamentRosterAsync(teamId, userId))
             throw new ValidationException("Cannot remove a member from a team that is part of an in-progress tournament roster.");
 
         team.RemoveMember(userId);
@@ -407,7 +399,7 @@ public class TeamService : ITeamService
             throw new ValidationException("The captain cannot leave a team without transferring captainship.");
         if (!team.Members.Any(member => member.Id == currentUser.Id.Value))
             throw new NotFoundException($"{nameof(User)} not found in {team.Name}");
-        if (await IsUserInProtectedTournamentRosterAsync(teamId, currentUser.Id.Value))
+        if (await _competitionReadService.IsUserInProtectedTournamentRosterAsync(teamId, currentUser.Id.Value))
             throw new ValidationException("Cannot leave a team that is part of a protected tournament roster.");
 
         team.RemoveMember(currentUser.Id.Value);
@@ -433,7 +425,7 @@ public class TeamService : ITeamService
 
     public async Task<TeamLogoResponseDTO> UploadTeamLogoAsync(string auth0UserId, Guid teamId, IFormFile logo)
     {
-        if (_fileService is null)
+        if (_logoStorage is null)
             throw new InvalidOperationException("File service is not configured.");
 
         var currentUser = await GetCurrentUserAsync(auth0UserId);
@@ -443,16 +435,16 @@ public class TeamService : ITeamService
 
         EnsureCaptain(team, currentUser.Id.Value);
         var previousLogo = team.LogoUrl;
-        var logoUrl = await _fileService.SaveImageAsync(logo);
+        var logoUrl = await _logoStorage.SaveImageAsync(logo);
         team.LogoUrl = logoUrl;
         await _dbContext.SaveChangesAsync();
-        await _fileService.DeleteImageAsync(previousLogo);
+        await _logoStorage.DeleteImageAsync(previousLogo);
         return new TeamLogoResponseDTO(team.Id, team.LogoUrl);
     }
 
     public async Task<TeamLogoResponseDTO> RemoveTeamLogoAsync(string auth0UserId, Guid teamId)
     {
-        if (_fileService is null)
+        if (_logoStorage is null)
             throw new InvalidOperationException("File service is not configured.");
 
         var currentUser = await GetCurrentUserAsync(auth0UserId);
@@ -464,7 +456,7 @@ public class TeamService : ITeamService
         var previousLogo = team.LogoUrl;
         team.LogoUrl = null;
         await _dbContext.SaveChangesAsync();
-        await _fileService.DeleteImageAsync(previousLogo);
+        await _logoStorage.DeleteImageAsync(previousLogo);
         return new TeamLogoResponseDTO(team.Id, null);
     }
 
@@ -526,21 +518,6 @@ public class TeamService : ITeamService
     {
         if (team.CaptainUserId != userId)
             throw new UnauthorizedAccessException("Only the team captain can perform this action.");
-    }
-
-    private async Task<bool> IsUserInProtectedTournamentRosterAsync(Guid teamId, Guid userId)
-    {
-        return await _dbContext.TournamentRegistrationRosterMembers.AnyAsync(member =>
-            member.TeamId == teamId &&
-            member.UserId == userId &&
-            (member.Game.Status == GameStatus.Scheduled || member.Game.Status == GameStatus.InProgress));
-    }
-
-    private async Task<bool> IsTeamInDeleteBlockingTournamentAsync(Guid teamId)
-    {
-        return await _dbContext.TournamentRegistrations.AnyAsync(registration =>
-            registration.TeamId == teamId &&
-            (registration.Game.Status == GameStatus.Scheduled || registration.Game.Status == GameStatus.InProgress));
     }
 
     private async Task ExpirePendingInvitesAsync(Guid? teamId = null, Guid? userId = null)

@@ -1,7 +1,7 @@
-using Mercurius.LAN.API.DTOs.UserDTOs;
-using Mercurius.LAN.API.Models;
 
-namespace Mercurius.LAN.API.DTOs.TeamDTOs;
+using Mercurius.Modules.Teams.Domain;
+
+namespace Mercurius.Modules.Teams.DTOs;
 
 public class CurrentUserTeamSummaryDTO
 {
@@ -18,7 +18,7 @@ public class TeamManagementSummaryDTO
     public Guid CaptainUserId { get; set; }
     public string? CaptainUsername { get; set; }
     public string? LogoUrl { get; set; }
-    public IEnumerable<PublicUserDTO> Members { get; set; } = [];
+    public IEnumerable<TeamPublicUserDTO> Members { get; set; } = [];
 
     public TeamManagementSummaryDTO()
     {
@@ -31,7 +31,7 @@ public class TeamManagementSummaryDTO
         CaptainUserId = team.CaptainUserId ?? Guid.Empty;
         CaptainUsername = team.Captain?.Username;
         LogoUrl = team.LogoUrl;
-        Members = team.Members.Select(member => new PublicUserDTO(member));
+        Members = team.Members.Select(member => new TeamPublicUserDTO(member));
     }
 }
 
@@ -65,4 +65,3 @@ public class TeamInviteSummaryDTO
     }
 }
 
-public record TeamLogoResponseDTO(Guid TeamId, string? LogoUrl);

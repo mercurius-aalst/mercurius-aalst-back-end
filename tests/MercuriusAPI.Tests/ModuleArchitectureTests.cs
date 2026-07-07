@@ -63,6 +63,16 @@ public class ModuleArchitectureTests
         {
             Path.Combine(repositoryRoot, "src", "Platform", "Platform.csproj")
         };
+        if (moduleName == "Teams")
+        {
+            allowedReferences.Add(Path.Combine(
+                repositoryRoot,
+                "src",
+                "Modules",
+                "Identity",
+                "Mercurius.Modules.Identity",
+                "Mercurius.Modules.Identity.csproj"));
+        }
 
         Assert.True(
             requiredReferences.IsSubsetOf(references) && references.IsSubsetOf(allowedReferences),

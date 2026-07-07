@@ -60,7 +60,7 @@ internal sealed class NullTeamEventPublisher : ITeamEventPublisher
     public Task CaptainTransferredAsync(Guid teamId, Guid newCaptainUserId) => Task.CompletedTask;
 }
 
-public record TeamInviteChangedEvent(Guid TeamId, Guid InviteId, Guid UserId, string Status);
-public record TournamentRosterConfirmationChangedEvent(Guid TeamId, Guid RosterMemberId, Guid UserId, string Status);
-public record TeamMembershipChangedEvent(Guid TeamId, Guid UserId, string Action);
-public record TeamCaptainTransferredEvent(Guid TeamId, Guid NewCaptainUserId);
+internal sealed record TeamInviteChangedEvent(Guid TeamId, Guid InviteId, Guid UserId, string Status);
+public sealed record TournamentRosterConfirmationChangedEvent(Guid TeamId, Guid RosterMemberId, Guid UserId, string Status);
+internal sealed record TeamMembershipChangedEvent(Guid TeamId, Guid UserId, string Action);
+internal sealed record TeamCaptainTransferredEvent(Guid TeamId, Guid NewCaptainUserId);

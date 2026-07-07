@@ -6,13 +6,6 @@ using Mercurius.LAN.API.Services.Files;
 using Mercurius.Modules.Identity.Contracts;
 using Mercurius.Modules.Shared;
 using Microsoft.EntityFrameworkCore;
-using Platform.Eventing;
-using TeamCaptainTransferredIntegrationEvent = Mercurius.Modules.Teams.Contracts.TeamCaptainTransferredIntegrationEvent;
-using TeamCreatedIntegrationEvent = Mercurius.Modules.Teams.Contracts.TeamCreatedIntegrationEvent;
-using TeamDeletedIntegrationEvent = Mercurius.Modules.Teams.Contracts.TeamDeletedIntegrationEvent;
-using TeamMemberAddedIntegrationEvent = Mercurius.Modules.Teams.Contracts.TeamMemberAddedIntegrationEvent;
-using TeamMemberRemovedIntegrationEvent = Mercurius.Modules.Teams.Contracts.TeamMemberRemovedIntegrationEvent;
-using TeamRenamedIntegrationEvent = Mercurius.Modules.Teams.Contracts.TeamRenamedIntegrationEvent;
 
 namespace Mercurius.LAN.API.Services.TeamServices;
 
@@ -22,8 +15,6 @@ public class TeamService : ITeamService
     private const int MaxTeamSearchResults = 25;
     private readonly MercuriusDBContext _dbContext;
     private readonly IFileService? _fileService;
-    private readonly ITeamEventPublisher _eventPublisher;
-    private readonly IModuleEventPublisher? _moduleEventPublisher;
     private readonly IIdentityModule _identityModule;
     private readonly int _inviteResendCooldownDays;
     private readonly int _inviteExpirationDays;
@@ -34,14 +25,10 @@ public class TeamService : ITeamService
         MercuriusDBContext dbContext,
         IConfiguration configuration,
         IIdentityModule identityModule,
-        IFileService? fileService = null,
-        ITeamEventPublisher? eventPublisher = null,
-        IModuleEventPublisher? moduleEventPublisher = null)
+        IFileService? fileService = null)
     {
         _dbContext = dbContext;
         _fileService = fileService;
-        _eventPublisher = eventPublisher ?? new NullTeamEventPublisher();
-        _moduleEventPublisher = moduleEventPublisher;
         _identityModule = identityModule ?? throw new ArgumentNullException(nameof(identityModule));
         _inviteResendCooldownDays = configuration.GetSection("TeamInvite:ResendCooldownDays").Get<int>();
         _inviteExpirationDays = configuration.GetSection("TeamInvite:ExpirationDays").Get<int?>() ?? 14;
@@ -64,7 +51,6 @@ public class TeamService : ITeamService
         };
         team.Members.Add(captainReference);
         _dbContext.Teams.Add(team);
-        PublishTeamCreated(team);
         await SaveTeamChangesAsync(teamDTO.Name);
         return new GetTeamDTO(team);
     }
@@ -86,7 +72,6 @@ public class TeamService : ITeamService
         };
         team.Members.Add(captainReference);
         _dbContext.Teams.Add(team);
-        PublishTeamCreated(team);
         await SaveTeamChangesAsync(teamDTO.Name);
 
         return new TeamManagementSummaryDTO(team);
@@ -99,10 +84,7 @@ public class TeamService : ITeamService
             .FirstOrDefaultAsync(t => t.Id == teamId);
         if (team is null)
             throw new NotFoundException($"{nameof(Team)} not found");
-        var wasDeleted = team.IsDeleted;
         team.Delete(DateTime.UtcNow);
-        if (!wasDeleted)
-            PublishTeamDeleted(team);
         await _dbContext.SaveChangesAsync();
     }
 
@@ -121,7 +103,6 @@ public class TeamService : ITeamService
             throw new ValidationException("Cannot delete a team that is actively participating in a game or tournament.");
 
         team.Delete(DateTime.UtcNow);
-        PublishTeamDeleted(team);
         await _dbContext.SaveChangesAsync();
     }
 
@@ -205,7 +186,6 @@ public class TeamService : ITeamService
         if (team is null)
             throw new NotFoundException($"{nameof(Team)} not found");
         team.RemoveMember(userId);
-        PublishTeamMemberRemoved(team, userId);
         await _dbContext.SaveChangesAsync();
         return new GetTeamDTO(team);
     }
@@ -222,9 +202,7 @@ public class TeamService : ITeamService
             throw new ValidationException("Cannot remove a member from a team that is part of an in-progress tournament roster.");
 
         team.RemoveMember(userId);
-        PublishTeamMemberRemoved(team, userId);
         await _dbContext.SaveChangesAsync();
-        await _eventPublisher.MembershipChangedAsync(team.Id, userId, "Removed");
         return new TeamManagementSummaryDTO(team);
     }
 
@@ -246,14 +224,11 @@ public class TeamService : ITeamService
             }
 
             team.UpdateName(teamDTO.Name);
-            if (nameChanged)
-                PublishTeamRenamed(team);
         }
 
         if (teamDTO.CaptainUserId.HasValue && teamDTO.CaptainUserId.Value != team.CaptainUserId)
         {
             team.ChangeCaptain(teamDTO.CaptainUserId.Value);
-            PublishTeamCaptainTransferred(team, teamDTO.CaptainUserId.Value);
         }
 
         _dbContext.Teams.Update(team);
@@ -302,7 +277,6 @@ public class TeamService : ITeamService
         await ExpirePendingInvitesAsync(teamId, userId);
         var invite = team.InviteUser(userId, _inviteResendCooldownDays, _inviteExpirationDays, _declinedInviteResendLimit);
         await SaveInviteChangesAsync();
-        await _eventPublisher.InviteChangedAsync(teamId, invite.Id, userId, invite.Status.ToString());
         return new TeamInviteDTO(invite);
     }
 
@@ -318,7 +292,6 @@ public class TeamService : ITeamService
         EnsureCaptain(invite.Team, currentUser.Id.Value);
         invite.Cancel();
         await _dbContext.SaveChangesAsync();
-        await _eventPublisher.InviteChangedAsync(teamId, invite.Id, invite.UserId, invite.Status.ToString());
         return new TeamInviteDTO(invite);
     }
 
@@ -332,8 +305,6 @@ public class TeamService : ITeamService
             throw new NotFoundException("No pending invite found");
         await _dbContext.Entry(invite.Team).Collection(t => t.Members).LoadAsync();
         invite.Respond(accept);
-        if (accept)
-            PublishTeamMemberAdded(invite.Team, invite.UserId);
         await _dbContext.SaveChangesAsync();
         return new TeamInviteDTO(invite);
     }
@@ -350,12 +321,7 @@ public class TeamService : ITeamService
 
         await _dbContext.Entry(invite.Team).Collection(t => t.Members).LoadAsync();
         invite.Respond(accept);
-        if (accept)
-            PublishTeamMemberAdded(invite.Team, invite.UserId);
         await _dbContext.SaveChangesAsync();
-        await _eventPublisher.InviteChangedAsync(invite.TeamId, invite.Id, invite.UserId, invite.Status.ToString());
-        if (accept)
-            await _eventPublisher.MembershipChangedAsync(invite.TeamId, invite.UserId, "Joined");
 
         return new TeamInviteDTO(invite);
     }
@@ -445,9 +411,7 @@ public class TeamService : ITeamService
             throw new ValidationException("Cannot leave a team that is part of a protected tournament roster.");
 
         team.RemoveMember(currentUser.Id.Value);
-        PublishTeamMemberRemoved(team, currentUser.Id.Value);
         await _dbContext.SaveChangesAsync();
-        await _eventPublisher.MembershipChangedAsync(team.Id, currentUser.Id.Value, "Left");
         return new TeamManagementSummaryDTO(team);
     }
 
@@ -463,9 +427,7 @@ public class TeamService : ITeamService
         EnsureCaptain(team, currentUser.Id.Value);
         await EnsureCaptainLimitAsync(newCaptainUserId, teamId);
         team.ChangeCaptain(newCaptainUserId);
-        PublishTeamCaptainTransferred(team, newCaptainUserId);
         await _dbContext.SaveChangesAsync();
-        await _eventPublisher.CaptainTransferredAsync(team.Id, newCaptainUserId);
         return new TeamManagementSummaryDTO(team);
     }
 
@@ -597,8 +559,6 @@ public class TeamService : ITeamService
         if (invites.Count > 0)
         {
             await _dbContext.SaveChangesAsync();
-            foreach (var invite in invites)
-                await _eventPublisher.InviteChangedAsync(invite.TeamId, invite.Id, invite.UserId, invite.Status.ToString());
         }
     }
 
@@ -711,68 +671,6 @@ public class TeamService : ITeamService
         {
             throw new ValidationException("User already has a pending invite to this team");
         }
-    }
-
-    private void PublishTeamCreated(Team team)
-    {
-        if (team.Id == Guid.Empty)
-            team.Id = Guid.NewGuid();
-
-        IncrementTeamVersion(team);
-        _moduleEventPublisher?.Publish(new TeamCreatedIntegrationEvent(
-            new TeamId(team.Id),
-            team.Version,
-            team.Name,
-            new UserId(team.CaptainUserId!.Value)));
-    }
-
-    private void PublishTeamRenamed(Team team)
-    {
-        IncrementTeamVersion(team);
-        _moduleEventPublisher?.Publish(new TeamRenamedIntegrationEvent(
-            new TeamId(team.Id),
-            team.Version,
-            team.Name));
-    }
-
-    private void PublishTeamDeleted(Team team)
-    {
-        IncrementTeamVersion(team);
-        _moduleEventPublisher?.Publish(new TeamDeletedIntegrationEvent(
-            new TeamId(team.Id),
-            team.Version));
-    }
-
-    private void PublishTeamMemberAdded(Team team, Guid userId)
-    {
-        IncrementTeamVersion(team);
-        _moduleEventPublisher?.Publish(new TeamMemberAddedIntegrationEvent(
-            new TeamId(team.Id),
-            team.Version,
-            new UserId(userId)));
-    }
-
-    private void PublishTeamMemberRemoved(Team team, Guid userId)
-    {
-        IncrementTeamVersion(team);
-        _moduleEventPublisher?.Publish(new TeamMemberRemovedIntegrationEvent(
-            new TeamId(team.Id),
-            team.Version,
-            new UserId(userId)));
-    }
-
-    private void PublishTeamCaptainTransferred(Team team, Guid newCaptainUserId)
-    {
-        IncrementTeamVersion(team);
-        _moduleEventPublisher?.Publish(new TeamCaptainTransferredIntegrationEvent(
-            new TeamId(team.Id),
-            team.Version,
-            new UserId(newCaptainUserId)));
-    }
-
-    private static void IncrementTeamVersion(Team team)
-    {
-        team.Version++;
     }
 
     private static bool IsPendingInviteUniqueConstraintViolation(DbUpdateException exception)

@@ -366,7 +366,7 @@ public class ModuleEventingTests
         return new MercuriusDBContext(options);
     }
 
-    private static TeamService CreateTeamService(MercuriusDBContext dbContext)
+    private static ITeamService CreateTeamService(MercuriusDBContext dbContext)
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -379,12 +379,11 @@ public class ModuleEventingTests
             .Build();
         var moduleEventPublisher = new ModuleEventPublisher(dbContext);
 
-        return new TeamService(
+        return new TeamEventPublishingDecorator(
+            new TeamService(dbContext, configuration, new IdentityModuleFacade(dbContext)),
             dbContext,
-            configuration,
-            new IdentityModuleFacade(dbContext),
-            eventPublisher: new NullTeamEventPublisher(),
-            moduleEventPublisher: moduleEventPublisher);
+            new NullTeamEventPublisher(),
+            moduleEventPublisher);
     }
 
     private static IUserService CreateUserService(MercuriusDBContext dbContext)

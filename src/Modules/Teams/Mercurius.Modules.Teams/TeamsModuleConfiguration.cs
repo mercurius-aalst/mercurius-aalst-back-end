@@ -18,6 +18,7 @@ public static class TeamsModuleConfiguration
     {
         services.TryAddScoped<ITeamsDbContext>(provider => provider.GetRequiredService<TDbContext>());
         services.TryAddTransient<ITeamCompetitionReadService, NullTeamCompetitionReadService>();
+        services.AddTransient<ITeamsModule, TeamsModuleFacade>();
         services.AddTransient<ITeamService, TeamService>();
         services.Decorate<ITeamService, TeamEventPublishingDecorator>();
         services.AddTransient<ITeamEndpointService, TeamEndpointService>();

@@ -2,6 +2,7 @@ using Mercurius.LAN.API.Data;
 using Mercurius.Modules.Shared;
 using Mercurius.Modules.Teams;
 using Mercurius.Modules.Teams.Contracts;
+using Mercurius.Modules.Teams.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -20,17 +21,21 @@ public class TeamsModuleFacadeTests
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["TeamInvite:ResendCooldownDays"] = "7"
+                ["TeamInvite:ResendCooldownDays"] = "7",
+                ["FileStorage:MaxFileSizeInMB"] = "2"
             })
             .Build();
 
+        services.AddSingleton<IConfiguration>(configuration);
         services.AddTeamsModule<MercuriusDBContext>(configuration);
 
         using var provider = services.BuildServiceProvider();
 
         var module = provider.GetRequiredService<ITeamsModule>();
+        var logoStorage = provider.GetRequiredService<ITeamLogoStorage>();
 
         Assert.IsType<TeamsModuleFacade>(module);
+        Assert.IsType<TeamLogoStorage>(logoStorage);
     }
 
     [Fact]

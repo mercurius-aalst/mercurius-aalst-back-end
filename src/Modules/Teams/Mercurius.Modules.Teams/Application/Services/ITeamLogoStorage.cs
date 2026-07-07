@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Http;
 
 namespace Mercurius.Modules.Teams.Services;
 
-public interface ITeamLogoStorage
+internal interface ITeamLogoStorage
 {
     Task<string> SaveImageAsync(IFormFile image);
 

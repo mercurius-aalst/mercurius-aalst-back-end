@@ -1,4 +1,5 @@
 using Mercurius.Modules.Teams.Domain;
+using Mercurius.Modules.Teams.Contracts;
 using System.ComponentModel.DataAnnotations;
 
 namespace Mercurius.Modules.Teams.DTOs;

@@ -1,16 +1,8 @@
 using Mercurius.Modules.Identity.Domain;
 using Mercurius.Modules.Shared.Exceptions;
+using Mercurius.Modules.Teams.Contracts;
 
 namespace Mercurius.Modules.Teams.Domain;
-
-public enum TeamInviteStatus
-{
-    Pending,
-    Accepted,
-    Declined,
-    Cancelled,
-    Expired
-}
 
 public class TeamInvite
 {

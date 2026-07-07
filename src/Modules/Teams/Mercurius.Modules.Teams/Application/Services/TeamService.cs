@@ -1,5 +1,6 @@
 using Mercurius.Modules.Teams.DTOs;
 using Mercurius.Modules.Shared.Exceptions;
+using Mercurius.Modules.Teams.Contracts;
 using Mercurius.Modules.Teams.Domain;
 using Mercurius.Modules.Identity.Contracts;
 using Mercurius.Modules.Identity.Domain;
@@ -8,7 +9,6 @@ using Mercurius.Modules.Teams.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.AspNetCore.Http;
-using ITeamCompetitionReadService = Mercurius.Modules.Teams.Contracts.ITeamCompetitionReadService;
 
 namespace Mercurius.Modules.Teams.Services;
 

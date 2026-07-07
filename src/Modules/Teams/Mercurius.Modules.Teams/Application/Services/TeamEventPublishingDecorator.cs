@@ -1,4 +1,5 @@
 using Mercurius.Modules.Teams.DTOs;
+using Mercurius.Modules.Teams.Contracts;
 using Mercurius.Modules.Teams.Domain;
 using Mercurius.Modules.Shared;
 using Mercurius.Modules.Teams.Infrastructure;

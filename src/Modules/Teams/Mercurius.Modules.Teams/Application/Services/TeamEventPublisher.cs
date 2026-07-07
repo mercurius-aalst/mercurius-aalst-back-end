@@ -1,14 +1,7 @@
+using Mercurius.Modules.Teams.Contracts;
 using Platform.Realtime;
 
 namespace Mercurius.Modules.Teams.Services;
-
-public interface ITeamEventPublisher
-{
-    Task InviteChangedAsync(Guid teamId, Guid inviteId, Guid affectedUserId, string status);
-    Task RosterConfirmationChangedAsync(Guid teamId, Guid rosterMemberId, Guid affectedUserId, string status);
-    Task MembershipChangedAsync(Guid teamId, Guid affectedUserId, string action);
-    Task CaptainTransferredAsync(Guid teamId, Guid newCaptainUserId);
-}
 
 internal sealed class RealtimeTeamEventPublisher : ITeamEventPublisher
 {
@@ -21,17 +14,17 @@ internal sealed class RealtimeTeamEventPublisher : ITeamEventPublisher
 
     public Task InviteChangedAsync(Guid teamId, Guid inviteId, Guid affectedUserId, string status)
     {
-        return _realtimePublisher.PublishAsync(new RealtimePublishRequest<TeamInviteChangedEvent>(
+        return _realtimePublisher.PublishAsync(new RealtimePublishRequest<TeamInviteChangedRealtimeEvent>(
             "TeamInviteChanged",
-            new TeamInviteChangedEvent(teamId, inviteId, affectedUserId, status),
+            new TeamInviteChangedRealtimeEvent(teamId, inviteId, affectedUserId, status),
             [TeamRealtimeGroups.GetUserGroup(affectedUserId)]));
     }
 
     public Task MembershipChangedAsync(Guid teamId, Guid affectedUserId, string action)
     {
-        return _realtimePublisher.PublishAsync(new RealtimePublishRequest<TeamMembershipChangedEvent>(
+        return _realtimePublisher.PublishAsync(new RealtimePublishRequest<TeamMembershipChangedRealtimeEvent>(
             "TeamMembershipChanged",
-            new TeamMembershipChangedEvent(teamId, affectedUserId, action),
+            new TeamMembershipChangedRealtimeEvent(teamId, affectedUserId, action),
             [TeamRealtimeGroups.GetTeamGroup(teamId)]));
     }
 
@@ -45,9 +38,9 @@ internal sealed class RealtimeTeamEventPublisher : ITeamEventPublisher
 
     public Task CaptainTransferredAsync(Guid teamId, Guid newCaptainUserId)
     {
-        return _realtimePublisher.PublishAsync(new RealtimePublishRequest<TeamCaptainTransferredEvent>(
+        return _realtimePublisher.PublishAsync(new RealtimePublishRequest<TeamCaptainTransferredRealtimeEvent>(
             "TeamCaptainTransferred",
-            new TeamCaptainTransferredEvent(teamId, newCaptainUserId),
+            new TeamCaptainTransferredRealtimeEvent(teamId, newCaptainUserId),
             [TeamRealtimeGroups.GetTeamGroup(teamId)]));
     }
 }
@@ -60,7 +53,6 @@ internal sealed class NullTeamEventPublisher : ITeamEventPublisher
     public Task CaptainTransferredAsync(Guid teamId, Guid newCaptainUserId) => Task.CompletedTask;
 }
 
-internal sealed record TeamInviteChangedEvent(Guid TeamId, Guid InviteId, Guid UserId, string Status);
-public sealed record TournamentRosterConfirmationChangedEvent(Guid TeamId, Guid RosterMemberId, Guid UserId, string Status);
-internal sealed record TeamMembershipChangedEvent(Guid TeamId, Guid UserId, string Action);
-internal sealed record TeamCaptainTransferredEvent(Guid TeamId, Guid NewCaptainUserId);
+internal sealed record TeamInviteChangedRealtimeEvent(Guid TeamId, Guid InviteId, Guid UserId, string Status);
+internal sealed record TeamMembershipChangedRealtimeEvent(Guid TeamId, Guid UserId, string Action);
+internal sealed record TeamCaptainTransferredRealtimeEvent(Guid TeamId, Guid NewCaptainUserId);

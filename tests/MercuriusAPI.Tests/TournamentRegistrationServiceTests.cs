@@ -4,6 +4,7 @@ using Mercurius.Modules.Shared.Exceptions;
 using Mercurius.LAN.API.Migrations;
 using Mercurius.LAN.API.Models;
 using Mercurius.LAN.API.Services.RegistrationServices;
+using Mercurius.Modules.Teams.Contracts;
 using Mercurius.Modules.Teams.Services;
 using Mercurius.Modules.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -507,12 +508,12 @@ public class TournamentRegistrationServiceTests
 
     private sealed class RecordingTeamEventPublisher : ITeamEventPublisher
     {
-        public List<TeamInviteChangedEvent> InviteEvents { get; } = [];
+        public List<RecordedInviteEvent> InviteEvents { get; } = [];
         public List<TournamentRosterConfirmationChangedEvent> RosterConfirmationEvents { get; } = [];
 
         public Task InviteChangedAsync(Guid teamId, Guid inviteId, Guid affectedUserId, string status)
         {
-            InviteEvents.Add(new TeamInviteChangedEvent(teamId, inviteId, affectedUserId, status));
+            InviteEvents.Add(new RecordedInviteEvent(teamId, inviteId, affectedUserId, status));
             return Task.CompletedTask;
         }
 
@@ -525,6 +526,8 @@ public class TournamentRegistrationServiceTests
         public Task MembershipChangedAsync(Guid teamId, Guid affectedUserId, string action) => Task.CompletedTask;
 
         public Task CaptainTransferredAsync(Guid teamId, Guid newCaptainUserId) => Task.CompletedTask;
+
+        public sealed record RecordedInviteEvent(Guid TeamId, Guid InviteId, Guid UserId, string Status);
     }
 
     private sealed class ThrowingTeamEventPublisher : ITeamEventPublisher

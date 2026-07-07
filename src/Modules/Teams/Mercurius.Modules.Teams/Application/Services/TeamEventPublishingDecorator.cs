@@ -344,7 +344,7 @@ internal sealed class TeamEventPublishingDecorator : ITeamService
         return result!;
     }
 
-    private async Task<List<TeamInviteChangedEvent>> GetExpiredInviteEventCandidatesAsync(Guid? teamId, Guid? userId)
+    private async Task<List<ExpiredTeamInviteChangedCandidate>> GetExpiredInviteEventCandidatesAsync(Guid? teamId, Guid? userId)
     {
         var now = DateTime.UtcNow;
         return await TeamInvites
@@ -354,7 +354,7 @@ internal sealed class TeamEventPublishingDecorator : ITeamService
                 invite.ExpiresAt <= now &&
                 (!teamId.HasValue || invite.TeamId == teamId.Value) &&
                 (!userId.HasValue || invite.UserId == userId.Value))
-            .Select(invite => new TeamInviteChangedEvent(
+            .Select(invite => new ExpiredTeamInviteChangedCandidate(
                 invite.TeamId,
                 invite.Id,
                 invite.UserId,
@@ -362,7 +362,7 @@ internal sealed class TeamEventPublishingDecorator : ITeamService
             .ToListAsync();
     }
 
-    private async Task PublishExpiredInviteEventsAsync(IReadOnlyCollection<TeamInviteChangedEvent> candidates)
+    private async Task PublishExpiredInviteEventsAsync(IReadOnlyCollection<ExpiredTeamInviteChangedCandidate> candidates)
     {
         if (candidates.Count == 0)
             return;
@@ -476,4 +476,10 @@ internal sealed class TeamEventPublishingDecorator : ITeamService
         GetTeamDTO Team,
         bool NameChanged,
         Guid? TransferredCaptainUserId);
+
+    private sealed record ExpiredTeamInviteChangedCandidate(
+        Guid TeamId,
+        Guid InviteId,
+        Guid UserId,
+        string Status);
 }

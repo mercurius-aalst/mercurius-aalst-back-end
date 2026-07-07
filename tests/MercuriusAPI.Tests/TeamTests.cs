@@ -6,6 +6,7 @@ using Mercurius.LAN.API.Migrations;
 using Mercurius.LAN.API.Hubs;
 using Mercurius.LAN.API.Services.Files;
 using Mercurius.LAN.API.Services.TeamServices;
+using Mercurius.Modules.Teams.Contracts;
 using Mercurius.Modules.Teams.Services;
 using Mercurius.Modules.Identity;
 using Mercurius.Modules.Shared;
@@ -1223,14 +1224,14 @@ public class TeamTests
 
     private sealed class RecordingTeamEventPublisher : ITeamEventPublisher
     {
-        public List<TeamInviteChangedEvent> InviteEvents { get; } = [];
+        public List<RecordedInviteEvent> InviteEvents { get; } = [];
         public List<TournamentRosterConfirmationChangedEvent> RosterConfirmationEvents { get; } = [];
-        public List<TeamMembershipChangedEvent> MembershipEvents { get; } = [];
-        public List<TeamCaptainTransferredEvent> CaptainEvents { get; } = [];
+        public List<RecordedMembershipEvent> MembershipEvents { get; } = [];
+        public List<RecordedCaptainEvent> CaptainEvents { get; } = [];
 
         public Task InviteChangedAsync(Guid teamId, Guid inviteId, Guid affectedUserId, string status)
         {
-            InviteEvents.Add(new TeamInviteChangedEvent(teamId, inviteId, affectedUserId, status));
+            InviteEvents.Add(new RecordedInviteEvent(teamId, inviteId, affectedUserId, status));
             return Task.CompletedTask;
         }
 
@@ -1242,15 +1243,19 @@ public class TeamTests
 
         public Task MembershipChangedAsync(Guid teamId, Guid affectedUserId, string action)
         {
-            MembershipEvents.Add(new TeamMembershipChangedEvent(teamId, affectedUserId, action));
+            MembershipEvents.Add(new RecordedMembershipEvent(teamId, affectedUserId, action));
             return Task.CompletedTask;
         }
 
         public Task CaptainTransferredAsync(Guid teamId, Guid newCaptainUserId)
         {
-            CaptainEvents.Add(new TeamCaptainTransferredEvent(teamId, newCaptainUserId));
+            CaptainEvents.Add(new RecordedCaptainEvent(teamId, newCaptainUserId));
             return Task.CompletedTask;
         }
+
+        public sealed record RecordedInviteEvent(Guid TeamId, Guid InviteId, Guid UserId, string Status);
+        public sealed record RecordedMembershipEvent(Guid TeamId, Guid UserId, string Action);
+        public sealed record RecordedCaptainEvent(Guid TeamId, Guid NewCaptainUserId);
     }
 
     private sealed class ThrowingInviteChangedTeamEventPublisher : ITeamEventPublisher

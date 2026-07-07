@@ -1,6 +1,7 @@
+using Mercurius.Modules.Identity.Domain;
 using Mercurius.Modules.Shared.Exceptions;
 
-namespace Mercurius.LAN.API.Models;
+namespace Mercurius.Modules.Teams.Domain;
 
 public enum TeamInviteStatus
 {

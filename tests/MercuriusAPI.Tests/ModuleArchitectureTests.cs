@@ -1,5 +1,7 @@
 using System.Reflection;
 using System.Xml.Linq;
+using Mercurius.Modules.Identity.Services;
+using Platform.Eventing;
 
 namespace Mercurius.LAN.API.Tests;
 
@@ -146,6 +148,16 @@ public class ModuleArchitectureTests
         }
     }
 
+    [Fact]
+    public void IdentityUserService_DoesNotPublishIntegrationEventsDirectly()
+    {
+        var userServiceDependencies = GetDeclaredDependencyTypes(typeof(UserService));
+        var publishingDecoratorDependencies = GetDeclaredDependencyTypes(typeof(UserIntegrationEventPublishingService));
+
+        Assert.DoesNotContain(typeof(IModuleEventPublisher), userServiceDependencies);
+        Assert.Contains(typeof(IModuleEventPublisher), publishingDecoratorDependencies);
+    }
+
     private static HashSet<string> GetProjectReferences(string projectPath)
     {
         var projectDirectory = Path.GetDirectoryName(projectPath)!;
@@ -157,6 +169,19 @@ public class ModuleArchitectureTests
             .Where(include => !string.IsNullOrWhiteSpace(include))
             .Select(include => Path.GetFullPath(Path.Combine(projectDirectory, include!)))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static Type[] GetDeclaredDependencyTypes(Type type)
+    {
+        const BindingFlags declaredMembers =
+            BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly;
+
+        return type
+            .GetConstructors(declaredMembers)
+            .SelectMany(constructor => constructor.GetParameters())
+            .Select(parameter => parameter.ParameterType)
+            .Concat(type.GetFields(declaredMembers).Select(field => field.FieldType))
+            .ToArray();
     }
 
     private static IEnumerable<Type> GetPublicApiTypes(Type exportedType)

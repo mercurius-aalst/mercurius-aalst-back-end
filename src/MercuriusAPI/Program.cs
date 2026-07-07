@@ -33,7 +33,7 @@ public class Program
             documentTitle: "Mercurius API",
             includeXmlComments: true,
             useEnumSchemaFilter: true);
-        builder.Services.AddIdentityModule(builder.Configuration);
+        builder.Services.AddIdentityModule<MercuriusDBContext>(builder.Configuration);
         builder.Services.AddTeamsModule(builder.Configuration);
         builder.Services.AddApplicationServices();
         builder.Services.AddApiProblemDetails<ApiExceptionHandler>();

@@ -381,11 +381,11 @@ public class ModuleEventingTests
         return new TeamService(dbContext, configuration, eventPublisher: new NullTeamEventPublisher(), moduleEventPublisher: moduleEventPublisher);
     }
 
-    private static UserService CreateUserService(MercuriusDBContext dbContext)
+    private static IUserService CreateUserService(MercuriusDBContext dbContext)
     {
-        return new UserService(
+        return new UserIntegrationEventPublishingService(
+            new UserService(dbContext, new NoopAuth0ManagementService()),
             dbContext,
-            new NoopAuth0ManagementService(),
             new ModuleEventPublisher(dbContext));
     }
 

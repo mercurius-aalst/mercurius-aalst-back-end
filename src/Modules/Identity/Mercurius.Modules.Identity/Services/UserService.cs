@@ -5,12 +5,6 @@ using Mercurius.Modules.Shared.Exceptions;
 using Mercurius.Modules.Identity.Services.Auth0;
 using Mercurius.Modules.Shared.Search;
 using Microsoft.EntityFrameworkCore;
-using Platform.Eventing;
-using UserAnonymizedIntegrationEvent = Mercurius.Modules.Identity.Contracts.UserAnonymizedIntegrationEvent;
-using UserDeletedIntegrationEvent = Mercurius.Modules.Identity.Contracts.UserDeletedIntegrationEvent;
-using UserId = Mercurius.Modules.Shared.UserId;
-using UserProfileChangedIntegrationEvent = Mercurius.Modules.Identity.Contracts.UserProfileChangedIntegrationEvent;
-using UsernameChangedIntegrationEvent = Mercurius.Modules.Identity.Contracts.UsernameChangedIntegrationEvent;
 
 namespace Mercurius.Modules.Identity.Services;
 
@@ -20,16 +14,13 @@ public class UserService : IUserService
     private const string GenericPasswordResetMessage = "If password reset is available for this account, a password reset email has been sent.";
     private readonly IIdentityDbContext _dbContext;
     private readonly IAuth0ManagementService _auth0ManagementService;
-    private readonly IModuleEventPublisher? _moduleEventPublisher;
 
     public UserService(
         IIdentityDbContext dbContext,
-        IAuth0ManagementService auth0ManagementService,
-        IModuleEventPublisher? moduleEventPublisher = null)
+        IAuth0ManagementService auth0ManagementService)
     {
         _dbContext = dbContext;
         _auth0ManagementService = auth0ManagementService;
-        _moduleEventPublisher = moduleEventPublisher;
     }
 
     public async Task<IEnumerable<GetUserDTO>> GetAllUsersAsync()
@@ -44,8 +35,7 @@ public class UserService : IUserService
             auth0UserId,
             new Auth0ProfileSnapshot(request.Email, request.EmailVerified, false));
 
-        var usernameChanged = ApplyProfileUpdate(user, request.Username, request.Firstname, request.Lastname, request.DiscordId, request.SteamId, request.RiotId);
-        PublishProfileChanged(user, usernameChanged);
+        ApplyProfileUpdate(user, request.Username, request.Firstname, request.Lastname, request.DiscordId, request.SteamId, request.RiotId);
 
         await SaveProfileChangesAsync();
         return new GetUserDTO(user);
@@ -60,8 +50,7 @@ public class UserService : IUserService
         var auth0Profile = await _auth0ManagementService.GetUserProfileAsync(normalizedAuth0UserId);
         var user = await CreateIncompleteUserAsync(normalizedAuth0UserId, auth0Profile);
 
-        var usernameChanged = ApplyProfileUpdate(user, request.Username, request.Firstname, request.Lastname, request.DiscordId, request.SteamId, request.RiotId);
-        PublishProfileChanged(user, usernameChanged);
+        ApplyProfileUpdate(user, request.Username, request.Firstname, request.Lastname, request.DiscordId, request.SteamId, request.RiotId);
 
         await SaveProfileChangesAsync();
         return new GetUserDTO(user);
@@ -72,8 +61,7 @@ public class UserService : IUserService
         var user = await GetRequiredCurrentUserAsync(auth0UserId);
         EnsureActive(user);
 
-        var usernameChanged = ApplyProfileUpdate(user, request.Username, request.Firstname, request.Lastname, request.DiscordId, request.SteamId, request.RiotId);
-        PublishProfileChanged(user, usernameChanged);
+        ApplyProfileUpdate(user, request.Username, request.Firstname, request.Lastname, request.DiscordId, request.SteamId, request.RiotId);
 
         await SaveProfileChangesAsync();
         return new GetUserDTO(user);
@@ -215,8 +203,7 @@ public class UserService : IUserService
         var user = await GetRequiredCurrentUserAsync(auth0UserId);
         EnsureActive(user);
 
-        var usernameChanged = ApplyProfileUpdate(user, request.Username, request.Firstname, request.Lastname, request.DiscordId, request.SteamId, request.RiotId);
-        PublishProfileChanged(user, usernameChanged);
+        ApplyProfileUpdate(user, request.Username, request.Firstname, request.Lastname, request.DiscordId, request.SteamId, request.RiotId);
 
         await SaveProfileChangesAsync();
         return new GetUserDTO(user);
@@ -300,7 +287,6 @@ public class UserService : IUserService
         {
             var deletedAtUtc = DateTime.UtcNow;
             user.Anonymize(deletedAtUtc);
-            PublishUserAnonymized(user, deletedAtUtc);
             await _dbContext.SaveChangesAsync();
         }
 
@@ -321,8 +307,7 @@ public class UserService : IUserService
         if (user == null)
             throw new NotFoundException($"User with ID {id} not found.");
 
-        var usernameChanged = ApplyProfileUpdate(user, request.Username, request.Firstname, request.Lastname, request.DiscordId, request.SteamId, request.RiotId);
-        PublishProfileChanged(user, usernameChanged);
+        ApplyProfileUpdate(user, request.Username, request.Firstname, request.Lastname, request.DiscordId, request.SteamId, request.RiotId);
 
         await SaveProfileChangesAsync();
 
@@ -338,7 +323,6 @@ public class UserService : IUserService
 
         var deletedAtUtc = DateTime.UtcNow;
         user.Anonymize(deletedAtUtc);
-        PublishUserAnonymized(user, deletedAtUtc);
         await _dbContext.SaveChangesAsync();
     }
 
@@ -350,7 +334,6 @@ public class UserService : IUserService
 
         var deletedAtUtc = DateTime.UtcNow;
         user.Anonymize(deletedAtUtc);
-        PublishUserAnonymized(user, deletedAtUtc);
         await _dbContext.SaveChangesAsync();
     }
 
@@ -385,7 +368,7 @@ public class UserService : IUserService
         return user;
     }
 
-    private bool ApplyProfileUpdate(
+    private void ApplyProfileUpdate(
         User user,
         string username,
         string firstname,
@@ -411,8 +394,6 @@ public class UserService : IUserService
         var normalizedFirstname = UserProfileValidationHelper.NormalizeRequiredText(firstname, "Firstname");
         var normalizedLastname = UserProfileValidationHelper.NormalizeRequiredText(lastname, "Lastname");
 
-        var usernameChanged = !string.Equals(user.NormalizedUsername, normalizedUsername, StringComparison.Ordinal);
-
         user.UpdateLocalProfile(
             trimmedUsername,
             normalizedUsername,
@@ -422,37 +403,6 @@ public class UserService : IUserService
             UserProfileValidationHelper.NormalizeOptionalPlatformId(steamId, "Steam ID"),
             UserProfileValidationHelper.NormalizeOptionalPlatformId(riotId, "Riot ID"),
             DateTime.UtcNow);
-
-        return usernameChanged;
-    }
-
-    private void PublishProfileChanged(User user, bool usernameChanged)
-    {
-        _moduleEventPublisher?.Publish(new UserProfileChangedIntegrationEvent(
-            new UserId(user.Id),
-            user.Username,
-            user.DisplayName,
-            user.IsDeleted,
-            user.UpdatedAtUtc));
-
-        if (usernameChanged && !string.IsNullOrWhiteSpace(user.Username))
-        {
-            _moduleEventPublisher?.Publish(new UsernameChangedIntegrationEvent(
-                new UserId(user.Id),
-                user.Username,
-                user.UpdatedAtUtc));
-        }
-    }
-
-    private void PublishUserAnonymized(User user, DateTime deletedAtUtc)
-    {
-        _moduleEventPublisher?.Publish(new UserAnonymizedIntegrationEvent(
-            new UserId(user.Id),
-            deletedAtUtc));
-        _moduleEventPublisher?.Publish(new UserDeletedIntegrationEvent(
-            new UserId(user.Id),
-            deletedAtUtc));
-        PublishProfileChanged(user, usernameChanged: true);
     }
 
     private async Task SaveProfileChangesAsync()

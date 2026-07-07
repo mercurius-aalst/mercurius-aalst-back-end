@@ -152,10 +152,12 @@ internal sealed class TeamService : ITeamService
             .Select(username => new PublicTeamMemberDTO(username))
             .ToList();
 
+        var captainUsername = team.Captain?.Username;
+
         return new PublicTeamProfileDTO
         {
             TeamName = team.Name,
-            CaptainUsername = IsValidPublicUsername(team.Captain.Username) ? team.Captain.Username : null,
+            CaptainUsername = IsValidPublicUsername(captainUsername) ? captainUsername : null,
             LogoUrl = team.LogoUrl,
             Members = members,
             Tournaments = tournaments

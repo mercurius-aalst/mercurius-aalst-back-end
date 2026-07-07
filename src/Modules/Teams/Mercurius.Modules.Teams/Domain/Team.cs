@@ -6,8 +6,8 @@ namespace Mercurius.Modules.Teams.Domain;
 public class Team
 {
     public Guid Id { get; set; }
-    public string Name { get; set; }
-    public string NormalizedName { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string NormalizedName { get; set; } = string.Empty;
     public Guid? CaptainUserId { get; set; }
     public User? Captain { get; set; }
     public string? LogoUrl { get; set; }

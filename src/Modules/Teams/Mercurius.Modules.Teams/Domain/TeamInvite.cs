@@ -4,7 +4,7 @@ using Mercurius.Modules.Teams.Contracts;
 
 namespace Mercurius.Modules.Teams.Domain;
 
-public class TeamInvite
+internal class TeamInvite
 {
     public Guid Id { get; set; }
     public Guid TeamId { get; set; }

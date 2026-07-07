@@ -730,7 +730,7 @@ public class TeamTests
         };
         dbContext.Users.AddRange(captain, member);
         dbContext.Teams.Add(team);
-        dbContext.TeamInvites.Add(invite);
+        dbContext.Set<TeamInvite>().Add(invite);
         dbContext.Games.Add(game);
         dbContext.Placements.Add(placement);
         dbContext.Matches.Add(match);
@@ -749,7 +749,7 @@ public class TeamTests
         Assert.Null(deletedTeam.CaptainUserId);
         Assert.Null(deletedTeam.LogoUrl);
         Assert.Empty(team.Members);
-        Assert.False(await dbContext.TeamInvites.AnyAsync(teamInvite => teamInvite.TeamId == team.Id));
+        Assert.False(await dbContext.Set<TeamInvite>().AnyAsync(teamInvite => teamInvite.TeamId == team.Id));
         Assert.True(await dbContext.TournamentRegistrations.AnyAsync(registration => registration.GameId == game.Id && registration.TeamId == team.Id));
         Assert.True(await dbContext.Matches.AnyAsync(m => m.Id == match.Id && m.TeamParticipant1Id == team.Id));
         Assert.True(await dbContext.Placements.AnyAsync(p => p.Id == placement.Id && p.Teams.Any(t => t.Id == team.Id)));
@@ -931,14 +931,14 @@ public class TeamTests
         };
         dbContext.Users.AddRange(captain, invited);
         dbContext.Teams.Add(team);
-        dbContext.TeamInvites.Add(oldInvite);
+        dbContext.Set<TeamInvite>().Add(oldInvite);
         await dbContext.SaveChangesAsync();
 
         var teamService = CreateTeamService(dbContext);
 
         await teamService.GetCurrentUserTeamSummaryAsync(invited.Auth0UserId);
 
-        Assert.False(await dbContext.TeamInvites.AnyAsync(invite => invite.Id == oldInvite.Id));
+        Assert.False(await dbContext.Set<TeamInvite>().AnyAsync(invite => invite.Id == oldInvite.Id));
     }
 
     [Fact]
@@ -975,7 +975,7 @@ public class TeamTests
         team.Members.Add(member);
         dbContext.Users.AddRange(captain, member);
         dbContext.Teams.Add(team);
-        dbContext.TeamInvites.Add(new TeamInvite
+        dbContext.Set<TeamInvite>().Add(new TeamInvite
         {
             Id = Guid.NewGuid(),
             Team = team,

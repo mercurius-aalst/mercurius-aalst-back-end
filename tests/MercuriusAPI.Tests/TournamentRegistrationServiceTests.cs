@@ -185,7 +185,7 @@ public class TournamentRegistrationServiceTests
         Assert.Contains(pending.RosterMembers, roster => roster.User.Id == captain.Id && roster.ConfirmationStatus == RosterMemberConfirmationStatus.AutoConfirmed);
         var memberRoster = Assert.Single(pending.RosterMembers.Where(roster => roster.User.Id == member.Id));
         Assert.Equal(RosterMemberConfirmationStatus.Pending, memberRoster.ConfirmationStatus);
-        Assert.Empty(await dbContext.TeamInvites.ToListAsync());
+        Assert.Empty(await dbContext.Set<TeamInvite>().ToListAsync());
         Assert.True(await dbContext.TournamentRegistrationRosterMembers.AnyAsync(roster =>
             roster.UserId == member.Id &&
             roster.ConfirmationStatus == RosterMemberConfirmationStatus.Pending)); Assert.Contains(publisher.RosterConfirmationEvents, evt => evt.TeamId == team.Id && evt.UserId == member.Id && evt.Status == nameof(RosterMemberConfirmationStatus.Pending));
@@ -304,7 +304,7 @@ public class TournamentRegistrationServiceTests
             roster.TeamId == team.Id &&
             roster.UserId == member.Id &&
             roster.ConfirmationStatus == RosterMemberConfirmationStatus.Pending));
-        Assert.False(await dbContext.TeamInvites.AnyAsync());
+        Assert.False(await dbContext.Set<TeamInvite>().AnyAsync());
     }
 
     [Fact]
@@ -332,7 +332,7 @@ public class TournamentRegistrationServiceTests
             member.UserId == secondMember.Id &&
             member.TeamId == team.Id &&
             member.ConfirmationStatus == RosterMemberConfirmationStatus.Pending));
-        Assert.False(await dbContext.TeamInvites.AnyAsync());
+        Assert.False(await dbContext.Set<TeamInvite>().AnyAsync());
     }
 
     [Fact]

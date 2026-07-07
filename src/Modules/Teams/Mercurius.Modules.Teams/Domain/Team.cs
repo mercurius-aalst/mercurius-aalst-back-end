@@ -17,7 +17,7 @@ public class Team
     public long Version { get; set; }
 
     public IList<User> Members { get; set; } = new List<User>();
-    public IList<TeamInvite> TeamInvites { get; set; } = new List<TeamInvite>();
+    internal IList<TeamInvite> TeamInvites { get; set; } = new List<TeamInvite>();
 
     public Team()
     {
@@ -99,7 +99,7 @@ public class Team
         DeletedAtUtc = deletedAtUtc;
     }
 
-    public TeamInvite InviteUser(Guid userId, int inviteResendCooldownDays, int inviteExpirationDays = 14, int declinedInviteResendLimit = 3)
+    internal TeamInvite InviteUser(Guid userId, int inviteResendCooldownDays, int inviteExpirationDays = 14, int declinedInviteResendLimit = 3)
     {
         if (Members.Any(p => p.Id == userId))
             throw new ValidationException("User is already in the team");

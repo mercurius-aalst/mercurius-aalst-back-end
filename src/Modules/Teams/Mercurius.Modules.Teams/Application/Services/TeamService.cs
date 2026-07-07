@@ -24,6 +24,7 @@ internal sealed class TeamService : ITeamService
     private readonly int _inviteExpirationDays;
     private readonly int _inviteRetentionDays;
     private readonly int _declinedInviteResendLimit;
+    private DbSet<TeamInvite> TeamInvites => _dbContext.Set<TeamInvite>();
 
     public TeamService(
         ITeamsDbContext dbContext,
@@ -284,7 +285,7 @@ internal sealed class TeamService : ITeamService
     public async Task<TeamInviteDTO> CancelInviteAsync(string auth0UserId, Guid teamId, Guid inviteId)
     {
         var currentUser = await GetCurrentUserAsync(auth0UserId);
-        var invite = await _dbContext.TeamInvites
+        var invite = await TeamInvites
             .Include(i => i.Team)
             .FirstOrDefaultAsync(i => i.Id == inviteId && i.TeamId == teamId);
         if (invite is null)
@@ -298,7 +299,7 @@ internal sealed class TeamService : ITeamService
 
     public async Task<TeamInviteDTO> RespondToInviteAsync(Guid teamId, Guid userId, bool accept)
     {
-        var invite = await _dbContext.TeamInvites
+        var invite = await TeamInvites
             .Include(ti => ti.User)
             .Include(ti => ti.Team)
             .FirstOrDefaultAsync(i => i.TeamId == teamId && i.UserId == userId && i.Status == TeamInviteStatus.Pending);
@@ -313,7 +314,7 @@ internal sealed class TeamService : ITeamService
     public async Task<TeamInviteDTO> RespondToInviteAsync(string auth0UserId, Guid inviteId, bool accept)
     {
         var currentUser = await GetCurrentUserAsync(auth0UserId);
-        var invite = await _dbContext.TeamInvites
+        var invite = await TeamInvites
             .Include(ti => ti.User)
             .Include(ti => ti.Team)
             .FirstOrDefaultAsync(i => i.Id == inviteId && i.UserId == currentUser.Id.Value);
@@ -329,7 +330,7 @@ internal sealed class TeamService : ITeamService
 
     public async Task<IEnumerable<TeamInviteDTO>> GetUserInvitesAsync(Guid userId)
     {
-        var invites = await _dbContext.TeamInvites
+        var invites = await TeamInvites
             .Where(i => i.UserId == userId && i.Status == TeamInviteStatus.Pending)
             .ToListAsync();
         return invites.Select(invite => new TeamInviteDTO
@@ -532,7 +533,7 @@ internal sealed class TeamService : ITeamService
     private async Task ExpirePendingInvitesAsync(Guid? teamId = null, Guid? userId = null)
     {
         var now = DateTime.UtcNow;
-        var query = _dbContext.TeamInvites.Where(invite =>
+        var query = TeamInvites.Where(invite =>
             invite.Status == TeamInviteStatus.Pending &&
             invite.ExpiresAt <= now &&
             (!teamId.HasValue || invite.TeamId == teamId.Value) &&
@@ -551,7 +552,7 @@ internal sealed class TeamService : ITeamService
     private async Task CleanupTerminalInvitesAsync()
     {
         var cutoff = DateTime.UtcNow.AddDays(-_inviteRetentionDays);
-        var invites = await _dbContext.TeamInvites
+        var invites = await TeamInvites
             .Where(invite =>
                 invite.Status != TeamInviteStatus.Pending &&
                 (invite.RespondedAt ?? invite.CancelledAt ?? invite.ExpiredAt ?? invite.CreatedAt) < cutoff)
@@ -560,7 +561,7 @@ internal sealed class TeamService : ITeamService
         if (invites.Count == 0)
             return;
 
-        _dbContext.TeamInvites.RemoveRange(invites);
+        TeamInvites.RemoveRange(invites);
         await _dbContext.SaveChangesAsync();
     }
 
@@ -617,7 +618,7 @@ internal sealed class TeamService : ITeamService
 
     private IQueryable<TeamInvite> GetPendingInviteSummariesQuery()
     {
-        return _dbContext.TeamInvites
+        return TeamInvites
             .AsNoTracking()
             .Include(invite => invite.Team)
             .Include(invite => invite.User)

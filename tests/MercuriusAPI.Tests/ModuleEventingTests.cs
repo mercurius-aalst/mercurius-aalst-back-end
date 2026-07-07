@@ -251,7 +251,7 @@ public class ModuleEventingTests
 
         var created = await teamService.CreateCurrentUserTeamAsync(captain.Auth0UserId, new CreateTeamDTO { Name = "Alpha" });
         await teamService.InviteUserAsync(captain.Auth0UserId, created.Id, invited.Id);
-        await teamService.RespondToInviteAsync(invited.Auth0UserId, (await dbContext.TeamInvites.SingleAsync()).Id, true);
+        await teamService.RespondToInviteAsync(invited.Auth0UserId, (await dbContext.Set<TeamInvite>().SingleAsync()).Id, true);
         await teamService.UpdateTeamAsync(created.Id, new UpdateTeamDTO { Name = "Bravo" });
         await teamService.RemoveMemberAsync(captain.Auth0UserId, created.Id, invited.Id);
         await teamService.DeleteTeamAsync(captain.Auth0UserId, created.Id);

@@ -23,6 +23,7 @@ internal sealed class TeamEventPublishingDecorator : ITeamService
     private readonly ITeamsDbContext _dbContext;
     private readonly ITeamEventPublisher _teamEventPublisher;
     private readonly IModuleEventPublisher? _moduleEventPublisher;
+    private DbSet<TeamInvite> TeamInvites => _dbContext.Set<TeamInvite>();
 
     public TeamEventPublishingDecorator(
         ITeamService inner,
@@ -346,7 +347,7 @@ internal sealed class TeamEventPublishingDecorator : ITeamService
     private async Task<List<TeamInviteChangedEvent>> GetExpiredInviteEventCandidatesAsync(Guid? teamId, Guid? userId)
     {
         var now = DateTime.UtcNow;
-        return await _dbContext.TeamInvites
+        return await TeamInvites
             .AsNoTracking()
             .Where(invite =>
                 invite.Status == TeamInviteStatus.Pending &&
@@ -367,7 +368,7 @@ internal sealed class TeamEventPublishingDecorator : ITeamService
             return;
 
         var candidateIds = candidates.Select(candidate => candidate.InviteId).ToList();
-        var expiredInviteIds = await _dbContext.TeamInvites
+        var expiredInviteIds = await TeamInvites
             .AsNoTracking()
             .Where(invite => candidateIds.Contains(invite.Id) && invite.Status == TeamInviteStatus.Expired)
             .Select(invite => invite.Id)

@@ -9,10 +9,12 @@ namespace Mercurius.Modules.Teams.Infrastructure;
 public interface ITeamsDbContext
 {
     DbSet<Team> Teams { get; }
-    DbSet<TeamInvite> TeamInvites { get; }
     DbSet<User> Users { get; }
     ChangeTracker ChangeTracker { get; }
     DatabaseFacade Database { get; }
+
+    DbSet<TEntity> Set<TEntity>()
+        where TEntity : class;
 
     EntityEntry<TEntity> Entry<TEntity>(TEntity entity)
         where TEntity : class;

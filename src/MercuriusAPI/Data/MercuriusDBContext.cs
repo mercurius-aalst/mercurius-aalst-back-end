@@ -20,7 +20,6 @@ public partial class MercuriusDBContext : DbContext, IModuleEventDbContext, IIde
     public DbSet<Team> Teams { get; set; }
     public DbSet<Match> Matches { get; set; }
     public DbSet<Game> Games { get; set; }
-    public DbSet<TeamInvite> TeamInvites { get; set; }
     public DbSet<User> Users { get; set; }
     public DbSet<Placement> Placements { get; set; }
     public DbSet<Sponsor> Sponsors { get; set; }

@@ -19,6 +19,7 @@
 - `ef424b8` `refactor: finalize teams dbcontext adapter boundary`
 - `b58f567` `refactor: tighten teams async reads and cancellations`
 - `43fbc73` `test: cover teams module composition and cancellation`
+- `d1c458a` `chore: add phase 7 follow-up development notes`
 
 ## 4. Commands run and results
 
@@ -48,3 +49,4 @@
   - Clean code: the material finding was missing focused composition/public-surface coverage around the transitional adapter boundary; remediated with `TeamsModuleConfigurationTests` and the Teams internal-surface architecture assertion.
   - Security: no high or medium touched-scope vulnerability was identified after the cancellation propagation and boundary-hardening changes.
 - Explicitly deferred as instructed: Team remains public until Competition host dependencies are removed in Phase 11; Identity EF-navigation cleanup waits for Phase 15; Media extraction waits for Phase 13; test-project reshaping waits for Phase 18; adapter/null-fallback cleanup waits for Phase 19.
+- PR: [#107 Phase 7 follow-up: finalize Teams boundary, cancellation, and read projections](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/107)

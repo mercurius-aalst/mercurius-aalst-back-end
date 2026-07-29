@@ -1,6 +1,6 @@
-namespace Mercurius.LAN.API.DTOs.TeamDTOs;
+namespace Mercurius.Modules.Teams.DTOs;
 
-public class PublicTeamProfileDTO
+internal class PublicTeamProfileDTO
 {
     public string TeamName { get; set; } = string.Empty;
     public string? CaptainUsername { get; set; }

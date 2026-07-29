@@ -1,4 +1,4 @@
-namespace Mercurius.LAN.API.Services.TeamServices;
+namespace Mercurius.Modules.Teams.Contracts;
 
 public static class TeamRealtimeGroups
 {

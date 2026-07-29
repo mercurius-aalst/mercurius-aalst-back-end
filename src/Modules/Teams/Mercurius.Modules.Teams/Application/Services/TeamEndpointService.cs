@@ -1,16 +1,13 @@
-using Mercurius.LAN.API.DTOs.UserDTOs;
-using Mercurius.LAN.API.DTOs.TeamDTOs;
 using Mercurius.Modules.Teams.DTOs;
-using ModuleTeamLogoResponseDTO = Mercurius.Modules.Teams.DTOs.TeamLogoResponseDTO;
-using ModuleTeamService = Mercurius.Modules.Teams.Services.ITeamService;
+using Microsoft.AspNetCore.Http;
 
-namespace Mercurius.LAN.API.Services.TeamServices;
+namespace Mercurius.Modules.Teams.Services;
 
-public sealed class ModuleTeamServiceAdapter : ModuleTeamService
+internal sealed class TeamEndpointService : ITeamEndpointService
 {
     private readonly ITeamService _teamService;
 
-    public ModuleTeamServiceAdapter(ITeamService teamService)
+    public TeamEndpointService(ITeamService teamService)
     {
         _teamService = teamService;
     }
@@ -37,7 +34,8 @@ public sealed class ModuleTeamServiceAdapter : ModuleTeamService
             {
                 Name = request.Name,
                 CaptainUserId = request.CaptainUserId
-            });
+            },
+            cancellationToken);
 
         return MapManagementSummary(team);
     }
@@ -46,7 +44,7 @@ public sealed class ModuleTeamServiceAdapter : ModuleTeamService
         string auth0UserId,
         CancellationToken cancellationToken = default)
     {
-        var summary = await _teamService.GetCurrentUserTeamSummaryAsync(auth0UserId);
+        var summary = await _teamService.GetCurrentUserTeamSummaryAsync(auth0UserId, cancellationToken);
 
         return new CurrentUserTeamSummaryResponseDTO
         {
@@ -61,7 +59,7 @@ public sealed class ModuleTeamServiceAdapter : ModuleTeamService
         string auth0UserId,
         CancellationToken cancellationToken = default)
     {
-        var invites = await _teamService.GetCurrentUserInvitesAsync(auth0UserId);
+        var invites = await _teamService.GetCurrentUserInvitesAsync(auth0UserId, cancellationToken);
         return invites.Select(MapInviteSummary).ToList();
     }
 
@@ -69,7 +67,7 @@ public sealed class ModuleTeamServiceAdapter : ModuleTeamService
         string auth0UserId,
         CancellationToken cancellationToken = default)
     {
-        var invites = await _teamService.GetCurrentUserSentInvitesAsync(auth0UserId);
+        var invites = await _teamService.GetCurrentUserSentInvitesAsync(auth0UserId, cancellationToken);
         return invites.Select(MapInviteSummary).ToList();
     }
 
@@ -78,7 +76,7 @@ public sealed class ModuleTeamServiceAdapter : ModuleTeamService
         Guid teamId,
         CancellationToken cancellationToken = default)
     {
-        return MapManagementSummary(await _teamService.LeaveTeamAsync(auth0UserId, teamId));
+        return MapManagementSummary(await _teamService.LeaveTeamAsync(auth0UserId, teamId, cancellationToken));
     }
 
     public async Task<TeamManagementSummaryResponseDTO> RemoveMemberAsync(
@@ -87,12 +85,12 @@ public sealed class ModuleTeamServiceAdapter : ModuleTeamService
         Guid userId,
         CancellationToken cancellationToken = default)
     {
-        return MapManagementSummary(await _teamService.RemoveMemberAsync(auth0UserId, teamId, userId));
+        return MapManagementSummary(await _teamService.RemoveMemberAsync(auth0UserId, teamId, userId, cancellationToken));
     }
 
     public Task DeleteTeamAsync(string auth0UserId, Guid teamId, CancellationToken cancellationToken = default)
     {
-        return _teamService.DeleteTeamAsync(auth0UserId, teamId);
+        return _teamService.DeleteTeamAsync(auth0UserId, teamId, cancellationToken);
     }
 
     public async Task<TeamInviteResponseDTO> InviteUserAsync(
@@ -101,7 +99,7 @@ public sealed class ModuleTeamServiceAdapter : ModuleTeamService
         Guid userId,
         CancellationToken cancellationToken = default)
     {
-        return MapInvite(await _teamService.InviteUserAsync(auth0UserId, teamId, userId));
+        return MapInvite(await _teamService.InviteUserAsync(auth0UserId, teamId, userId, cancellationToken));
     }
 
     public async Task<TeamInviteResponseDTO> CancelInviteAsync(
@@ -110,7 +108,7 @@ public sealed class ModuleTeamServiceAdapter : ModuleTeamService
         Guid inviteId,
         CancellationToken cancellationToken = default)
     {
-        return MapInvite(await _teamService.CancelInviteAsync(auth0UserId, teamId, inviteId));
+        return MapInvite(await _teamService.CancelInviteAsync(auth0UserId, teamId, inviteId, cancellationToken));
     }
 
     public async Task<TeamInviteResponseDTO> RespondToInviteAsync(
@@ -119,7 +117,7 @@ public sealed class ModuleTeamServiceAdapter : ModuleTeamService
         bool accept,
         CancellationToken cancellationToken = default)
     {
-        return MapInvite(await _teamService.RespondToInviteAsync(auth0UserId, inviteId, accept));
+        return MapInvite(await _teamService.RespondToInviteAsync(auth0UserId, inviteId, accept, cancellationToken));
     }
 
     public async Task<TeamManagementSummaryResponseDTO> TransferCaptainAsync(
@@ -128,33 +126,33 @@ public sealed class ModuleTeamServiceAdapter : ModuleTeamService
         Guid newCaptainUserId,
         CancellationToken cancellationToken = default)
     {
-        return MapManagementSummary(await _teamService.TransferCaptainAsync(auth0UserId, teamId, newCaptainUserId));
+        return MapManagementSummary(await _teamService.TransferCaptainAsync(auth0UserId, teamId, newCaptainUserId, cancellationToken));
     }
 
-    public async Task<ModuleTeamLogoResponseDTO> UploadTeamLogoAsync(
+    public async Task<TeamLogoResponseDTO> UploadTeamLogoAsync(
         string auth0UserId,
         Guid teamId,
         IFormFile logo,
         CancellationToken cancellationToken = default)
     {
-        var logoResponse = await _teamService.UploadTeamLogoAsync(auth0UserId, teamId, logo);
-        return new ModuleTeamLogoResponseDTO(logoResponse.TeamId, logoResponse.LogoUrl);
+        var logoResponse = await _teamService.UploadTeamLogoAsync(auth0UserId, teamId, logo, cancellationToken);
+        return new TeamLogoResponseDTO(logoResponse.TeamId, logoResponse.LogoUrl);
     }
 
-    public async Task<ModuleTeamLogoResponseDTO> RemoveTeamLogoAsync(
+    public async Task<TeamLogoResponseDTO> RemoveTeamLogoAsync(
         string auth0UserId,
         Guid teamId,
         CancellationToken cancellationToken = default)
     {
-        var logoResponse = await _teamService.RemoveTeamLogoAsync(auth0UserId, teamId);
-        return new ModuleTeamLogoResponseDTO(logoResponse.TeamId, logoResponse.LogoUrl);
+        var logoResponse = await _teamService.RemoveTeamLogoAsync(auth0UserId, teamId, cancellationToken);
+        return new TeamLogoResponseDTO(logoResponse.TeamId, logoResponse.LogoUrl);
     }
 
     public async Task<PublicTeamProfileResponseDTO> GetPublicTeamProfileAsync(
         string teamName,
         CancellationToken cancellationToken = default)
     {
-        var profile = await _teamService.GetPublicTeamProfileAsync(teamName);
+        var profile = await _teamService.GetPublicTeamProfileAsync(teamName, cancellationToken);
 
         return new PublicTeamProfileResponseDTO
         {
@@ -230,7 +228,7 @@ public sealed class ModuleTeamServiceAdapter : ModuleTeamService
         };
     }
 
-    private static PublicUserResponseDTO MapPublicUser(PublicUserDTO user)
+    private static PublicUserResponseDTO MapPublicUser(TeamPublicUserDTO user)
     {
         return new PublicUserResponseDTO
         {

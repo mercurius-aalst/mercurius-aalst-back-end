@@ -34,7 +34,7 @@ public class Program
             includeXmlComments: true,
             useEnumSchemaFilter: true);
         builder.Services.AddIdentityModule<MercuriusDBContext>(builder.Configuration);
-        builder.Services.AddTeamsModule(builder.Configuration);
+        builder.Services.AddTeamsModule<MercuriusDBContext>(builder.Configuration);
         builder.Services.AddApplicationServices();
         builder.Services.AddApiProblemDetails<ApiExceptionHandler>();
         builder.Services.AddHttpConventions();

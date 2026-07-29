@@ -1,8 +1,9 @@
 using Mercurius.LAN.API.Data;
-using Mercurius.LAN.API.DTOs.TeamDTOs;
+using Mercurius.Modules.Teams.DTOs;
 using Mercurius.LAN.API.Migrations;
 using Mercurius.LAN.API.Models;
-using Mercurius.LAN.API.Services.TeamServices;
+using Mercurius.Modules.Teams.Services;
+using Mercurius.Modules.Teams.Infrastructure;
 using Mercurius.Modules.Identity;
 using Mercurius.Modules.Identity.Contracts;
 using Mercurius.Modules.Identity.DTOs;
@@ -251,7 +252,7 @@ public class ModuleEventingTests
 
         var created = await teamService.CreateCurrentUserTeamAsync(captain.Auth0UserId, new CreateTeamDTO { Name = "Alpha" });
         await teamService.InviteUserAsync(captain.Auth0UserId, created.Id, invited.Id);
-        await teamService.RespondToInviteAsync(invited.Auth0UserId, (await dbContext.TeamInvites.SingleAsync()).Id, true);
+        await teamService.RespondToInviteAsync(invited.Auth0UserId, (await dbContext.Set<TeamInvite>().SingleAsync()).Id, true);
         await teamService.UpdateTeamAsync(created.Id, new UpdateTeamDTO { Name = "Bravo" });
         await teamService.RemoveMemberAsync(captain.Auth0UserId, created.Id, invited.Id);
         await teamService.DeleteTeamAsync(captain.Auth0UserId, created.Id);
@@ -380,8 +381,8 @@ public class ModuleEventingTests
         var moduleEventPublisher = new ModuleEventPublisher(dbContext);
 
         return new TeamEventPublishingDecorator(
-            new TeamService(dbContext, configuration, new IdentityModuleFacade(dbContext)),
-            dbContext,
+            new TeamService(new TeamsDbContextAdapter<MercuriusDBContext>(dbContext), configuration, new IdentityModuleFacade(dbContext)),
+            new TeamsDbContextAdapter<MercuriusDBContext>(dbContext),
             new NullTeamEventPublisher(),
             moduleEventPublisher);
     }

@@ -1,5 +1,7 @@
 using Mercurius.LAN.API.Models;
 using Mercurius.Modules.Identity.Infrastructure;
+using Mercurius.Modules.Teams;
+using Mercurius.Modules.Teams.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Platform.Eventing.Persistence;
@@ -19,7 +21,6 @@ public partial class MercuriusDBContext : DbContext, IModuleEventDbContext, IIde
     public DbSet<Team> Teams { get; set; }
     public DbSet<Match> Matches { get; set; }
     public DbSet<Game> Games { get; set; }
-    public DbSet<TeamInvite> TeamInvites { get; set; }
     public DbSet<User> Users { get; set; }
     public DbSet<Placement> Placements { get; set; }
     public DbSet<Sponsor> Sponsors { get; set; }
@@ -59,36 +60,7 @@ public partial class MercuriusDBContext : DbContext, IModuleEventDbContext, IIde
             entity.Property(e => e.UpdatedAtUtc).IsRequired();
         });
 
-        modelBuilder.Entity<Team>(entity =>
-        {
-            entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
-            entity.Property(e => e.NormalizedName).IsRequired().HasMaxLength(100);
-            entity.Property(e => e.LogoUrl).HasMaxLength(260);
-            entity.Property(e => e.IsDeleted).IsRequired();
-            entity.Property(e => e.Version).IsRequired();
-            entity.HasIndex(e => e.NormalizedName)
-                  .IsUnique()
-                  .HasFilter("\"IsDeleted\" = false");
-            entity.HasIndex(e => e.CaptainUserId);
-            entity.HasMany(e => e.Members)
-                  .WithMany()
-                  .UsingEntity<Dictionary<string, object>>(
-                      "TeamUser",
-                      j => j.HasOne<User>()
-                          .WithMany()
-                          .HasForeignKey("UserId")
-                          .OnDelete(DeleteBehavior.Cascade),
-                      j => j.HasOne<Team>()
-                          .WithMany()
-                          .HasForeignKey("TeamId")
-                          .OnDelete(DeleteBehavior.Cascade),
-                      j => j.HasKey("TeamId", "UserId"));
-            entity.HasOne(e => e.Captain)
-                   .WithMany()
-                   .HasForeignKey(e => e.CaptainUserId)
-                   .IsRequired(false);
-
-        });
+        modelBuilder.ApplyTeamsModelConfiguration();
 
         modelBuilder.Entity<Match>(entity =>
         {
@@ -211,28 +183,6 @@ public partial class MercuriusDBContext : DbContext, IModuleEventDbContext, IIde
                   .HasDatabaseName("IX_TournamentRosterMembers_GameId_UserId_PendingActive");
             entity.HasIndex(e => new { e.GameId, e.TeamId, e.UserId });
             entity.HasIndex(e => new { e.TournamentRegistrationId, e.ConfirmationStatus });
-        });
-
-        modelBuilder.Entity<TeamInvite>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.HasOne(e => e.Team)
-                  .WithMany(t => t.TeamInvites)
-                  .HasForeignKey(e => e.TeamId)
-                  .OnDelete(DeleteBehavior.Cascade);
-            entity.HasOne(e => e.User)
-                  .WithMany()
-                  .HasForeignKey(e => e.UserId)
-                  .OnDelete(DeleteBehavior.Cascade);
-            entity.Property(e => e.Status).IsRequired();
-            entity.Property(e => e.CreatedAt).IsRequired();
-            entity.Property(e => e.ExpiresAt).IsRequired();
-            entity.HasIndex(e => new { e.TeamId, e.UserId })
-                  .IsUnique()
-                  .HasFilter("\"Status\" = 0")
-                  .HasDatabaseName("IX_TeamInvites_TeamId_UserId_Pending");
-            entity.HasIndex(e => new { e.UserId, e.Status, e.ExpiresAt });
-            entity.HasIndex(e => new { e.TeamId, e.Status, e.ExpiresAt });
         });
 
         modelBuilder.Entity<Placement>(entity =>

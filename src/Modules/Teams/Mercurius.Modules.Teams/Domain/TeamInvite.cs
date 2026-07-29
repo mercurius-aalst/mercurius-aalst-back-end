@@ -1,23 +1,16 @@
+using Mercurius.Modules.Identity.Domain;
 using Mercurius.Modules.Shared.Exceptions;
+using Mercurius.Modules.Teams.Contracts;
 
-namespace Mercurius.LAN.API.Models;
+namespace Mercurius.Modules.Teams.Domain;
 
-public enum TeamInviteStatus
-{
-    Pending,
-    Accepted,
-    Declined,
-    Cancelled,
-    Expired
-}
-
-public class TeamInvite
+internal class TeamInvite
 {
     public Guid Id { get; set; }
     public Guid TeamId { get; set; }
-    public Team Team { get; set; }
+    public Team Team { get; set; } = null!;
     public Guid UserId { get; set; }
-    public User User { get; set; }
+    public User User { get; set; } = null!;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime ExpiresAt { get; set; }
     public TeamInviteStatus Status { get; set; } = TeamInviteStatus.Pending;

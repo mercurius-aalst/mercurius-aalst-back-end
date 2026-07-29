@@ -1,15 +1,15 @@
-using Mercurius.LAN.API.Data;
 using Mercurius.Modules.Shared;
 using Mercurius.Modules.Teams.Contracts;
+using Mercurius.Modules.Teams.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 
-namespace Mercurius.LAN.API.Services.TeamServices;
+namespace Mercurius.Modules.Teams.Services;
 
-public sealed class EfTeamRealtimeAuthorizer : ITeamRealtimeAuthorizer
+internal sealed class EfTeamRealtimeAuthorizer : ITeamRealtimeAuthorizer
 {
-    private readonly MercuriusDBContext _dbContext;
+    private readonly ITeamsDbContext _dbContext;
 
-    public EfTeamRealtimeAuthorizer(MercuriusDBContext dbContext)
+    public EfTeamRealtimeAuthorizer(ITeamsDbContext dbContext)
     {
         _dbContext = dbContext;
     }

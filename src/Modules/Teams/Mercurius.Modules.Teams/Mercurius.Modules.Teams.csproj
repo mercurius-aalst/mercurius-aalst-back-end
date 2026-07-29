@@ -12,11 +12,16 @@
 
   <ItemGroup>
     <PackageReference Include="Asp.Versioning.Mvc" Version="8.1.0" />
+    <PackageReference Include="Imageflow.Net" Version="0.14.1" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.4" />
+    <PackageReference Include="Scrutor" Version="6.1.0" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Mercurius.Modules.Teams.Contracts\Mercurius.Modules.Teams.Contracts.csproj" />
+    <ProjectReference Include="..\..\Identity\Mercurius.Modules.Identity\Mercurius.Modules.Identity.csproj" />
     <ProjectReference Include="..\..\..\Modules.Shared\Modules.Shared.csproj" />
+    <ProjectReference Include="..\..\..\Platform\Platform.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,6 +1,6 @@
 namespace Mercurius.Modules.Teams.DTOs;
 
-public sealed class CurrentUserTeamSummaryResponseDTO
+internal sealed class CurrentUserTeamSummaryResponseDTO
 {
     public IReadOnlyList<TeamManagementSummaryResponseDTO> CaptainedTeams { get; set; } = [];
     public IReadOnlyList<TeamManagementSummaryResponseDTO> MemberTeams { get; set; } = [];

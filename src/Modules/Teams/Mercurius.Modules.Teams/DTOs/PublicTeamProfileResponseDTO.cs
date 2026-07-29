@@ -1,6 +1,6 @@
 namespace Mercurius.Modules.Teams.DTOs;
 
-public sealed class PublicTeamProfileResponseDTO
+internal sealed class PublicTeamProfileResponseDTO
 {
     public string TeamName { get; set; } = string.Empty;
     public string? CaptainUsername { get; set; }

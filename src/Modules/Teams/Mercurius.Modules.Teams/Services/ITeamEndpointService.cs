@@ -3,7 +3,7 @@ using Mercurius.Modules.Teams.DTOs;
 
 namespace Mercurius.Modules.Teams.Services;
 
-public interface ITeamService
+internal interface ITeamEndpointService
 {
     Task<IReadOnlyList<TeamResponseDTO>> GetAllTeamsAsync(CancellationToken cancellationToken = default);
     Task<TeamResponseDTO> GetTeamByIdAsync(Guid teamId, CancellationToken cancellationToken = default);

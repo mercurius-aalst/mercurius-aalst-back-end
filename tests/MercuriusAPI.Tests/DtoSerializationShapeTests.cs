@@ -7,8 +7,9 @@ using Mercurius.LAN.API.DTOs.MatchDTOs;
 using Mercurius.LAN.API.DTOs.RegistrationDTOs;
 using Mercurius.LAN.API.DTOs.SearchDTOs;
 using Mercurius.LAN.API.DTOs.SponsorDTOs;
-using Mercurius.LAN.API.DTOs.TeamDTOs;
+using Mercurius.Modules.Teams.DTOs;
 using Mercurius.LAN.API.Models;
+using ApiPublicUserDTO = Mercurius.LAN.API.DTOs.UserDTOs.PublicUserDTO;
 
 namespace Mercurius.LAN.API.Tests;
 
@@ -83,13 +84,13 @@ public class DtoSerializationShapeTests
         AssertJsonProperties(new TournamentRosterMemberDTO
         {
             Id = Guid.NewGuid(),
-            User = new PublicUserDTO(member),
+            User = new ApiPublicUserDTO(member),
             IsCaptain = false,
             ConfirmationStatus = RosterMemberConfirmationStatus.Confirmed
         }, "id", "user", "isCaptain", "confirmationStatus");
         AssertJsonProperties(new PublicTournamentRosterMemberDTO
         {
-            User = new PublicUserDTO(member),
+            User = new ApiPublicUserDTO(member),
             IsCaptain = false
         }, "user", "isCaptain");
 

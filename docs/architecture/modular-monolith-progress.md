@@ -1,6 +1,6 @@
 # Modular Monolith Migration Progress
 
-Last updated: 2026-06-30
+Last updated: 2026-07-29
 
 This tracker is the repo-local handoff ledger for the modular monolith migration. It records which phase PRs have been created. GitHub remains the source of truth for whether those PRs are open, closed, or merged.
 
@@ -90,6 +90,11 @@ Do not start the next phase from an unmerged previous phase branch.
   - Branch: `refactor/phase-10`
   - PR: [#106 Phase 10: move Identity into its module](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/106)
   - Notes: Move user/profile/Auth0 ownership into Identity.
+
+- [x] Phase 7 follow-up - Teams boundary/cancellation finalization
+  - Branch: `refactor/phase-7-follow-up`
+  - PR: [#107 Phase 7 follow-up: finalize Teams boundary, cancellation, and read projections](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/107)
+  - Notes: Finalizes the transitional Teams DbContext adapter boundary, propagates cancellation through Teams async flows, replaces read-only Teams materialization with projections, and adds focused composition/internal-surface coverage. Explicitly defers Team public-surface cleanup to Phase 11, Identity EF-navigation cleanup to Phase 15, Media extraction to Phase 13, test-project reshaping to Phase 18, and transitional adapter/null-fallback cleanup to Phase 19.
 
 - [ ] Phase 11 - Competition extraction
   - Branch: `refactor/phase-11`

@@ -1,6 +1,6 @@
 namespace Mercurius.Modules.Teams.DTOs;
 
-public sealed class TeamManagementSummaryResponseDTO
+internal sealed class TeamManagementSummaryResponseDTO
 {
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;

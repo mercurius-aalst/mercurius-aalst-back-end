@@ -4,7 +4,8 @@ using Mercurius.Modules.Shared.Exceptions;
 using Mercurius.LAN.API.Migrations;
 using Mercurius.LAN.API.Models;
 using Mercurius.LAN.API.Services.RegistrationServices;
-using Mercurius.LAN.API.Services.TeamServices;
+using Mercurius.Modules.Teams.Contracts;
+using Mercurius.Modules.Teams.Services;
 using Mercurius.Modules.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
@@ -185,7 +186,7 @@ public class TournamentRegistrationServiceTests
         Assert.Contains(pending.RosterMembers, roster => roster.User.Id == captain.Id && roster.ConfirmationStatus == RosterMemberConfirmationStatus.AutoConfirmed);
         var memberRoster = Assert.Single(pending.RosterMembers.Where(roster => roster.User.Id == member.Id));
         Assert.Equal(RosterMemberConfirmationStatus.Pending, memberRoster.ConfirmationStatus);
-        Assert.Empty(await dbContext.TeamInvites.ToListAsync());
+        Assert.Empty(await dbContext.Set<TeamInvite>().ToListAsync());
         Assert.True(await dbContext.TournamentRegistrationRosterMembers.AnyAsync(roster =>
             roster.UserId == member.Id &&
             roster.ConfirmationStatus == RosterMemberConfirmationStatus.Pending)); Assert.Contains(publisher.RosterConfirmationEvents, evt => evt.TeamId == team.Id && evt.UserId == member.Id && evt.Status == nameof(RosterMemberConfirmationStatus.Pending));
@@ -304,7 +305,7 @@ public class TournamentRegistrationServiceTests
             roster.TeamId == team.Id &&
             roster.UserId == member.Id &&
             roster.ConfirmationStatus == RosterMemberConfirmationStatus.Pending));
-        Assert.False(await dbContext.TeamInvites.AnyAsync());
+        Assert.False(await dbContext.Set<TeamInvite>().AnyAsync());
     }
 
     [Fact]
@@ -332,7 +333,7 @@ public class TournamentRegistrationServiceTests
             member.UserId == secondMember.Id &&
             member.TeamId == team.Id &&
             member.ConfirmationStatus == RosterMemberConfirmationStatus.Pending));
-        Assert.False(await dbContext.TeamInvites.AnyAsync());
+        Assert.False(await dbContext.Set<TeamInvite>().AnyAsync());
     }
 
     [Fact]
@@ -507,37 +508,39 @@ public class TournamentRegistrationServiceTests
 
     private sealed class RecordingTeamEventPublisher : ITeamEventPublisher
     {
-        public List<TeamInviteChangedEvent> InviteEvents { get; } = [];
+        public List<RecordedInviteEvent> InviteEvents { get; } = [];
         public List<TournamentRosterConfirmationChangedEvent> RosterConfirmationEvents { get; } = [];
 
-        public Task InviteChangedAsync(Guid teamId, Guid inviteId, Guid affectedUserId, string status)
+        public Task InviteChangedAsync(Guid teamId, Guid inviteId, Guid affectedUserId, string status, CancellationToken cancellationToken = default)
         {
-            InviteEvents.Add(new TeamInviteChangedEvent(teamId, inviteId, affectedUserId, status));
+            InviteEvents.Add(new RecordedInviteEvent(teamId, inviteId, affectedUserId, status));
             return Task.CompletedTask;
         }
 
-        public Task RosterConfirmationChangedAsync(Guid teamId, Guid notificationId, Guid affectedUserId, string status)
+        public Task RosterConfirmationChangedAsync(Guid teamId, Guid notificationId, Guid affectedUserId, string status, CancellationToken cancellationToken = default)
         {
             RosterConfirmationEvents.Add(new TournamentRosterConfirmationChangedEvent(teamId, notificationId, affectedUserId, status));
             return Task.CompletedTask;
         }
 
-        public Task MembershipChangedAsync(Guid teamId, Guid affectedUserId, string action) => Task.CompletedTask;
+        public Task MembershipChangedAsync(Guid teamId, Guid affectedUserId, string action, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
-        public Task CaptainTransferredAsync(Guid teamId, Guid newCaptainUserId) => Task.CompletedTask;
+        public Task CaptainTransferredAsync(Guid teamId, Guid newCaptainUserId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public sealed record RecordedInviteEvent(Guid TeamId, Guid InviteId, Guid UserId, string Status);
     }
 
     private sealed class ThrowingTeamEventPublisher : ITeamEventPublisher
     {
-        public Task InviteChangedAsync(Guid teamId, Guid inviteId, Guid affectedUserId, string status) => Task.CompletedTask;
+        public Task InviteChangedAsync(Guid teamId, Guid inviteId, Guid affectedUserId, string status, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
-        public Task RosterConfirmationChangedAsync(Guid teamId, Guid notificationId, Guid affectedUserId, string status)
+        public Task RosterConfirmationChangedAsync(Guid teamId, Guid notificationId, Guid affectedUserId, string status, CancellationToken cancellationToken = default)
         {
             throw new InvalidOperationException("event publishing failed");
         }
 
-        public Task MembershipChangedAsync(Guid teamId, Guid affectedUserId, string action) => Task.CompletedTask;
+        public Task MembershipChangedAsync(Guid teamId, Guid affectedUserId, string action, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
-        public Task CaptainTransferredAsync(Guid teamId, Guid newCaptainUserId) => Task.CompletedTask;
+        public Task CaptainTransferredAsync(Guid teamId, Guid newCaptainUserId, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 }

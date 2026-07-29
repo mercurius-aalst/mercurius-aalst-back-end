@@ -1,6 +1,6 @@
-namespace Mercurius.LAN.API.DTOs.TeamDTOs;
+namespace Mercurius.Modules.Teams.DTOs;
 
-public class UpdateTeamDTO
+internal class UpdateTeamDTO
 {
     public string? Name { get; set; }
     public Guid? CaptainUserId { get; set; }

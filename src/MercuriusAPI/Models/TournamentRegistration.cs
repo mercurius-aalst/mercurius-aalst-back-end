@@ -1,3 +1,5 @@
+using Mercurius.Modules.Teams.Domain;
+
 namespace Mercurius.LAN.API.Models;
 
 public enum TournamentRegistrationKind

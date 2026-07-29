@@ -1,9 +1,9 @@
-using Mercurius.LAN.API.DTOs.UserDTOs;
-using Mercurius.LAN.API.Models;
+using Mercurius.Modules.Teams.Domain;
+using Mercurius.Modules.Teams.Contracts;
 
-namespace Mercurius.LAN.API.DTOs.TeamDTOs;
+namespace Mercurius.Modules.Teams.DTOs;
 
-public class CurrentUserTeamSummaryDTO
+internal class CurrentUserTeamSummaryDTO
 {
     public IEnumerable<TeamManagementSummaryDTO> CaptainedTeams { get; set; } = [];
     public IEnumerable<TeamManagementSummaryDTO> MemberTeams { get; set; } = [];
@@ -11,14 +11,14 @@ public class CurrentUserTeamSummaryDTO
     public IEnumerable<TeamInviteSummaryDTO> SentPendingInvites { get; set; } = [];
 }
 
-public class TeamManagementSummaryDTO
+internal class TeamManagementSummaryDTO
 {
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public Guid CaptainUserId { get; set; }
     public string? CaptainUsername { get; set; }
     public string? LogoUrl { get; set; }
-    public IEnumerable<PublicUserDTO> Members { get; set; } = [];
+    public IEnumerable<TeamPublicUserDTO> Members { get; set; } = [];
 
     public TeamManagementSummaryDTO()
     {
@@ -31,11 +31,11 @@ public class TeamManagementSummaryDTO
         CaptainUserId = team.CaptainUserId ?? Guid.Empty;
         CaptainUsername = team.Captain?.Username;
         LogoUrl = team.LogoUrl;
-        Members = team.Members.Select(member => new PublicUserDTO(member));
+        Members = team.Members.Select(member => new TeamPublicUserDTO(member));
     }
 }
 
-public class TeamInviteSummaryDTO
+internal class TeamInviteSummaryDTO
 {
     public Guid Id { get; set; }
     public Guid TeamId { get; set; }
@@ -65,4 +65,3 @@ public class TeamInviteSummaryDTO
     }
 }
 
-public record TeamLogoResponseDTO(Guid TeamId, string? LogoUrl);

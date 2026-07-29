@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 
 namespace Mercurius.Modules.Teams.Infrastructure;
 
-public interface ITeamsDbContext
+internal interface ITeamsDbContext
 {
     DbSet<Team> Teams { get; }
     DbSet<User> Users { get; }

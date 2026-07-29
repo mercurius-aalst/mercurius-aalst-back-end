@@ -5,6 +5,7 @@ using Mercurius.Modules.Teams.Contracts;
 using Mercurius.Modules.Teams.Endpoints;
 using Mercurius.Modules.Teams.Infrastructure;
 using Mercurius.Modules.Teams.Services;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Mercurius.Modules.Teams;
@@ -14,9 +15,9 @@ public static class TeamsModuleConfiguration
     public static IServiceCollection AddTeamsModule<TDbContext>(
         this IServiceCollection services,
         IConfiguration configuration)
-        where TDbContext : class, ITeamsDbContext
+        where TDbContext : DbContext
     {
-        services.TryAddScoped<ITeamsDbContext>(provider => provider.GetRequiredService<TDbContext>());
+        services.TryAddScoped<ITeamsDbContext, TeamsDbContextAdapter<TDbContext>>();
         services.TryAddTransient<ITeamCompetitionReadService, NullTeamCompetitionReadService>();
         services.AddTransient<ITeamsModule, TeamsModuleFacade>();
         services.AddTransient<ITeamLogoStorage, TeamLogoStorage>();
@@ -27,6 +28,11 @@ public static class TeamsModuleConfiguration
         services.AddTransient<Contracts.ITeamRealtimeAuthorizer, EfTeamRealtimeAuthorizer>();
 
         return services;
+    }
+
+    public static ModelBuilder ApplyTeamsModelConfiguration(this ModelBuilder modelBuilder)
+    {
+        return modelBuilder.ApplyTeamsConfiguration();
     }
 
     public static IEndpointRouteBuilder MapTeamsModule(this IEndpointRouteBuilder endpoints)

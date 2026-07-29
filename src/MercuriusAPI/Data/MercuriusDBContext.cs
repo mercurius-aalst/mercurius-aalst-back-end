@@ -1,14 +1,14 @@
 using Mercurius.LAN.API.Models;
 using Mercurius.Modules.Identity.Infrastructure;
+using Mercurius.Modules.Teams;
 using Mercurius.Modules.Teams.Domain;
-using Mercurius.Modules.Teams.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Platform.Eventing.Persistence;
 
 namespace Mercurius.LAN.API.Data;
 
-public partial class MercuriusDBContext : DbContext, IModuleEventDbContext, IIdentityDbContext, ITeamsDbContext
+public partial class MercuriusDBContext : DbContext, IModuleEventDbContext, IIdentityDbContext
 {
     public MercuriusDBContext()
     {
@@ -60,7 +60,7 @@ public partial class MercuriusDBContext : DbContext, IModuleEventDbContext, IIde
             entity.Property(e => e.UpdatedAtUtc).IsRequired();
         });
 
-        modelBuilder.ApplyTeamsConfiguration();
+        modelBuilder.ApplyTeamsModelConfiguration();
 
         modelBuilder.Entity<Match>(entity =>
         {

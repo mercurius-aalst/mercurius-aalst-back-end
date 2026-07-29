@@ -4,9 +4,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Mercurius.Modules.Teams.Infrastructure;
 
-public static class TeamsModelBuilderExtensions
+internal static class TeamsModelBuilderExtensions
 {
-    public static ModelBuilder ApplyTeamsConfiguration(this ModelBuilder modelBuilder)
+    internal static ModelBuilder ApplyTeamsConfiguration(this ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Team>(entity =>
         {

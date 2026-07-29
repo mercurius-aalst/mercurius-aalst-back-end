@@ -24,8 +24,9 @@ internal sealed class TeamLogoStorage : ITeamLogoStorage
         _maxFileSizeInMB = _configuration.GetValue<int>("FileStorage:MaxFileSizeInMB");
     }
 
-    public async Task<string> SaveImageAsync(IFormFile image)
+    public async Task<string> SaveImageAsync(IFormFile image, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateImage(image);
 
         var folderPath = _configuration["FileStorage:Location"];
@@ -38,10 +39,12 @@ internal sealed class TeamLogoStorage : ITeamLogoStorage
         var fileName = Path.GetRandomFileName() + ".webp";
         var filePath = Path.Combine(folderPath, fileName);
 
+        cancellationToken.ThrowIfCancellationRequested();
         await using var outputStream = new FileStream(filePath, FileMode.Create);
         await using var inputStream = image.OpenReadStream();
         inputStream.Position = 0;
 
+        cancellationToken.ThrowIfCancellationRequested();
         await new ImageJob()
             .Decode(inputStream, true)
             .Encode(new StreamDestination(outputStream, true), new WebPLosslessEncoder())
@@ -51,7 +54,7 @@ internal sealed class TeamLogoStorage : ITeamLogoStorage
         return Path.Combine("images", fileName).Replace("\\", "/", StringComparison.Ordinal);
     }
 
-    public Task DeleteImageAsync(string? imageUrl)
+    public Task DeleteImageAsync(string? imageUrl, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(imageUrl))
             return Task.CompletedTask;
@@ -73,6 +76,7 @@ internal sealed class TeamLogoStorage : ITeamLogoStorage
         if (!filePath.StartsWith(storageRoot, StringComparison.OrdinalIgnoreCase))
             return Task.CompletedTask;
 
+        cancellationToken.ThrowIfCancellationRequested();
         if (File.Exists(filePath))
             File.Delete(filePath);
 

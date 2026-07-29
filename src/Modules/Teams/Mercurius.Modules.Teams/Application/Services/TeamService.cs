@@ -43,12 +43,12 @@ internal sealed class TeamService : ITeamService
         _declinedInviteResendLimit = configuration.GetSection("TeamInvite:DeclinedResendLimit").Get<int?>() ?? 3;
     }
 
-    public async Task<GetTeamDTO> CreateTeamAsync(CreateTeamDTO teamDTO)
+    public async Task<GetTeamDTO> CreateTeamAsync(CreateTeamDTO teamDTO, CancellationToken cancellationToken = default)
     {
         var normalizedTeamName = Team.NormalizeName(teamDTO.Name);
-        if (await CheckIfTeamNameExistsAsync(normalizedTeamName))
+        if (await CheckIfTeamNameExistsAsync(normalizedTeamName, cancellationToken: cancellationToken))
             throw new ValidationException($"Teamname {teamDTO.Name} already in use");
-        var captain = await GetUserProfileAsync(teamDTO.CaptainUserId);
+        var captain = await GetUserProfileAsync(teamDTO.CaptainUserId, cancellationToken);
         if (captain is null || captain.IsDeleted)
             throw new NotFoundException($"{nameof(User)} not found");
         var captainReference = GetUserReference(captain);
@@ -58,17 +58,17 @@ internal sealed class TeamService : ITeamService
         };
         team.Members.Add(captainReference);
         _dbContext.Teams.Add(team);
-        await SaveTeamChangesAsync(teamDTO.Name);
+        await SaveTeamChangesAsync(teamDTO.Name, cancellationToken);
         return new GetTeamDTO(team);
     }
 
-    public async Task<TeamManagementSummaryDTO> CreateCurrentUserTeamAsync(string auth0UserId, CreateTeamDTO teamDTO)
+    public async Task<TeamManagementSummaryDTO> CreateCurrentUserTeamAsync(string auth0UserId, CreateTeamDTO teamDTO, CancellationToken cancellationToken = default)
     {
-        var currentUser = await GetCurrentUserAsync(auth0UserId);
-        await EnsureCaptainLimitAsync(currentUser.Id.Value);
+        var currentUser = await GetCurrentUserAsync(auth0UserId, cancellationToken);
+        await EnsureCaptainLimitAsync(currentUser.Id.Value, cancellationToken: cancellationToken);
 
         var normalizedTeamName = Team.NormalizeName(teamDTO.Name);
-        if (await CheckIfTeamNameExistsAsync(normalizedTeamName))
+        if (await CheckIfTeamNameExistsAsync(normalizedTeamName, cancellationToken: cancellationToken))
             throw new ValidationException($"Teamname {teamDTO.Name} already in use");
 
         var captainReference = GetUserReference(currentUser);
@@ -79,74 +79,83 @@ internal sealed class TeamService : ITeamService
         };
         team.Members.Add(captainReference);
         _dbContext.Teams.Add(team);
-        await SaveTeamChangesAsync(teamDTO.Name);
+        await SaveTeamChangesAsync(teamDTO.Name, cancellationToken);
 
         return new TeamManagementSummaryDTO(team);
     }
-    public async Task DeleteTeamAsync(Guid teamId)
+
+    public async Task DeleteTeamAsync(Guid teamId, CancellationToken cancellationToken = default)
     {
         var team = await _dbContext.Teams
             .Include(t => t.Members)
             .Include(t => t.TeamInvites)
-            .FirstOrDefaultAsync(t => t.Id == teamId);
+            .FirstOrDefaultAsync(t => t.Id == teamId, cancellationToken);
         if (team is null)
             throw new NotFoundException($"{nameof(Team)} not found");
         team.Delete(DateTime.UtcNow);
-        await _dbContext.SaveChangesAsync();
+        await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task DeleteTeamAsync(string auth0UserId, Guid teamId)
+    public async Task DeleteTeamAsync(string auth0UserId, Guid teamId, CancellationToken cancellationToken = default)
     {
-        var currentUser = await GetCurrentUserAsync(auth0UserId);
+        var currentUser = await GetCurrentUserAsync(auth0UserId, cancellationToken);
         var team = await GetActiveTeamsQuery()
             .Include(t => t.Members)
             .Include(t => t.TeamInvites)
-            .FirstOrDefaultAsync(t => t.Id == teamId);
+            .FirstOrDefaultAsync(t => t.Id == teamId, cancellationToken);
         if (team is null)
             throw new NotFoundException($"{nameof(Team)} not found");
 
         EnsureCaptain(team, currentUser.Id.Value);
-        if (await _competitionReadService.IsTeamInDeleteBlockingTournamentAsync(teamId))
+        if (await _competitionReadService.IsTeamInDeleteBlockingTournamentAsync(teamId, cancellationToken))
             throw new ValidationException("Cannot delete a team that is actively participating in a game or tournament.");
 
         team.Delete(DateTime.UtcNow);
-        await _dbContext.SaveChangesAsync();
+        await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<IEnumerable<GetTeamDTO>> GetAllTeamsAsync(CancellationToken cancellationToken = default)
     {
-        var teams = await GetTeamWithMembersReadQuery()
+        var teams = await GetTeamReadQuery()
             .ToListAsync(cancellationToken);
 
-        return teams.Select(team => new GetTeamDTO(team));
+        return teams;
     }
 
     public async Task<GetTeamDTO> GetTeamByIdAsync(Guid teamId, CancellationToken cancellationToken = default)
     {
-        var team = await GetTeamWithMembersReadQuery()
-            .FirstOrDefaultAsync(t => t.Id == teamId, cancellationToken);
+        var team = await ProjectTeamReadQuery(GetActiveTeamsQuery().Where(t => t.Id == teamId))
+            .FirstOrDefaultAsync(cancellationToken);
         if (team is null)
             throw new NotFoundException($"{nameof(Team)} not found");
-        return new GetTeamDTO(team);
+        return team;
     }
 
-    public async Task<PublicTeamProfileDTO> GetPublicTeamProfileAsync(string teamName)
+    public async Task<PublicTeamProfileDTO> GetPublicTeamProfileAsync(string teamName, CancellationToken cancellationToken = default)
     {
         var normalizedTeamName = Team.NormalizeName(teamName);
         var team = await _dbContext.Teams
             .AsNoTracking()
             .Where(t => !t.IsDeleted)
-            .Include(t => t.Captain)
-            .Include(t => t.Members)
-            .FirstOrDefaultAsync(t => t.NormalizedName == normalizedTeamName);
+            .Where(t => t.NormalizedName == normalizedTeamName)
+            .Select(t => new
+            {
+                t.Id,
+                t.Name,
+                CaptainUsername = t.Captain == null ? null : t.Captain.Username,
+                t.LogoUrl,
+                MemberUsernames = t.Members
+                    .Select(member => member.Username)
+                    .ToList()
+            })
+            .FirstOrDefaultAsync(cancellationToken);
 
         if (team is null)
             throw new NotFoundException($"{nameof(Team)} not found");
 
-        var tournaments = await _competitionReadService.GetPublicTeamTournamentsAsync(team.Id);
+        var tournaments = await _competitionReadService.GetPublicTeamTournamentsAsync(team.Id, cancellationToken);
 
-        var members = team.Members
-            .Select(member => member.Username)
+        var members = team.MemberUsernames
             .Where(IsValidPublicUsername)
             .Select(username => username!)
             .OrderBy(username => username, StringComparer.OrdinalIgnoreCase)
@@ -154,7 +163,7 @@ internal sealed class TeamService : ITeamService
             .Select(username => new PublicTeamMemberDTO(username))
             .ToList();
 
-        var captainUsername = team.Captain?.Username;
+        var captainUsername = team.CaptainUsername;
 
         return new PublicTeamProfileDTO
         {
@@ -175,43 +184,43 @@ internal sealed class TeamService : ITeamService
     public async Task<GetTeamDTO> GetTeamByNameAsync(string name, CancellationToken cancellationToken = default)
     {
         var normalizedName = Team.NormalizeName(name);
-        var team = await GetTeamWithMembersReadQuery()
-            .FirstOrDefaultAsync(t => t.NormalizedName == normalizedName, cancellationToken);
+        var team = await ProjectTeamReadQuery(GetActiveTeamsQuery().Where(t => t.NormalizedName == normalizedName))
+            .FirstOrDefaultAsync(cancellationToken);
         if (team is null)
             throw new NotFoundException($"{nameof(Team)} not found");
-        return new GetTeamDTO(team);
+        return team;
     }
 
-    public async Task<GetTeamDTO> RemoveMemberAsync(Guid id, Guid userId)
+    public async Task<GetTeamDTO> RemoveMemberAsync(Guid id, Guid userId, CancellationToken cancellationToken = default)
     {
-        var team = await _dbContext.Teams.Include(t => t.Members).FirstOrDefaultAsync(t => t.Id == id);
+        var team = await _dbContext.Teams.Include(t => t.Members).FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
         if (team is null)
             throw new NotFoundException($"{nameof(Team)} not found");
         team.RemoveMember(userId);
-        await _dbContext.SaveChangesAsync();
+        await _dbContext.SaveChangesAsync(cancellationToken);
         return new GetTeamDTO(team);
     }
 
-    public async Task<TeamManagementSummaryDTO> RemoveMemberAsync(string auth0UserId, Guid teamId, Guid userId)
+    public async Task<TeamManagementSummaryDTO> RemoveMemberAsync(string auth0UserId, Guid teamId, Guid userId, CancellationToken cancellationToken = default)
     {
-        var currentUser = await GetCurrentUserAsync(auth0UserId);
-        var team = await GetTeamWithMembersQuery().FirstOrDefaultAsync(t => t.Id == teamId);
+        var currentUser = await GetCurrentUserAsync(auth0UserId, cancellationToken);
+        var team = await GetTeamWithMembersQuery().FirstOrDefaultAsync(t => t.Id == teamId, cancellationToken);
         if (team is null)
             throw new NotFoundException($"{nameof(Team)} not found");
 
         EnsureCaptain(team, currentUser.Id.Value);
-        if (await _competitionReadService.IsUserInProtectedTournamentRosterAsync(teamId, userId))
+        if (await _competitionReadService.IsUserInProtectedTournamentRosterAsync(teamId, userId, cancellationToken))
             throw new ValidationException("Cannot remove a member from a team that is part of an in-progress tournament roster.");
 
         team.RemoveMember(userId);
-        await _dbContext.SaveChangesAsync();
+        await _dbContext.SaveChangesAsync(cancellationToken);
         return new TeamManagementSummaryDTO(team);
     }
 
-    public async Task<GetTeamDTO> UpdateTeamAsync(Guid id, UpdateTeamDTO teamDTO)
+    public async Task<GetTeamDTO> UpdateTeamAsync(Guid id, UpdateTeamDTO teamDTO, CancellationToken cancellationToken = default)
     {
         var team = await GetTeamWithMembersQuery()
-            .FirstOrDefaultAsync(t => t.Id == id);
+            .FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
         if (team is null)
             throw new NotFoundException($"{nameof(Team)} not found");
 
@@ -220,7 +229,7 @@ internal sealed class TeamService : ITeamService
             var normalizedTeamName = Team.NormalizeName(teamDTO.Name);
             var nameChanged = !string.Equals(team.NormalizedName, normalizedTeamName, StringComparison.Ordinal);
             if (nameChanged &&
-                await CheckIfTeamNameExistsAsync(normalizedTeamName, id))
+                await CheckIfTeamNameExistsAsync(normalizedTeamName, id, cancellationToken))
             {
                 throw new ValidationException($"Teamname {teamDTO.Name} already in use");
             }
@@ -234,7 +243,7 @@ internal sealed class TeamService : ITeamService
         }
 
         _dbContext.Teams.Update(team);
-        await SaveTeamChangesAsync(team.Name);
+        await SaveTeamChangesAsync(team.Name, cancellationToken);
         return new GetTeamDTO(team);
     }
 
@@ -246,226 +255,232 @@ internal sealed class TeamService : ITeamService
         var normalizedQuery = query.Trim().ToLowerInvariant();
         var resultLimit = Math.Clamp(limit.GetValueOrDefault(MaxTeamSearchResults), 1, MaxTeamSearchResults);
 
-        var teams = await GetTeamWithMembersReadQuery()
-            .Where(t => t.NormalizedName.StartsWith(normalizedQuery))
+        var teams = await ProjectTeamReadQuery(GetActiveTeamsQuery().Where(t => t.NormalizedName.StartsWith(normalizedQuery)))
             .OrderBy(t => t.Name)
             .Take(resultLimit)
             .ToListAsync(cancellationToken);
 
-        return teams.Select(team => new GetTeamDTO(team));
+        return teams;
     }
 
-    public async Task<TeamInviteDTO> InviteUserAsync(Guid teamId, Guid userId)
+    public async Task<TeamInviteDTO> InviteUserAsync(Guid teamId, Guid userId, CancellationToken cancellationToken = default)
     {
-        var team = await GetTeamForInviteMutationAsync(teamId);
-        if (await GetUserProfileAsync(userId) is null)
+        var team = await GetTeamForInviteMutationAsync(teamId, cancellationToken);
+        if (await GetUserProfileAsync(userId, cancellationToken) is null)
             throw new NotFoundException($"{nameof(User)} not found");
-        await ExpirePendingInvitesAsync(teamId, userId);
+        await ExpirePendingInvitesAsync(teamId, userId, cancellationToken);
         var invite = team.InviteUser(userId, _inviteResendCooldownDays, _inviteExpirationDays, _declinedInviteResendLimit);
-        await _dbContext.SaveChangesAsync();
+        await _dbContext.SaveChangesAsync(cancellationToken);
         return new TeamInviteDTO(invite);
     }
 
-    public async Task<TeamInviteDTO> InviteUserAsync(string auth0UserId, Guid teamId, Guid userId)
+    public async Task<TeamInviteDTO> InviteUserAsync(string auth0UserId, Guid teamId, Guid userId, CancellationToken cancellationToken = default)
     {
-        var currentUser = await GetCurrentUserAsync(auth0UserId);
-        var team = await GetTeamForInviteMutationAsync(teamId);
+        var currentUser = await GetCurrentUserAsync(auth0UserId, cancellationToken);
+        var team = await GetTeamForInviteMutationAsync(teamId, cancellationToken);
         EnsureCaptain(team, currentUser.Id.Value);
 
-        var invitedUser = await GetUserProfileAsync(userId);
+        var invitedUser = await GetUserProfileAsync(userId, cancellationToken);
         if (invitedUser is null || invitedUser.IsDeleted)
             throw new NotFoundException($"{nameof(User)} not found");
 
-        await ExpirePendingInvitesAsync(teamId, userId);
+        await ExpirePendingInvitesAsync(teamId, userId, cancellationToken);
         var invite = team.InviteUser(userId, _inviteResendCooldownDays, _inviteExpirationDays, _declinedInviteResendLimit);
-        await SaveInviteChangesAsync();
+        await SaveInviteChangesAsync(cancellationToken);
         return new TeamInviteDTO(invite);
     }
 
-    public async Task<TeamInviteDTO> CancelInviteAsync(string auth0UserId, Guid teamId, Guid inviteId)
+    public async Task<TeamInviteDTO> CancelInviteAsync(string auth0UserId, Guid teamId, Guid inviteId, CancellationToken cancellationToken = default)
     {
-        var currentUser = await GetCurrentUserAsync(auth0UserId);
+        var currentUser = await GetCurrentUserAsync(auth0UserId, cancellationToken);
         var invite = await TeamInvites
             .Include(i => i.Team)
-            .FirstOrDefaultAsync(i => i.Id == inviteId && i.TeamId == teamId);
+            .FirstOrDefaultAsync(i => i.Id == inviteId && i.TeamId == teamId, cancellationToken);
         if (invite is null)
             throw new NotFoundException("Invite not found");
 
         EnsureCaptain(invite.Team, currentUser.Id.Value);
         invite.Cancel();
-        await _dbContext.SaveChangesAsync();
+        await _dbContext.SaveChangesAsync(cancellationToken);
         return new TeamInviteDTO(invite);
     }
 
-    public async Task<TeamInviteDTO> RespondToInviteAsync(Guid teamId, Guid userId, bool accept)
+    public async Task<TeamInviteDTO> RespondToInviteAsync(Guid teamId, Guid userId, bool accept, CancellationToken cancellationToken = default)
     {
         var invite = await TeamInvites
             .Include(ti => ti.User)
             .Include(ti => ti.Team)
-            .FirstOrDefaultAsync(i => i.TeamId == teamId && i.UserId == userId && i.Status == TeamInviteStatus.Pending);
+            .FirstOrDefaultAsync(i => i.TeamId == teamId && i.UserId == userId && i.Status == TeamInviteStatus.Pending, cancellationToken);
         if (invite == null)
             throw new NotFoundException("No pending invite found");
-        await _dbContext.Entry(invite.Team).Collection(t => t.Members).LoadAsync();
+        await _dbContext.Entry(invite.Team).Collection(t => t.Members).LoadAsync(cancellationToken);
         invite.Respond(accept);
-        await _dbContext.SaveChangesAsync();
+        await _dbContext.SaveChangesAsync(cancellationToken);
         return new TeamInviteDTO(invite);
     }
 
-    public async Task<TeamInviteDTO> RespondToInviteAsync(string auth0UserId, Guid inviteId, bool accept)
+    public async Task<TeamInviteDTO> RespondToInviteAsync(string auth0UserId, Guid inviteId, bool accept, CancellationToken cancellationToken = default)
     {
-        var currentUser = await GetCurrentUserAsync(auth0UserId);
+        var currentUser = await GetCurrentUserAsync(auth0UserId, cancellationToken);
         var invite = await TeamInvites
             .Include(ti => ti.User)
             .Include(ti => ti.Team)
-            .FirstOrDefaultAsync(i => i.Id == inviteId && i.UserId == currentUser.Id.Value);
+            .FirstOrDefaultAsync(i => i.Id == inviteId && i.UserId == currentUser.Id.Value, cancellationToken);
         if (invite == null)
             throw new NotFoundException("No pending invite found");
 
-        await _dbContext.Entry(invite.Team).Collection(t => t.Members).LoadAsync();
+        await _dbContext.Entry(invite.Team).Collection(t => t.Members).LoadAsync(cancellationToken);
         invite.Respond(accept);
-        await _dbContext.SaveChangesAsync();
+        await _dbContext.SaveChangesAsync(cancellationToken);
 
         return new TeamInviteDTO(invite);
     }
 
-    public async Task<IEnumerable<TeamInviteDTO>> GetUserInvitesAsync(Guid userId)
+    public async Task<IEnumerable<TeamInviteDTO>> GetUserInvitesAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         var invites = await TeamInvites
+            .AsNoTracking()
             .Where(i => i.UserId == userId && i.Status == TeamInviteStatus.Pending)
-            .ToListAsync();
-        return invites.Select(invite => new TeamInviteDTO
-        {
-            Id = invite.Id,
-            TeamId = invite.TeamId,
-            UserId = invite.UserId,
-            Status = invite.Status.ToString(),
-            CreatedAt = invite.CreatedAt,
-            ExpiresAt = invite.ExpiresAt
-        });
+            .Select(invite => new TeamInviteDTO
+            {
+                Id = invite.Id,
+                TeamId = invite.TeamId,
+                UserId = invite.UserId,
+                Status = nameof(TeamInviteStatus.Pending),
+                CreatedAt = invite.CreatedAt,
+                ExpiresAt = invite.ExpiresAt
+            })
+            .ToListAsync(cancellationToken);
+        return invites;
     }
 
-    public async Task<CurrentUserTeamSummaryDTO> GetCurrentUserTeamSummaryAsync(string auth0UserId)
+    public async Task<CurrentUserTeamSummaryDTO> GetCurrentUserTeamSummaryAsync(string auth0UserId, CancellationToken cancellationToken = default)
     {
-        var currentUser = await GetCurrentUserAsync(auth0UserId);
-        await ExpirePendingInvitesAsync();
-        await CleanupTerminalInvitesAsync();
+        var currentUser = await GetCurrentUserAsync(auth0UserId, cancellationToken);
+        await ExpirePendingInvitesAsync(cancellationToken: cancellationToken);
+        await CleanupTerminalInvitesAsync(cancellationToken);
+        var now = DateTime.UtcNow;
 
-        var captainedTeams = await TeamManagementQuery()
-            .Where(team => team.CaptainUserId == currentUser.Id.Value)
+        var captainedTeams = await ProjectTeamManagementSummaryQuery(
+                GetActiveTeamsQuery().Where(team => team.CaptainUserId == currentUser.Id.Value))
             .OrderBy(team => team.Name)
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
 
-        var memberTeams = await TeamManagementQuery()
-            .Where(team => team.Members.Any(member => member.Id == currentUser.Id.Value))
+        var memberTeams = await ProjectTeamManagementSummaryQuery(
+                GetActiveTeamsQuery().Where(team => team.Members.Any(member => member.Id == currentUser.Id.Value)))
             .OrderBy(team => team.Name)
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
 
         return new CurrentUserTeamSummaryDTO
         {
-            CaptainedTeams = captainedTeams.Select(team => new TeamManagementSummaryDTO(team)),
-            MemberTeams = memberTeams.Select(team => new TeamManagementSummaryDTO(team)),
-            ReceivedPendingInvites = (await GetPendingInviteSummariesQuery()
+            CaptainedTeams = captainedTeams,
+            MemberTeams = memberTeams,
+            ReceivedPendingInvites = await GetPendingInviteSummariesQuery(now)
                 .Where(invite => invite.UserId == currentUser.Id.Value)
                 .OrderBy(invite => invite.CreatedAt)
-                .ToListAsync())
-                .Select(invite => new TeamInviteSummaryDTO(invite)),
-            SentPendingInvites = (await GetPendingInviteSummariesQuery()
-                .Where(invite => invite.Team.CaptainUserId == currentUser.Id.Value)
+                .Select(invite => invite.Summary)
+                .ToListAsync(cancellationToken),
+            SentPendingInvites = await GetPendingInviteSummariesQuery(now)
+                .Where(invite => invite.CaptainUserId == currentUser.Id.Value)
                 .OrderBy(invite => invite.CreatedAt)
-                .ToListAsync())
-                .Select(invite => new TeamInviteSummaryDTO(invite))
+                .Select(invite => invite.Summary)
+                .ToListAsync(cancellationToken)
         };
     }
 
-    public async Task<IEnumerable<TeamInviteSummaryDTO>> GetCurrentUserInvitesAsync(string auth0UserId)
+    public async Task<IEnumerable<TeamInviteSummaryDTO>> GetCurrentUserInvitesAsync(string auth0UserId, CancellationToken cancellationToken = default)
     {
-        var currentUser = await GetCurrentUserAsync(auth0UserId);
-        await ExpirePendingInvitesAsync();
-        var invites = await GetPendingInviteSummariesQuery()
+        var currentUser = await GetCurrentUserAsync(auth0UserId, cancellationToken);
+        await ExpirePendingInvitesAsync(cancellationToken: cancellationToken);
+        var invites = await GetPendingInviteSummariesQuery(DateTime.UtcNow)
             .Where(invite => invite.UserId == currentUser.Id.Value)
             .OrderBy(invite => invite.CreatedAt)
-            .ToListAsync();
-        return invites.Select(invite => new TeamInviteSummaryDTO(invite));
+            .Select(invite => invite.Summary)
+            .ToListAsync(cancellationToken);
+        return invites;
     }
 
-    public async Task<IEnumerable<TeamInviteSummaryDTO>> GetCurrentUserSentInvitesAsync(string auth0UserId)
+    public async Task<IEnumerable<TeamInviteSummaryDTO>> GetCurrentUserSentInvitesAsync(string auth0UserId, CancellationToken cancellationToken = default)
     {
-        var currentUser = await GetCurrentUserAsync(auth0UserId);
-        await ExpirePendingInvitesAsync();
-        var invites = await GetPendingInviteSummariesQuery()
-            .Where(invite => invite.Team.CaptainUserId == currentUser.Id.Value)
+        var currentUser = await GetCurrentUserAsync(auth0UserId, cancellationToken);
+        await ExpirePendingInvitesAsync(cancellationToken: cancellationToken);
+        var invites = await GetPendingInviteSummariesQuery(DateTime.UtcNow)
+            .Where(invite => invite.CaptainUserId == currentUser.Id.Value)
             .OrderBy(invite => invite.CreatedAt)
-            .ToListAsync();
-        return invites.Select(invite => new TeamInviteSummaryDTO(invite));
+            .Select(invite => invite.Summary)
+            .ToListAsync(cancellationToken);
+        return invites;
     }
 
-    public async Task<TeamManagementSummaryDTO> LeaveTeamAsync(string auth0UserId, Guid teamId)
+    public async Task<TeamManagementSummaryDTO> LeaveTeamAsync(string auth0UserId, Guid teamId, CancellationToken cancellationToken = default)
     {
-        var currentUser = await GetCurrentUserAsync(auth0UserId);
-        var team = await GetTeamWithMembersQuery().FirstOrDefaultAsync(t => t.Id == teamId);
+        var currentUser = await GetCurrentUserAsync(auth0UserId, cancellationToken);
+        var team = await GetTeamWithMembersQuery().FirstOrDefaultAsync(t => t.Id == teamId, cancellationToken);
         if (team is null)
             throw new NotFoundException($"{nameof(Team)} not found");
         if (team.CaptainUserId == currentUser.Id.Value)
             throw new ValidationException("The captain cannot leave a team without transferring captainship.");
         if (!team.Members.Any(member => member.Id == currentUser.Id.Value))
             throw new NotFoundException($"{nameof(User)} not found in {team.Name}");
-        if (await _competitionReadService.IsUserInProtectedTournamentRosterAsync(teamId, currentUser.Id.Value))
+        if (await _competitionReadService.IsUserInProtectedTournamentRosterAsync(teamId, currentUser.Id.Value, cancellationToken))
             throw new ValidationException("Cannot leave a team that is part of a protected tournament roster.");
 
         team.RemoveMember(currentUser.Id.Value);
-        await _dbContext.SaveChangesAsync();
+        await _dbContext.SaveChangesAsync(cancellationToken);
         return new TeamManagementSummaryDTO(team);
     }
 
-    public async Task<TeamManagementSummaryDTO> TransferCaptainAsync(string auth0UserId, Guid teamId, Guid newCaptainUserId)
+    public async Task<TeamManagementSummaryDTO> TransferCaptainAsync(string auth0UserId, Guid teamId, Guid newCaptainUserId, CancellationToken cancellationToken = default)
     {
-        var currentUser = await GetCurrentUserAsync(auth0UserId);
+        var currentUser = await GetCurrentUserAsync(auth0UserId, cancellationToken);
         var team = await GetTeamWithMembersQuery()
             .Include(t => t.Captain)
-            .FirstOrDefaultAsync(t => t.Id == teamId);
+            .FirstOrDefaultAsync(t => t.Id == teamId, cancellationToken);
         if (team is null)
             throw new NotFoundException($"{nameof(Team)} not found");
 
         EnsureCaptain(team, currentUser.Id.Value);
-        await EnsureCaptainLimitAsync(newCaptainUserId, teamId);
+        await EnsureCaptainLimitAsync(newCaptainUserId, teamId, cancellationToken);
         team.ChangeCaptain(newCaptainUserId);
-        await _dbContext.SaveChangesAsync();
+        await _dbContext.SaveChangesAsync(cancellationToken);
         return new TeamManagementSummaryDTO(team);
     }
 
-    public async Task<TeamLogoResponseDTO> UploadTeamLogoAsync(string auth0UserId, Guid teamId, IFormFile logo)
+    public async Task<TeamLogoResponseDTO> UploadTeamLogoAsync(string auth0UserId, Guid teamId, IFormFile logo, CancellationToken cancellationToken = default)
     {
         if (_logoStorage is null)
             throw new InvalidOperationException("File service is not configured.");
 
-        var currentUser = await GetCurrentUserAsync(auth0UserId);
-        var team = await GetTeamWithMembersQuery().FirstOrDefaultAsync(t => t.Id == teamId);
+        var currentUser = await GetCurrentUserAsync(auth0UserId, cancellationToken);
+        var team = await GetTeamWithMembersQuery().FirstOrDefaultAsync(t => t.Id == teamId, cancellationToken);
         if (team is null)
             throw new NotFoundException($"{nameof(Team)} not found");
 
         EnsureCaptain(team, currentUser.Id.Value);
         var previousLogo = team.LogoUrl;
-        var logoUrl = await _logoStorage.SaveImageAsync(logo);
+        var logoUrl = await _logoStorage.SaveImageAsync(logo, cancellationToken);
         team.LogoUrl = logoUrl;
-        await _dbContext.SaveChangesAsync();
+        cancellationToken.ThrowIfCancellationRequested();
+        await _dbContext.SaveChangesAsync(cancellationToken);
         await _logoStorage.DeleteImageAsync(previousLogo);
         return new TeamLogoResponseDTO(team.Id, team.LogoUrl);
     }
 
-    public async Task<TeamLogoResponseDTO> RemoveTeamLogoAsync(string auth0UserId, Guid teamId)
+    public async Task<TeamLogoResponseDTO> RemoveTeamLogoAsync(string auth0UserId, Guid teamId, CancellationToken cancellationToken = default)
     {
         if (_logoStorage is null)
             throw new InvalidOperationException("File service is not configured.");
 
-        var currentUser = await GetCurrentUserAsync(auth0UserId);
-        var team = await GetTeamWithMembersQuery().FirstOrDefaultAsync(t => t.Id == teamId);
+        var currentUser = await GetCurrentUserAsync(auth0UserId, cancellationToken);
+        var team = await GetTeamWithMembersQuery().FirstOrDefaultAsync(t => t.Id == teamId, cancellationToken);
         if (team is null)
             throw new NotFoundException($"{nameof(Team)} not found");
 
         EnsureCaptain(team, currentUser.Id.Value);
         var previousLogo = team.LogoUrl;
         team.LogoUrl = null;
-        await _dbContext.SaveChangesAsync();
+        cancellationToken.ThrowIfCancellationRequested();
+        await _dbContext.SaveChangesAsync(cancellationToken);
         await _logoStorage.DeleteImageAsync(previousLogo);
         return new TeamLogoResponseDTO(team.Id, null);
     }
@@ -475,12 +490,12 @@ internal sealed class TeamService : ITeamService
         return !string.IsNullOrWhiteSpace(username);
     }
 
-    private async Task<UserProfileSummary> GetCurrentUserAsync(string auth0UserId)
+    private async Task<UserProfileSummary> GetCurrentUserAsync(string auth0UserId, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(auth0UserId))
             throw new UnauthorizedAccessException("Authenticated user id is missing.");
 
-        var user = await _identityModule.GetUserProfileByAuth0IdAsync(auth0UserId);
+        var user = await _identityModule.GetUserProfileByAuth0IdAsync(auth0UserId, cancellationToken);
 
         if (user is null || user.IsDeleted)
             throw new NotFoundException("Current user profile was not found.");
@@ -488,9 +503,9 @@ internal sealed class TeamService : ITeamService
         return user;
     }
 
-    private async Task<UserProfileSummary?> GetUserProfileAsync(Guid userId)
+    private async Task<UserProfileSummary?> GetUserProfileAsync(Guid userId, CancellationToken cancellationToken)
     {
-        return await _identityModule.GetUserProfileAsync(new UserId(userId));
+        return await _identityModule.GetUserProfileAsync(new UserId(userId), cancellationToken);
     }
 
     private User GetUserReference(UserProfileSummary user)
@@ -514,12 +529,13 @@ internal sealed class TeamService : ITeamService
         return userReference;
     }
 
-    private async Task EnsureCaptainLimitAsync(Guid captainUserId, Guid? excludedTeamId = null)
+    private async Task EnsureCaptainLimitAsync(Guid captainUserId, Guid? excludedTeamId = null, CancellationToken cancellationToken = default)
     {
         var captainedTeamCount = await _dbContext.Teams.CountAsync(team =>
             !team.IsDeleted &&
             team.CaptainUserId == captainUserId &&
-            (!excludedTeamId.HasValue || team.Id != excludedTeamId.Value));
+            (!excludedTeamId.HasValue || team.Id != excludedTeamId.Value),
+            cancellationToken);
         if (captainedTeamCount >= MaxCaptainedTeams)
             throw new ValidationException($"A user can captain at most {MaxCaptainedTeams} teams.");
     }
@@ -530,7 +546,7 @@ internal sealed class TeamService : ITeamService
             throw new UnauthorizedAccessException("Only the team captain can perform this action.");
     }
 
-    private async Task ExpirePendingInvitesAsync(Guid? teamId = null, Guid? userId = null)
+    private async Task ExpirePendingInvitesAsync(Guid? teamId = null, Guid? userId = null, CancellationToken cancellationToken = default)
     {
         var now = DateTime.UtcNow;
         var query = TeamInvites.Where(invite =>
@@ -539,44 +555,45 @@ internal sealed class TeamService : ITeamService
             (!teamId.HasValue || invite.TeamId == teamId.Value) &&
             (!userId.HasValue || invite.UserId == userId.Value));
 
-        var invites = await query.ToListAsync();
+        var invites = await query.ToListAsync(cancellationToken);
         foreach (var invite in invites)
             invite.Expire();
 
         if (invites.Count > 0)
         {
-            await _dbContext.SaveChangesAsync();
+            await _dbContext.SaveChangesAsync(cancellationToken);
         }
     }
 
-    private async Task CleanupTerminalInvitesAsync()
+    private async Task CleanupTerminalInvitesAsync(CancellationToken cancellationToken)
     {
         var cutoff = DateTime.UtcNow.AddDays(-_inviteRetentionDays);
         var invites = await TeamInvites
             .Where(invite =>
                 invite.Status != TeamInviteStatus.Pending &&
                 (invite.RespondedAt ?? invite.CancelledAt ?? invite.ExpiredAt ?? invite.CreatedAt) < cutoff)
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
 
         if (invites.Count == 0)
             return;
 
         TeamInvites.RemoveRange(invites);
-        await _dbContext.SaveChangesAsync();
+        await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    private Task<bool> CheckIfTeamNameExistsAsync(string normalizedName, Guid? excludedTeamId = null)
+    private Task<bool> CheckIfTeamNameExistsAsync(string normalizedName, Guid? excludedTeamId = null, CancellationToken cancellationToken = default)
     {
         return _dbContext.Teams.AnyAsync(t =>
             !t.IsDeleted &&
             t.NormalizedName == normalizedName &&
-            (!excludedTeamId.HasValue || t.Id != excludedTeamId.Value));
+            (!excludedTeamId.HasValue || t.Id != excludedTeamId.Value),
+            cancellationToken);
     }
 
-    private async Task<Team> GetTeamForInviteMutationAsync(Guid teamId)
+    private async Task<Team> GetTeamForInviteMutationAsync(Guid teamId, CancellationToken cancellationToken)
     {
         var team = await GetTeamDetailsQuery()
-            .FirstOrDefaultAsync(t => t.Id == teamId);
+            .FirstOrDefaultAsync(t => t.Id == teamId, cancellationToken);
         if (team is null)
             throw new NotFoundException($"{nameof(Team)} not found");
 
@@ -596,19 +613,58 @@ internal sealed class TeamService : ITeamService
             .Include(t => t.Members);
     }
 
-    private IQueryable<Team> GetTeamWithMembersReadQuery()
+    private IQueryable<GetTeamDTO> GetTeamReadQuery()
     {
-        return GetActiveTeamsQuery()
-            .AsNoTracking()
-            .Include(t => t.Members);
+        return ProjectTeamReadQuery(GetActiveTeamsQuery());
     }
 
-    private IQueryable<Team> TeamManagementQuery()
+    private static IQueryable<GetTeamDTO> ProjectTeamReadQuery(IQueryable<Team> query)
     {
-        return GetActiveTeamsQuery()
+        return query
             .AsNoTracking()
-            .Include(t => t.Captain)
-            .Include(t => t.Members);
+            .Select(team => new GetTeamDTO
+            {
+                Id = team.Id,
+                Name = team.Name,
+                CaptainUserId = team.CaptainUserId ?? Guid.Empty,
+                LogoUrl = team.LogoUrl,
+                Members = team.Members
+                    .Select(member => new TeamPublicUserDTO
+                    {
+                        Id = member.Id,
+                        Username = member.Username == null || member.Username == string.Empty ? "Incomplete profile" : member.Username,
+                        DisplayName = member.Username == null || member.Username == string.Empty ? "Incomplete profile" : member.Username,
+                        DiscordId = member.DiscordId,
+                        SteamId = member.SteamId,
+                        RiotId = member.RiotId
+                    })
+                    .ToList()
+            });
+    }
+
+    private static IQueryable<TeamManagementSummaryDTO> ProjectTeamManagementSummaryQuery(IQueryable<Team> query)
+    {
+        return query
+            .AsNoTracking()
+            .Select(team => new TeamManagementSummaryDTO
+            {
+                Id = team.Id,
+                Name = team.Name,
+                CaptainUserId = team.CaptainUserId ?? Guid.Empty,
+                CaptainUsername = team.Captain == null ? null : team.Captain.Username,
+                LogoUrl = team.LogoUrl,
+                Members = team.Members
+                    .Select(member => new TeamPublicUserDTO
+                    {
+                        Id = member.Id,
+                        Username = member.Username == null || member.Username == string.Empty ? "Incomplete profile" : member.Username,
+                        DisplayName = member.Username == null || member.Username == string.Empty ? "Incomplete profile" : member.Username,
+                        DiscordId = member.DiscordId,
+                        SteamId = member.SteamId,
+                        RiotId = member.RiotId
+                    })
+                    .ToList()
+            });
     }
 
     private IQueryable<Team> GetActiveTeamsQuery()
@@ -616,20 +672,36 @@ internal sealed class TeamService : ITeamService
         return _dbContext.Teams.Where(team => !team.IsDeleted);
     }
 
-    private IQueryable<TeamInvite> GetPendingInviteSummariesQuery()
+    private IQueryable<TeamInviteSummaryQueryRow> GetPendingInviteSummariesQuery(DateTime now)
     {
         return TeamInvites
             .AsNoTracking()
-            .Include(invite => invite.Team)
-            .Include(invite => invite.User)
-            .Where(invite => !invite.Team.IsDeleted && invite.Status == TeamInviteStatus.Pending && invite.ExpiresAt > DateTime.UtcNow);
+            .Where(invite => !invite.Team.IsDeleted && invite.Status == TeamInviteStatus.Pending && invite.ExpiresAt > now)
+            .Select(invite => new TeamInviteSummaryQueryRow
+            {
+                Summary = new TeamInviteSummaryDTO
+                {
+                    Id = invite.Id,
+                    TeamId = invite.TeamId,
+                    TeamName = invite.Team.Name,
+                    TeamLogoUrl = invite.Team.LogoUrl,
+                    UserId = invite.UserId,
+                    Username = invite.User.Username,
+                    Status = nameof(TeamInviteStatus.Pending),
+                    CreatedAt = invite.CreatedAt,
+                    ExpiresAt = invite.ExpiresAt
+                },
+                CaptainUserId = invite.Team.CaptainUserId,
+                UserId = invite.UserId,
+                CreatedAt = invite.CreatedAt
+            });
     }
 
-    private async Task SaveTeamChangesAsync(string teamName)
+    private async Task SaveTeamChangesAsync(string teamName, CancellationToken cancellationToken)
     {
         try
         {
-            await _dbContext.SaveChangesAsync();
+            await _dbContext.SaveChangesAsync(cancellationToken);
         }
         catch (DbUpdateException exception) when (IsTeamNameUniqueConstraintViolation(exception))
         {
@@ -648,11 +720,11 @@ internal sealed class TeamService : ITeamService
         return false;
     }
 
-    private async Task SaveInviteChangesAsync()
+    private async Task SaveInviteChangesAsync(CancellationToken cancellationToken)
     {
         try
         {
-            await _dbContext.SaveChangesAsync();
+            await _dbContext.SaveChangesAsync(cancellationToken);
         }
         catch (DbUpdateException exception) when (IsPendingInviteUniqueConstraintViolation(exception))
         {
@@ -669,6 +741,14 @@ internal sealed class TeamService : ITeamService
         }
 
         return false;
+    }
+
+    private sealed class TeamInviteSummaryQueryRow
+    {
+        public TeamInviteSummaryDTO Summary { get; set; } = new();
+        public Guid? CaptainUserId { get; set; }
+        public Guid UserId { get; set; }
+        public DateTime CreatedAt { get; set; }
     }
 }
 

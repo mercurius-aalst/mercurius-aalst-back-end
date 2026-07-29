@@ -12,45 +12,45 @@ internal sealed class RealtimeTeamEventPublisher : ITeamEventPublisher
         _realtimePublisher = realtimePublisher;
     }
 
-    public Task InviteChangedAsync(Guid teamId, Guid inviteId, Guid affectedUserId, string status)
+    public Task InviteChangedAsync(Guid teamId, Guid inviteId, Guid affectedUserId, string status, CancellationToken cancellationToken = default)
     {
         return _realtimePublisher.PublishAsync(new RealtimePublishRequest<TeamInviteChangedRealtimeEvent>(
             "TeamInviteChanged",
             new TeamInviteChangedRealtimeEvent(teamId, inviteId, affectedUserId, status),
-            [TeamRealtimeGroups.GetUserGroup(affectedUserId)]));
+            [TeamRealtimeGroups.GetUserGroup(affectedUserId)]), cancellationToken);
     }
 
-    public Task MembershipChangedAsync(Guid teamId, Guid affectedUserId, string action)
+    public Task MembershipChangedAsync(Guid teamId, Guid affectedUserId, string action, CancellationToken cancellationToken = default)
     {
         return _realtimePublisher.PublishAsync(new RealtimePublishRequest<TeamMembershipChangedRealtimeEvent>(
             "TeamMembershipChanged",
             new TeamMembershipChangedRealtimeEvent(teamId, affectedUserId, action),
-            [TeamRealtimeGroups.GetTeamGroup(teamId)]));
+            [TeamRealtimeGroups.GetTeamGroup(teamId)]), cancellationToken);
     }
 
-    public Task RosterConfirmationChangedAsync(Guid teamId, Guid rosterMemberId, Guid affectedUserId, string status)
+    public Task RosterConfirmationChangedAsync(Guid teamId, Guid rosterMemberId, Guid affectedUserId, string status, CancellationToken cancellationToken = default)
     {
         return _realtimePublisher.PublishAsync(new RealtimePublishRequest<TournamentRosterConfirmationChangedEvent>(
             "TournamentRosterConfirmationChanged",
             new TournamentRosterConfirmationChangedEvent(teamId, rosterMemberId, affectedUserId, status),
-            [TeamRealtimeGroups.GetUserGroup(affectedUserId), TeamRealtimeGroups.GetTeamGroup(teamId)]));
+            [TeamRealtimeGroups.GetUserGroup(affectedUserId), TeamRealtimeGroups.GetTeamGroup(teamId)]), cancellationToken);
     }
 
-    public Task CaptainTransferredAsync(Guid teamId, Guid newCaptainUserId)
+    public Task CaptainTransferredAsync(Guid teamId, Guid newCaptainUserId, CancellationToken cancellationToken = default)
     {
         return _realtimePublisher.PublishAsync(new RealtimePublishRequest<TeamCaptainTransferredRealtimeEvent>(
             "TeamCaptainTransferred",
             new TeamCaptainTransferredRealtimeEvent(teamId, newCaptainUserId),
-            [TeamRealtimeGroups.GetTeamGroup(teamId)]));
+            [TeamRealtimeGroups.GetTeamGroup(teamId)]), cancellationToken);
     }
 }
 
 internal sealed class NullTeamEventPublisher : ITeamEventPublisher
 {
-    public Task InviteChangedAsync(Guid teamId, Guid inviteId, Guid affectedUserId, string status) => Task.CompletedTask;
-    public Task RosterConfirmationChangedAsync(Guid teamId, Guid rosterMemberId, Guid affectedUserId, string status) => Task.CompletedTask;
-    public Task MembershipChangedAsync(Guid teamId, Guid affectedUserId, string action) => Task.CompletedTask;
-    public Task CaptainTransferredAsync(Guid teamId, Guid newCaptainUserId) => Task.CompletedTask;
+    public Task InviteChangedAsync(Guid teamId, Guid inviteId, Guid affectedUserId, string status, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task RosterConfirmationChangedAsync(Guid teamId, Guid rosterMemberId, Guid affectedUserId, string status, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task MembershipChangedAsync(Guid teamId, Guid affectedUserId, string action, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task CaptainTransferredAsync(Guid teamId, Guid newCaptainUserId, CancellationToken cancellationToken = default) => Task.CompletedTask;
 }
 
 internal sealed record TeamInviteChangedRealtimeEvent(Guid TeamId, Guid InviteId, Guid UserId, string Status);

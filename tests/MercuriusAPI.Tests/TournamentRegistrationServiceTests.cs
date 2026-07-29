@@ -511,36 +511,36 @@ public class TournamentRegistrationServiceTests
         public List<RecordedInviteEvent> InviteEvents { get; } = [];
         public List<TournamentRosterConfirmationChangedEvent> RosterConfirmationEvents { get; } = [];
 
-        public Task InviteChangedAsync(Guid teamId, Guid inviteId, Guid affectedUserId, string status)
+        public Task InviteChangedAsync(Guid teamId, Guid inviteId, Guid affectedUserId, string status, CancellationToken cancellationToken = default)
         {
             InviteEvents.Add(new RecordedInviteEvent(teamId, inviteId, affectedUserId, status));
             return Task.CompletedTask;
         }
 
-        public Task RosterConfirmationChangedAsync(Guid teamId, Guid notificationId, Guid affectedUserId, string status)
+        public Task RosterConfirmationChangedAsync(Guid teamId, Guid notificationId, Guid affectedUserId, string status, CancellationToken cancellationToken = default)
         {
             RosterConfirmationEvents.Add(new TournamentRosterConfirmationChangedEvent(teamId, notificationId, affectedUserId, status));
             return Task.CompletedTask;
         }
 
-        public Task MembershipChangedAsync(Guid teamId, Guid affectedUserId, string action) => Task.CompletedTask;
+        public Task MembershipChangedAsync(Guid teamId, Guid affectedUserId, string action, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
-        public Task CaptainTransferredAsync(Guid teamId, Guid newCaptainUserId) => Task.CompletedTask;
+        public Task CaptainTransferredAsync(Guid teamId, Guid newCaptainUserId, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
         public sealed record RecordedInviteEvent(Guid TeamId, Guid InviteId, Guid UserId, string Status);
     }
 
     private sealed class ThrowingTeamEventPublisher : ITeamEventPublisher
     {
-        public Task InviteChangedAsync(Guid teamId, Guid inviteId, Guid affectedUserId, string status) => Task.CompletedTask;
+        public Task InviteChangedAsync(Guid teamId, Guid inviteId, Guid affectedUserId, string status, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
-        public Task RosterConfirmationChangedAsync(Guid teamId, Guid notificationId, Guid affectedUserId, string status)
+        public Task RosterConfirmationChangedAsync(Guid teamId, Guid notificationId, Guid affectedUserId, string status, CancellationToken cancellationToken = default)
         {
             throw new InvalidOperationException("event publishing failed");
         }
 
-        public Task MembershipChangedAsync(Guid teamId, Guid affectedUserId, string action) => Task.CompletedTask;
+        public Task MembershipChangedAsync(Guid teamId, Guid affectedUserId, string action, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
-        public Task CaptainTransferredAsync(Guid teamId, Guid newCaptainUserId) => Task.CompletedTask;
+        public Task CaptainTransferredAsync(Guid teamId, Guid newCaptainUserId, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 }

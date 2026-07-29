@@ -7,6 +7,7 @@ using Mercurius.LAN.API.Hubs;
 using Mercurius.LAN.API.Services.Files;
 using Mercurius.LAN.API.Services.TeamServices;
 using Mercurius.Modules.Teams.Contracts;
+using Mercurius.Modules.Teams.Infrastructure;
 using Mercurius.Modules.Teams.Services;
 using Mercurius.Modules.Identity;
 using Mercurius.Modules.Shared;
@@ -1059,7 +1060,7 @@ public class TeamTests
         dbContext.Users.AddRange(captain, member, outsider, deletedCaptain);
         dbContext.Teams.AddRange(team, deletedTeam);
         await dbContext.SaveChangesAsync();
-        var authorizer = new EfTeamRealtimeAuthorizer(dbContext);
+        var authorizer = new EfTeamRealtimeAuthorizer(new TeamsDbContextAdapter<MercuriusDBContext>(dbContext));
 
         Assert.True(await authorizer.CanSubscribeToTeamAsync(new TeamId(team.Id), new UserId(captain.Id)));
         Assert.True(await authorizer.CanSubscribeToTeamAsync(new TeamId(team.Id), new UserId(member.Id)));
@@ -1182,12 +1183,12 @@ public class TeamTests
 
         return new TeamEventPublishingDecorator(
             new TeamService(
-                dbContext,
+                new TeamsDbContextAdapter<MercuriusDBContext>(dbContext),
                 configuration,
                 new IdentityModuleFacade(dbContext),
                 fileService,
                 new EfTeamCompetitionReadService(dbContext)),
-            dbContext,
+            new TeamsDbContextAdapter<MercuriusDBContext>(dbContext),
             eventPublisher ?? new NullTeamEventPublisher(),
             moduleEventPublisher);
     }
@@ -1211,14 +1212,24 @@ public class TeamTests
             _imageUrl = imageUrl;
         }
 
-        public Task<string> SaveImageAsync(IFormFile image)
+        public Task<string> SaveImageAsync(IFormFile image, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(_imageUrl);
         }
 
-        public Task DeleteImageAsync(string? imageUrl)
+        Task<string> IFileService.SaveImageAsync(IFormFile image)
+        {
+            return SaveImageAsync(image);
+        }
+
+        public Task DeleteImageAsync(string? imageUrl, CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
+        }
+
+        Task IFileService.DeleteImageAsync(string? imageUrl)
+        {
+            return DeleteImageAsync(imageUrl);
         }
     }
 
@@ -1229,25 +1240,25 @@ public class TeamTests
         public List<RecordedMembershipEvent> MembershipEvents { get; } = [];
         public List<RecordedCaptainEvent> CaptainEvents { get; } = [];
 
-        public Task InviteChangedAsync(Guid teamId, Guid inviteId, Guid affectedUserId, string status)
+        public Task InviteChangedAsync(Guid teamId, Guid inviteId, Guid affectedUserId, string status, CancellationToken cancellationToken = default)
         {
             InviteEvents.Add(new RecordedInviteEvent(teamId, inviteId, affectedUserId, status));
             return Task.CompletedTask;
         }
 
-        public Task RosterConfirmationChangedAsync(Guid teamId, Guid rosterMemberId, Guid affectedUserId, string status)
+        public Task RosterConfirmationChangedAsync(Guid teamId, Guid rosterMemberId, Guid affectedUserId, string status, CancellationToken cancellationToken = default)
         {
             RosterConfirmationEvents.Add(new TournamentRosterConfirmationChangedEvent(teamId, rosterMemberId, affectedUserId, status));
             return Task.CompletedTask;
         }
 
-        public Task MembershipChangedAsync(Guid teamId, Guid affectedUserId, string action)
+        public Task MembershipChangedAsync(Guid teamId, Guid affectedUserId, string action, CancellationToken cancellationToken = default)
         {
             MembershipEvents.Add(new RecordedMembershipEvent(teamId, affectedUserId, action));
             return Task.CompletedTask;
         }
 
-        public Task CaptainTransferredAsync(Guid teamId, Guid newCaptainUserId)
+        public Task CaptainTransferredAsync(Guid teamId, Guid newCaptainUserId, CancellationToken cancellationToken = default)
         {
             CaptainEvents.Add(new RecordedCaptainEvent(teamId, newCaptainUserId));
             return Task.CompletedTask;
@@ -1260,22 +1271,22 @@ public class TeamTests
 
     private sealed class ThrowingInviteChangedTeamEventPublisher : ITeamEventPublisher
     {
-        public Task InviteChangedAsync(Guid teamId, Guid inviteId, Guid affectedUserId, string status)
+        public Task InviteChangedAsync(Guid teamId, Guid inviteId, Guid affectedUserId, string status, CancellationToken cancellationToken = default)
         {
             throw new InvalidOperationException("Invite publish failed.");
         }
 
-        public Task RosterConfirmationChangedAsync(Guid teamId, Guid rosterMemberId, Guid affectedUserId, string status)
+        public Task RosterConfirmationChangedAsync(Guid teamId, Guid rosterMemberId, Guid affectedUserId, string status, CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
         }
 
-        public Task MembershipChangedAsync(Guid teamId, Guid affectedUserId, string action)
+        public Task MembershipChangedAsync(Guid teamId, Guid affectedUserId, string action, CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
         }
 
-        public Task CaptainTransferredAsync(Guid teamId, Guid newCaptainUserId)
+        public Task CaptainTransferredAsync(Guid teamId, Guid newCaptainUserId, CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
         }

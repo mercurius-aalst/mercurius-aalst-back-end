@@ -2,6 +2,7 @@ using Mercurius.LAN.API.Data;
 using Mercurius.Modules.Shared;
 using Mercurius.Modules.Teams;
 using Mercurius.Modules.Teams.Contracts;
+using Mercurius.Modules.Teams.Infrastructure;
 using Mercurius.Modules.Teams.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -156,7 +157,7 @@ public class TeamsModuleFacadeTests
         IReadOnlyList<PublicTeamTournamentSummary>? tournaments = null)
     {
         return new TeamsModuleFacade(
-            dbContext,
+            new TeamsDbContextAdapter<MercuriusDBContext>(dbContext),
             new StubTeamCompetitionReadService(tournaments ?? Array.Empty<PublicTeamTournamentSummary>()));
     }
 

@@ -168,6 +168,36 @@ public class ModuleArchitectureTests
         Assert.Contains(typeof(IModuleEventPublisher), publishingDecoratorDependencies);
     }
 
+    [Fact]
+    public void TeamsImplementationTypes_RemainNonPublicDuringPhase7FollowUp()
+    {
+        var assembly = Assembly.Load("Mercurius.Modules.Teams");
+        var nonPublicTypeNames = new[]
+        {
+            "Mercurius.Modules.Teams.Services.TeamService",
+            "Mercurius.Modules.Teams.Services.TeamEventPublishingDecorator",
+            "Mercurius.Modules.Teams.Services.ITeamEndpointService",
+            "Mercurius.Modules.Teams.Services.TeamEndpointService",
+            "Mercurius.Modules.Teams.Services.TeamLogoStorage",
+            "Mercurius.Modules.Teams.Services.ITeamLogoStorage",
+            "Mercurius.Modules.Teams.Services.RealtimeTeamEventPublisher",
+            "Mercurius.Modules.Teams.Services.NullTeamEventPublisher",
+            "Mercurius.Modules.Teams.Services.EfTeamRealtimeAuthorizer",
+            "Mercurius.Modules.Teams.Domain.TeamInvite",
+            "Mercurius.Modules.Teams.Infrastructure.ITeamsDbContext",
+            "Mercurius.Modules.Teams.Infrastructure.TeamsDbContextAdapter`1",
+            "Mercurius.Modules.Teams.Infrastructure.TeamsModelBuilderExtensions"
+        };
+
+        foreach (var typeName in nonPublicTypeNames)
+        {
+            var type = assembly.GetType(typeName, throwOnError: false, ignoreCase: false);
+
+            Assert.NotNull(type);
+            Assert.False(type!.IsPublic, $"{typeName} must remain non-public.");
+        }
+    }
+
     private static HashSet<string> GetProjectReferences(string projectPath)
     {
         var projectDirectory = Path.GetDirectoryName(projectPath)!;

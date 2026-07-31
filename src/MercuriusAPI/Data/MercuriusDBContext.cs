@@ -1,6 +1,6 @@
-using Mercurius.LAN.API.Models;
 using Mercurius.Modules.Competition;
 using Mercurius.Modules.Identity.Infrastructure;
+using Mercurius.Modules.Sponsorship;
 using Mercurius.Modules.Teams;
 using Mercurius.Modules.Teams.Domain;
 using Microsoft.EntityFrameworkCore;
@@ -21,16 +21,11 @@ public partial class MercuriusDBContext : DbContext, IModuleEventDbContext, IIde
 
     public DbSet<Team> Teams { get; set; }
     public DbSet<User> Users { get; set; }
-    public DbSet<Sponsor> Sponsors { get; set; }
-    public DbSet<GameSponsorPlacement> GameSponsorPlacements { get; set; }
     public DbSet<OutboxMessage> OutboxMessages { get; set; }
     public DbSet<InboxMessage> InboxMessages { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        var sponsorTierConverter = new EnumToStringConverter<SponsorTier>();
-        var sponsorContextConverter = new EnumToStringConverter<SponsorContext>();
-
         modelBuilder.Entity<User>(entity =>
         {
             entity.HasIndex(user => user.Auth0UserId).IsUnique();
@@ -57,39 +52,9 @@ public partial class MercuriusDBContext : DbContext, IModuleEventDbContext, IIde
         });
 
         modelBuilder.ApplyTeamsModelConfiguration();
-        modelBuilder.ApplyCompetitionModelConfiguration<User, Team, GameSponsorPlacement>();
-
-        modelBuilder.Entity<Sponsor>(entity =>
-        {
-            entity.HasKey(sponsor => sponsor.Id);
-            entity.Property(sponsor => sponsor.Name).IsRequired();
-            entity.Property(sponsor => sponsor.LogoUrl).IsRequired();
-            entity.Property(sponsor => sponsor.InfoUrl).IsRequired();
-            entity.Property(sponsor => sponsor.Description).HasMaxLength(1200);
-            entity.Property(sponsor => sponsor.SponsorTier)
-                .HasConversion(sponsorTierConverter)
-                .IsRequired();
-            entity.HasMany(sponsor => sponsor.GameSponsorPlacements)
-                .WithOne(placement => placement.Sponsor)
-                .HasForeignKey(placement => placement.SponsorId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        modelBuilder.Entity<GameSponsorPlacement>(entity =>
-        {
-            entity.HasKey(placement => placement.Id);
-            entity.Property(placement => placement.Context)
-                .HasConversion(sponsorContextConverter)
-                .IsRequired();
-            entity.Property(placement => placement.Headline).HasMaxLength(160);
-            entity.Property(placement => placement.SupportLine).HasMaxLength(220);
-            entity.Property(placement => placement.DisplayOrder).IsRequired();
-            entity.HasOne(placement => placement.Sponsor)
-                .WithMany(sponsor => sponsor.GameSponsorPlacements)
-                .HasForeignKey(placement => placement.SponsorId)
-                .OnDelete(DeleteBehavior.Cascade);
-            entity.HasIndex(placement => placement.GameId).IsUnique();
-        });
+        modelBuilder.ApplyCompetitionModelConfiguration<User, Team>();
+        modelBuilder.ApplySponsorshipModelConfiguration();
+        ConfigureGameSponsorPlacementRelationship(modelBuilder);
 
         modelBuilder.Entity<OutboxMessage>(entity =>
         {
@@ -119,4 +84,13 @@ public partial class MercuriusDBContext : DbContext, IModuleEventDbContext, IIde
     }
 
     partial void OnModelCreatingPartial(ModelBuilder modelBuilder);
+
+    private static void ConfigureGameSponsorPlacementRelationship(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity("Mercurius.Modules.Competition.Domain.Game")
+            .HasOne("Mercurius.Modules.Sponsorship.Domain.GameSponsorPlacement", null)
+            .WithOne()
+            .HasForeignKey("Mercurius.Modules.Sponsorship.Domain.GameSponsorPlacement", "GameId")
+            .OnDelete(DeleteBehavior.Cascade);
+    }
 }

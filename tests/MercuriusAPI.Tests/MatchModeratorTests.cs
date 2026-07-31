@@ -1,4 +1,3 @@
-using Mercurius.LAN.API.Models;
 
 namespace Mercurius.LAN.API.Tests;
 

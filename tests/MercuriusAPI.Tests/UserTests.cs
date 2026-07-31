@@ -2,7 +2,6 @@ using Mercurius.Modules.Identity.DTOs;
 using Mercurius.LAN.API.Data;
 using Mercurius.Modules.Shared.Exceptions;
 using Mercurius.LAN.API.Migrations;
-using Mercurius.LAN.API.Models;
 using Mercurius.Modules.Shared.Search;
 using Mercurius.Modules.Identity.Services.Auth0;
 using Mercurius.Modules.Identity.Services;

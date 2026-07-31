@@ -1,7 +1,6 @@
 using Mercurius.Modules.Shared.Exceptions;
 using Mercurius.LAN.API.Data;
 using Mercurius.Modules.Teams.DTOs;
-using Mercurius.LAN.API.Models;
 using Mercurius.LAN.API.Migrations;
 using Mercurius.LAN.API.Hubs;
 using Mercurius.LAN.API.Services.Files;

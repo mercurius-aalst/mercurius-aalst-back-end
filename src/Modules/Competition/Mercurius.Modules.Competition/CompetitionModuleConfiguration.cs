@@ -40,13 +40,12 @@ public static class CompetitionModuleConfiguration
         return services;
     }
 
-    public static ModelBuilder ApplyCompetitionModelConfiguration<TUser, TTeam, TGameSponsorPlacement>(
+    public static ModelBuilder ApplyCompetitionModelConfiguration<TUser, TTeam>(
         this ModelBuilder modelBuilder)
         where TUser : class
         where TTeam : class
-        where TGameSponsorPlacement : class
     {
-        return modelBuilder.ApplyCompetitionConfiguration<TUser, TTeam, TGameSponsorPlacement>();
+        return modelBuilder.ApplyCompetitionConfiguration<TUser, TTeam>();
     }
 
     public static IEndpointRouteBuilder MapCompetitionModule(this IEndpointRouteBuilder endpoints)

@@ -1,8 +1,9 @@
-using Mercurius.LAN.API.Models;
+using Mercurius.Modules.Sponsorship.Contracts;
+using Microsoft.AspNetCore.Http;
 
-namespace Mercurius.LAN.API.DTOs.SponsorDTOs;
+namespace Mercurius.Modules.Sponsorship.Application.DTOs;
 
-public class UpdateSponsorDTO
+internal sealed class UpdateSponsorDTO
 {
     public string Name { get; set; } = null!;
     public SponsorTier SponsorTier { get; set; }
@@ -10,4 +11,3 @@ public class UpdateSponsorDTO
     public string InfoUrl { get; set; } = null!;
     public string? Description { get; set; }
 }
-

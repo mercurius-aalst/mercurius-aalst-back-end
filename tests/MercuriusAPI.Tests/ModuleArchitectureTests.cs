@@ -105,6 +105,16 @@ public class ModuleArchitectureTests
                 "Mercurius.Modules.Media.Contracts",
                 "Mercurius.Modules.Media.Contracts.csproj"));
         }
+        else if (moduleName == "Sponsorship")
+        {
+            allowedReferences.Add(Path.Combine(
+                repositoryRoot,
+                "src",
+                "Modules",
+                "Media",
+                "Mercurius.Modules.Media.Contracts",
+                "Mercurius.Modules.Media.Contracts.csproj"));
+        }
 
         Assert.True(
             requiredReferences.IsSubsetOf(references) && references.IsSubsetOf(allowedReferences),
@@ -253,6 +263,35 @@ public class ModuleArchitectureTests
         Assert.Null(apiAssembly.GetType("Mercurius.LAN.API.Endpoints.GameEndpoints", throwOnError: false));
         Assert.Null(apiAssembly.GetType("Mercurius.LAN.API.Endpoints.MatchEndpoints", throwOnError: false));
         Assert.Null(apiAssembly.GetType("Mercurius.LAN.API.Endpoints.TournamentRegistrationEndpoints", throwOnError: false));
+    }
+
+    [Fact]
+    public void SponsorshipImplementationTypes_AreInternalAndApiHostNoLongerOwnsThem()
+    {
+        var sponsorshipAssembly = Assembly.Load("Mercurius.Modules.Sponsorship");
+        var apiAssembly = Assembly.Load("Mercurius.LAN.API");
+        var implementationTypeNames = new[]
+        {
+            "Mercurius.Modules.Sponsorship.Domain.Sponsor",
+            "Mercurius.Modules.Sponsorship.Domain.GameSponsorPlacement",
+            "Mercurius.Modules.Sponsorship.Application.Services.ISponsorService",
+            "Mercurius.Modules.Sponsorship.Application.Services.SponsorService",
+            "Mercurius.Modules.Sponsorship.Infrastructure.ISponsorshipDbContext",
+            "Mercurius.Modules.Sponsorship.Infrastructure.SponsorshipDbContextAdapter`1",
+            "Mercurius.Modules.Sponsorship.Endpoints.SponsorEndpoints"
+        };
+
+        foreach (var typeName in implementationTypeNames)
+        {
+            var type = sponsorshipAssembly.GetType(typeName, throwOnError: false, ignoreCase: false);
+
+            Assert.NotNull(type);
+            Assert.False(type!.IsPublic, $"{typeName} must remain an internal module implementation detail.");
+        }
+
+        Assert.Null(apiAssembly.GetType("Mercurius.LAN.API.Endpoints.SponsorEndpoints", throwOnError: false));
+        Assert.Null(apiAssembly.GetType("Mercurius.LAN.API.Models.Sponsor", throwOnError: false));
+        Assert.Null(apiAssembly.GetType("Mercurius.LAN.API.Models.GameSponsorPlacement", throwOnError: false));
     }
 
     [Fact]

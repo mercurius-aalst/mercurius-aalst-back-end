@@ -1,10 +1,5 @@
 using System.Text.Json;
-using Mercurius.LAN.API.DTOs.UserDTOs;
-using Mercurius.LAN.API.DTOs.GameDTOs;
-using Mercurius.LAN.API.DTOs.PlacementDTOs;
 using Mercurius.Modules.Teams.DTOs;
-using Mercurius.LAN.API.Models;
-using ApiPublicUserDTO = Mercurius.LAN.API.DTOs.UserDTOs.PublicUserDTO;
 
 namespace Mercurius.LAN.API.Tests;
 
@@ -15,12 +10,12 @@ public class PublicParticipantPrivacyDTOTests
     [Fact]
     public void TeamPublicUserDTO_ContainsOnlyPublicIdentityFields()
     {
-        var json = Serialize(new ApiPublicUserDTO(CreateUser(1)));
+        var json = Serialize(CreateUser(1).ToPublicUserDTO());
 
         Assert.Contains("\"id\":", json, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("\"username\":\"user1\"", json, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("\"displayName\":\"user1\"", json, StringComparison.OrdinalIgnoreCase);
-        AssertPublicPlatformIdsArePresent(json, 1);
+        AssertPublicPlatformIdsAreAbsent(json);
         AssertPrivateUserFieldsAreAbsent(json);
     }
 
@@ -36,35 +31,55 @@ public class PublicParticipantPrivacyDTOTests
             GameId = game.Id,
             Kind = TournamentRegistrationKind.Individual,
             Status = TournamentRegistrationStatus.Active,
-            RegisteredByUser = user,
             RegisteredByUserId = user.Id,
-            User = user,
-            UserId = user.Id
+            RegisteredByUsernameAtRegistration = user.Username ?? string.Empty,
+            UserId = user.Id,
+            UsernameAtRegistration = user.Username
         });
 
-        var json = Serialize(new GetGameDTO(game));
+        var json = Serialize(game.ToGetGameDTO([user]));
 
         Assert.Contains("\"registrations\":", json, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("\"users\":", json, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("\"teams\":", json, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("\"username\":\"user2\"", json, StringComparison.OrdinalIgnoreCase);
-        AssertPublicPlatformIdsArePresent(json, 2);
+        AssertPublicPlatformIdsAreAbsent(json);
         AssertPrivateUserFieldsAreAbsent(json);
     }
 
     [Fact]
     public void GetPlacementDTO_UsesPrivacySafeTeamMembers()
     {
+        var team = CreateTeam(3);
         var placement = new Placement
         {
             Place = 1,
-            Teams = [CreateTeam(3)]
+            Teams = [new PlacementTeam { TeamId = team.Id }]
         };
 
-        var json = Serialize(new GetPlacementDTO(placement, ParticipationMode.Team));
+        var json = Serialize(placement.ToGetPlacementDTO(teams: [team]));
 
         Assert.Contains("\"teams\":", json, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("\"members\":", json, StringComparison.OrdinalIgnoreCase);
+        AssertPrivateUserFieldsAreAbsent(json);
+    }
+
+    [Fact]
+    public void GetPlacementDTO_DoesNotExposeDeletedTeamMemberLabels()
+    {
+        var team = CreateTeam(30);
+        var deletedMember = CreateUser(31);
+        deletedMember.IsDeleted = true;
+        team.Members.Add(deletedMember);
+        var placement = new Placement
+        {
+            Place = 1,
+            Teams = [new PlacementTeam { TeamId = team.Id }]
+        };
+
+        var json = Serialize(placement.ToGetPlacementDTO(teams: [team]));
+
+        Assert.DoesNotContain("Deleted user", json, StringComparison.OrdinalIgnoreCase);
         AssertPrivateUserFieldsAreAbsent(json);
     }
 
@@ -101,10 +116,11 @@ public class PublicParticipantPrivacyDTOTests
             GameId = game.Id,
             Kind = TournamentRegistrationKind.Team,
             Status = TournamentRegistrationStatus.Active,
-            RegisteredByUser = captain,
             RegisteredByUserId = captain.Id,
-            Team = team,
+            RegisteredByUsernameAtRegistration = captain.Username ?? string.Empty,
             TeamId = team.Id,
+            TeamNameAtRegistration = team.Name,
+            TeamCaptainUserIdAtRegistration = team.CaptainUserId,
             CreatedAtUtc = DateTime.UtcNow,
             UpdatedAtUtc = DateTime.UtcNow,
             RosterMembers =
@@ -114,10 +130,11 @@ public class PublicParticipantPrivacyDTOTests
                     Id = Guid.NewGuid(),
                     Game = game,
                     GameId = game.Id,
-                    Team = team,
                     TeamId = team.Id,
-                    User = captain,
+                    TeamNameAtRegistration = team.Name,
                     UserId = captain.Id,
+                    UsernameAtRegistration = captain.Username ?? string.Empty,
+                    DisplayNameAtRegistration = captain.DisplayName,
                     IsCaptain = true,
                     ConfirmationStatus = RosterMemberConfirmationStatus.AutoConfirmed
                 },
@@ -126,10 +143,11 @@ public class PublicParticipantPrivacyDTOTests
                     Id = Guid.NewGuid(),
                     Game = game,
                     GameId = game.Id,
-                    Team = team,
                     TeamId = team.Id,
-                    User = rosterMember,
+                    TeamNameAtRegistration = team.Name,
                     UserId = rosterMember.Id,
+                    UsernameAtRegistration = rosterMember.Username ?? string.Empty,
+                    DisplayNameAtRegistration = rosterMember.DisplayName,
                     ConfirmationStatus = RosterMemberConfirmationStatus.Confirmed
                 }
             ]
@@ -143,10 +161,11 @@ public class PublicParticipantPrivacyDTOTests
             GameId = game.Id,
             Kind = TournamentRegistrationKind.Team,
             Status = TournamentRegistrationStatus.PendingConfirmation,
-            RegisteredByUser = captain,
             RegisteredByUserId = captain.Id,
-            Team = team,
+            RegisteredByUsernameAtRegistration = captain.Username ?? string.Empty,
             TeamId = team.Id,
+            TeamNameAtRegistration = team.Name,
+            TeamCaptainUserIdAtRegistration = team.CaptainUserId,
             RosterMembers =
             [
                 new TournamentRegistrationRosterMember
@@ -154,16 +173,17 @@ public class PublicParticipantPrivacyDTOTests
                     Id = Guid.NewGuid(),
                     Game = game,
                     GameId = game.Id,
-                    Team = team,
                     TeamId = team.Id,
-                    User = pendingUser,
+                    TeamNameAtRegistration = team.Name,
                     UserId = pendingUser.Id,
+                    UsernameAtRegistration = pendingUser.Username ?? string.Empty,
+                    DisplayNameAtRegistration = pendingUser.DisplayName,
                     ConfirmationStatus = RosterMemberConfirmationStatus.Pending
                 }
             ]
         });
 
-        var json = Serialize(new GetGameDTO(game));
+        var json = Serialize(game.ToGetGameDTO([captain, rosterMember, pendingUser], [team]));
 
         Assert.Contains("\"registrations\":", json, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("\"rosterMembers\":", json, StringComparison.OrdinalIgnoreCase);
@@ -174,6 +194,39 @@ public class PublicParticipantPrivacyDTOTests
         Assert.DoesNotContain("\"updatedAtUtc\":", json, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("\"confirmationInviteId\":", json, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("\"confirmationNotification", json, StringComparison.OrdinalIgnoreCase);
+        AssertPrivateUserFieldsAreAbsent(json);
+    }
+
+    [Fact]
+    public void GetGameDTO_FallsBackToUsernameOnlyForDeletedProfiles()
+    {
+        var deletedUser = CreateUser(8);
+        deletedUser.IsDeleted = true;
+        deletedUser.Username = null;
+        deletedUser.NormalizedUsername = null;
+
+        var game = CreateGame(ParticipationMode.Individual);
+        game.TournamentRegistrations.Add(new TournamentRegistration
+        {
+            Id = Guid.NewGuid(),
+            Game = game,
+            GameId = game.Id,
+            Kind = TournamentRegistrationKind.Individual,
+            Status = TournamentRegistrationStatus.Active,
+            RegisteredByUserId = deletedUser.Id,
+            RegisteredByUsernameAtRegistration = "archived-user",
+            UserId = deletedUser.Id,
+            UsernameAtRegistration = "archived-user",
+            CreatedAtUtc = DateTime.UtcNow,
+            UpdatedAtUtc = DateTime.UtcNow
+        });
+
+        var json = Serialize(game.ToGetGameDTO());
+
+        Assert.Contains("\"username\":\"archived-user\"", json, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("\"displayName\":\"archived-user\"", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("First8", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Last8", json, StringComparison.OrdinalIgnoreCase);
         AssertPrivateUserFieldsAreAbsent(json);
     }
 
@@ -194,11 +247,11 @@ public class PublicParticipantPrivacyDTOTests
         Assert.DoesNotContain("\"updatedAtUtc\":", json, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static void AssertPublicPlatformIdsArePresent(string json, int id)
+    private static void AssertPublicPlatformIdsAreAbsent(string json)
     {
-        Assert.Contains($"\"discordId\":\"discord-{id}\"", json, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains($"\"steamId\":\"steam-{id}\"", json, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains($"\"riotId\":\"riot-{id}\"", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("\"discordId\":", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("\"steamId\":", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("\"riotId\":", json, StringComparison.OrdinalIgnoreCase);
     }
 
     private static Game CreateGame(ParticipationMode participationMode)

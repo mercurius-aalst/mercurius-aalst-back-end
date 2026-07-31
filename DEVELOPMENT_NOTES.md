@@ -1,52 +1,55 @@
 # Development Notes
 
-## 1. What changed
+## What changed
 
-- Finalized the Teams EF boundary by introducing `TeamsDbContextAdapter<TDbContext>`, keeping `ITeamsDbContext` internal, and removing the host `MercuriusDBContext` from the Teams module contract.
-- Propagated `CancellationToken` through the Teams async service, endpoint, realtime publisher, logo storage, identity facade, competition read, EF query, and transaction paths.
-- Replaced read-only Include-heavy Teams reads with direct DTO projections and `AsNoTracking()` where mutation tracking is not needed.
-- Added focused Teams module registration, cancellation, and internal-surface architecture tests.
+- Completed Phase 11 validation work for the Competition extraction slice.
+- Centralized shared Competition eligibility logic in `CompetitionEligibilityEvaluator`.
+- Split registration persistence concerns into `TournamentRegistrationPersistenceCoordinator`.
+- Split registration read-model concerns into `TournamentRegistrationReadModelService`.
+- Split DTO context-building concerns into `RegistrationMappingContextBuilder` and `RegistrationMappingContext`.
+- Tightened public participant privacy in Competition DTOs so anonymous responses no longer expose platform handles, deleted-user name fallbacks, or deleted-team-member deletion labels.
+- Optimized Competition search and registration/game read paths:
+  - bounded Competition game search to the active page window,
+  - removed unsafe concurrent same-`DbContext` search fanout,
+  - added `AsNoTracking`/`AsSplitQuery` protections on read paths,
+  - narrowed the game list query to active registrations for the public list route,
+  - reduced unnecessary simple-mutation graph loading in `GameService`.
+- Updated or added regression coverage for search, privacy, architecture, sponsor placement, registration, and DTO mapping behavior.
+- Marked OpenSpec validation task boxes `5.1`, `5.2`, and `5.3` complete in `openspec/changes/extract-competition-module/tasks.md`.
 
-## 2. Why it changed
+## Why it changed
 
-- Phase 7 follow-up requires the Teams module to stop depending on the host DbContext as a public implementation detail.
-- The Teams surface still dropped cancellation tokens across several async boundaries, which made request-abort behavior inconsistent.
-- Several read paths loaded tracked entities and navigation graphs only to map them into read DTOs, which was unnecessary work for stable read models.
-- The module composition and public-surface hardening needed targeted regression coverage before later phases tighten internals further.
+- Phase 11 step 5 required authoritative validation plus independent clean-code, performance, and security audits, with remediation of all High and Medium findings.
+- The remediations addressed concrete risks found during auditing:
+  - duplicated eligibility ownership,
+  - over-broad registration-service responsibilities,
+  - redundant roster-profile fetches,
+  - unsafe parallel EF Core access on a shared context,
+  - public privacy leaks in Competition participant DTOs.
 
-## 3. Commits made
+## Commits made
 
-- `ef424b8` `refactor: finalize teams dbcontext adapter boundary`
-- `b58f567` `refactor: tighten teams async reads and cancellations`
-- `43fbc73` `test: cover teams module composition and cancellation`
-- `d1c458a` `chore: add phase 7 follow-up development notes`
+- None.
 
-## 4. Commands run and results
+## Commands run and results
 
-- `dotnet build LAN.API.sln -p:UseAppHost=false --no-restore`
-  Result: passed
-- `dotnet test LAN.API.sln --no-build --no-restore --filter "FullyQualifiedName~TeamsModuleConfigurationTests|FullyQualifiedName~ModuleArchitectureTests|FullyQualifiedName~TeamTests|FullyQualifiedName~TeamsModuleFacadeTests|FullyQualifiedName~TeamServicePublicProfileTests"`
-  Result: passed, 97 tests
-- `dotnet test LAN.API.sln --no-build --no-restore`
-  Result: passed, 369 tests
-- `dotnet restore LAN.API.sln`
-  Result: passed, all projects up to date
-- `dotnet format LAN.API.sln --verify-no-changes --no-restore`
-  Result: passed
-- `git diff --check`
-  Result: passed, no whitespace/conflict errors
-- `dotnet list LAN.API.sln package --vulnerable --include-transitive`
-  Result: no vulnerable packages
-- `dotnet list LAN.API.sln package --deprecated`
-  Result: no deprecated production packages; test project still reports legacy `xunit` 2.5.3
+- `dotnet restore`: passed
+- `dotnet build`: passed multiple times during remediation; final full build passed
+- `dotnet test`: passed multiple times during remediation; final full test run passed with `374/374`
+- `dotnet test --filter OpenApiDocumentTests`: passed `1/1`
+- `dotnet test --filter "FullyQualifiedName~ModuleArchitectureTests|FullyQualifiedName~TournamentRegistrationServiceTests|FullyQualifiedName~OpenApiDocumentTests|FullyQualifiedName~PublicParticipantPrivacyDTOTests|FullyQualifiedName~SponsorFeatureTests"`: passed `56/56`
+- `dotnet test --filter "FullyQualifiedName~SearchServiceTests|FullyQualifiedName~TournamentRegistrationServiceTests|FullyQualifiedName~GameTests|FullyQualifiedName~GameScheduleTests|FullyQualifiedName~ModuleArchitectureTests"`: passed `89/89`
+- `dotnet test --filter "FullyQualifiedName~PublicParticipantPrivacyDTOTests|FullyQualifiedName~DtoSerializationShapeTests|FullyQualifiedName~OpenApiDocumentTests|FullyQualifiedName~SearchServiceTests|FullyQualifiedName~TournamentRegistrationServiceTests"`: passed `36/36`
+- `dotnet test --filter "FullyQualifiedName~GameTests|FullyQualifiedName~GameScheduleTests|FullyQualifiedName~TournamentRegistrationServiceTests|FullyQualifiedName~SearchServiceTests|FullyQualifiedName~PublicParticipantPrivacyDTOTests|FullyQualifiedName~OpenApiDocumentTests"`: passed `67/67`
+- `dotnet test --filter "FullyQualifiedName~SearchServiceTests|FullyQualifiedName~TournamentRegistrationServiceTests"`: passed `26/26`
+- `dotnet test --filter "FullyQualifiedName~PublicParticipantPrivacyDTOTests|FullyQualifiedName~SearchServiceTests|FullyQualifiedName~DtoSerializationShapeTests|FullyQualifiedName~TournamentRegistrationServiceTests|FullyQualifiedName~OpenApiDocumentTests"`: passed `37/37`
+- `openspec validate extract-competition-module --strict`: passed before the final remediation loop
+- `git diff -- src/MercuriusAPI/Migrations/MercuriusDBContextModelSnapshot.cs`: no output before the final remediation loop
+- `dotnet run --project src\\MercuriusAPI --no-build`: intentionally not executed because startup applies migrations and the action was rejected as unsafe against an unknown configured database
+- Final reruns of `dotnet format --verify-no-changes`, strict OpenSpec validation, and the snapshot diff check were blocked by the account usage-limit gate after the code was already green
 
-## 5. Known limitations or follow-up items
+## Known limitations or follow-up items
 
-- API startup against a real database was not run, and no migrations were applied, because this follow-up must not target an unknown database.
-- Compatibility review found no touched route mappings, no touched migration files, and no touched public response DTO files in the current Phase 7 diff; this follow-up stays within the approved non-breaking scope.
-- Audit summary for the touched Teams surface:
-  - Performance: the material finding was read-only entity materialization and tracking on common Teams reads; remediated with direct projections and `AsNoTracking()`.
-  - Clean code: the material finding was missing focused composition/public-surface coverage around the transitional adapter boundary; remediated with `TeamsModuleConfigurationTests` and the Teams internal-surface architecture assertion.
-  - Security: no high or medium touched-scope vulnerability was identified after the cancellation propagation and boundary-hardening changes.
-- Explicitly deferred as instructed: Team remains public until Competition host dependencies are removed in Phase 11; Identity EF-navigation cleanup waits for Phase 15; Media extraction waits for Phase 13; test-project reshaping waits for Phase 18; adapter/null-fallback cleanup waits for Phase 19.
-- PR: [#107 Phase 7 follow-up: finalize Teams boundary, cancellation, and read projections](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/107)
+- Final fresh child-agent re-audits were partially blocked by the account usage-limit gate after the code and targeted regressions were green. The last successful security re-audit reported no High or Medium findings. Earlier successful clean-code, performance, and security findings were remediated in this slice.
+- API startup was validated indirectly through build plus the dedicated `OpenApiDocumentTests`; direct `dotnet run` startup remained intentionally blocked because `Program.cs` applies migrations on boot.
+- No migration or snapshot regeneration was performed, and `src/MercuriusAPI/Migrations/MercuriusDBContextModelSnapshot.cs` was not intentionally modified in this slice.

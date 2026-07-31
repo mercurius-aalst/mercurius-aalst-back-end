@@ -11,7 +11,16 @@ public interface ISponsorshipModule
     Task<IReadOnlyList<SponsorSummary>> GetSponsorsAsync(
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyDictionary<GameId, SponsorPlacementSummary>> GetSponsorPlacementsAsync(
+        IReadOnlyCollection<GameId> gameIds,
+        CancellationToken cancellationToken = default);
+
     Task<SponsorPlacementSummary?> GetSponsorPlacementAsync(
         GameId gameId,
+        CancellationToken cancellationToken = default);
+
+    Task ReplaceSponsorPlacementAsync(
+        GameId gameId,
+        SponsorPlacementInput? placement,
         CancellationToken cancellationToken = default);
 }

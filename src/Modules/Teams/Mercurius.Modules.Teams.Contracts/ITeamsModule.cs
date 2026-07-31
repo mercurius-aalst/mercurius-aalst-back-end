@@ -12,6 +12,10 @@ public interface ITeamsModule
         TeamId teamId,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyDictionary<TeamId, TeamRosterSnapshot>> GetTeamRosterSnapshotsAsync(
+        IReadOnlyCollection<TeamId> teamIds,
+        CancellationToken cancellationToken = default);
+
     Task<PublicTeamProfile?> GetPublicTeamProfileAsync(
         string teamName,
         CancellationToken cancellationToken = default);

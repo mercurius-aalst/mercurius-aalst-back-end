@@ -1,4 +1,4 @@
-using Mercurius.LAN.API.DTOs.MatchDTOs;
+using Mercurius.Modules.Competition.Application.DTOs.Matches;
 using Mercurius.Modules.Shared.Exceptions;
 using Mercurius.LAN.API.Models;
 using DataAnnotations = System.ComponentModel.DataAnnotations;
@@ -15,13 +15,13 @@ public class MatchTests
         {
             ParticipationMode = ParticipationMode.Individual
         };
-        match.SetParticipants(null, user2);
+        match.SetIndividualParticipants(null, user2.Id);
         match.SetParticipantBYEs(true, false);
 
         match.TryAssignByeWin();
 
-        Assert.Equal(user2, match.UserWinner);
-        Assert.Null(match.UserLoser);
+        Assert.Equal(user2.Id, match.UserWinnerId);
+        Assert.Null(match.UserLoserId);
     }
 
     [Fact]
@@ -32,13 +32,13 @@ public class MatchTests
         {
             ParticipationMode = ParticipationMode.Team
         };
-        match.SetParticipants(team1, null);
+        match.SetTeamParticipants(team1.Id, null);
         match.SetParticipantBYEs(false, true);
 
         match.TryAssignByeWin();
 
-        Assert.Equal(team1, match.TeamWinner);
-        Assert.Null(match.TeamLoser);
+        Assert.Equal(team1.Id, match.TeamWinnerId);
+        Assert.Null(match.TeamLoserId);
     }
 
     [Fact]
@@ -50,14 +50,13 @@ public class MatchTests
         {
             ParticipationMode = ParticipationMode.Individual,
             MatchNumber = 1,
-            UserWinner = winner,
             UserWinnerId = winner.Id,
             WinnerNextMatch = nextMatch
         };
 
         match.UpdateParticipantsNextMatch();
 
-        Assert.Equal(winner, nextMatch.UserParticipant1);
+        Assert.Equal(winner.Id, nextMatch.UserParticipant1Id);
     }
 
     [Fact]
@@ -72,14 +71,13 @@ public class MatchTests
         var match = new Match
         {
             ParticipationMode = ParticipationMode.Team,
-            TeamWinner = winner,
             TeamWinnerId = winner.Id,
             WinnerNextMatch = nextMatch
         };
 
         match.UpdateParticipantsNextMatch();
 
-        Assert.Equal(winner, nextMatch.TeamParticipant2);
+        Assert.Equal(winner.Id, nextMatch.TeamParticipant2Id);
     }
 
     [Fact]
@@ -93,30 +91,28 @@ public class MatchTests
             ParticipationMode = ParticipationMode.Individual,
             RoundNumber = 2,
             MatchNumber = 2,
-            UserWinner = winner,
             UserWinnerId = winner.Id,
-            UserLoser = loser,
             UserLoserId = loser.Id,
             LoserNextMatch = nextMatch
         };
 
         match.UpdateParticipantsNextMatch();
 
-        Assert.Equal(loser, nextMatch.UserParticipant1);
+        Assert.Equal(loser.Id, nextMatch.UserParticipant1Id);
     }
 
     [Theory]
-    [InlineData(GameFormat.BestOf1, 1, 0)]
-    [InlineData(GameFormat.BestOf3, 2, 1)]
-    [InlineData(GameFormat.BestOf5, 3, 2)]
-    public void SetScoresAndWinner_SetsUserWinnerAndLoser(GameFormat format, int participant1Score, int participant2Score)
+    [InlineData((int)GameFormat.BestOf1, 1, 0)]
+    [InlineData((int)GameFormat.BestOf3, 2, 1)]
+    [InlineData((int)GameFormat.BestOf5, 3, 2)]
+    public void SetScoresAndWinner_SetsUserWinnerAndLoser(int format, int participant1Score, int participant2Score)
     {
-        var match = CreateIndividualMatch(format);
+        var match = CreateIndividualMatch((GameFormat)format);
 
         match.SetScoresAndWinner(participant1Score, participant2Score);
 
-        Assert.Equal(match.UserParticipant1, match.UserWinner);
-        Assert.Equal(match.UserParticipant2, match.UserLoser);
+        Assert.Equal(match.UserParticipant1Id, match.UserWinnerId);
+        Assert.Equal(match.UserParticipant2Id, match.UserLoserId);
     }
 
     [Fact]
@@ -126,8 +122,8 @@ public class MatchTests
 
         match.SetScoresAndWinner(1, 2);
 
-        Assert.Equal(match.TeamParticipant2, match.TeamWinner);
-        Assert.Equal(match.TeamParticipant1, match.TeamLoser);
+        Assert.Equal(match.TeamParticipant2Id, match.TeamWinnerId);
+        Assert.Equal(match.TeamParticipant1Id, match.TeamLoserId);
     }
 
     [Theory]
@@ -160,7 +156,7 @@ public class MatchTests
             ParticipationMode = ParticipationMode.Team
         };
 
-        var exception = Assert.Throws<ValidationException>(() => match.SetParticipants(CreateUser(1), CreateUser(2)));
+        var exception = Assert.Throws<ValidationException>(() => match.SetIndividualParticipants(CreateUser(1).Id, CreateUser(2).Id));
 
         Assert.Equal("Match only accepts individual participants.", exception.Message);
     }
@@ -191,7 +187,7 @@ public class MatchTests
             ParticipationMode = ParticipationMode.Individual,
             Format = format
         };
-        match.SetParticipants(user1, user2);
+        match.SetIndividualParticipants(user1.Id, user2.Id);
         return match;
     }
 
@@ -204,7 +200,7 @@ public class MatchTests
             ParticipationMode = ParticipationMode.Team,
             Format = format
         };
-        match.SetParticipants(team1, team2);
+        match.SetTeamParticipants(team1.Id, team2.Id);
         return match;
     }
 

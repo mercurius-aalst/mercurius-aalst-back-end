@@ -1,12 +1,17 @@
 using System.Text;
 using Mercurius.LAN.API.Data;
-using Mercurius.LAN.API.DTOs.GameDTOs;
-using Mercurius.LAN.API.DTOs.SponsorDTOs;
-using Mercurius.Modules.Shared.Exceptions;
 using Mercurius.LAN.API.Models;
+using Mercurius.Modules.Competition.Application.DTOs.Games;
+using Mercurius.LAN.API.DTOs.SponsorDTOs;
 using Mercurius.LAN.API.Services.Files;
-using Mercurius.LAN.API.Services.GameServices;
-using Mercurius.LAN.API.Services.MatchServices;
+using Mercurius.Modules.Competition.Infrastructure;
+using Mercurius.Modules.Shared;
+using Mercurius.Modules.Shared.Exceptions;
+using Mercurius.Modules.Media.Contracts;
+using Mercurius.Modules.Competition.Application.Services;
+using SponsorContractContext = Mercurius.Modules.Sponsorship.Contracts.SponsorContext;
+using SponsorContractTier = Mercurius.Modules.Sponsorship.Contracts.SponsorTier;
+using Mercurius.Modules.Sponsorship.Contracts;
 using Mercurius.LAN.API.Services.SponsorServices;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
@@ -71,18 +76,25 @@ public class SponsorFeatureTests
         await using var dbContext = CreateDbContext();
         var game = CreateGame();
         var presentingSponsor = CreateSponsor(1, "Mercurius Tech", SponsorTier.Presenting);
-        game.SponsorPlacement = new GameSponsorPlacement
-        {
-            SponsorId = presentingSponsor.Id,
-            Context = SponsorContext.CateringPartner,
-            DisplayOrder = 99
-        };
-
-        dbContext.Games.Add(game);
+        dbContext.Set<Game>().Add(game);
         dbContext.Sponsors.Add(presentingSponsor);
         await dbContext.SaveChangesAsync();
 
-        var service = new GameService(dbContext, new StubMatchModeratorFactory(), new StubFileService());
+        var sponsorPlacement = CreateSponsorPlacementSummary(game.Id, presentingSponsor, SponsorContractContext.CateringPartner, null, null, 99);
+        var sponsorshipModule = new RecordingSponsorshipModule(
+            [presentingSponsor.Id],
+            sponsorPlacement);
+        var identityModule = CompetitionTestSupport.CreateIdentityModule();
+        var teamsModule = CompetitionTestSupport.CreateTeamsModule();
+        var service = new GameService(
+            new CompetitionDbContextAdapter<MercuriusDBContext>(dbContext),
+            new StubMatchModeratorFactory(),
+            new StubMediaModule(),
+            sponsorshipModule,
+            new CompetitionDtoMapper(
+                new RegistrationMappingContextBuilder(identityModule, teamsModule),
+                sponsorshipModule),
+            CompetitionTestSupport.CreateModuleEventPublisher());
         var updatedGame = await service.ReplaceSponsorPlacementsAsync(game.Id, new ReplaceGameSponsorsDTO
         {
             SponsorPlacements =
@@ -90,7 +102,7 @@ public class SponsorFeatureTests
                 new GameSponsorPlacementInputDTO
                 {
                     SponsorId = presentingSponsor.Id,
-                    Context = SponsorContext.TournamentPartner,
+                    Context = SponsorContractContext.TournamentPartner,
                     Headline = "Presented by Mercurius Tech",
                     SupportLine = "Main stage and stream support",
                     DisplayOrder = 1
@@ -99,16 +111,12 @@ public class SponsorFeatureTests
         });
 
         Assert.NotNull(updatedGame.SponsorPlacement);
-        Assert.Equal(SponsorContext.TournamentPartner, updatedGame.SponsorPlacement.Context);
+        Assert.Equal(SponsorContractContext.TournamentPartner, updatedGame.SponsorPlacement.Context);
         Assert.Equal("Mercurius Tech", updatedGame.SponsorPlacement.SponsorName);
-        Assert.Equal(SponsorTier.Presenting, updatedGame.SponsorPlacement.SponsorTier);
+        Assert.Equal(SponsorContractTier.Presenting, updatedGame.SponsorPlacement.SponsorTier);
         Assert.Equal("Presented by Mercurius Tech", updatedGame.SponsorPlacement.Headline);
-
-        var storedPlacements = await dbContext.GameSponsorPlacements
-            .OrderBy(placement => placement.DisplayOrder)
-            .ToListAsync();
-        Assert.Single(storedPlacements);
-        Assert.DoesNotContain(storedPlacements, placement => placement.Context == SponsorContext.CateringPartner);
+        Assert.NotNull(sponsorshipModule.ReplacedPlacement);
+        Assert.Equal(SponsorContractContext.TournamentPartner, sponsorshipModule.ReplacedPlacement!.Context);
     }
 
     [Fact]
@@ -118,11 +126,17 @@ public class SponsorFeatureTests
         var game = CreateGame();
         var presentingSponsor = CreateSponsor(1, "Mercurius Tech", SponsorTier.Presenting);
         var prizeSponsor = CreateSponsor(2, "Campus Fiber", SponsorTier.Gold);
-        dbContext.Games.Add(game);
+        dbContext.Set<Game>().Add(game);
         dbContext.Sponsors.AddRange(presentingSponsor, prizeSponsor);
         await dbContext.SaveChangesAsync();
 
-        var service = new GameService(dbContext, new StubMatchModeratorFactory(), new StubFileService());
+        var service = new GameService(
+            new CompetitionDbContextAdapter<MercuriusDBContext>(dbContext),
+            new StubMatchModeratorFactory(),
+            new StubMediaModule(),
+            new RecordingSponsorshipModule([presentingSponsor.Id, prizeSponsor.Id]),
+            CompetitionTestSupport.CreateMapper(),
+            CompetitionTestSupport.CreateModuleEventPublisher());
 
         var exception = await Assert.ThrowsAsync<ValidationException>(() => service.ReplaceSponsorPlacementsAsync(game.Id, new ReplaceGameSponsorsDTO
         {
@@ -131,13 +145,13 @@ public class SponsorFeatureTests
                 new GameSponsorPlacementInputDTO
                 {
                     SponsorId = presentingSponsor.Id,
-                    Context = SponsorContext.TournamentPartner,
+                    Context = SponsorContractContext.TournamentPartner,
                     DisplayOrder = 1
                 },
                 new GameSponsorPlacementInputDTO
                 {
                     SponsorId = prizeSponsor.Id,
-                    Context = SponsorContext.PrizePartner,
+                    Context = SponsorContractContext.PrizePartner,
                     DisplayOrder = 2
                 }
             ]
@@ -150,11 +164,17 @@ public class SponsorFeatureTests
     public async Task ReplaceSponsorPlacementsAsync_ThrowsWhenSponsorDoesNotExist()
     {
         await using var dbContext = CreateDbContext();
-        dbContext.Games.Add(CreateGame());
+        dbContext.Set<Game>().Add(CreateGame());
         await dbContext.SaveChangesAsync();
 
-        var service = new GameService(dbContext, new StubMatchModeratorFactory(), new StubFileService());
-        var gameId = await dbContext.Games.Select(game => game.Id).SingleAsync();
+        var service = new GameService(
+            new CompetitionDbContextAdapter<MercuriusDBContext>(dbContext),
+            new StubMatchModeratorFactory(),
+            new StubMediaModule(),
+            new RecordingSponsorshipModule([]),
+            CompetitionTestSupport.CreateMapper(),
+            CompetitionTestSupport.CreateModuleEventPublisher());
+        var gameId = await dbContext.Set<Game>().Select(game => game.Id).SingleAsync();
 
         var exception = await Assert.ThrowsAsync<NotFoundException>(() => service.ReplaceSponsorPlacementsAsync(gameId, new ReplaceGameSponsorsDTO
         {
@@ -163,7 +183,7 @@ public class SponsorFeatureTests
                 new GameSponsorPlacementInputDTO
                 {
                     SponsorId = 404,
-                    Context = SponsorContext.TournamentPartner,
+                    Context = SponsorContractContext.TournamentPartner,
                     DisplayOrder = 1
                 }
             ]
@@ -209,17 +229,50 @@ public class SponsorFeatureTests
         };
     }
 
-    private sealed class StubFileService : IFileService
+    private static SponsorPlacementSummary CreateSponsorPlacementSummary(
+        Guid gameId,
+        Sponsor sponsor,
+        SponsorContractContext context,
+        string? headline,
+        string? supportLine,
+        int displayOrder)
     {
-        public Task<string> SaveImageAsync(IFormFile image)
+        return new SponsorPlacementSummary(
+            new SponsorPlacementId(1),
+            new GameId(gameId),
+            new SponsorSummary(
+                new SponsorId(sponsor.Id),
+                sponsor.Name,
+                (SponsorContractTier)sponsor.SponsorTier,
+                sponsor.LogoUrl,
+                sponsor.InfoUrl,
+                sponsor.Description),
+            context,
+            headline,
+            supportLine,
+            displayOrder);
+    }
+
+    private sealed class StubMediaModule : IMediaModule
+    {
+        public Task<StoredMediaAsset> SaveImageAsync(MediaUpload upload, CancellationToken cancellationToken = default)
         {
-            return Task.FromResult("/images/mock-upload.png");
+            return Task.FromResult(new StoredMediaAsset("/images/mock-upload.png"));
         }
 
-        public Task DeleteImageAsync(string? imageUrl)
+        public Task DeleteImageAsync(string? imageUrl, CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class StubFileService : IFileService
+    {
+        public Task<string> SaveImageAsync(IFormFile image, CancellationToken cancellationToken = default)
+            => Task.FromResult("/images/mock-upload.png");
+
+        public Task DeleteImageAsync(string? imageUrl)
+            => Task.CompletedTask;
     }
 
     private sealed class StubMatchModeratorFactory : IMatchModeratorFactory
@@ -239,6 +292,60 @@ public class SponsorFeatureTests
 
         public void DeterminePlacements(Game game)
         {
+        }
+    }
+
+    private sealed class RecordingSponsorshipModule(
+        IReadOnlyCollection<int> knownSponsorIds,
+        SponsorPlacementSummary? currentPlacement = null) : ISponsorshipModule
+    {
+        private SponsorPlacementSummary? _currentPlacement = currentPlacement;
+
+        public SponsorPlacementInput? ReplacedPlacement { get; private set; }
+
+        public Task<SponsorSummary?> GetSponsorSummaryAsync(SponsorId sponsorId, CancellationToken cancellationToken = default)
+            => Task.FromResult<SponsorSummary?>(null);
+
+        public Task<IReadOnlyList<SponsorSummary>> GetSponsorsAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<SponsorSummary>>([]);
+
+        public Task<IReadOnlyDictionary<GameId, SponsorPlacementSummary>> GetSponsorPlacementsAsync(
+            IReadOnlyCollection<GameId> gameIds,
+            CancellationToken cancellationToken = default)
+        {
+            if (_currentPlacement is null)
+                return Task.FromResult<IReadOnlyDictionary<GameId, SponsorPlacementSummary>>(new Dictionary<GameId, SponsorPlacementSummary>());
+
+            return Task.FromResult<IReadOnlyDictionary<GameId, SponsorPlacementSummary>>(
+                new Dictionary<GameId, SponsorPlacementSummary> { [_currentPlacement.GameId] = _currentPlacement });
+        }
+
+        public Task<SponsorPlacementSummary?> GetSponsorPlacementAsync(GameId gameId, CancellationToken cancellationToken = default)
+            => Task.FromResult(_currentPlacement?.GameId == gameId ? _currentPlacement : null);
+
+        public Task ReplaceSponsorPlacementAsync(GameId gameId, SponsorPlacementInput? placement, CancellationToken cancellationToken = default)
+        {
+            if (placement is not null && !knownSponsorIds.Contains(placement.SponsorId.Value))
+                throw new NotFoundException($"Sponsor with ID {placement.SponsorId.Value} not found");
+
+            ReplacedPlacement = placement;
+            _currentPlacement = placement is null
+                ? null
+                : new SponsorPlacementSummary(
+                    new SponsorPlacementId(_currentPlacement?.Id.Value ?? 1),
+                    gameId,
+                    _currentPlacement?.Sponsor ?? new SponsorSummary(
+                        placement.SponsorId,
+                        string.Empty,
+                        SponsorContractTier.Bronze,
+                        string.Empty,
+                        string.Empty,
+                        string.Empty),
+                    placement.Context,
+                    placement.Headline,
+                    placement.SupportLine,
+                    placement.DisplayOrder);
+            return Task.CompletedTask;
         }
     }
 }

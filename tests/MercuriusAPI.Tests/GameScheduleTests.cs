@@ -1,13 +1,10 @@
 using Mercurius.LAN.API.Data;
-using Mercurius.LAN.API.DTOs.GameDTOs;
-using Mercurius.LAN.API.DTOs.MatchDTOs;
+using Mercurius.Modules.Competition.Application.DTOs.Games;
+using Mercurius.Modules.Competition.Application.DTOs.Matches;
+using Mercurius.Modules.Competition.Infrastructure;
 using Mercurius.Modules.Shared.Exceptions;
 using Mercurius.LAN.API.Migrations;
-using Mercurius.LAN.API.Models;
-using Mercurius.LAN.API.Services.Files;
-using Mercurius.LAN.API.Services.GameServices;
-using Mercurius.LAN.API.Services.MatchServices;
-using Mercurius.LAN.API.Services.MatchServices.BracketTypes;
+using Mercurius.Modules.Media.Contracts;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
@@ -82,7 +79,7 @@ public class GameScheduleTests
     {
         await using var dbContext = CreateDbContext();
         var game = CreateScheduledGame(format: GameFormat.BestOf1, finalsFormat: GameFormat.BestOf5);
-        dbContext.Games.Add(game);
+        dbContext.Set<Game>().Add(game);
         AddIndividualRegistration(dbContext, game, CreateUser(1));
         AddIndividualRegistration(dbContext, game, CreateUser(2));
         await dbContext.SaveChangesAsync();
@@ -91,7 +88,7 @@ public class GameScheduleTests
 
         await service.StartGameAsync(game.Id);
 
-        var storedGame = await dbContext.Games
+        var storedGame = await dbContext.Set<Game>()
             .Include(g => g.Matches)
             .SingleAsync(g => g.Id == game.Id);
         var matches = storedGame.Matches.OrderBy(match => match.RoundNumber).ThenBy(match => match.MatchNumber).ToList();
@@ -113,7 +110,7 @@ public class GameScheduleTests
             format: GameFormat.BestOf1,
             finalsFormat: GameFormat.BestOf5,
             bracketType: BracketType.RoundRobin);
-        dbContext.Games.Add(game);
+        dbContext.Set<Game>().Add(game);
         AddIndividualRegistration(dbContext, game, CreateUser(1));
         AddIndividualRegistration(dbContext, game, CreateUser(2));
         AddIndividualRegistration(dbContext, game, CreateUser(3));
@@ -124,7 +121,7 @@ public class GameScheduleTests
 
         await service.StartGameAsync(game.Id);
 
-        var matches = await dbContext.Matches.ToListAsync();
+        var matches = await dbContext.Set<Match>().ToListAsync();
 
         Assert.All(matches, match =>
             Assert.Equal(TimeSpan.FromMinutes(10), match.EstimatedEndTime - match.EstimatedStartTime));
@@ -135,7 +132,7 @@ public class GameScheduleTests
     {
         await using var dbContext = CreateDbContext();
         var game = CreateScheduledGame(plannedStartTime: DateTime.MaxValue.AddMinutes(-5));
-        dbContext.Games.Add(game);
+        dbContext.Set<Game>().Add(game);
         AddIndividualRegistration(dbContext, game, CreateUser(1));
         AddIndividualRegistration(dbContext, game, CreateUser(2));
         await dbContext.SaveChangesAsync();
@@ -145,6 +142,42 @@ public class GameScheduleTests
         var exception = await Assert.ThrowsAsync<ValidationException>(() => service.StartGameAsync(game.Id));
 
         Assert.Equal("Estimated tournament schedule exceeds supported date range.", exception.Message);
+    }
+
+    [Fact]
+    public async Task CreateGameAsync_ForwardsCancellationTokenToImageStorage()
+    {
+        await using var dbContext = CreateDbContext();
+        var mediaModule = new RecordingMediaModule();
+        var service = new GameService(
+            new CompetitionDbContextAdapter<MercuriusDBContext>(dbContext),
+            new FixedMatchModeratorFactory(new FixedScheduleMatchModerator()),
+            mediaModule,
+            CompetitionTestSupport.CreateSponsorshipModule(),
+            CompetitionTestSupport.CreateMapper(),
+            CompetitionTestSupport.CreateModuleEventPublisher());
+        using var cancellationSource = new CancellationTokenSource();
+        var imageBytes = new byte[] { 1, 2, 3 };
+        var image = new FormFile(new MemoryStream(imageBytes), 0, imageBytes.Length, "image", "game.png")
+        {
+            Headers = new HeaderDictionary(),
+            ContentType = "image/png"
+        };
+
+        await service.CreateGameAsync(new CreateGameDTO
+        {
+            Name = "Cancellation token game",
+            BracketType = Mercurius.Modules.Competition.Contracts.BracketType.SingleElimination,
+            Format = Mercurius.Modules.Competition.Contracts.GameFormat.BestOf1,
+            FinalsFormat = Mercurius.Modules.Competition.Contracts.GameFormat.BestOf3,
+            ParticipationMode = Mercurius.Modules.Competition.Contracts.ParticipationMode.Individual,
+            Image = image,
+            PlannedStartTime = PlannedStart,
+            AverageGameDurationMinutes = 10,
+            RoundBreakDurationMinutes = 5
+        }, cancellationSource.Token);
+
+        Assert.Equal(cancellationSource.Token, mediaModule.ReceivedCancellationToken);
     }
 
     [Fact]
@@ -186,8 +219,8 @@ public class GameScheduleTests
             EstimatedEndTime = PlannedStart.AddMinutes(10)
         };
 
-        var gameDto = new GetGameDTO(game);
-        var matchDto = new GetMatchDTO(match);
+        var gameDto = game.ToGetGameDTO();
+        var matchDto = match.ToGetMatchDTO();
 
         Assert.Equal(PlannedStart, gameDto.PlannedStartTime);
         Assert.Equal(10, gameDto.AverageGameDurationMinutes);
@@ -244,23 +277,29 @@ public class GameScheduleTests
     private static void AddIndividualRegistration(MercuriusDBContext dbContext, Game game, User user)
     {
         dbContext.Users.Add(user);
-        dbContext.TournamentRegistrations.Add(new TournamentRegistration
+        dbContext.Set<TournamentRegistration>().Add(new TournamentRegistration
         {
             Id = Guid.NewGuid(),
             Game = game,
             GameId = game.Id,
             Kind = TournamentRegistrationKind.Individual,
             Status = TournamentRegistrationStatus.Active,
-            RegisteredByUser = user,
             RegisteredByUserId = user.Id,
-            User = user,
-            UserId = user.Id
+            RegisteredByUsernameAtRegistration = user.Username ?? string.Empty,
+            UserId = user.Id,
+            UsernameAtRegistration = user.Username
         });
     }
 
     private static GameService CreateGameService(MercuriusDBContext dbContext, IMatchModerator matchModerator)
     {
-        return new GameService(dbContext, new FixedMatchModeratorFactory(matchModerator), new UnsupportedFileService());
+        return new GameService(
+            new CompetitionDbContextAdapter<MercuriusDBContext>(dbContext),
+            new FixedMatchModeratorFactory(matchModerator),
+            new UnsupportedMediaModule(),
+            CompetitionTestSupport.CreateSponsorshipModule(),
+            CompetitionTestSupport.CreateMapper(),
+            CompetitionTestSupport.CreateModuleEventPublisher());
     }
 
     private sealed class FixedScheduleMatchModerator : IMatchModerator
@@ -310,16 +349,32 @@ public class GameScheduleTests
         }
     }
 
-    private sealed class UnsupportedFileService : IFileService
+    private sealed class UnsupportedMediaModule : IMediaModule
     {
-        public Task<string> SaveImageAsync(IFormFile image)
+        public Task<StoredMediaAsset> SaveImageAsync(MediaUpload upload, CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
         }
 
-        public Task DeleteImageAsync(string? imageUrl)
+        public Task DeleteImageAsync(string? imageUrl, CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
+        }
+    }
+
+    private sealed class RecordingMediaModule : IMediaModule
+    {
+        public CancellationToken ReceivedCancellationToken { get; private set; }
+
+        public Task<StoredMediaAsset> SaveImageAsync(MediaUpload upload, CancellationToken cancellationToken = default)
+        {
+            ReceivedCancellationToken = cancellationToken;
+            return Task.FromResult(new StoredMediaAsset("images/game.webp"));
+        }
+
+        public Task DeleteImageAsync(string? imageUrl, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
         }
     }
 }

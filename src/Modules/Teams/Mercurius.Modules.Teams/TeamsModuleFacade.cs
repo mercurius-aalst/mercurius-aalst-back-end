@@ -38,14 +38,28 @@ internal sealed class TeamsModuleFacade : ITeamsModule
         TeamId teamId,
         CancellationToken cancellationToken = default)
     {
-        var team = await _dbContext.Teams
+        var teams = await GetTeamRosterSnapshotsAsync([teamId], cancellationToken);
+        return teams.GetValueOrDefault(teamId);
+    }
+
+    public async Task<IReadOnlyDictionary<TeamId, TeamRosterSnapshot>> GetTeamRosterSnapshotsAsync(
+        IReadOnlyCollection<TeamId> teamIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (teamIds.Count == 0)
+            return new Dictionary<TeamId, TeamRosterSnapshot>();
+
+        var ids = teamIds.Select(teamId => teamId.Value).Distinct().ToArray();
+        var teams = await _dbContext.Teams
             .AsNoTracking()
-            .Where(team => team.Id == teamId.Value && !team.IsDeleted)
+            .Where(team => ids.Contains(team.Id))
             .Select(team => new
             {
                 team.Id,
                 team.Name,
                 team.CaptainUserId,
+                team.LogoUrl,
+                team.IsDeleted,
                 Members = team.Members
                     .OrderBy(member => member.Username)
                     .Select(member => new
@@ -58,24 +72,23 @@ internal sealed class TeamsModuleFacade : ITeamsModule
                     })
                     .ToList()
             })
-            .SingleOrDefaultAsync(cancellationToken);
+            .ToListAsync(cancellationToken);
 
-        if (team is null)
-            return null;
-
-        var members = team.Members
-            .Select(member => new TeamMemberSnapshot(
-                new UserId(member.Id),
-                member.Username,
-                GetDisplayName(member.Username, member.Firstname, member.Lastname, member.IsDeleted),
-                team.CaptainUserId == member.Id))
-            .ToList();
-
-        return new TeamRosterSnapshot(
-            new TeamId(team.Id),
-            team.Name,
-            team.CaptainUserId.HasValue ? new UserId(team.CaptainUserId.Value) : null,
-            members);
+        return teams.ToDictionary(
+            team => new TeamId(team.Id),
+            team => new TeamRosterSnapshot(
+                new TeamId(team.Id),
+                team.Name,
+                team.CaptainUserId.HasValue ? new UserId(team.CaptainUserId.Value) : null,
+                team.LogoUrl,
+                team.IsDeleted,
+                team.Members
+                    .Select(member => new TeamMemberSnapshot(
+                        new UserId(member.Id),
+                        member.Username,
+                        GetDisplayName(member.Username, member.Firstname, member.Lastname, member.IsDeleted),
+                        team.CaptainUserId == member.Id))
+                    .ToList()));
     }
 
     public async Task<PublicTeamProfile?> GetPublicTeamProfileAsync(

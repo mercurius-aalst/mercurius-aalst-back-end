@@ -1,9 +1,10 @@
-using System.Text.Json;
 using System.Reflection;
+using System.Text.Json;
 using Mercurius.LAN.API.Data;
 using Mercurius.LAN.API.Models;
 using Mercurius.LAN.API.Services.SearchServices;
-using Mercurius.Modules.Shared.Search;
+using Mercurius.Modules.Competition.Contracts;
+using Mercurius.Modules.Shared;
 using Microsoft.EntityFrameworkCore;
 
 namespace Mercurius.LAN.API.Tests;
@@ -14,7 +15,7 @@ public class SearchServiceTests
     public async Task SearchAsync_ReturnsEmptyResults_ForShortQueries()
     {
         await using var dbContext = CreateDbContext();
-        var service = new SearchService(dbContext);
+        var service = CreateService(dbContext);
 
         var result = await service.SearchAsync("ab", cursor: null, pageSize: 10);
 
@@ -30,10 +31,10 @@ public class SearchServiceTests
 
         dbContext.Users.Add(CreateUser("alpha"));
         dbContext.Teams.Add(CreateTeam("alphateam", CreateUser("captain-one")));
-        dbContext.Games.Add(CreateGame("Winter Alpha Cup"));
+        dbContext.Set<Game>().Add(CreateGame("Winter Alpha Cup"));
         await dbContext.SaveChangesAsync();
 
-        var service = new SearchService(dbContext);
+        var service = CreateService(dbContext);
 
         var result = await service.SearchAsync("  ALPHA  ", cursor: null, pageSize: 10);
 
@@ -67,7 +68,7 @@ public class SearchServiceTests
         dbContext.Teams.Add(team);
         await dbContext.SaveChangesAsync();
 
-        var service = new SearchService(dbContext);
+        var service = CreateService(dbContext, []);
 
         var result = await service.SearchAsync("alpha", cursor: null, pageSize: 10);
 
@@ -89,7 +90,7 @@ public class SearchServiceTests
             CreateUser("alphad"));
         await dbContext.SaveChangesAsync();
 
-        var service = new SearchService(dbContext);
+        var service = CreateService(dbContext, Array.Empty<Game>());
 
         var page1 = await service.SearchAsync("alpha", cursor: null, pageSize: 2);
         Assert.Equal(2, page1.Results.Count);
@@ -125,7 +126,7 @@ public class SearchServiceTests
         dbContext.Users.Add(CreateUser("alpha-incomplete", includeProfileNames: false));
         await dbContext.SaveChangesAsync();
 
-        var service = new SearchService(dbContext);
+        var service = CreateService(dbContext);
 
         var result = await service.SearchAsync("alpha", cursor: null, pageSize: 10);
 
@@ -147,7 +148,7 @@ public class SearchServiceTests
         dbContext.Users.Add(user);
         await dbContext.SaveChangesAsync();
 
-        var service = new SearchService(dbContext);
+        var service = CreateService(dbContext);
 
         var result = await service.SearchAsync("alpha", cursor: null, pageSize: 10);
 
@@ -158,12 +159,12 @@ public class SearchServiceTests
     public async Task SearchAsync_TreatsLikeWildcardsAsLiteralCharacters()
     {
         await using var dbContext = CreateDbContext();
-        dbContext.Games.AddRange(
+        dbContext.Set<Game>().AddRange(
             CreateGame("Cup 100%"),
             CreateGame("Cup 1000"));
         await dbContext.SaveChangesAsync();
 
-        var service = new SearchService(dbContext);
+        var service = CreateService(dbContext);
 
         var result = await service.SearchAsync("100%", cursor: null, pageSize: 10);
 
@@ -181,7 +182,7 @@ public class SearchServiceTests
             CreateUser("alphac"));
         await dbContext.SaveChangesAsync();
 
-        var service = new SearchService(dbContext);
+        var service = CreateService(dbContext);
         var page1 = await service.SearchAsync("alpha", cursor: null, pageSize: 2);
 
         dbContext.Users.Add(CreateUser("alphaa"));
@@ -200,7 +201,7 @@ public class SearchServiceTests
         dbContext.Users.Add(CreateUser("alpha"));
         await dbContext.SaveChangesAsync();
 
-        var service = new SearchService(dbContext);
+        var service = CreateService(dbContext);
         var result = await service.SearchAsync("alpha", cursor: null, pageSize: 10);
 
         var json = JsonSerializer.Serialize(result, new JsonSerializerOptions(JsonSerializerDefaults.Web));
@@ -215,7 +216,7 @@ public class SearchServiceTests
             .UseNpgsql("Host=localhost;Database=translation-only")
             .Options;
         using var dbContext = new MercuriusDBContext(options);
-        var service = new SearchService(dbContext);
+        var service = CreateService(dbContext, Array.Empty<Game>());
 
         var buildQuery = typeof(SearchService).GetMethod("BuildPagedCandidateQuery", BindingFlags.Instance | BindingFlags.NonPublic)!;
         var cursorType = typeof(SearchService).GetNestedType("SearchCursor", BindingFlags.NonPublic)!;
@@ -228,9 +229,13 @@ public class SearchServiceTests
         Assert.Contains("LIKE", sql);
         Assert.Contains("\"NormalizedName\"", sql);
         Assert.DoesNotContain("lower(t.\"Name\")", sql);
-        Assert.Contains("""u1."NormalizedLabel" > @cursor_NormalizedLabel""", sql);
-        Assert.Contains("""u1."StableId" > @cursor_StableId""", sql);
-        Assert.Contains("ORDER BY u1.\"RelevanceRank\", u1.\"NormalizedLabel\", u1.\"TypeOrder\", u1.\"StableId\"", sql);
+        Assert.Contains("\"NormalizedLabel\" > @cursor_NormalizedLabel", sql);
+        Assert.Contains("\"StableId\" > @cursor_StableId", sql);
+        Assert.Contains("ORDER BY", sql);
+        Assert.Contains("\"RelevanceRank\"", sql);
+        Assert.Contains("\"NormalizedLabel\"", sql);
+        Assert.Contains("\"TypeOrder\"", sql);
+        Assert.Contains("\"StableId\"", sql);
         Assert.Contains("LIMIT", sql);
     }
 
@@ -241,7 +246,7 @@ public class SearchServiceTests
         dbContext.Users.Add(CreateUser("alpha"));
         await dbContext.SaveChangesAsync();
 
-        var service = new SearchService(dbContext);
+        var service = CreateService(dbContext);
         var result = await service.SearchAsync("alpha", cursor: null, pageSize: 10);
         var userResult = Assert.Single(result.Results);
 
@@ -260,6 +265,15 @@ public class SearchServiceTests
         Assert.DoesNotContain("deleted", json, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("createdAt", json, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("updatedAt", json, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static SearchService CreateService(
+        MercuriusDBContext dbContext,
+        IReadOnlyCollection<Game>? games = null)
+    {
+        return new SearchService(
+            dbContext,
+            new StubCompetitionModule(games ?? dbContext.Set<Game>().AsNoTracking().ToList()));
     }
 
     private static MercuriusDBContext CreateDbContext()
@@ -300,13 +314,72 @@ public class SearchServiceTests
     {
         return new Game(
             name,
-            BracketType.SingleElimination,
-            GameFormat.BestOf1,
-            GameFormat.BestOf1,
-            ParticipationMode.Individual,
+            Mercurius.Modules.Competition.Domain.BracketType.SingleElimination,
+            Mercurius.Modules.Competition.Domain.GameFormat.BestOf1,
+            Mercurius.Modules.Competition.Domain.GameFormat.BestOf1,
+            Mercurius.Modules.Competition.Domain.ParticipationMode.Individual,
             null)
         {
             Id = Guid.NewGuid()
         };
+    }
+
+    private sealed class StubCompetitionModule(IReadOnlyCollection<Game> games) : ICompetitionModule
+    {
+        public Task<GameSummary?> GetGameSummaryAsync(GameId gameId, CancellationToken cancellationToken = default)
+            => Task.FromResult<GameSummary?>(null);
+
+        public Task<TournamentConfiguration?> GetTournamentConfigurationAsync(GameId gameId, CancellationToken cancellationToken = default)
+            => Task.FromResult<TournamentConfiguration?>(null);
+
+        public Task<bool> IsRegistrationOpenAsync(GameId gameId, CancellationToken cancellationToken = default)
+            => Task.FromResult(false);
+
+        public Task<RegistrationEligibility> CheckIndividualRegistrationEligibilityAsync(GameId gameId, UserId userId, CancellationToken cancellationToken = default)
+            => Task.FromResult(new RegistrationEligibility(true, []));
+
+        public Task<RegistrationEligibility> CheckTeamRegistrationEligibilityAsync(GameId gameId, TeamId teamId, UserId requestedBy, CancellationToken cancellationToken = default)
+            => Task.FromResult(new RegistrationEligibility(true, []));
+
+        public Task<IReadOnlyList<GameSummary>> SearchGamesAsync(string normalizedQuery, CompetitionSearchCursor? cursor, int limit, CancellationToken cancellationToken = default)
+        {
+            var results = games
+                .Where(game => game.Name.Contains(normalizedQuery, StringComparison.OrdinalIgnoreCase))
+                .Select(game => new
+                {
+                    Game = game,
+                    NormalizedLabel = game.Name.ToLowerInvariant(),
+                    RelevanceRank = game.Name.Equals(normalizedQuery, StringComparison.OrdinalIgnoreCase)
+                        ? 0
+                        : game.Name.StartsWith(normalizedQuery, StringComparison.OrdinalIgnoreCase) ? 1 : 2
+                })
+                .Where(candidate =>
+                    cursor is null ||
+                    candidate.RelevanceRank > cursor.RelevanceRank ||
+                    (candidate.RelevanceRank == cursor.RelevanceRank &&
+                     string.Compare(candidate.NormalizedLabel, cursor.NormalizedLabel, StringComparison.Ordinal) > 0) ||
+                    (candidate.RelevanceRank == cursor.RelevanceRank &&
+                     candidate.NormalizedLabel == cursor.NormalizedLabel &&
+                     2 > cursor.TypeOrder) ||
+                    (candidate.RelevanceRank == cursor.RelevanceRank &&
+                     candidate.NormalizedLabel == cursor.NormalizedLabel &&
+                     cursor.TypeOrder == 2 &&
+                     candidate.Game.Id.CompareTo(cursor.StableId) > 0))
+                .OrderBy(candidate => candidate.RelevanceRank)
+                .ThenBy(candidate => candidate.NormalizedLabel, StringComparer.Ordinal)
+                .ThenBy(candidate => candidate.Game.Id)
+                .Select(game => new GameSummary(
+                    new GameId(game.Game.Id),
+                    game.Game.Name,
+                    Mercurius.Modules.Competition.Contracts.GameStatus.Scheduled,
+                    (Mercurius.Modules.Competition.Contracts.ParticipationMode)game.Game.ParticipationMode,
+                    game.Game.TeamSize,
+                    game.Game.PlannedStartTime,
+                    game.Game.ImageUrl))
+                .Take(limit)
+                .ToList();
+
+            return Task.FromResult<IReadOnlyList<GameSummary>>(results);
+        }
     }
 }

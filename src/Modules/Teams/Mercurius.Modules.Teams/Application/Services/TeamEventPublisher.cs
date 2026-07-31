@@ -28,14 +28,6 @@ internal sealed class RealtimeTeamEventPublisher : ITeamEventPublisher
             [TeamRealtimeGroups.GetTeamGroup(teamId)]), cancellationToken);
     }
 
-    public Task RosterConfirmationChangedAsync(Guid teamId, Guid rosterMemberId, Guid affectedUserId, string status, CancellationToken cancellationToken = default)
-    {
-        return _realtimePublisher.PublishAsync(new RealtimePublishRequest<TournamentRosterConfirmationChangedEvent>(
-            "TournamentRosterConfirmationChanged",
-            new TournamentRosterConfirmationChangedEvent(teamId, rosterMemberId, affectedUserId, status),
-            [TeamRealtimeGroups.GetUserGroup(affectedUserId), TeamRealtimeGroups.GetTeamGroup(teamId)]), cancellationToken);
-    }
-
     public Task CaptainTransferredAsync(Guid teamId, Guid newCaptainUserId, CancellationToken cancellationToken = default)
     {
         return _realtimePublisher.PublishAsync(new RealtimePublishRequest<TeamCaptainTransferredRealtimeEvent>(
@@ -48,7 +40,6 @@ internal sealed class RealtimeTeamEventPublisher : ITeamEventPublisher
 internal sealed class NullTeamEventPublisher : ITeamEventPublisher
 {
     public Task InviteChangedAsync(Guid teamId, Guid inviteId, Guid affectedUserId, string status, CancellationToken cancellationToken = default) => Task.CompletedTask;
-    public Task RosterConfirmationChangedAsync(Guid teamId, Guid rosterMemberId, Guid affectedUserId, string status, CancellationToken cancellationToken = default) => Task.CompletedTask;
     public Task MembershipChangedAsync(Guid teamId, Guid affectedUserId, string action, CancellationToken cancellationToken = default) => Task.CompletedTask;
     public Task CaptainTransferredAsync(Guid teamId, Guid newCaptainUserId, CancellationToken cancellationToken = default) => Task.CompletedTask;
 }

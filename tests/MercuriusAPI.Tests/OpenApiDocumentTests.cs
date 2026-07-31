@@ -1,10 +1,9 @@
 using System.Security.Claims;
 using Mercurius.LAN.API.Endpoints;
 using Mercurius.LAN.API.Hubs;
-using Mercurius.LAN.API.Services.GameServices;
-using Mercurius.LAN.API.Services.MatchServices;
-using Mercurius.LAN.API.Services.RegistrationServices;
 using Mercurius.LAN.API.Services.SearchServices;
+using Mercurius.Modules.Competition;
+using Mercurius.Modules.Competition.Application.Services;
 using Mercurius.Modules.Shared.Search;
 using Mercurius.LAN.API.Services.SponsorServices;
 using Mercurius.Modules.Identity;
@@ -98,9 +97,7 @@ public class OpenApiDocumentTests
             ], "SwaggerTest"))
         };
 
-        app.MapGameEndpoints();
-        app.MapTournamentRegistrationEndpoints();
-        app.MapMatchEndpoints();
+        app.MapCompetitionModule();
         app.MapTeamsModule();
         app.MapSponsorEndpoints();
         app.MapIdentityModule();

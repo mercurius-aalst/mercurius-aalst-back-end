@@ -21,7 +21,7 @@ Allowed dependencies:
 - Module implementations may reference Modules.Shared.
 - Module implementations may reference Platform only when infrastructure concerns require it.
 - Module contracts may reference Modules.Shared.
-- Competition may reference Teams.Contracts and Identity.Contracts.
+- Competition may reference Teams.Contracts, Identity.Contracts, Sponsorship.Contracts, and Media.Contracts.
 - Discovery may reference Teams.Contracts, Competition.Contracts, Sponsorship.Contracts, and Identity.Contracts.
 
 Forbidden dependencies:

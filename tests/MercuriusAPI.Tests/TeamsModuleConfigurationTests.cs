@@ -75,14 +75,14 @@ public class TeamsModuleConfigurationTests
         services.AddTeamsModule<MercuriusDBContext>(CreateConfiguration());
 
         Assert.Equal(1, services.Count(descriptor => descriptor.ServiceType == typeof(ITeamsDbContext)));
-        Assert.Equal(2, services.Count(descriptor => descriptor.ServiceType == typeof(ITeamCompetitionReadService)));
+        Assert.Equal(1, services.Count(descriptor => descriptor.ServiceType == typeof(ITeamCompetitionReadService)));
 
         using var provider = services.BuildServiceProvider();
         using var scope = provider.CreateScope();
 
         var competitionReadService = scope.ServiceProvider.GetRequiredService<ITeamCompetitionReadService>();
 
-        Assert.IsType<Mercurius.LAN.API.Services.TeamServices.EfTeamCompetitionReadService>(competitionReadService);
+        Assert.IsType<NullTeamCompetitionReadService>(competitionReadService);
     }
 
     [Fact]

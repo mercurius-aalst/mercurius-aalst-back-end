@@ -9,6 +9,7 @@ using Mercurius.Modules.Competition.Infrastructure;
 using Mercurius.Modules.Identity.Contracts;
 using Mercurius.Modules.Media.Contracts;
 using Mercurius.Modules.Shared;
+using Mercurius.Modules.Shared.Exceptions;
 using Mercurius.Modules.Sponsorship.Contracts;
 using Mercurius.Modules.Teams.Contracts;
 using Microsoft.AspNetCore.Http;
@@ -73,6 +74,59 @@ public class CompetitionPerformanceRegressionTests
         Assert.Single(detailItem.Registrations);
         Assert.Equal(user.Username, detailItem.Registrations.Single().User?.Username);
         Assert.Equal(sponsorPlacement.Headline, detailItem.SponsorPlacement?.Headline);
+    }
+
+    [Fact]
+    public async Task StartGameAsync_LoadsPersistedRegistrationsBeforeCheckingParticipantCount()
+    {
+        await using var dbContext = CreateDbContext();
+        var firstUser = CreateUser("start-first");
+        var secondUser = CreateUser("start-second");
+        var game = CreateGame("Persisted registrations");
+        game.TournamentRegistrations.Add(CreateActiveIndividualRegistration(game, firstUser));
+        game.TournamentRegistrations.Add(CreateActiveIndividualRegistration(game, secondUser));
+        dbContext.Users.AddRange(firstUser, secondUser);
+        dbContext.Set<Game>().Add(game);
+        await dbContext.SaveChangesAsync();
+        dbContext.ChangeTracker.Clear();
+
+        var service = CreateGameService(dbContext, [firstUser, secondUser], sponsorPlacement: null);
+
+        await service.StartGameAsync(game.Id);
+
+        Assert.Equal(GameStatus.InProgress, await dbContext.Set<Game>()
+            .Where(candidate => candidate.Id == game.Id)
+            .Select(candidate => candidate.Status)
+            .SingleAsync());
+    }
+
+    [Fact]
+    public async Task UpdateGameAsync_RejectsParticipationModeChangeWhenPersistedRegistrationsExist()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = CreateUser("update-player");
+        var game = CreateGame("Protected tournament configuration");
+        game.TournamentRegistrations.Add(CreateActiveIndividualRegistration(game, user));
+        dbContext.Users.Add(user);
+        dbContext.Set<Game>().Add(game);
+        await dbContext.SaveChangesAsync();
+        dbContext.ChangeTracker.Clear();
+
+        var service = CreateGameService(dbContext, [user], sponsorPlacement: null);
+        var update = new UpdateGameDTO
+        {
+            Name = game.Name,
+            BracketType = Mercurius.Modules.Competition.Contracts.BracketType.SingleElimination,
+            Format = Mercurius.Modules.Competition.Contracts.GameFormat.BestOf1,
+            FinalsFormat = Mercurius.Modules.Competition.Contracts.GameFormat.BestOf3,
+            ParticipationMode = Mercurius.Modules.Competition.Contracts.ParticipationMode.Team,
+            TeamSize = 2,
+            PlannedStartTime = game.PlannedStartTime,
+            AverageGameDurationMinutes = game.AverageGameDurationMinutes,
+            RoundBreakDurationMinutes = game.RoundBreakDurationMinutes
+        };
+
+        await Assert.ThrowsAsync<ValidationException>(() => service.UpdateGameAsync(game.Id, update));
     }
 
     [Fact]
@@ -218,6 +272,19 @@ public class CompetitionPerformanceRegressionTests
         DateTime.UtcNow,
         30,
         10);
+
+    private static TournamentRegistration CreateActiveIndividualRegistration(Game game, User user) => new()
+    {
+        Id = Guid.NewGuid(),
+        Game = game,
+        GameId = game.Id,
+        Kind = TournamentRegistrationKind.Individual,
+        Status = TournamentRegistrationStatus.Active,
+        RegisteredByUserId = user.Id,
+        RegisteredByUsernameAtRegistration = user.Username ?? string.Empty,
+        UserId = user.Id,
+        UsernameAtRegistration = user.Username
+    };
 
     private static User CreateUser(string username)
     {

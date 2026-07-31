@@ -112,7 +112,7 @@ internal sealed class GameService : IGameService
         UpdateGameDTO gameDTO,
         CancellationToken cancellationToken = default)
     {
-        var game = await GetGameForSimpleMutationAsync(id, cancellationToken);
+        var game = await GetGameForMutationAsync(id, cancellationToken);
         if (game.Name != gameDTO.Name && await GameNameExistsAsync(gameDTO.Name, cancellationToken))
             throw new ValidationException($"Game {gameDTO.Name} already exists");
 
@@ -165,7 +165,7 @@ internal sealed class GameService : IGameService
 
     public async Task StartGameAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var game = await GetGameForSimpleMutationAsync(id, cancellationToken);
+        var game = await GetGameForMutationAsync(id, cancellationToken);
         game.Start();
         var matchModerator = _matchModeratorFactory.GetMatchModerator(game.BracketType);
         game.Matches = matchModerator.GenerateMatchesForGame(game).ToList();

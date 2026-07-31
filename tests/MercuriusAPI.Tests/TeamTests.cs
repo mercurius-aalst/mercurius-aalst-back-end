@@ -5,7 +5,6 @@ using Mercurius.LAN.API.Models;
 using Mercurius.LAN.API.Migrations;
 using Mercurius.LAN.API.Hubs;
 using Mercurius.LAN.API.Services.Files;
-using Mercurius.LAN.API.Services.TeamServices;
 using Mercurius.Modules.Teams.Contracts;
 using Mercurius.Modules.Teams.Infrastructure;
 using Mercurius.Modules.Teams.Services;
@@ -511,8 +510,8 @@ public class TeamTests
     }
 
     [Theory]
-    [InlineData(GameStatus.InProgress)]
-    public async Task LeaveTeamAsync_BlocksProtectedTournamentStatuses(GameStatus status)
+    [InlineData((int)GameStatus.InProgress)]
+    public async Task LeaveTeamAsync_BlocksProtectedTournamentStatuses(int status)
     {
         await using var dbContext = CreateDbContext();
         var captain = CreateUser();
@@ -522,11 +521,11 @@ public class TeamTests
         var game = new Game("Game", BracketType.SingleElimination, GameFormat.BestOf1, GameFormat.BestOf1, ParticipationMode.Team, 2)
         {
             Id = Guid.NewGuid(),
-            Status = status
+            Status = (GameStatus)status
         };
         dbContext.Users.AddRange(captain, member);
         dbContext.Teams.Add(team);
-        dbContext.Games.Add(game);
+        dbContext.Set<Game>().Add(game);
         AddTeamRegistration(dbContext, game, team, captain, [captain, member], TournamentRegistrationStatus.Active);
         await dbContext.SaveChangesAsync();
 
@@ -609,7 +608,7 @@ public class TeamTests
         };
         dbContext.Users.AddRange(captain, member);
         dbContext.Teams.Add(team);
-        dbContext.Games.Add(game);
+        dbContext.Set<Game>().Add(game);
         AddTeamRegistration(dbContext, game, team, captain, [captain, member], TournamentRegistrationStatus.Active);
         await dbContext.SaveChangesAsync();
         var teamService = CreateTeamService(dbContext);
@@ -621,9 +620,9 @@ public class TeamTests
     }
 
     [Theory]
-    [InlineData(GameStatus.Completed)]
-    [InlineData(GameStatus.Canceled)]
-    public async Task RemoveMemberAsync_AllowsCompletedAndCanceledTournamentRosters(GameStatus status)
+    [InlineData((int)GameStatus.Completed)]
+    [InlineData((int)GameStatus.Canceled)]
+    public async Task RemoveMemberAsync_AllowsCompletedAndCanceledTournamentRosters(int status)
     {
         await using var dbContext = CreateDbContext();
         var captain = CreateUser();
@@ -633,11 +632,11 @@ public class TeamTests
         var game = new Game("Game", BracketType.SingleElimination, GameFormat.BestOf1, GameFormat.BestOf1, ParticipationMode.Team, 2)
         {
             Id = Guid.NewGuid(),
-            Status = status
+            Status = (GameStatus)status
         };
         dbContext.Users.AddRange(captain, member);
         dbContext.Teams.Add(team);
-        dbContext.Games.Add(game);
+        dbContext.Set<Game>().Add(game);
         AddTeamRegistration(dbContext, game, team, captain, [captain, member], TournamentRegistrationStatus.Active);
         await dbContext.SaveChangesAsync();
         var teamService = CreateTeamService(dbContext);
@@ -667,9 +666,9 @@ public class TeamTests
     }
 
     [Theory]
-    [InlineData(GameStatus.Scheduled)]
-    [InlineData(GameStatus.InProgress)]
-    public async Task DeleteTeamAsync_BlocksActiveTournamentStatuses(GameStatus status)
+    [InlineData((int)GameStatus.Scheduled)]
+    [InlineData((int)GameStatus.InProgress)]
+    public async Task DeleteTeamAsync_BlocksActiveTournamentStatuses(int status)
     {
         await using var dbContext = CreateDbContext();
         var captain = CreateUser();
@@ -677,11 +676,11 @@ public class TeamTests
         var game = new Game("Game", BracketType.SingleElimination, GameFormat.BestOf1, GameFormat.BestOf1, ParticipationMode.Team, 1)
         {
             Id = Guid.NewGuid(),
-            Status = status
+            Status = (GameStatus)status
         };
         dbContext.Users.Add(captain);
         dbContext.Teams.Add(team);
-        dbContext.Games.Add(game);
+        dbContext.Set<Game>().Add(game);
         AddTeamRegistration(dbContext, game, team, captain, [captain], TournamentRegistrationStatus.Active);
         await dbContext.SaveChangesAsync();
 
@@ -714,11 +713,10 @@ public class TeamTests
             Game = game,
             GameId = game.Id,
             ParticipationMode = ParticipationMode.Team,
-            TeamParticipant1 = team,
             TeamParticipant1Id = team.Id
         };
         AddTeamRegistration(dbContext, game, team, captain, [captain, member], TournamentRegistrationStatus.Active);
-        placement.Teams = [team];
+        placement.Teams = [new PlacementTeam { TeamId = team.Id }];
         var invite = new TeamInvite
         {
             Id = Guid.NewGuid(),
@@ -733,9 +731,9 @@ public class TeamTests
         dbContext.Users.AddRange(captain, member);
         dbContext.Teams.Add(team);
         dbContext.Set<TeamInvite>().Add(invite);
-        dbContext.Games.Add(game);
-        dbContext.Placements.Add(placement);
-        dbContext.Matches.Add(match);
+        dbContext.Set<Game>().Add(game);
+        dbContext.Set<Placement>().Add(placement);
+        dbContext.Set<Match>().Add(match);
         await dbContext.SaveChangesAsync();
 
         var teamService = CreateTeamService(dbContext);
@@ -752,9 +750,9 @@ public class TeamTests
         Assert.Null(deletedTeam.LogoUrl);
         Assert.Empty(team.Members);
         Assert.False(await dbContext.Set<TeamInvite>().AnyAsync(teamInvite => teamInvite.TeamId == team.Id));
-        Assert.True(await dbContext.TournamentRegistrations.AnyAsync(registration => registration.GameId == game.Id && registration.TeamId == team.Id));
-        Assert.True(await dbContext.Matches.AnyAsync(m => m.Id == match.Id && m.TeamParticipant1Id == team.Id));
-        Assert.True(await dbContext.Placements.AnyAsync(p => p.Id == placement.Id && p.Teams.Any(t => t.Id == team.Id)));
+        Assert.True(await dbContext.Set<TournamentRegistration>().AnyAsync(registration => registration.GameId == game.Id && registration.TeamId == team.Id));
+        Assert.True(await dbContext.Set<Match>().AnyAsync(m => m.Id == match.Id && m.TeamParticipant1Id == team.Id));
+        Assert.True(await dbContext.Set<Placement>().AnyAsync(p => p.Id == placement.Id && p.Teams.Any(t => t.TeamId == team.Id)));
     }
 
     [Fact]
@@ -879,26 +877,28 @@ public class TeamTests
             Id = Guid.NewGuid(),
             Game = game,
             GameId = game.Id,
-            Team = team,
             TeamId = team.Id,
-            User = member,
+            TeamNameAtRegistration = team.Name,
             UserId = member.Id,
+            UsernameAtRegistration = member.Username ?? string.Empty,
+            DisplayNameAtRegistration = member.DisplayName,
             ConfirmationStatus = RosterMemberConfirmationStatus.Pending
         };
         dbContext.Users.AddRange(captain, member);
         dbContext.Teams.Add(team);
-        dbContext.Games.Add(game);
-        dbContext.TournamentRegistrations.Add(new TournamentRegistration
+        dbContext.Set<Game>().Add(game);
+        dbContext.Set<TournamentRegistration>().Add(new TournamentRegistration
         {
             Id = Guid.NewGuid(),
             Game = game,
             GameId = game.Id,
             Kind = TournamentRegistrationKind.Team,
             Status = TournamentRegistrationStatus.PendingConfirmation,
-            RegisteredByUser = captain,
             RegisteredByUserId = captain.Id,
-            Team = team,
+            RegisteredByUsernameAtRegistration = captain.Username ?? string.Empty,
             TeamId = team.Id,
+            TeamNameAtRegistration = team.Name,
+            TeamCaptainUserIdAtRegistration = team.CaptainUserId,
             RosterMembers = [rosterMember]
         });
 
@@ -1023,24 +1023,23 @@ public class TeamTests
     }
 
     [Fact]
-    public async Task RealtimeTeamEventPublisher_PushesRosterConfirmationEventsToUserAndTeamGroups()
+    public async Task RealtimeTeamEventPublisher_PushesInviteEventsToUserGroup()
     {
         var teamId = Guid.NewGuid();
-        var rosterMemberId = Guid.NewGuid();
+        var inviteId = Guid.NewGuid();
         var affectedUserId = Guid.NewGuid();
         var hubContext = new RecordingHubContext();
         var realtimePublisher = new SignalRRealtimePublisher<TeamManagementHub>(hubContext);
         var publisher = new RealtimeTeamEventPublisher(realtimePublisher);
 
-        await publisher.RosterConfirmationChangedAsync(teamId, rosterMemberId, affectedUserId, "Pending");
+        await publisher.InviteChangedAsync(teamId, inviteId, affectedUserId, "Pending");
 
         var send = Assert.Single(hubContext.HubClients.Proxy.Sends);
-        Assert.Equal("TournamentRosterConfirmationChanged", send.Method);
-        Assert.Contains(TeamRealtimeGroups.GetUserGroup(affectedUserId), hubContext.HubClients.RecordedGroups);
-        Assert.Contains(TeamRealtimeGroups.GetTeamGroup(teamId), hubContext.HubClients.RecordedGroups);
-        var payload = Assert.IsType<TournamentRosterConfirmationChangedEvent>(Assert.Single(send.Args));
+        Assert.Equal("TeamInviteChanged", send.Method);
+        Assert.Equal([TeamRealtimeGroups.GetUserGroup(affectedUserId)], hubContext.HubClients.RecordedGroups);
+        var payload = Assert.IsType<TeamInviteChangedRealtimeEvent>(Assert.Single(send.Args));
         Assert.Equal(teamId, payload.TeamId);
-        Assert.Equal(rosterMemberId, payload.RosterMemberId);
+        Assert.Equal(inviteId, payload.InviteId);
         Assert.Equal(affectedUserId, payload.UserId);
         Assert.Equal("Pending", payload.Status);
     }
@@ -1127,26 +1126,28 @@ public class TeamTests
         IReadOnlyCollection<User> rosterMembers,
         TournamentRegistrationStatus status)
     {
-        dbContext.TournamentRegistrations.Add(new TournamentRegistration
+        dbContext.Set<TournamentRegistration>().Add(new TournamentRegistration
         {
             Id = Guid.NewGuid(),
             Game = game,
             GameId = game.Id,
             Kind = TournamentRegistrationKind.Team,
             Status = status,
-            RegisteredByUser = captain,
             RegisteredByUserId = captain.Id,
-            Team = team,
+            RegisteredByUsernameAtRegistration = captain.Username ?? string.Empty,
             TeamId = team.Id,
+            TeamNameAtRegistration = team.Name,
+            TeamCaptainUserIdAtRegistration = team.CaptainUserId,
             RosterMembers = rosterMembers.Select(member => new TournamentRegistrationRosterMember
             {
                 Id = Guid.NewGuid(),
                 Game = game,
                 GameId = game.Id,
-                Team = team,
                 TeamId = team.Id,
-                User = member,
+                TeamNameAtRegistration = team.Name,
                 UserId = member.Id,
+                UsernameAtRegistration = member.Username ?? string.Empty,
+                DisplayNameAtRegistration = member.DisplayName,
                 IsCaptain = member.Id == captain.Id,
                 ConfirmationStatus = member.Id == captain.Id
                     ? RosterMemberConfirmationStatus.AutoConfirmed
@@ -1187,7 +1188,7 @@ public class TeamTests
                 configuration,
                 new IdentityModuleFacade(dbContext),
                 fileService,
-                new EfTeamCompetitionReadService(dbContext)),
+                new StubTeamCompetitionReadService(dbContext)),
             new TeamsDbContextAdapter<MercuriusDBContext>(dbContext),
             eventPublisher ?? new NullTeamEventPublisher(),
             moduleEventPublisher);
@@ -1217,11 +1218,6 @@ public class TeamTests
             return Task.FromResult(_imageUrl);
         }
 
-        Task<string> IFileService.SaveImageAsync(IFormFile image)
-        {
-            return SaveImageAsync(image);
-        }
-
         public Task DeleteImageAsync(string? imageUrl, CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
@@ -1233,22 +1229,50 @@ public class TeamTests
         }
     }
 
+    private sealed class StubTeamCompetitionReadService(MercuriusDBContext dbContext) : ITeamCompetitionReadService
+    {
+        public async Task<IReadOnlyList<PublicTeamTournamentSummary>> GetPublicTeamTournamentsAsync(Guid teamId, CancellationToken cancellationToken = default)
+        {
+            return await dbContext.Set<TournamentRegistration>()
+                .AsNoTracking()
+                .Where(registration => registration.TeamId == teamId && registration.Status == TournamentRegistrationStatus.Active)
+                .Select(registration => new PublicTeamTournamentSummary(new GameId(registration.GameId), registration.Game.Name))
+                .OrderBy(tournament => tournament.Name)
+                .ThenBy(tournament => tournament.GameId.Value)
+                .ToListAsync(cancellationToken);
+        }
+
+        public Task<bool> IsUserInProtectedTournamentRosterAsync(Guid teamId, Guid userId, CancellationToken cancellationToken = default)
+        {
+            return dbContext.Set<TournamentRegistration>()
+                .AsNoTracking()
+                .Where(registration =>
+                    registration.TeamId == teamId &&
+                    registration.Game.Status == GameStatus.InProgress &&
+                    registration.RosterMembers.Any(member => member.UserId == userId))
+                .AnyAsync(cancellationToken);
+        }
+
+        public Task<bool> IsTeamInDeleteBlockingTournamentAsync(Guid teamId, CancellationToken cancellationToken = default)
+        {
+            return dbContext.Set<TournamentRegistration>()
+                .AsNoTracking()
+                .Where(registration =>
+                    registration.TeamId == teamId &&
+                    (registration.Game.Status == GameStatus.Scheduled || registration.Game.Status == GameStatus.InProgress))
+                .AnyAsync(cancellationToken);
+        }
+    }
+
     private sealed class RecordingTeamEventPublisher : ITeamEventPublisher
     {
         public List<RecordedInviteEvent> InviteEvents { get; } = [];
-        public List<TournamentRosterConfirmationChangedEvent> RosterConfirmationEvents { get; } = [];
         public List<RecordedMembershipEvent> MembershipEvents { get; } = [];
         public List<RecordedCaptainEvent> CaptainEvents { get; } = [];
 
         public Task InviteChangedAsync(Guid teamId, Guid inviteId, Guid affectedUserId, string status, CancellationToken cancellationToken = default)
         {
             InviteEvents.Add(new RecordedInviteEvent(teamId, inviteId, affectedUserId, status));
-            return Task.CompletedTask;
-        }
-
-        public Task RosterConfirmationChangedAsync(Guid teamId, Guid rosterMemberId, Guid affectedUserId, string status, CancellationToken cancellationToken = default)
-        {
-            RosterConfirmationEvents.Add(new TournamentRosterConfirmationChangedEvent(teamId, rosterMemberId, affectedUserId, status));
             return Task.CompletedTask;
         }
 
@@ -1274,11 +1298,6 @@ public class TeamTests
         public Task InviteChangedAsync(Guid teamId, Guid inviteId, Guid affectedUserId, string status, CancellationToken cancellationToken = default)
         {
             throw new InvalidOperationException("Invite publish failed.");
-        }
-
-        public Task RosterConfirmationChangedAsync(Guid teamId, Guid rosterMemberId, Guid affectedUserId, string status, CancellationToken cancellationToken = default)
-        {
-            return Task.CompletedTask;
         }
 
         public Task MembershipChangedAsync(Guid teamId, Guid affectedUserId, string action, CancellationToken cancellationToken = default)

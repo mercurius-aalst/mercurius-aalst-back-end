@@ -25,8 +25,9 @@ public class FileValidationService : IFileService
         _maxFileSizeInMB = _configuration.GetValue<int>("FileStorage:MaxFileSizeInMB");
 
     }
-    public Task<string> SaveImageAsync(IFormFile image)
+    public Task<string> SaveImageAsync(IFormFile image, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (image is null)
             throw new ValidationException("No file provided");
         if (image.Length == 0)
@@ -35,7 +36,7 @@ public class FileValidationService : IFileService
             throw new ValidationException($"File too big, maximum file size is {_maxFileSizeInMB}MB");
         if (string.IsNullOrWhiteSpace(image.ContentType) || !AllowedContentTypes.Contains(image.ContentType))
             throw new ValidationException("Unsupported image type.");
-        return _innerService.SaveImageAsync(image);
+        return _innerService.SaveImageAsync(image, cancellationToken);
     }
 
     public Task DeleteImageAsync(string? imageUrl)

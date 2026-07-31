@@ -1,4 +1,4 @@
-using Mercurius.LAN.API.DTOs.GameDTOs;
+using Mercurius.Modules.Competition.Application.DTOs.Games;
 using Mercurius.Modules.Shared.Exceptions;
 using Mercurius.LAN.API.Models;
 using DataAnnotations = System.ComponentModel.DataAnnotations;
@@ -51,12 +51,12 @@ public class GameTests
     }
 
     [Theory]
-    [InlineData(GameStatus.InProgress)]
-    [InlineData(GameStatus.Completed)]
-    public void Update_ThrowsException_WhenStatusIsInProgressOrCompleted(GameStatus status)
+    [InlineData((int)GameStatus.InProgress)]
+    [InlineData((int)GameStatus.Completed)]
+    public void Update_ThrowsException_WhenStatusIsInProgressOrCompleted(int status)
     {
         var game = CreateGame();
-        game.Status = status;
+        game.Status = (GameStatus)status;
 
         Assert.Throws<ValidationException>(() =>
             game.Update("New", BracketType.Swiss, GameFormat.BestOf1, GameFormat.BestOf3, ParticipationMode.Team, 5, game.PlannedStartTime, game.AverageGameDurationMinutes, game.RoundBreakDurationMinutes));
@@ -86,10 +86,10 @@ public class GameTests
             GameId = game.Id,
             Kind = TournamentRegistrationKind.Individual,
             Status = TournamentRegistrationStatus.Active,
-            RegisteredByUser = user,
             RegisteredByUserId = user.Id,
-            User = user,
-            UserId = user.Id
+            RegisteredByUsernameAtRegistration = user.Username ?? string.Empty,
+            UserId = user.Id,
+            UsernameAtRegistration = user.Username
         });
 
         var ex = Assert.Throws<ValidationException>(() =>
@@ -173,12 +173,12 @@ public class GameTests
     }
 
     [Theory]
-    [InlineData(GameStatus.Completed)]
-    [InlineData(GameStatus.Canceled)]
-    public void Reset_SetsStatusAndClearsCollections_WhenCompletedOrCanceled(GameStatus status)
+    [InlineData((int)GameStatus.Completed)]
+    [InlineData((int)GameStatus.Canceled)]
+    public void Reset_SetsStatusAndClearsCollections_WhenCompletedOrCanceled(int status)
     {
         var game = CreateGame();
-        game.Status = status;
+        game.Status = (GameStatus)status;
         game.StartTime = DateTime.UtcNow;
         game.EndTime = DateTime.UtcNow;
         game.Matches.Add(new Match());
@@ -252,10 +252,10 @@ public class GameTests
             GameId = game.Id,
             Kind = TournamentRegistrationKind.Individual,
             Status = TournamentRegistrationStatus.Active,
-            RegisteredByUser = user,
             RegisteredByUserId = user.Id,
-            User = user,
-            UserId = user.Id
+            RegisteredByUsernameAtRegistration = user.Username ?? string.Empty,
+            UserId = user.Id,
+            UsernameAtRegistration = user.Username
         });
     }
 

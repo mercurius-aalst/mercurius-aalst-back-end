@@ -26,4 +26,10 @@ public interface ICompetitionModule
         TeamId teamId,
         UserId requestedBy,
         CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<GameSummary>> SearchGamesAsync(
+        string normalizedQuery,
+        CompetitionSearchCursor? cursor,
+        int limit,
+        CancellationToken cancellationToken = default);
 }

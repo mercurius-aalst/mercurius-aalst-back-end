@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Xml.Linq;
+using Mercurius.Modules.Competition.Application.Services;
 using Mercurius.Modules.Identity.Services;
 using Platform.Eventing;
 
@@ -72,6 +73,37 @@ public class ModuleArchitectureTests
                 "Identity",
                 "Mercurius.Modules.Identity",
                 "Mercurius.Modules.Identity.csproj"));
+        }
+        else if (moduleName == "Competition")
+        {
+            allowedReferences.Add(Path.Combine(
+                repositoryRoot,
+                "src",
+                "Modules",
+                "Teams",
+                "Mercurius.Modules.Teams.Contracts",
+                "Mercurius.Modules.Teams.Contracts.csproj"));
+            allowedReferences.Add(Path.Combine(
+                repositoryRoot,
+                "src",
+                "Modules",
+                "Identity",
+                "Mercurius.Modules.Identity.Contracts",
+                "Mercurius.Modules.Identity.Contracts.csproj"));
+            allowedReferences.Add(Path.Combine(
+                repositoryRoot,
+                "src",
+                "Modules",
+                "Sponsorship",
+                "Mercurius.Modules.Sponsorship.Contracts",
+                "Mercurius.Modules.Sponsorship.Contracts.csproj"));
+            allowedReferences.Add(Path.Combine(
+                repositoryRoot,
+                "src",
+                "Modules",
+                "Media",
+                "Mercurius.Modules.Media.Contracts",
+                "Mercurius.Modules.Media.Contracts.csproj"));
         }
 
         Assert.True(
@@ -195,6 +227,59 @@ public class ModuleArchitectureTests
 
             Assert.NotNull(type);
             Assert.False(type!.IsPublic, $"{typeName} must remain non-public.");
+        }
+    }
+
+    [Fact]
+    public void CompetitionEndpointTypes_AreInternalAndApiHostNoLongerOwnsThem()
+    {
+        var competitionAssembly = Assembly.Load("Mercurius.Modules.Competition");
+        var apiAssembly = Assembly.Load("Mercurius.LAN.API");
+        var endpointTypeNames = new[]
+        {
+            "Mercurius.Modules.Competition.Endpoints.GameEndpoints",
+            "Mercurius.Modules.Competition.Endpoints.MatchEndpoints",
+            "Mercurius.Modules.Competition.Endpoints.TournamentRegistrationEndpoints"
+        };
+
+        foreach (var typeName in endpointTypeNames)
+        {
+            var endpointType = competitionAssembly.GetType(typeName, throwOnError: false, ignoreCase: false);
+
+            Assert.NotNull(endpointType);
+            Assert.False(endpointType!.IsPublic, $"{typeName} must remain an internal module implementation detail.");
+        }
+
+        Assert.Null(apiAssembly.GetType("Mercurius.LAN.API.Endpoints.GameEndpoints", throwOnError: false));
+        Assert.Null(apiAssembly.GetType("Mercurius.LAN.API.Endpoints.MatchEndpoints", throwOnError: false));
+        Assert.Null(apiAssembly.GetType("Mercurius.LAN.API.Endpoints.TournamentRegistrationEndpoints", throwOnError: false));
+    }
+
+    [Fact]
+    public void CompetitionApplicationInterfaces_RequireTrailingCancellationToken()
+    {
+        var interfaces = new[]
+        {
+            typeof(IGameService),
+            typeof(IMatchService),
+            typeof(ITournamentRegistrationService)
+        };
+
+        foreach (var interfaceType in interfaces)
+        {
+            var asyncMethods = interfaceType
+                .GetMethods(BindingFlags.Public | BindingFlags.Instance)
+                .Where(method => typeof(Task).IsAssignableFrom(method.ReturnType));
+
+            foreach (var method in asyncMethods)
+            {
+                var cancellationToken = method.GetParameters().Last();
+
+                Assert.Equal(typeof(CancellationToken), cancellationToken.ParameterType);
+                Assert.True(
+                    cancellationToken.HasDefaultValue,
+                    $"{interfaceType.Name}.{method.Name} should default its cancellation token.");
+            }
         }
     }
 

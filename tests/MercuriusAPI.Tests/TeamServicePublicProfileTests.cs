@@ -1,11 +1,11 @@
 using Mercurius.LAN.API.Data;
-using Mercurius.LAN.API.Services.TeamServices;
 using Mercurius.Modules.Teams.DTOs;
+using Mercurius.Modules.Shared;
 using Mercurius.Modules.Shared.Exceptions;
-using Mercurius.LAN.API.Models;
 using Mercurius.Modules.Teams.Services;
 using Mercurius.Modules.Teams.Infrastructure;
 using Mercurius.Modules.Identity;
+using Mercurius.Modules.Teams.Contracts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 
@@ -24,7 +24,7 @@ public class TeamServicePublicProfileTests
         dbContext.Teams.Add(team);
 
         var tournament = CreateGame(Guid.Parse("00000000-0000-0000-0000-000000000001"), "Alpha Cup");
-        dbContext.Games.Add(tournament);
+        dbContext.Set<Game>().Add(tournament);
         AddActiveTeamRegistration(dbContext, tournament, team, captain);
         await dbContext.SaveChangesAsync();
 
@@ -99,7 +99,7 @@ public class TeamServicePublicProfileTests
         var hiddenTournament = CreateGame(Guid.Parse("00000000-0000-0000-0000-000000000004"), "Aardvark Cup");
 
         dbContext.Teams.Add(otherTeam);
-        dbContext.Games.AddRange(alphaOne, alphaTwo, zeta, hiddenTournament);
+        dbContext.Set<Game>().AddRange(alphaOne, alphaTwo, zeta, hiddenTournament);
         AddActiveTeamRegistration(dbContext, alphaOne, team, captain);
         AddActiveTeamRegistration(dbContext, alphaTwo, team, captain);
         AddActiveTeamRegistration(dbContext, zeta, team, captain);
@@ -133,7 +133,7 @@ public class TeamServicePublicProfileTests
             new TeamsDbContextAdapter<MercuriusDBContext>(dbContext),
             configuration,
             new IdentityModuleFacade(dbContext),
-            competitionReadService: new EfTeamCompetitionReadService(dbContext));
+            competitionReadService: new StubTeamCompetitionReadService(dbContext));
     }
 
     private static MercuriusDBContext CreateDbContext()
@@ -177,17 +177,18 @@ public class TeamServicePublicProfileTests
 
     private static void AddActiveTeamRegistration(MercuriusDBContext dbContext, Game game, Team team, User captain)
     {
-        dbContext.TournamentRegistrations.Add(new TournamentRegistration
+        dbContext.Set<TournamentRegistration>().Add(new TournamentRegistration
         {
             Id = Guid.NewGuid(),
             Game = game,
             GameId = game.Id,
             Kind = TournamentRegistrationKind.Team,
             Status = TournamentRegistrationStatus.Active,
-            RegisteredByUser = captain,
             RegisteredByUserId = captain.Id,
-            Team = team,
+            RegisteredByUsernameAtRegistration = captain.Username ?? string.Empty,
             TeamId = team.Id,
+            TeamNameAtRegistration = team.Name,
+            TeamCaptainUserIdAtRegistration = team.CaptainUserId,
             RosterMembers =
             [
                 new TournamentRegistrationRosterMember
@@ -195,14 +196,37 @@ public class TeamServicePublicProfileTests
                     Id = Guid.NewGuid(),
                     Game = game,
                     GameId = game.Id,
-                    Team = team,
                     TeamId = team.Id,
-                    User = captain,
+                    TeamNameAtRegistration = team.Name,
                     UserId = captain.Id,
+                    UsernameAtRegistration = captain.Username ?? string.Empty,
+                    DisplayNameAtRegistration = captain.DisplayName,
                     IsCaptain = true,
                     ConfirmationStatus = RosterMemberConfirmationStatus.AutoConfirmed
                 }
             ]
         });
+    }
+
+    private sealed class StubTeamCompetitionReadService(MercuriusDBContext dbContext) : ITeamCompetitionReadService
+    {
+        public async Task<IReadOnlyList<PublicTeamTournamentSummary>> GetPublicTeamTournamentsAsync(Guid teamId, CancellationToken cancellationToken = default)
+        {
+            return await dbContext.Set<TournamentRegistration>()
+                .AsNoTracking()
+                .Where(registration => registration.TeamId == teamId && registration.Status == TournamentRegistrationStatus.Active)
+                .Select(registration => new PublicTeamTournamentSummary(
+                    new GameId(registration.GameId),
+                    registration.Game.Name))
+                .OrderBy(tournament => tournament.Name)
+                .ThenBy(tournament => tournament.GameId.Value)
+                .ToListAsync(cancellationToken);
+        }
+
+        public Task<bool> IsUserInProtectedTournamentRosterAsync(Guid teamId, Guid userId, CancellationToken cancellationToken = default)
+            => Task.FromResult(false);
+
+        public Task<bool> IsTeamInDeleteBlockingTournamentAsync(Guid teamId, CancellationToken cancellationToken = default)
+            => Task.FromResult(false);
     }
 }

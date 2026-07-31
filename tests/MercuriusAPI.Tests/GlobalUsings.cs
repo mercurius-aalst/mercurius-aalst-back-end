@@ -1,3 +1,10 @@
 global using Mercurius.Modules.Identity.Domain;
 global using Mercurius.Modules.Teams.Domain;
+global using Mercurius.Modules.Competition.Application;
+global using Mercurius.Modules.Competition.Application.Services;
+global using Mercurius.Modules.Competition.Application.Services.BracketTypes;
+global using Mercurius.Modules.Competition.Domain;
+global using TournamentRosterConfirmationChangedEvent = Mercurius.Modules.Competition.Contracts.TournamentRosterConfirmationChangedEvent;
 global using TeamInviteStatus = Mercurius.Modules.Teams.Contracts.TeamInviteStatus;
+global using SponsorContext = Mercurius.Modules.Sponsorship.Contracts.SponsorContext;
+global using SponsorTier = Mercurius.Modules.Sponsorship.Contracts.SponsorTier;

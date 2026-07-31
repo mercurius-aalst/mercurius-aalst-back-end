@@ -11,8 +11,10 @@ public class FileService : IFileService
     {
         _configuration = configuration;
     }
-    public async Task<string> SaveImageAsync(IFormFile image)
+    public async Task<string> SaveImageAsync(IFormFile image, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var folderPath = _configuration["FileStorage:Location"];
         if (string.IsNullOrWhiteSpace(folderPath))
             throw new InvalidOperationException("File storage location is not configured.");
@@ -25,18 +27,24 @@ public class FileService : IFileService
         var fileName = Path.GetRandomFileName() + ".webp"; // Save as .webp
         var filePath = Path.Combine(folderPath, fileName);
 
-        using (var inputStream = image.OpenReadStream())
+        try
         {
-
+            using var inputStream = image.OpenReadStream();
             inputStream.Position = 0; // Reset stream position
 
-            using (var outputStream = new FileStream(filePath, FileMode.Create))
-            {
-                await new ImageJob()
-                    .Decode(inputStream, true) // Decode the input image
-                    .Encode(new StreamDestination(outputStream, true), new WebPLosslessEncoder())
-                    .Finish().InProcessAsync();
-            }
+            await using var outputStream = new FileStream(filePath, FileMode.Create);
+            await new ImageJob()
+                .Decode(inputStream, true) // Decode the input image
+                .Encode(new StreamDestination(outputStream, true), new WebPLosslessEncoder())
+                .Finish().InProcessAsync();
+
+            cancellationToken.ThrowIfCancellationRequested();
+        }
+        catch (OperationCanceledException)
+        {
+            if (File.Exists(filePath))
+                File.Delete(filePath);
+            throw;
         }
 
         return Path.Combine("images", fileName).Replace("\\", "/"); // Return relative path

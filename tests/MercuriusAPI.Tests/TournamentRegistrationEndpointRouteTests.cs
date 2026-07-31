@@ -1,6 +1,5 @@
-using Mercurius.LAN.API.Endpoints;
-using Mercurius.LAN.API.Services.GameServices;
-using Mercurius.LAN.API.Services.RegistrationServices;
+using Mercurius.Modules.Competition;
+using Mercurius.Modules.Competition.Application.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -61,10 +60,12 @@ public class TournamentRegistrationEndpointRouteTests
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddAuthorization();
         builder.Services.AddApiVersioning();
+        builder.Services.AddScoped<IGameService>(_ => throw new NotSupportedException());
         builder.Services.AddScoped<ITournamentRegistrationService>(_ => throw new NotSupportedException());
+        builder.Services.AddScoped<IMatchService>(_ => throw new NotSupportedException());
 
         var app = builder.Build();
-        app.MapTournamentRegistrationEndpoints();
+        app.MapCompetitionModule();
 
         return ((IEndpointRouteBuilder)app).DataSources
             .SelectMany(source => source.Endpoints)
@@ -80,9 +81,11 @@ public class TournamentRegistrationEndpointRouteTests
         builder.Services.AddAuthorization();
         builder.Services.AddApiVersioning();
         builder.Services.AddScoped<IGameService>(_ => throw new NotSupportedException());
+        builder.Services.AddScoped<ITournamentRegistrationService>(_ => throw new NotSupportedException());
+        builder.Services.AddScoped<IMatchService>(_ => throw new NotSupportedException());
 
         var app = builder.Build();
-        app.MapGameEndpoints();
+        app.MapCompetitionModule();
 
         return ((IEndpointRouteBuilder)app).DataSources
             .SelectMany(source => source.Endpoints)

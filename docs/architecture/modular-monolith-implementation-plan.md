@@ -477,6 +477,8 @@ Allowed:
 ```text
 Competition -> Teams.Contracts
 Competition -> Identity.Contracts
+Competition -> Sponsorship.Contracts
+Competition -> Media.Contracts
 Discovery -> Teams.Contracts
 Discovery -> Competition.Contracts
 Discovery -> Sponsorship.Contracts
@@ -1622,6 +1624,8 @@ Competition should depend on:
 ```text
 Teams.Contracts
 Identity.Contracts
+Sponsorship.Contracts
+Media.Contracts
 ```
 
 not Teams/Identity implementations.

@@ -1,5 +1,6 @@
 using Mercurius.LAN.API.Data;
 using Mercurius.LAN.API.DTOs.SearchDTOs;
+using Mercurius.Modules.Competition.Contracts;
 using Mercurius.Modules.Shared.Exceptions;
 using Mercurius.Modules.Shared.Search;
 using Microsoft.EntityFrameworkCore;
@@ -9,10 +10,14 @@ namespace Mercurius.LAN.API.Services.SearchServices;
 public sealed class SearchService : ISearchService
 {
     private readonly MercuriusDBContext _dbContext;
+    private readonly ICompetitionModule _competitionModule;
 
-    public SearchService(MercuriusDBContext dbContext)
+    public SearchService(
+        MercuriusDBContext dbContext,
+        ICompetitionModule competitionModule)
     {
         _dbContext = dbContext;
+        _competitionModule = competitionModule;
     }
 
     public async Task<SearchResponseDTO> SearchAsync(string? query, string? cursor, int pageSize, CancellationToken cancellationToken = default)
@@ -25,8 +30,32 @@ public sealed class SearchService : ISearchService
             return new SearchResponseDTO { Results = [], HasMore = false };
 
         var decodedCursor = DecodeCursor(cursor, normalizedQuery);
-        var pagedCandidates = await BuildPagedCandidateQuery(normalizedQuery, decodedCursor, boundedPageSize + 1)
+        var databaseCandidates = await BuildPagedCandidateQuery(
+                normalizedQuery,
+                decodedCursor,
+                boundedPageSize + 1)
             .ToListAsync(cancellationToken);
+        var games = await _competitionModule.SearchGamesAsync(
+            normalizedQuery,
+            decodedCursor is null
+                ? null
+                : new CompetitionSearchCursor(
+                    decodedCursor.RelevanceRank,
+                    decodedCursor.NormalizedLabel,
+                    decodedCursor.TypeOrder,
+                    Guid.Parse(decodedCursor.StableId)),
+            boundedPageSize + 1,
+            cancellationToken);
+
+        var pagedCandidates = databaseCandidates
+            .Concat(games.Select(game => ToGameCandidate(game, normalizedQuery)))
+            .Where(candidate => IsAfterCursor(candidate, decodedCursor))
+            .OrderBy(candidate => candidate.RelevanceRank)
+            .ThenBy(candidate => candidate.NormalizedLabel)
+            .ThenBy(candidate => candidate.TypeOrder)
+            .ThenBy(candidate => candidate.StableId)
+            .Take(boundedPageSize + 1)
+            .ToList();
 
         var hasMore = pagedCandidates.Count > boundedPageSize;
         if (hasMore)
@@ -91,25 +120,7 @@ public sealed class SearchService : ISearchService
                 GameId = null
             });
 
-        var games = _dbContext.Games
-            .AsNoTracking()
-            .Where(game => !string.IsNullOrEmpty(game.Name) && EF.Functions.Like(game.Name.ToLower(), containsPattern, "\\"))
-            .Select(game => new SearchCandidate
-            {
-                RelevanceRank = game.Name.ToLower() == normalizedQuery
-                    ? 0
-                    : EF.Functions.Like(game.Name.ToLower(), prefixPattern, "\\") ? 1 : 2,
-                NormalizedLabel = game.Name.ToLower(),
-                DisplayLabel = game.Name,
-                TypeOrder = 2,
-                StableId = game.Id.ToString(),
-                Type = "game",
-                Username = null,
-                TeamName = null,
-                GameId = game.Id
-            });
-
-        return users.Concat(teams).Concat(games);
+        return users.Concat(teams);
     }
 
     private IQueryable<SearchCandidate> BuildPagedCandidateQuery(string normalizedQuery, SearchCursor? cursor, int limit)
@@ -138,6 +149,48 @@ public sealed class SearchService : ISearchService
              candidate.NormalizedLabel == cursor.NormalizedLabel &&
              candidate.TypeOrder == cursor.TypeOrder &&
              string.Compare(candidate.StableId, cursor.StableId) > 0));
+    }
+
+    private static bool IsAfterCursor(SearchCandidate candidate, SearchCursor? cursor)
+    {
+        if (cursor is null)
+            return true;
+
+        var normalizedLabelComparison = string.Compare(
+            candidate.NormalizedLabel,
+            cursor.NormalizedLabel,
+            StringComparison.Ordinal);
+        var stableIdComparison = string.Compare(
+            candidate.StableId,
+            cursor.StableId,
+            StringComparison.Ordinal);
+
+        return candidate.RelevanceRank > cursor.RelevanceRank ||
+               (candidate.RelevanceRank == cursor.RelevanceRank && normalizedLabelComparison > 0) ||
+               (candidate.RelevanceRank == cursor.RelevanceRank &&
+                normalizedLabelComparison == 0 &&
+                candidate.TypeOrder > cursor.TypeOrder) ||
+               (candidate.RelevanceRank == cursor.RelevanceRank &&
+                normalizedLabelComparison == 0 &&
+                candidate.TypeOrder == cursor.TypeOrder &&
+                stableIdComparison > 0);
+    }
+
+    private static SearchCandidate ToGameCandidate(GameSummary game, string normalizedQuery)
+    {
+        var normalizedName = game.Name.ToLowerInvariant();
+        return new SearchCandidate
+        {
+            RelevanceRank = normalizedName == normalizedQuery
+                ? 0
+                : normalizedName.StartsWith(normalizedQuery, StringComparison.Ordinal) ? 1 : 2,
+            NormalizedLabel = normalizedName,
+            DisplayLabel = game.Name,
+            TypeOrder = 2,
+            StableId = game.Id.Value.ToString(),
+            Type = "game",
+            GameId = game.Id.Value
+        };
     }
 
     private static SearchResultDTO ToResult(SearchCandidate candidate)

@@ -1,15 +1,13 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Mercurius.LAN.API.DTOs.UserDTOs;
 using Mercurius.Modules.Identity.DTOs;
-using Mercurius.LAN.API.DTOs.GameDTOs;
-using Mercurius.LAN.API.DTOs.MatchDTOs;
-using Mercurius.LAN.API.DTOs.RegistrationDTOs;
+using Mercurius.Modules.Competition.Application.DTOs.Games;
+using Mercurius.Modules.Competition.Application.DTOs.Matches;
+using Mercurius.Modules.Competition.Application.DTOs.Registrations;
 using Mercurius.LAN.API.DTOs.SearchDTOs;
 using Mercurius.LAN.API.DTOs.SponsorDTOs;
-using Mercurius.Modules.Teams.DTOs;
 using Mercurius.LAN.API.Models;
-using ApiPublicUserDTO = Mercurius.LAN.API.DTOs.UserDTOs.PublicUserDTO;
+using Mercurius.Modules.Teams.DTOs;
 
 namespace Mercurius.LAN.API.Tests;
 
@@ -59,7 +57,7 @@ public class DtoSerializationShapeTests
         var registration = CreateTeamRegistration(game, team, captain, [captain, member], TournamentRegistrationStatus.Active);
         game.TournamentRegistrations.Add(registration);
 
-        AssertJsonProperties(new GetGameDTO(game),
+        AssertJsonProperties(game.ToGetGameDTO([captain, member], [team]),
             "id",
             "name",
             "startTime",
@@ -79,22 +77,22 @@ public class DtoSerializationShapeTests
             "sponsorPlacement",
             "matches",
             "registrations");
-        AssertJsonProperties(new TournamentRegistrationDTO(registration), "id", "gameId", "kind", "status", "user", "team", "rosterMembers", "createdAtUtc", "updatedAtUtc");
-        AssertJsonProperties(new PublicTournamentRegistrationDTO(registration), "id", "gameId", "kind", "status", "user", "team", "rosterMembers");
+        AssertJsonProperties(registration.ToTournamentRegistrationDTO([captain, member], [team]), "id", "gameId", "kind", "status", "user", "team", "rosterMembers", "createdAtUtc", "updatedAtUtc");
+        AssertJsonProperties(registration.ToPublicTournamentRegistrationDTO([captain, member], [team]), "id", "gameId", "kind", "status", "user", "team", "rosterMembers");
         AssertJsonProperties(new TournamentRosterMemberDTO
         {
             Id = Guid.NewGuid(),
-            User = new ApiPublicUserDTO(member),
+            User = member.ToPublicUserDTO(),
             IsCaptain = false,
-            ConfirmationStatus = RosterMemberConfirmationStatus.Confirmed
+            ConfirmationStatus = Mercurius.Modules.Competition.Contracts.RosterMemberConfirmationStatus.Confirmed
         }, "id", "user", "isCaptain", "confirmationStatus");
         AssertJsonProperties(new PublicTournamentRosterMemberDTO
         {
-            User = new ApiPublicUserDTO(member),
+            User = member.ToPublicUserDTO(),
             IsCaptain = false
         }, "user", "isCaptain");
 
-        var json = Serialize(new GetGameDTO(game));
+        var json = Serialize(game.ToGetGameDTO([captain, member], [team]));
         Assert.Contains("\"status\":\"Scheduled\"", json, StringComparison.Ordinal);
         Assert.Contains("\"participationMode\":\"Team\"", json, StringComparison.Ordinal);
     }
@@ -114,7 +112,6 @@ public class DtoSerializationShapeTests
             ParticipationMode = ParticipationMode.Individual,
             RoundNumber = 1,
             MatchNumber = 1,
-            UserParticipant1 = user,
             UserParticipant1Id = user.Id,
             Participant1Score = 1,
             Participant2Score = 0
@@ -136,7 +133,7 @@ public class DtoSerializationShapeTests
             Username = user.Username
         };
 
-        AssertJsonProperties(new GetMatchDTO(match),
+        AssertJsonProperties(match.ToGetMatchDTO(),
             "id",
             "startTime",
             "endTime",
@@ -233,10 +230,11 @@ public class DtoSerializationShapeTests
             GameId = game.Id,
             Kind = TournamentRegistrationKind.Team,
             Status = status,
-            RegisteredByUser = captain,
             RegisteredByUserId = captain.Id,
-            Team = team,
+            RegisteredByUsernameAtRegistration = captain.Username ?? string.Empty,
             TeamId = team.Id,
+            TeamNameAtRegistration = team.Name,
+            TeamCaptainUserIdAtRegistration = team.CaptainUserId,
             CreatedAtUtc = DateTime.UtcNow,
             UpdatedAtUtc = DateTime.UtcNow
         };
@@ -248,10 +246,11 @@ public class DtoSerializationShapeTests
             TournamentRegistrationId = registration.Id,
             Game = game,
             GameId = game.Id,
-            Team = team,
             TeamId = team.Id,
-            User = member,
+            TeamNameAtRegistration = team.Name,
             UserId = member.Id,
+            UsernameAtRegistration = member.Username ?? string.Empty,
+            DisplayNameAtRegistration = member.DisplayName,
             IsCaptain = member.Id == captain.Id,
             ConfirmationStatus = member.Id == captain.Id
                 ? RosterMemberConfirmationStatus.AutoConfirmed

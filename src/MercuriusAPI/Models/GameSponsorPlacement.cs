@@ -10,6 +10,5 @@ public class GameSponsorPlacement
     public string? SupportLine { get; set; }
     public int DisplayOrder { get; set; }
 
-    public Game Game { get; set; } = null!;
     public Sponsor Sponsor { get; set; } = null!;
 }

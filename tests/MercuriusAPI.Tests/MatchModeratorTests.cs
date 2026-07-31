@@ -1,5 +1,4 @@
 using Mercurius.LAN.API.Models;
-using Mercurius.LAN.API.Services.MatchServices.BracketTypes;
 
 namespace Mercurius.LAN.API.Tests;
 
@@ -18,14 +17,14 @@ public class MatchModeratorTests
         var matches = moderator.GenerateMatchesForGame(game).ToList();
 
         Assert.All(matches, match => Assert.Equal(ParticipationMode.Individual, match.ParticipationMode));
-        Assert.All(matches, match => Assert.Null(match.TeamParticipant1));
-        Assert.All(matches, match => Assert.Null(match.TeamParticipant2));
+        Assert.All(matches, match => Assert.Null(match.TeamParticipant1Id));
+        Assert.All(matches, match => Assert.Null(match.TeamParticipant2Id));
 
         var byeMatch = matches.Single(match => match.RoundNumber == 1 && (match.Participant1IsBYE || match.Participant2IsBYE));
-        Assert.NotNull(byeMatch.UserWinner);
+        Assert.NotNull(byeMatch.UserWinnerId);
 
         var finalMatch = matches.Single(match => match.RoundNumber == 2);
-        Assert.Contains(byeMatch.UserWinner, new[] { finalMatch.UserParticipant1, finalMatch.UserParticipant2 });
+        Assert.Contains(byeMatch.UserWinnerId, new[] { finalMatch.UserParticipant1Id, finalMatch.UserParticipant2Id });
     }
 
     [Fact]
@@ -41,13 +40,13 @@ public class MatchModeratorTests
         var matches = moderator.GenerateMatchesForGame(game).ToList();
 
         Assert.All(matches, match => Assert.Equal(ParticipationMode.Team, match.ParticipationMode));
-        Assert.All(matches, match => Assert.Null(match.UserParticipant1));
-        Assert.All(matches, match => Assert.Null(match.UserParticipant2));
+        Assert.All(matches, match => Assert.Null(match.UserParticipant1Id));
+        Assert.All(matches, match => Assert.Null(match.UserParticipant2Id));
 
         var byeMatch = matches.Single(match => !match.IsLowerBracketMatch && match.RoundNumber == 1 && (match.Participant1IsBYE || match.Participant2IsBYE));
-        Assert.NotNull(byeMatch.TeamWinner);
+        Assert.NotNull(byeMatch.TeamWinnerId);
         Assert.NotNull(byeMatch.WinnerNextMatch);
-        Assert.Contains(byeMatch.TeamWinner, new[] { byeMatch.WinnerNextMatch.TeamParticipant1, byeMatch.WinnerNextMatch.TeamParticipant2 });
+        Assert.Contains(byeMatch.TeamWinnerId, new[] { byeMatch.WinnerNextMatch.TeamParticipant1Id, byeMatch.WinnerNextMatch.TeamParticipant2Id });
     }
 
     [Fact]
@@ -64,8 +63,8 @@ public class MatchModeratorTests
 
         Assert.NotEmpty(matches);
         Assert.All(matches, match => Assert.Equal(ParticipationMode.Team, match.ParticipationMode));
-        Assert.All(matches, match => Assert.Null(match.UserParticipant1));
-        Assert.All(matches, match => Assert.Null(match.UserParticipant2));
+        Assert.All(matches, match => Assert.Null(match.UserParticipant1Id));
+        Assert.All(matches, match => Assert.Null(match.UserParticipant2Id));
     }
 
     private static User CreateUser(int id)
@@ -99,10 +98,10 @@ public class MatchModeratorTests
             GameId = game.Id,
             Kind = TournamentRegistrationKind.Individual,
             Status = TournamentRegistrationStatus.Active,
-            RegisteredByUser = user,
             RegisteredByUserId = user.Id,
-            User = user,
-            UserId = user.Id
+            RegisteredByUsernameAtRegistration = user.Username ?? string.Empty,
+            UserId = user.Id,
+            UsernameAtRegistration = user.Username
         });
     }
 
@@ -115,10 +114,12 @@ public class MatchModeratorTests
             GameId = game.Id,
             Kind = TournamentRegistrationKind.Team,
             Status = TournamentRegistrationStatus.Active,
-            RegisteredByUser = team.Captain!,
             RegisteredByUserId = team.CaptainUserId!.Value,
-            Team = team,
-            TeamId = team.Id
+            RegisteredByUsernameAtRegistration = team.Captain!.Username ?? string.Empty,
+            TeamId = team.Id,
+            TeamNameAtRegistration = team.Name,
+            TeamCaptainUserIdAtRegistration = team.CaptainUserId,
+            TeamLogoUrlAtRegistration = team.LogoUrl
         });
     }
 }

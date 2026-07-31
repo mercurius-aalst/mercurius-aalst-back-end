@@ -1,6 +1,6 @@
 # Modular Monolith Migration Progress
 
-Last updated: 2026-07-29
+Last updated: 2026-07-31
 
 This tracker is the repo-local handoff ledger for the modular monolith migration. It records which phase PRs have been created. GitHub remains the source of truth for whether those PRs are open, closed, or merged.
 
@@ -96,10 +96,10 @@ Do not start the next phase from an unmerged previous phase branch.
   - PR: [#107 Phase 7 follow-up: finalize Teams boundary, cancellation, and read projections](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/107)
   - Notes: Finalizes the transitional Teams DbContext adapter boundary, propagates cancellation through Teams async flows, replaces read-only Teams materialization with projections, and adds focused composition/internal-surface coverage. Explicitly defers Team public-surface cleanup to Phase 11, Identity EF-navigation cleanup to Phase 15, Media extraction to Phase 13, test-project reshaping to Phase 18, and transitional adapter/null-fallback cleanup to Phase 19.
 
-- [ ] Phase 11 - Competition extraction
+- [x] Phase 11 - Competition extraction
   - Branch: `refactor/phase-11`
-  - PR: pending
-  - Notes: Move games, matches, registrations, rosters, and placements.
+  - PR: [#108 Phase 11: extract Competition module](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/108)
+  - Notes: Moves games, matches, registrations, rosters, placements, Competition endpoints, and persistence mappings behind the Competition module boundary while preserving routes and JSON shapes. Adds registration snapshots through a hand-authored migration without updating the EF model snapshot.
 
 - [ ] Phase 12 - Sponsorship extraction
   - Branch: `refactor/phase-12`

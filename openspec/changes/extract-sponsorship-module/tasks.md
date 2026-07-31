@@ -37,4 +37,4 @@
 
 - [x] 6.1 Confirm no migration or EF model-snapshot change is required because the physical Sponsorship schema is unchanged.
 - [x] 6.2 Run `openspec validate extract-sponsorship-module --strict`, `dotnet restore`, `dotnet build`, `dotnet test`, and `dotnet format --verify-no-changes` from the repository root.
-- [ ] 6.3 Update this task checklist, the modular-monolith progress tracker, and the phase PR description with route, authorization, DTO/JSON, database, configuration, startup/OpenAPI, validation, and known-risk outcomes.
+- [x] 6.3 Update this task checklist, the modular-monolith progress tracker, and the phase PR description with route, authorization, DTO/JSON, database, configuration, startup/OpenAPI, validation, and known-risk outcomes.

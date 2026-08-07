@@ -31,7 +31,10 @@ public static class TeamsModuleConfiguration
 
     public static ModelBuilder ApplyTeamsModelConfiguration(this ModelBuilder modelBuilder)
     {
-        return modelBuilder.ApplyTeamsConfiguration();
+        modelBuilder.ApplyConfiguration(new TeamConfiguration());
+        modelBuilder.ApplyConfiguration(new TeamInviteConfiguration());
+
+        return modelBuilder;
     }
 
     public static IEndpointRouteBuilder MapTeamsModule(this IEndpointRouteBuilder endpoints)

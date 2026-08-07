@@ -45,7 +45,11 @@ public static class DiscoveryModuleConfiguration
 
     public static ModelBuilder ApplyDiscoveryModelConfiguration(this ModelBuilder modelBuilder)
     {
-        return modelBuilder.ApplyDiscoveryConfiguration();
+        modelBuilder.ApplyConfiguration(new SearchDocumentConfiguration());
+        modelBuilder.ApplyConfiguration(new SearchIndexRebuildDocumentConfiguration());
+        modelBuilder.ApplyConfiguration(new SearchIndexRebuildJobConfiguration());
+
+        return modelBuilder;
     }
 
     public static IEndpointRouteBuilder MapDiscoveryModule(this IEndpointRouteBuilder endpoints)

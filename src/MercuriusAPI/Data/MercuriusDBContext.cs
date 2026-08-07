@@ -1,17 +1,27 @@
 using Mercurius.Modules.Competition;
 using Mercurius.Modules.Discovery;
+using Mercurius.Modules.Identity;
+using Mercurius.Modules.Identity.Domain;
 using Mercurius.Modules.Identity.Infrastructure;
 using Mercurius.Modules.Sponsorship;
 using Mercurius.Modules.Teams;
 using Mercurius.Modules.Teams.Domain;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Platform.Eventing.Persistence;
 
 namespace Mercurius.LAN.API.Data;
 
-public partial class MercuriusDBContext : DbContext, IModuleEventDbContext, IIdentityDbContext
+public class MercuriusDBContext : DbContext, IModuleEventDbContext, IIdentityDbContext
 {
+    private const string TeamInviteEntityType = "Mercurius.Modules.Teams.Domain.TeamInvite";
+    private const string MatchEntityType = "Mercurius.Modules.Competition.Domain.Match";
+    private const string TournamentRegistrationEntityType = "Mercurius.Modules.Competition.Domain.TournamentRegistration";
+    private const string TournamentRegistrationRosterMemberEntityType = "Mercurius.Modules.Competition.Domain.TournamentRegistrationRosterMember";
+    private const string PlacementUserEntityType = "Mercurius.Modules.Competition.Domain.PlacementUser";
+    private const string PlacementTeamEntityType = "Mercurius.Modules.Competition.Domain.PlacementTeam";
+    private const string GameEntityType = "Mercurius.Modules.Competition.Domain.Game";
+    private const string GameSponsorPlacementEntityType = "Mercurius.Modules.Sponsorship.Domain.GameSponsorPlacement";
+
     public MercuriusDBContext()
     {
     }
@@ -27,72 +37,99 @@ public partial class MercuriusDBContext : DbContext, IModuleEventDbContext, IIde
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity<User>(entity =>
-        {
-            entity.HasIndex(user => user.Auth0UserId).IsUnique();
-            entity.HasIndex(user => user.Username)
-                .IsUnique()
-                .HasFilter("\"Username\" IS NOT NULL AND \"IsDeleted\" = false");
-            entity.HasIndex(user => user.NormalizedUsername)
-                .IsUnique()
-                .HasFilter("\"NormalizedUsername\" IS NOT NULL AND \"IsDeleted\" = false");
-            entity.HasIndex(user => user.Email)
-                .IsUnique()
-                .HasFilter("\"Email\" IS NOT NULL AND \"IsDeleted\" = false");
-            entity.Property(user => user.Auth0UserId).IsRequired().HasMaxLength(200);
-            entity.Property(user => user.Username).HasMaxLength(32);
-            entity.Property(user => user.NormalizedUsername).HasMaxLength(32);
-            entity.Property(user => user.Firstname).HasMaxLength(100);
-            entity.Property(user => user.Lastname).HasMaxLength(100);
-            entity.Property(user => user.Email).HasMaxLength(254);
-            entity.Property(user => user.DiscordId).HasMaxLength(100);
-            entity.Property(user => user.SteamId).HasMaxLength(100);
-            entity.Property(user => user.RiotId).HasMaxLength(100);
-            entity.Property(user => user.CreatedAtUtc).IsRequired();
-            entity.Property(user => user.UpdatedAtUtc).IsRequired();
-        });
-
+        modelBuilder.ApplyIdentityModelConfiguration();
         modelBuilder.ApplyTeamsModelConfiguration();
-        modelBuilder.ApplyCompetitionModelConfiguration<User, Team>();
+        modelBuilder.ApplyCompetitionModelConfiguration();
         modelBuilder.ApplySponsorshipModelConfiguration();
         modelBuilder.ApplyDiscoveryModelConfiguration();
-        ConfigureGameSponsorPlacementRelationship(modelBuilder);
-
-        modelBuilder.Entity<OutboxMessage>(entity =>
-        {
-            entity.ToTable("outbox_messages", "platform");
-            entity.HasKey(message => message.Id);
-            entity.Property(message => message.Id).HasColumnName("id");
-            entity.Property(message => message.EventType).HasColumnName("event_type").IsRequired().HasMaxLength(300);
-            entity.Property(message => message.Payload).HasColumnName("payload").IsRequired();
-            entity.Property(message => message.OccurredAtUtc).HasColumnName("occurred_at_utc").IsRequired();
-            entity.Property(message => message.RetryCount).HasColumnName("retry_count").IsRequired();
-            entity.Property(message => message.LastAttemptAtUtc).HasColumnName("last_attempt_at_utc");
-            entity.Property(message => message.ProcessedAtUtc).HasColumnName("processed_at_utc");
-            entity.Property(message => message.LastError).HasColumnName("last_error").HasMaxLength(4000);
-            entity.HasIndex(message => new { message.ProcessedAtUtc, message.OccurredAtUtc });
-        });
-
-        modelBuilder.Entity<InboxMessage>(entity =>
-        {
-            entity.ToTable("inbox_messages", "platform");
-            entity.HasKey(message => new { message.ConsumerName, message.MessageId });
-            entity.Property(message => message.ConsumerName).HasColumnName("consumer_name").HasMaxLength(200).IsRequired();
-            entity.Property(message => message.MessageId).HasColumnName("message_id").IsRequired();
-            entity.Property(message => message.ProcessedAtUtc).HasColumnName("processed_at_utc").IsRequired();
-        });
-
-        OnModelCreatingPartial(modelBuilder);
+        modelBuilder.ApplyEventingModelConfiguration();
+        ConfigureCrossModuleRelationships(modelBuilder);
     }
 
-    partial void OnModelCreatingPartial(ModelBuilder modelBuilder);
-
-    private static void ConfigureGameSponsorPlacementRelationship(ModelBuilder modelBuilder)
+    private static void ConfigureCrossModuleRelationships(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity("Mercurius.Modules.Competition.Domain.Game")
-            .HasOne("Mercurius.Modules.Sponsorship.Domain.GameSponsorPlacement", null)
-            .WithOne()
-            .HasForeignKey("Mercurius.Modules.Sponsorship.Domain.GameSponsorPlacement", "GameId")
+        modelBuilder.Entity<Team>()
+            .HasOne(team => team.Captain)
+            .WithMany()
+            .HasForeignKey(team => team.CaptainUserId)
+            .IsRequired(false);
+
+        modelBuilder.Entity<Team>()
+            .HasMany(team => team.Members)
+            .WithMany()
+            .UsingEntity<Dictionary<string, object>>(
+                "TeamUser",
+                join => join.HasOne<User>()
+                    .WithMany()
+                    .HasForeignKey("UserId")
+                    .OnDelete(DeleteBehavior.Cascade),
+                join => join.HasOne<Team>()
+                    .WithMany()
+                    .HasForeignKey("TeamId")
+                    .OnDelete(DeleteBehavior.Cascade),
+                join =>
+                {
+                    join.ToTable("team_members", "teams");
+                    join.HasKey("TeamId", "UserId");
+                });
+
+        modelBuilder.Entity(TeamInviteEntityType)
+            .HasOne(typeof(User).FullName!, "User")
+            .WithMany()
+            .HasForeignKey("UserId")
             .OnDelete(DeleteBehavior.Cascade);
+
+        ConfigureOptionalCrossModuleReference(modelBuilder, MatchEntityType, "UserParticipant1Id");
+        ConfigureOptionalCrossModuleReference(modelBuilder, MatchEntityType, "UserParticipant2Id");
+        ConfigureOptionalCrossModuleReference(modelBuilder, MatchEntityType, "UserWinnerId");
+        ConfigureOptionalCrossModuleReference(modelBuilder, MatchEntityType, "UserLoserId");
+        ConfigureOptionalCrossModuleReference(modelBuilder, MatchEntityType, "TeamParticipant1Id", typeof(Team).FullName!);
+        ConfigureOptionalCrossModuleReference(modelBuilder, MatchEntityType, "TeamParticipant2Id", typeof(Team).FullName!);
+        ConfigureOptionalCrossModuleReference(modelBuilder, MatchEntityType, "TeamWinnerId", typeof(Team).FullName!);
+        ConfigureOptionalCrossModuleReference(modelBuilder, MatchEntityType, "TeamLoserId", typeof(Team).FullName!);
+
+        ConfigureRequiredCrossModuleReference(modelBuilder, TournamentRegistrationEntityType, "RegisteredByUserId", DeleteBehavior.Restrict);
+        ConfigureOptionalCrossModuleReference(modelBuilder, TournamentRegistrationEntityType, "UserId", typeof(User).FullName!, DeleteBehavior.Restrict);
+        ConfigureOptionalCrossModuleReference(modelBuilder, TournamentRegistrationEntityType, "TeamId", typeof(Team).FullName!, DeleteBehavior.Restrict);
+        ConfigureRequiredCrossModuleReference(modelBuilder, TournamentRegistrationRosterMemberEntityType, "UserId", DeleteBehavior.Restrict);
+        ConfigureOptionalCrossModuleReference(modelBuilder, TournamentRegistrationRosterMemberEntityType, "TeamId", typeof(Team).FullName!, DeleteBehavior.Restrict);
+        ConfigureRequiredCrossModuleReference(modelBuilder, PlacementUserEntityType, "UserId", DeleteBehavior.Cascade);
+        ConfigureRequiredCrossModuleReference(modelBuilder, PlacementTeamEntityType, "TeamId", DeleteBehavior.Cascade, typeof(Team).FullName!);
+
+        modelBuilder.Entity(GameEntityType)
+            .HasOne(GameSponsorPlacementEntityType, null)
+            .WithOne()
+            .HasForeignKey(GameSponsorPlacementEntityType, "GameId")
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+
+    private static void ConfigureOptionalCrossModuleReference(
+        ModelBuilder modelBuilder,
+        string dependentEntityType,
+        string foreignKeyProperty,
+        string? principalEntityType = null,
+        DeleteBehavior deleteBehavior = DeleteBehavior.NoAction)
+    {
+        modelBuilder.Entity(dependentEntityType)
+            .HasOne(principalEntityType ?? typeof(User).FullName!, null)
+            .WithMany()
+            .HasForeignKey(foreignKeyProperty)
+            .IsRequired(false)
+            .OnDelete(deleteBehavior);
+    }
+
+    private static void ConfigureRequiredCrossModuleReference(
+        ModelBuilder modelBuilder,
+        string dependentEntityType,
+        string foreignKeyProperty,
+        DeleteBehavior deleteBehavior,
+        string? principalEntityType = null)
+    {
+        modelBuilder.Entity(dependentEntityType)
+            .HasOne(principalEntityType ?? typeof(User).FullName!, null)
+            .WithMany()
+            .HasForeignKey(foreignKeyProperty)
+            .IsRequired()
+            .OnDelete(deleteBehavior);
     }
 }

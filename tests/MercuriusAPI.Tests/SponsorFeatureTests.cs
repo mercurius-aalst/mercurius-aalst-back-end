@@ -155,8 +155,10 @@ public class SponsorFeatureTests
 
         Assert.NotNull(sponsorType);
         Assert.NotNull(placementType);
-        Assert.Equal("Sponsors", sponsorType.GetTableName());
-        Assert.Equal("GameSponsorPlacements", placementType.GetTableName());
+        Assert.Equal("sponsorship", sponsorType.GetSchema());
+        Assert.Equal("sponsors", sponsorType.GetTableName());
+        Assert.Equal("sponsorship", placementType.GetSchema());
+        Assert.Equal("game_sponsor_placements", placementType.GetTableName());
         Assert.Contains(
             placementType.GetForeignKeys(),
             foreignKey =>

@@ -248,7 +248,8 @@ public class ModuleArchitectureTests
             "Mercurius.Modules.Teams.Domain.TeamInvite",
             "Mercurius.Modules.Teams.Infrastructure.ITeamsDbContext",
             "Mercurius.Modules.Teams.Infrastructure.TeamsDbContextAdapter`1",
-            "Mercurius.Modules.Teams.Infrastructure.TeamsModelBuilderExtensions"
+            "Mercurius.Modules.Teams.Infrastructure.TeamConfiguration",
+            "Mercurius.Modules.Teams.Infrastructure.TeamInviteConfiguration"
         };
 
         foreach (var typeName in nonPublicTypeNames)

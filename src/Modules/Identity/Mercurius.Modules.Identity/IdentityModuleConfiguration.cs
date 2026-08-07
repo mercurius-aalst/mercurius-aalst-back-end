@@ -7,6 +7,7 @@ using Mercurius.Modules.Identity.Infrastructure;
 using Mercurius.Modules.Identity.Options;
 using Mercurius.Modules.Identity.Services;
 using Mercurius.Modules.Identity.Services.Auth0;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Mercurius.Modules.Identity;
@@ -27,6 +28,13 @@ public static class IdentityModuleConfiguration
         services.Decorate<IUserService, UserValidationService>();
 
         return services;
+    }
+
+    public static ModelBuilder ApplyIdentityModelConfiguration(this ModelBuilder modelBuilder)
+    {
+        modelBuilder.ApplyConfiguration(new UserConfiguration());
+
+        return modelBuilder;
     }
 
     public static IEndpointRouteBuilder MapIdentityModule(this IEndpointRouteBuilder endpoints)

@@ -28,7 +28,10 @@ public static class SponsorshipModuleConfiguration
 
     public static ModelBuilder ApplySponsorshipModelConfiguration(this ModelBuilder modelBuilder)
     {
-        return modelBuilder.ApplySponsorshipConfiguration();
+        modelBuilder.ApplyConfiguration(new SponsorConfiguration());
+        modelBuilder.ApplyConfiguration(new GameSponsorPlacementConfiguration());
+
+        return modelBuilder;
     }
 
     public static IEndpointRouteBuilder MapSponsorshipModule(this IEndpointRouteBuilder endpoints)

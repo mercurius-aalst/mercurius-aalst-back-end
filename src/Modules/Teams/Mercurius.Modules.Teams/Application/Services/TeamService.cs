@@ -88,6 +88,7 @@ internal sealed class TeamService : ITeamService
     public async Task DeleteTeamAsync(Guid teamId, CancellationToken cancellationToken = default)
     {
         var team = await _dbContext.Teams
+            .AsSplitQuery()
             .Include(t => t.Members)
             .Include(t => t.TeamInvites)
             .FirstOrDefaultAsync(t => t.Id == teamId, cancellationToken);
@@ -101,6 +102,7 @@ internal sealed class TeamService : ITeamService
     {
         var currentUser = await GetCurrentUserAsync(auth0UserId, cancellationToken);
         var team = await GetActiveTeamsQuery()
+            .AsSplitQuery()
             .Include(t => t.Members)
             .Include(t => t.TeamInvites)
             .FirstOrDefaultAsync(t => t.Id == teamId, cancellationToken);
@@ -607,6 +609,7 @@ internal sealed class TeamService : ITeamService
     private IQueryable<Team> GetTeamDetailsQuery()
     {
         return GetTeamWithMembersQuery()
+            .AsSplitQuery()
             .Include(t => t.TeamInvites);
     }
 

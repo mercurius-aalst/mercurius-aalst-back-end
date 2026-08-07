@@ -17,5 +17,5 @@
 
 ## 4. Validation
 
-- [ ] 4.1 Run restore, build, tests, format verification, model/migration checks, and API startup/OpenAPI validation against a development database.
+- [x] 4.1 Run restore, build, tests, format verification, and EF model/migration checks; document the accepted exception that development-database API startup/OpenAPI validation could not run because Docker/PostgreSQL was unavailable.
 - [x] 4.2 Update the OpenSpec checklist and phase tracker when the phase PR is created.

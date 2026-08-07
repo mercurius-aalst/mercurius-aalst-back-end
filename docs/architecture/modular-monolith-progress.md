@@ -128,8 +128,9 @@ Do not start the next phase from an unmerged previous phase branch.
   - PR: [#112 Phase 15: tighten module persistence boundaries](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/112)
   - Notes: Moves EF mapping ownership into module infrastructure, retains one physical DbContext,
     moves legacy module tables into PostgreSQL schemas through a reversible migration, and preserves
-    cross-module foreign-key delete behavior. Database migration and API startup smoke tests remain
-    pending because the local PostgreSQL/Docker service is unavailable.
+    cross-module foreign-key delete behavior. Development-database migration and API startup smoke
+    tests were not run because the local PostgreSQL/Docker service was unavailable; this exception
+    was accepted when the Phase 15 OpenSpec change was archived.
 
 - [ ] Phase 16 - Endpoint simplification in place
   - Branch: `refactor/phase-16`

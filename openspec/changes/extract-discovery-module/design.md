@@ -25,7 +25,7 @@ Phase 14 introduces a persisted Discovery projection. It also adds the first int
 
 ### Store a Discovery search-document projection
 
-`discovery.search_documents` holds a unique `(entity_type, entity_id)` document with `title`, `subtitle`, `image_url`, `route`, `normalized_text`, `source_version`, `is_deleted`, and `updated_at_utc`. A partial trigram index on active `normalized_text` supports the existing contains-search behavior, and a deterministic b-tree ordering index supports keyset pagination.
+`discovery.search_documents` holds a unique `(entity_type, entity_id)` document with `title`, `subtitle`, `image_url`, `route`, `normalized_text`, `type_order`, `source_version`, `is_deleted`, and `updated_at_utc`. Active public documents use a partial trigram GIN index for contains matching, a b-tree for exact-match/keyset ordering, and a pattern-operator b-tree for prefix filtering.
 
 Discovery owns the document entity, model configuration, and a narrow DbContext adapter. It does not receive `MercuriusDBContext`, source entities, repositories, or `IQueryable` from another module. The host composes the module through `AddDiscoveryModule<MercuriusDBContext>` and applies its model configuration while the single physical DbContext remains transitional.
 
@@ -33,7 +33,7 @@ Alternatives considered: retaining live union queries would preserve immediate c
 
 ### Preserve the public contract through a direct projection query
 
-`IDiscoveryModule.SearchAsync` validates the shared request rules and queries only active User, Team, and Game document types. It reproduces the current exact/prefix/contains relevance ranking, type precedence, normalized-label ordering, and cursor encoding. The endpoint maps the facade's string-valued result contract directly and continues to return no Sponsor results.
+`IDiscoveryModule.SearchAsync` validates the shared request rules and queries only active User, Team, and Game document types. It evaluates disjoint exact, prefix, and contains rank buckets against the single Discovery projection, stopping once it has the requested page plus one result. The stored `type_order` preserves type precedence without a query-time `CASE`; cursor encoding and the public response remain unchanged. The endpoint maps the facade's string-valued result contract directly and continues to return no Sponsor results.
 
 The stored `route` and `image_url` fields are projection metadata. Current user/team navigation fields are represented by their titles, and game navigation remains the stored entity ID, so the HTTP JSON shape does not gain fields.
 
@@ -51,9 +51,11 @@ Alternatives considered: adding version columns to every source aggregate would 
 
 `discovery.search_index_rebuild_jobs` records an ID, pending/running/completed/failed state, timestamps, and a bounded error. `POST /internal/discovery/search-index-rebuild-jobs` is restricted to the existing `admin` role and coalesces with an active job. A module hosted worker claims and runs pending jobs; `GET /internal/discovery/search-index-rebuild-jobs/{jobId}` returns the persisted status.
 
-The rebuild coordinator reads privacy-safe search snapshots from Identity, Teams, and Competition facades, and uses the existing Sponsorship summary facade. It writes documents with the job start time as their source version. This makes an event produced before the rebuild stale, while an event produced during or after the rebuild can update the document. Source modules expose bounded purpose-specific snapshot contracts instead of leaking entities or queryables.
+The rebuild coordinator reads privacy-safe, stable-ID keyset pages from Identity, Teams, Competition, and Sponsorship contracts. It stores those pages in Discovery-owned rebuild staging records, then performs one transactional set-based merge into live documents using the job start time as source version. A conditional upsert and missing-document deletion apply only when the live source version is not newer than the rebuild version. This makes an event produced before the rebuild stale, while an event produced during or after the rebuild can update the document. Source modules expose bounded purpose-specific snapshot contracts instead of leaking entities or queryables.
 
 Alternatives considered: rebuilding directly from the host DbContext would be shorter but violates the intended Discovery boundary. An in-request synchronous rebuild would make status observation and large-data operation unreliable.
+
+Running jobs older than 15 minutes are requeued before Discovery coalesces or claims work. This prevents a process crash after a job claim from permanently blocking future rebuilds; the single hosted worker ensures a live job is not reclaimed by the same process while it is executing.
 
 ## Risks / Trade-offs
 
@@ -61,7 +63,7 @@ Alternatives considered: rebuilding directly from the host DbContext would be sh
 - [A source event can arrive out of order after retry] → The outbox occurrence timestamp is compared with `source_version`; older facts cannot overwrite newer documents.
 - [A rebuild and an event overlap] → Rebuild writes use its start time as the source version, preserving newer events and rejecting superseded pre-rebuild events.
 - [Search documents contain private data] → Event handlers and rebuild snapshots persist only the fields permitted by existing public-search requirements; user documents are created only for complete, active profiles.
-- [Large rebuild workload] → The hosted worker runs outside the request path, batches writes, and exposes terminal failure details through the job record.
+- [Large rebuild workload] → The hosted worker runs outside the request path, pages source snapshots, stages bounded batches, and atomically merges only after staging completes.
 
 ## Migration Plan
 

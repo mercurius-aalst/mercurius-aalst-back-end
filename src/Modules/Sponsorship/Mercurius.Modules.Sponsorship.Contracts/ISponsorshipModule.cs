@@ -8,7 +8,9 @@ public interface ISponsorshipModule
         SponsorId sponsorId,
         CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyList<SponsorSummary>> GetSponsorsAsync(
+    Task<IReadOnlyList<SponsorSearchDocument>> GetSponsorSearchDocumentsPageAsync(
+        SponsorId? afterId,
+        int pageSize,
         CancellationToken cancellationToken = default);
 
     Task<IReadOnlyDictionary<GameId, SponsorPlacementSummary>> GetSponsorPlacementsAsync(

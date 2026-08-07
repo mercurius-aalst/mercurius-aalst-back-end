@@ -31,6 +31,8 @@ public interface ITeamsModule
         UserId userId,
         CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyList<PublicTeamSearchDocument>> GetPublicTeamSearchDocumentsAsync(
+    Task<IReadOnlyList<PublicTeamSearchDocument>> GetPublicTeamSearchDocumentsPageAsync(
+        TeamId? afterId,
+        int pageSize,
         CancellationToken cancellationToken = default);
 }

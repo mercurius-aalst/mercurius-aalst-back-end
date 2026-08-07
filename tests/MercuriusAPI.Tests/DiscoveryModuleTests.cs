@@ -72,6 +72,32 @@ public class DiscoveryModuleTests
     }
 
     [Fact]
+    public async Task SearchAsync_PaginatesAcrossExactPrefixAndContainsRanksWithoutDuplicates()
+    {
+        await using var provider = CreateProvider(new DiscoverySources());
+        using var scope = provider.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<MercuriusDBContext>();
+        var projector = scope.ServiceProvider.GetRequiredService<SearchDocumentProjector>();
+        var module = scope.ServiceProvider.GetRequiredService<IDiscoveryModule>();
+
+        await projector.UpsertAsync(SearchDocumentTypes.User, Guid.NewGuid().ToString(), "alpha", "User", null, "/users/alpha", 1, DateTime.UtcNow, default);
+        await projector.UpsertAsync(SearchDocumentTypes.Team, Guid.NewGuid().ToString(), "alpha-team", "Team", null, "/teams/alpha-team", 1, DateTime.UtcNow, default);
+        await projector.UpsertAsync(SearchDocumentTypes.Game, Guid.NewGuid().ToString(), "winter alpha cup", "Game", null, "/games/1", 1, DateTime.UtcNow, default);
+        await dbContext.SaveChangesAsync();
+
+        var first = await module.SearchAsync(new DiscoverySearchRequest("alpha", null, 1));
+        var second = await module.SearchAsync(new DiscoverySearchRequest("alpha", first.NextCursor, 1));
+        var third = await module.SearchAsync(new DiscoverySearchRequest("alpha", second.NextCursor, 1));
+
+        Assert.Equal("alpha", Assert.Single(first.Results).DisplayLabel);
+        Assert.Equal("alpha-team", Assert.Single(second.Results).DisplayLabel);
+        Assert.Equal("winter alpha cup", Assert.Single(third.Results).DisplayLabel);
+        Assert.True(first.HasMore);
+        Assert.True(second.HasMore);
+        Assert.False(third.HasMore);
+    }
+
+    [Fact]
     public async Task ProjectionWriter_IgnoresStaleUpdatesAndKeepsDeletedDocumentsHidden()
     {
         await using var provider = CreateProvider(new DiscoverySources());
@@ -241,6 +267,99 @@ public class DiscoveryModuleTests
         Assert.DoesNotContain("database-secret", failedJob.Error, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task EnsureInitialJobAsync_QueuesRebuildWhenOnlyDeletedDocumentsRemain()
+    {
+        await using var provider = CreateProvider(new DiscoverySources());
+        using var scope = provider.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<MercuriusDBContext>();
+        var projector = scope.ServiceProvider.GetRequiredService<SearchDocumentProjector>();
+        var rebuildService = scope.ServiceProvider.GetRequiredService<SearchIndexRebuildService>();
+
+        await projector.MarkDeletedAsync(SearchDocumentTypes.User, Guid.NewGuid().ToString(), 1, DateTime.UtcNow, default);
+        await dbContext.SaveChangesAsync();
+
+        await rebuildService.EnsureInitialJobAsync(default);
+
+        var job = await dbContext.Set<SearchIndexRebuildJob>().SingleAsync();
+        Assert.Equal(SearchIndexRebuildJobStatus.Pending, job.Status);
+    }
+
+    [Fact]
+    public async Task RunNextAsync_RequeuesAndCompletesAStaleRunningJob()
+    {
+        var sources = new DiscoverySources
+        {
+            Users = [new PublicUserSearchDocument(new UserId(Guid.NewGuid()), "recovered-user")]
+        };
+        await using var provider = CreateProvider(sources);
+        using var scope = provider.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<MercuriusDBContext>();
+        var rebuildService = scope.ServiceProvider.GetRequiredService<SearchIndexRebuildService>();
+        var staleJob = new SearchIndexRebuildJob
+        {
+            Status = SearchIndexRebuildJobStatus.Running,
+            CreatedAtUtc = DateTime.UtcNow.AddHours(-1),
+            StartedAtUtc = DateTime.UtcNow.AddMinutes(-16)
+        };
+        dbContext.Add(staleJob);
+        await dbContext.SaveChangesAsync();
+
+        Assert.True(await rebuildService.RunNextAsync(default));
+
+        var completedJob = await dbContext.Set<SearchIndexRebuildJob>().SingleAsync();
+        Assert.Equal(staleJob.Id, completedJob.Id);
+        Assert.Equal(SearchIndexRebuildJobStatus.Completed, completedJob.Status);
+        Assert.Equal("recovered-user", (await dbContext.Set<SearchDocument>().SingleAsync()).Title);
+    }
+
+    [Fact]
+    public async Task RebuildJob_FailureBeforeMergeLeavesLiveDocumentsUnchanged()
+    {
+        var sources = new DiscoverySources
+        {
+            RebuildException = new InvalidOperationException("source unavailable")
+        };
+        await using var provider = CreateProvider(sources);
+        using var scope = provider.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<MercuriusDBContext>();
+        var projector = scope.ServiceProvider.GetRequiredService<SearchDocumentProjector>();
+        var module = scope.ServiceProvider.GetRequiredService<IDiscoveryModule>();
+        var rebuildService = scope.ServiceProvider.GetRequiredService<SearchIndexRebuildService>();
+
+        await projector.UpsertAsync(SearchDocumentTypes.User, Guid.NewGuid().ToString(), "existing-user", "User", null, "/users/existing-user", 1, DateTime.UtcNow, default);
+        await dbContext.SaveChangesAsync();
+
+        _ = await module.CreateSearchIndexRebuildJobAsync();
+        Assert.True(await rebuildService.RunNextAsync(default));
+
+        var result = await module.SearchAsync(new DiscoverySearchRequest("existing", null, 10));
+        Assert.Equal("existing-user", Assert.Single(result.Results).Username);
+        Assert.Empty(await dbContext.Set<SearchIndexRebuildDocument>().ToListAsync());
+    }
+
+    [Fact]
+    public async Task RebuildJob_StagesAndMergesMultipleSourcePages()
+    {
+        var sources = new DiscoverySources
+        {
+            Users = Enumerable.Range(1, 1001)
+                .Select(index => new PublicUserSearchDocument(new UserId(Guid.NewGuid()), $"alpha-{index:D4}"))
+                .ToList()
+        };
+        await using var provider = CreateProvider(sources);
+        using var scope = provider.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<MercuriusDBContext>();
+        var module = scope.ServiceProvider.GetRequiredService<IDiscoveryModule>();
+        var rebuildService = scope.ServiceProvider.GetRequiredService<SearchIndexRebuildService>();
+
+        _ = await module.CreateSearchIndexRebuildJobAsync();
+        Assert.True(await rebuildService.RunNextAsync(default));
+
+        Assert.Equal(1001, await dbContext.Set<SearchDocument>().CountAsync(document => !document.IsDeleted));
+        Assert.Empty(await dbContext.Set<SearchIndexRebuildDocument>().ToListAsync());
+    }
+
     private static ServiceProvider CreateProvider(DiscoverySources sources)
     {
         var services = new ServiceCollection();
@@ -296,9 +415,13 @@ public class DiscoveryModuleTests
 
     private sealed class StubIdentityModule(DiscoverySources sources) : IIdentityModule
     {
-        public Task<IReadOnlyList<PublicUserSearchDocument>> GetPublicUserSearchDocumentsAsync(CancellationToken cancellationToken = default) =>
+        public Task<IReadOnlyList<PublicUserSearchDocument>> GetPublicUserSearchDocumentsPageAsync(UserId? afterId, int pageSize, CancellationToken cancellationToken = default) =>
             sources.RebuildException is null
-                ? Task.FromResult(sources.Users)
+                ? Task.FromResult<IReadOnlyList<PublicUserSearchDocument>>(sources.Users
+                    .Where(user => !afterId.HasValue || user.UserId.Value.CompareTo(afterId.Value.Value) > 0)
+                    .OrderBy(user => user.UserId.Value)
+                    .Take(pageSize)
+                    .ToList())
                 : Task.FromException<IReadOnlyList<PublicUserSearchDocument>>(sources.RebuildException);
         public Task<UserProfileSummary?> GetUserProfileAsync(UserId userId, CancellationToken cancellationToken = default) => Task.FromResult<UserProfileSummary?>(null);
         public Task<UserProfileSummary?> GetUserProfileByAuth0IdAsync(string auth0UserId, CancellationToken cancellationToken = default) => Task.FromResult<UserProfileSummary?>(null);
@@ -308,7 +431,12 @@ public class DiscoveryModuleTests
 
     private sealed class StubTeamsModule(DiscoverySources sources) : ITeamsModule
     {
-        public Task<IReadOnlyList<PublicTeamSearchDocument>> GetPublicTeamSearchDocumentsAsync(CancellationToken cancellationToken = default) => Task.FromResult(sources.Teams);
+        public Task<IReadOnlyList<PublicTeamSearchDocument>> GetPublicTeamSearchDocumentsPageAsync(TeamId? afterId, int pageSize, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<PublicTeamSearchDocument>>(sources.Teams
+                .Where(team => !afterId.HasValue || team.TeamId.Value.CompareTo(afterId.Value.Value) > 0)
+                .OrderBy(team => team.TeamId.Value)
+                .Take(pageSize)
+                .ToList());
         public Task<TeamSummary?> GetTeamSummaryAsync(TeamId teamId, CancellationToken cancellationToken = default) => Task.FromResult<TeamSummary?>(null);
         public Task<TeamRosterSnapshot?> GetTeamRosterSnapshotAsync(TeamId teamId, CancellationToken cancellationToken = default) => Task.FromResult<TeamRosterSnapshot?>(null);
         public Task<IReadOnlyDictionary<TeamId, TeamRosterSnapshot>> GetTeamRosterSnapshotsAsync(IReadOnlyCollection<TeamId> teamIds, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyDictionary<TeamId, TeamRosterSnapshot>>(new Dictionary<TeamId, TeamRosterSnapshot>());
@@ -319,7 +447,12 @@ public class DiscoveryModuleTests
 
     private sealed class StubCompetitionModule(DiscoverySources sources) : ICompetitionModule
     {
-        public Task<IReadOnlyList<GameSearchDocument>> GetGameSearchDocumentsAsync(CancellationToken cancellationToken = default) => Task.FromResult(sources.Games);
+        public Task<IReadOnlyList<GameSearchDocument>> GetGameSearchDocumentsPageAsync(GameId? afterId, int pageSize, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<GameSearchDocument>>(sources.Games
+                .Where(game => !afterId.HasValue || game.GameId.Value.CompareTo(afterId.Value.Value) > 0)
+                .OrderBy(game => game.GameId.Value)
+                .Take(pageSize)
+                .ToList());
         public Task<GameSummary?> GetGameSummaryAsync(GameId gameId, CancellationToken cancellationToken = default) => Task.FromResult<GameSummary?>(null);
         public Task<TournamentConfiguration?> GetTournamentConfigurationAsync(GameId gameId, CancellationToken cancellationToken = default) => Task.FromResult<TournamentConfiguration?>(null);
         public Task<bool> IsRegistrationOpenAsync(GameId gameId, CancellationToken cancellationToken = default) => Task.FromResult(false);
@@ -330,7 +463,13 @@ public class DiscoveryModuleTests
 
     private sealed class StubSponsorshipModule(DiscoverySources sources) : ISponsorshipModule
     {
-        public Task<IReadOnlyList<SponsorSummary>> GetSponsorsAsync(CancellationToken cancellationToken = default) => Task.FromResult(sources.Sponsors);
+        public Task<IReadOnlyList<SponsorSearchDocument>> GetSponsorSearchDocumentsPageAsync(SponsorId? afterId, int pageSize, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<SponsorSearchDocument>>(sources.Sponsors
+                .Where(sponsor => !afterId.HasValue || sponsor.Id.Value > afterId.Value.Value)
+                .OrderBy(sponsor => sponsor.Id.Value)
+                .Take(pageSize)
+                .Select(sponsor => new SponsorSearchDocument(sponsor.Id, sponsor.Name, sponsor.LogoUrl))
+                .ToList());
         public Task<SponsorSummary?> GetSponsorSummaryAsync(SponsorId sponsorId, CancellationToken cancellationToken = default) => Task.FromResult<SponsorSummary?>(null);
         public Task<IReadOnlyDictionary<GameId, SponsorPlacementSummary>> GetSponsorPlacementsAsync(IReadOnlyCollection<GameId> gameIds, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyDictionary<GameId, SponsorPlacementSummary>>(new Dictionary<GameId, SponsorPlacementSummary>());
         public Task<SponsorPlacementSummary?> GetSponsorPlacementAsync(GameId gameId, CancellationToken cancellationToken = default) => Task.FromResult<SponsorPlacementSummary?>(null);

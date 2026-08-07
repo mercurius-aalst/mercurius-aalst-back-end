@@ -18,3 +18,10 @@
 
 - [x] 4.1 Add focused coverage for public search compatibility, projection lifecycle, duplicate/stale events, rebuild jobs, endpoint metadata, and module boundaries.
 - [x] 4.2 Run the required OpenSpec, build, test, format, OpenAPI, and audit validation; resolve all high and medium touched-scope findings.
+
+## 5. PostgreSQL search hardening
+
+- [x] 5.1 Add projection ordering metadata and query-aligned PostgreSQL indexes; implement bounded exact/prefix/contains rank-bucket search while preserving the public cursor contract.
+- [x] 5.2 Replace unbounded rebuild snapshot contracts with stable-ID keyset pages and add Discovery-owned rebuild staging persistence.
+- [x] 5.3 Stage rebuild pages and atomically merge them into the live projection with source-version protection and safe failure cleanup.
+- [x] 5.4 Add search pagination, staged-rebuild, migration, and version-race regression coverage; run required validation and rerun the phase PR audit.

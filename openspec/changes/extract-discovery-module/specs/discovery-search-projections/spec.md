@@ -41,6 +41,18 @@ The existing public search endpoint MUST obtain its User, Team, and Game results
 - **WHEN** a client requests public global search after Discovery is enabled
 - **THEN** the response includes only the documented User, Team, and Game result types with the existing navigation fields
 
+### Requirement: Projection query efficiency
+Discovery MUST evaluate public search only against active Discovery documents and MUST preserve exact, prefix, and contains relevance ordering without querying source module tables. The search projection MUST have index support for contains matching, exact/keyset ordering, and prefix filtering.
+
+#### Scenario: A public search evaluates one read model
+- **WHEN** a client requests public global search
+- **THEN** Discovery evaluates only its search-document projection
+- **AND** it does not synchronously read Identity, Teams, Competition, or Sponsorship data
+
+#### Scenario: Rank buckets preserve pagination semantics
+- **WHEN** exact, prefix, and contains matches span more than one result page
+- **THEN** repeated cursor requests return every matching result once in the existing deterministic relevance order
+
 ### Requirement: Admin search-index rebuild jobs
 The API MUST expose `POST /internal/discovery/search-index-rebuild-jobs` and `GET /internal/discovery/search-index-rebuild-jobs/{jobId}` as admin-only internal endpoints. Discovery MUST persist the status of each rebuild job and MUST coalesce a new request with an already pending or running rebuild.
 
@@ -59,3 +71,26 @@ The API MUST expose `POST /internal/discovery/search-index-rebuild-jobs` and `GE
 #### Scenario: Failed rebuild is observable
 - **WHEN** a rebuild cannot complete
 - **THEN** Discovery persists a failed terminal status and a bounded diagnostic message for the job
+
+#### Scenario: Deleted documents do not suppress initial backfill
+- **WHEN** Discovery contains only deleted search documents and no completed rebuild exists
+- **THEN** the hosted worker schedules an initial rebuild
+
+#### Scenario: An interrupted running job is recovered
+- **WHEN** a rebuild job remains running beyond the configured recovery threshold
+- **THEN** Discovery requeues the job for the worker instead of coalescing future rebuild requests indefinitely
+
+### Requirement: Bounded and atomic rebuild processing
+Discovery MUST obtain rebuild snapshots through bounded source-module pages. It MUST stage a rebuild before changing live documents and MUST merge staged documents atomically while preserving documents changed by newer integration events.
+
+#### Scenario: A rebuild does not materialize a full source collection
+- **WHEN** Discovery rebuilds a large source type
+- **THEN** it retrieves and persists bounded source pages rather than retaining all source documents in memory
+
+#### Scenario: Failed staging leaves live search unchanged
+- **WHEN** a rebuild fails before its staged documents are merged
+- **THEN** live search documents remain unchanged
+
+#### Scenario: A newer event wins over a rebuild
+- **WHEN** a source event updates or deletes a document after a rebuild begins
+- **THEN** the rebuild does not replace that newer document state

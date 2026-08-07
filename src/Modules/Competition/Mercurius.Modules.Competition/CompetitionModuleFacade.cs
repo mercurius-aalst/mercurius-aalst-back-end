@@ -181,17 +181,21 @@ internal sealed class CompetitionModuleFacade : ICompetitionModule
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<IReadOnlyList<GameSearchDocument>> GetGameSearchDocumentsAsync(
+    public async Task<IReadOnlyList<GameSearchDocument>> GetGameSearchDocumentsPageAsync(
+        GameId? afterId,
+        int pageSize,
         CancellationToken cancellationToken = default)
     {
+        var afterValue = afterId?.Value;
         return await _dbContext.Games
             .AsNoTracking()
-            .OrderBy(game => game.Name)
-            .ThenBy(game => game.Id)
+            .Where(game => !afterValue.HasValue || game.Id > afterValue.Value)
+            .OrderBy(game => game.Id)
             .Select(game => new GameSearchDocument(
                 new GameId(game.Id),
                 game.Name,
                 game.ImageUrl))
+            .Take(Math.Clamp(pageSize, 1, 1000))
             .ToListAsync(cancellationToken);
     }
 

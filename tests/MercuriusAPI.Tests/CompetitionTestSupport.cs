@@ -188,12 +188,17 @@ internal static class CompetitionTestSupport
                     .ToDictionary(summary => summary.Id));
         }
 
-        public Task<IReadOnlyList<PublicUserSearchDocument>> GetPublicUserSearchDocumentsAsync(
+        public Task<IReadOnlyList<PublicUserSearchDocument>> GetPublicUserSearchDocumentsPageAsync(
+            UserId? afterId,
+            int pageSize,
             CancellationToken cancellationToken = default)
         {
             return Task.FromResult<IReadOnlyList<PublicUserSearchDocument>>(
                 _users.Values
                     .Where(user => user.IsComplete)
+                    .Where(user => !afterId.HasValue || user.Id.CompareTo(afterId.Value.Value) > 0)
+                    .OrderBy(user => user.Id)
+                    .Take(pageSize)
                     .Select(user => new PublicUserSearchDocument(new UserId(user.Id), user.Username!))
                     .ToList());
         }
@@ -270,12 +275,17 @@ internal static class CompetitionTestSupport
             return Task.FromResult(new MembershipMutationGuard(true, []));
         }
 
-        public Task<IReadOnlyList<PublicTeamSearchDocument>> GetPublicTeamSearchDocumentsAsync(
+        public Task<IReadOnlyList<PublicTeamSearchDocument>> GetPublicTeamSearchDocumentsPageAsync(
+            TeamId? afterId,
+            int pageSize,
             CancellationToken cancellationToken = default)
         {
             return Task.FromResult<IReadOnlyList<PublicTeamSearchDocument>>(
                 _teams.Values
                     .Where(team => !team.IsDeleted)
+                    .Where(team => !afterId.HasValue || team.Id.CompareTo(afterId.Value.Value) > 0)
+                    .OrderBy(team => team.Id)
+                    .Take(pageSize)
                     .Select(team => new PublicTeamSearchDocument(new TeamId(team.Id), team.Name))
                     .ToList());
         }
@@ -303,8 +313,11 @@ internal static class CompetitionTestSupport
         public Task<SponsorSummary?> GetSponsorSummaryAsync(SponsorId sponsorId, CancellationToken cancellationToken = default)
             => Task.FromResult<SponsorSummary?>(null);
 
-        public Task<IReadOnlyList<SponsorSummary>> GetSponsorsAsync(CancellationToken cancellationToken = default)
-            => Task.FromResult<IReadOnlyList<SponsorSummary>>([]);
+        public Task<IReadOnlyList<SponsorSearchDocument>> GetSponsorSearchDocumentsPageAsync(
+            SponsorId? afterId,
+            int pageSize,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<SponsorSearchDocument>>([]);
 
         public Task<IReadOnlyDictionary<GameId, SponsorPlacementSummary>> GetSponsorPlacementsAsync(
             IReadOnlyCollection<GameId> gameIds,

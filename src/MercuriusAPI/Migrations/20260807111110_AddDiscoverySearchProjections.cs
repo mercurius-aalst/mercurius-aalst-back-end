@@ -27,6 +27,7 @@ public partial class AddDiscoverySearchProjections : Migration
                 image_url = table.Column<string>(type: "character varying(2048)", maxLength: 2048, nullable: true),
                 route = table.Column<string>(type: "character varying(2048)", maxLength: 2048, nullable: false),
                 normalized_text = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: false),
+                type_order = table.Column<short>(type: "smallint", nullable: false),
                 source_version = table.Column<long>(type: "bigint", nullable: false),
                 is_deleted = table.Column<bool>(type: "boolean", nullable: false),
                 updated_at_utc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
@@ -53,6 +54,36 @@ public partial class AddDiscoverySearchProjections : Migration
                 table.PrimaryKey("PK_search_index_rebuild_jobs", x => x.id);
             });
 
+        migrationBuilder.CreateTable(
+            name: "search_index_rebuild_documents",
+            schema: "discovery",
+            columns: table => new
+            {
+                id = table.Column<Guid>(type: "uuid", nullable: false),
+                job_id = table.Column<Guid>(type: "uuid", nullable: false),
+                entity_type = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
+                entity_id = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
+                type_order = table.Column<short>(type: "smallint", nullable: false),
+                title = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: false),
+                subtitle = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: false),
+                image_url = table.Column<string>(type: "character varying(2048)", maxLength: 2048, nullable: true),
+                route = table.Column<string>(type: "character varying(2048)", maxLength: 2048, nullable: false),
+                normalized_text = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: false),
+                source_version = table.Column<long>(type: "bigint", nullable: false),
+                updated_at_utc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+            },
+            constraints: table =>
+            {
+                table.PrimaryKey("PK_search_index_rebuild_documents", x => x.id);
+                table.ForeignKey(
+                    name: "FK_search_index_rebuild_documents_search_index_rebuild_jobs_job_id",
+                    column: x => x.job_id,
+                    principalSchema: "discovery",
+                    principalTable: "search_index_rebuild_jobs",
+                    principalColumn: "id",
+                    onDelete: ReferentialAction.Cascade);
+            });
+
         migrationBuilder.CreateIndex(
             name: "IX_search_documents_entity_type_entity_id",
             schema: "discovery",
@@ -61,10 +92,18 @@ public partial class AddDiscoverySearchProjections : Migration
             unique: true);
 
         migrationBuilder.CreateIndex(
-            name: "IX_search_documents_is_deleted_entity_type_title_entity_id",
+            name: "IX_search_documents_active_exact_order",
             schema: "discovery",
             table: "search_documents",
-            columns: new[] { "is_deleted", "entity_type", "title", "entity_id" });
+            columns: new[] { "normalized_text", "type_order", "entity_id" },
+            filter: "is_deleted = false AND entity_type IN ('user', 'team', 'game')");
+
+        migrationBuilder.CreateIndex(
+            name: "IX_search_index_rebuild_documents_job_id_entity_type_entity_id",
+            schema: "discovery",
+            table: "search_index_rebuild_documents",
+            columns: new[] { "job_id", "entity_type", "entity_id" },
+            unique: true);
 
         migrationBuilder.CreateIndex(
             name: "IX_search_index_rebuild_jobs_status_created_at_utc",
@@ -76,7 +115,10 @@ public partial class AddDiscoverySearchProjections : Migration
             CREATE EXTENSION IF NOT EXISTS pg_trgm;
             CREATE INDEX "IX_search_documents_normalized_text_trgm"
             ON discovery.search_documents USING gin (normalized_text gin_trgm_ops)
-            WHERE is_deleted = false;
+            WHERE is_deleted = false AND entity_type IN ('user', 'team', 'game');
+            CREATE INDEX "IX_search_documents_active_prefix"
+            ON discovery.search_documents (normalized_text text_pattern_ops, type_order, entity_id)
+            WHERE is_deleted = false AND entity_type IN ('user', 'team', 'game');
             """);
 
         migrationBuilder.Sql("""
@@ -88,6 +130,7 @@ public partial class AddDiscoverySearchProjections : Migration
 
     protected override void Down(MigrationBuilder migrationBuilder)
     {
+        migrationBuilder.DropTable(name: "search_index_rebuild_documents", schema: "discovery");
         migrationBuilder.DropTable(name: "search_documents", schema: "discovery");
         migrationBuilder.DropTable(name: "search_index_rebuild_jobs", schema: "discovery");
     }

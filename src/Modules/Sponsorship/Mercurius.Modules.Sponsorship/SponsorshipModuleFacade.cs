@@ -39,20 +39,21 @@ internal sealed class SponsorshipModuleFacade : ISponsorshipModule
             .SingleOrDefaultAsync(cancellationToken);
     }
 
-    public async Task<IReadOnlyList<SponsorSummary>> GetSponsorsAsync(
+    public async Task<IReadOnlyList<SponsorSearchDocument>> GetSponsorSearchDocumentsPageAsync(
+        SponsorId? afterId,
+        int pageSize,
         CancellationToken cancellationToken = default)
     {
+        var afterValue = afterId?.Value;
         return await _dbContext.Sponsors
             .AsNoTracking()
-            .OrderBy(sponsor => sponsor.SponsorTier)
-            .ThenBy(sponsor => sponsor.Name)
-            .Select(sponsor => new SponsorSummary(
+            .Where(sponsor => !afterValue.HasValue || sponsor.Id > afterValue.Value)
+            .OrderBy(sponsor => sponsor.Id)
+            .Select(sponsor => new SponsorSearchDocument(
                 new SponsorId(sponsor.Id),
                 sponsor.Name,
-                sponsor.SponsorTier,
-                sponsor.LogoUrl,
-                sponsor.InfoUrl,
-                sponsor.Description))
+                sponsor.LogoUrl))
+            .Take(Math.Clamp(pageSize, 1, 1000))
             .ToListAsync(cancellationToken);
     }
 

@@ -32,8 +32,11 @@ internal sealed class DiscoveryModuleFacade : IDiscoveryModule
             return new DiscoverySearchResponse([], null, false);
 
         var cursor = DecodeCursor(request.Cursor, normalizedQuery);
-        var candidates = await BuildPagedCandidateQuery(normalizedQuery, cursor, pageSize + 1)
-            .ToListAsync(cancellationToken);
+        var candidates = await GetPagedCandidatesAsync(
+            normalizedQuery,
+            cursor,
+            pageSize + 1,
+            cancellationToken);
 
         var hasMore = candidates.Count > pageSize;
         if (hasMore)
@@ -54,58 +57,83 @@ internal sealed class DiscoveryModuleFacade : IDiscoveryModule
         CancellationToken cancellationToken = default) =>
         _rebuildService.GetJobAsync(jobId, cancellationToken);
 
-    private IQueryable<SearchCandidate> BuildPagedCandidateQuery(
+    private async Task<List<SearchCandidate>> GetPagedCandidatesAsync(
         string normalizedQuery,
         SearchCursor? cursor,
-        int limit)
+        int limit,
+        CancellationToken cancellationToken)
     {
         var escapedQuery = SearchRequest.EscapeLikePattern(normalizedQuery);
         var containsPattern = $"%{escapedQuery}%";
         var prefixPattern = $"{escapedQuery}%";
+        var candidates = new List<SearchCandidate>(limit);
+        var firstRank = cursor?.RelevanceRank ?? 0;
 
-        var candidates = _dbContext.SearchDocuments
+        for (var rank = firstRank; rank <= 2 && candidates.Count < limit; rank++)
+        {
+            var rankCandidates = BuildRankCandidateQuery(
+                normalizedQuery,
+                prefixPattern,
+                containsPattern,
+                rank);
+
+            if (cursor is not null && rank == cursor.RelevanceRank)
+            {
+                rankCandidates = rankCandidates.Where(candidate =>
+                    string.Compare(candidate.NormalizedLabel, cursor.NormalizedLabel) > 0 ||
+                    (candidate.NormalizedLabel == cursor.NormalizedLabel &&
+                     candidate.TypeOrder > cursor.TypeOrder) ||
+                    (candidate.NormalizedLabel == cursor.NormalizedLabel &&
+                     candidate.TypeOrder == cursor.TypeOrder &&
+                     string.Compare(candidate.StableId, cursor.StableId) > 0));
+            }
+
+            rankCandidates = rankCandidates
+                .OrderBy(candidate => candidate.NormalizedLabel)
+                .ThenBy(candidate => candidate.TypeOrder)
+                .ThenBy(candidate => candidate.StableId)
+                .Take(limit - candidates.Count);
+
+            candidates.AddRange(await rankCandidates.ToListAsync(cancellationToken));
+        }
+
+        return candidates;
+    }
+
+    private IQueryable<SearchCandidate> BuildRankCandidateQuery(
+        string normalizedQuery,
+        string prefixPattern,
+        string containsPattern,
+        int rank)
+    {
+        var documents = _dbContext.SearchDocuments
             .AsNoTracking()
             .Where(document =>
                 !document.IsDeleted &&
-                (document.EntityType == SearchDocumentTypes.User ||
-                 document.EntityType == SearchDocumentTypes.Team ||
-                 document.EntityType == SearchDocumentTypes.Game) &&
-                EF.Functions.Like(document.NormalizedText, containsPattern, "\\"))
+                document.TypeOrder <= SearchDocumentTypes.GetTypeOrder(SearchDocumentTypes.Game));
+
+        documents = rank switch
+        {
+            0 => documents.Where(document => document.NormalizedText == normalizedQuery),
+            1 => documents.Where(document =>
+                EF.Functions.Like(document.NormalizedText, prefixPattern, "\\") &&
+                document.NormalizedText != normalizedQuery),
+            2 => documents.Where(document =>
+                EF.Functions.Like(document.NormalizedText, containsPattern, "\\") &&
+                !EF.Functions.Like(document.NormalizedText, prefixPattern, "\\")),
+            _ => throw new ArgumentOutOfRangeException(nameof(rank))
+        };
+
+        return documents
             .Select(document => new SearchCandidate
             {
-                RelevanceRank = document.NormalizedText == normalizedQuery
-                    ? 0
-                    : EF.Functions.Like(document.NormalizedText, prefixPattern, "\\") ? 1 : 2,
+                RelevanceRank = rank,
                 NormalizedLabel = document.NormalizedText,
-                TypeOrder = document.EntityType == SearchDocumentTypes.User
-                    ? 0
-                    : document.EntityType == SearchDocumentTypes.Team ? 1 : 2,
+                TypeOrder = document.TypeOrder,
                 StableId = document.EntityId,
                 Type = document.EntityType,
                 DisplayLabel = document.Title
             });
-
-        if (cursor is not null)
-        {
-            candidates = candidates.Where(candidate =>
-                candidate.RelevanceRank > cursor.RelevanceRank ||
-                (candidate.RelevanceRank == cursor.RelevanceRank &&
-                 string.Compare(candidate.NormalizedLabel, cursor.NormalizedLabel) > 0) ||
-                (candidate.RelevanceRank == cursor.RelevanceRank &&
-                 candidate.NormalizedLabel == cursor.NormalizedLabel &&
-                 candidate.TypeOrder > cursor.TypeOrder) ||
-                (candidate.RelevanceRank == cursor.RelevanceRank &&
-                 candidate.NormalizedLabel == cursor.NormalizedLabel &&
-                 candidate.TypeOrder == cursor.TypeOrder &&
-                 string.Compare(candidate.StableId, cursor.StableId) > 0));
-        }
-
-        return candidates
-            .OrderBy(candidate => candidate.RelevanceRank)
-            .ThenBy(candidate => candidate.NormalizedLabel)
-            .ThenBy(candidate => candidate.TypeOrder)
-            .ThenBy(candidate => candidate.StableId)
-            .Take(limit);
     }
 
     private static DiscoverySearchResult ToResult(SearchCandidate candidate)

@@ -224,7 +224,9 @@ public class TeamsModuleConfigurationTests
             return Task.FromResult(users);
         }
 
-        public Task<IReadOnlyList<PublicUserSearchDocument>> GetPublicUserSearchDocumentsAsync(
+        public Task<IReadOnlyList<PublicUserSearchDocument>> GetPublicUserSearchDocumentsPageAsync(
+            UserId? afterId,
+            int pageSize,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<PublicUserSearchDocument>>([]);
     }

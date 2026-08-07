@@ -38,9 +38,16 @@ public class DiscoveryMigrationTests
             operation is CreateTableOperation table &&
             table.Schema == "discovery" &&
             table.Name == "search_index_rebuild_jobs");
+        Assert.Contains(operations, operation =>
+            operation is CreateTableOperation table &&
+            table.Schema == "discovery" &&
+            table.Name == "search_index_rebuild_documents");
         Assert.DoesNotContain(operations, operation => operation is DropTableOperation);
         Assert.Contains(operations, operation =>
             operation is SqlOperation sql &&
             sql.Sql.Contains("gin_trgm_ops", StringComparison.Ordinal));
+        Assert.Contains(operations, operation =>
+            operation is SqlOperation sql &&
+            sql.Sql.Contains("text_pattern_ops", StringComparison.Ordinal));
     }
 }

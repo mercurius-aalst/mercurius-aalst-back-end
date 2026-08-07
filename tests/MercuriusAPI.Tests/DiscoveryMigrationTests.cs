@@ -1,10 +1,27 @@
+using Mercurius.LAN.API.Data;
 using Mercurius.LAN.API.Migrations;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
 
 namespace Mercurius.LAN.API.Tests;
 
 public class DiscoveryMigrationTests
 {
+    [Fact]
+    public void AddDiscoverySearchProjections_IsDiscoveredByEfCore()
+    {
+        var options = new DbContextOptionsBuilder<MercuriusDBContext>()
+            .UseNpgsql("Host=localhost;Database=translation-only")
+            .Options;
+        using var dbContext = new MercuriusDBContext(options);
+
+        var migrations = dbContext.GetService<IMigrationsAssembly>();
+
+        Assert.Contains("20260807111110_AddDiscoverySearchProjections", migrations.Migrations.Keys);
+    }
+
     [Fact]
     public void AddDiscoverySearchProjections_CreatesOnlyDiscoveryPersistence()
     {

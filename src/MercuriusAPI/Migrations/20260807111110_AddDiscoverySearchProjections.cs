@@ -1,9 +1,13 @@
+using Mercurius.LAN.API.Data;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
 namespace Mercurius.LAN.API.Migrations;
 
+[DbContext(typeof(MercuriusDBContext))]
+[Migration("20260807111110_AddDiscoverySearchProjections")]
 public partial class AddDiscoverySearchProjections : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)

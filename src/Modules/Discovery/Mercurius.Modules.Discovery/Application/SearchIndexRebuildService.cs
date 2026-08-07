@@ -74,6 +74,23 @@ internal sealed class SearchIndexRebuildService
         }
     }
 
+    public async Task EnsureInitialJobAsync(CancellationToken cancellationToken)
+    {
+        var hasProjectedDocuments = await _dbContext.SearchDocuments
+            .AsNoTracking()
+            .AnyAsync(cancellationToken);
+        if (hasProjectedDocuments)
+            return;
+
+        var hasCompletedJob = await _dbContext.SearchIndexRebuildJobs
+            .AsNoTracking()
+            .AnyAsync(job => job.Status == SearchIndexRebuildJobStatus.Completed, cancellationToken);
+        if (hasCompletedJob)
+            return;
+
+        _ = await CreateJobAsync(cancellationToken);
+    }
+
     public async Task<DiscoverySearchIndexRebuildJob?> GetJobAsync(
         Guid jobId,
         CancellationToken cancellationToken)

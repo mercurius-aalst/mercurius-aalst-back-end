@@ -20,6 +20,21 @@ internal sealed class SearchIndexRebuildWorker : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        try
+        {
+            using var initialScope = _scopeFactory.CreateScope();
+            var rebuildService = initialScope.ServiceProvider.GetRequiredService<SearchIndexRebuildService>();
+            await rebuildService.EnsureInitialJobAsync(stoppingToken);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Discovery search-index initial rebuild scheduling failed.");
+        }
+
         while (!stoppingToken.IsCancellationRequested)
         {
             try

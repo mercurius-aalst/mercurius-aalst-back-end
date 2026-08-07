@@ -144,9 +144,11 @@ public class DiscoveryModuleTests
         };
         await using var provider = CreateProvider(sources);
         using var scope = provider.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<MercuriusDBContext>();
         var module = scope.ServiceProvider.GetRequiredService<IDiscoveryModule>();
         var rebuildService = scope.ServiceProvider.GetRequiredService<SearchIndexRebuildService>();
 
+        await rebuildService.EnsureInitialJobAsync(default);
         var firstJob = await module.CreateSearchIndexRebuildJobAsync();
         var coalescedJob = await module.CreateSearchIndexRebuildJobAsync();
         Assert.Equal(firstJob.Id, coalescedJob.Id);
@@ -165,6 +167,9 @@ public class DiscoveryModuleTests
         Assert.True(await rebuildService.RunNextAsync(default));
 
         Assert.Empty((await module.SearchAsync(new DiscoverySearchRequest("alpha", null, 10))).Results);
+
+        await rebuildService.EnsureInitialJobAsync(default);
+        Assert.Equal(2, await dbContext.Set<SearchIndexRebuildJob>().CountAsync());
     }
 
     [Fact]

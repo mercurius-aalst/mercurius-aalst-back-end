@@ -106,10 +106,13 @@ Do not start the next phase from an unmerged previous phase branch.
   - PR: [#109 Phase 12: extract Sponsorship module](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/109)
   - Notes: Moves Sponsor and GameSponsorPlacement ownership, endpoints, validation, EF configuration, and V1 lifecycle events into Sponsorship. Competition continues through Sponsorship contracts; existing routes, JSON, authorization, and schema remain unchanged. Media storage remains behind the temporary host adapter until Phase 13.
 
-- [ ] Phase 13 - Media extraction
+- [x] Phase 13 - Media extraction
   - Branch: `refactor/phase-13`
-  - PR: pending
-  - Notes: Move file/image storage concerns.
+  - PR: [#110 Phase 13: extract Media module](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/110)
+  - Notes: Moves image validation, WebP encoding, local file storage, safe deletion, and concrete
+    `IMediaModule` registration into Media. Teams now consumes Media.Contracts directly; Competition
+    and Sponsorship retain their existing contract-only integration. Imageflow HTTP middleware
+    remains host infrastructure. Routes, JSON, authorization, and database schema are unchanged.
 
 - [ ] Phase 14 - Discovery/Search extraction
   - Branch: `refactor/phase-14`

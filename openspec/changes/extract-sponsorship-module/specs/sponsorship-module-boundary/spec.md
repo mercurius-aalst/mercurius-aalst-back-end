@@ -78,16 +78,18 @@ JSON shapes, and anonymous read access.
   unchanged
 
 ### Requirement: Sponsorship publishes lifecycle facts
-Sponsorship mutations SHALL publish typed V1 integration-event contracts without exposing EF
-entities. Events MUST describe sponsor creation, update, deletion, and game sponsor placement
+Sponsorship mutations SHALL publish typed integration-event contracts in the `Contracts.V1`
+namespace without exposing EF entities. Events MUST describe sponsor creation, update, deletion, and game sponsor placement
 changes, including the relevant SponsorId and GameId or PlacementId facts needed by later consumers.
 
 #### Scenario: Sponsor metadata changes
 - **WHEN** a sponsor is created, updated, or deleted
-- **THEN** Sponsorship MUST publish the matching SponsorCreatedV1, SponsorUpdatedV1, or
-  SponsorDeletedV1 event through the durable module eventing boundary
+- **THEN** Sponsorship MUST publish the matching `Contracts.V1.SponsorCreated`,
+  `Contracts.V1.SponsorUpdated`, or `Contracts.V1.SponsorDeleted` event through the durable module
+  eventing boundary
 
 #### Scenario: Game placement changes
 - **WHEN** a game's sponsor placement is created, replaced, or removed
-- **THEN** Sponsorship MUST publish a GameSponsorPlacementChangedV1 event that identifies the game
+- **THEN** Sponsorship MUST publish a `Contracts.V1.GameSponsorPlacementChanged` event that
+  identifies the game
 - **AND** the event MUST represent either the current placement facts or the removal state

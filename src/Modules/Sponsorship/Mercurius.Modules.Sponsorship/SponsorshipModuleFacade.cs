@@ -2,6 +2,7 @@ using Mercurius.Modules.Shared;
 using Mercurius.Modules.Shared.Exceptions;
 using Mercurius.Modules.Sponsorship.Application;
 using Mercurius.Modules.Sponsorship.Contracts;
+using Mercurius.Modules.Sponsorship.Contracts.V1;
 using Mercurius.Modules.Sponsorship.Domain;
 using Mercurius.Modules.Sponsorship.Infrastructure;
 using Microsoft.EntityFrameworkCore;
@@ -99,7 +100,7 @@ internal sealed class SponsorshipModuleFacade : ISponsorshipModule
 
             _dbContext.GameSponsorPlacements.Remove(current);
             await _outboxWriter.SaveAndPublishAsync(
-                () => new GameSponsorPlacementChangedV1(gameId, null, null, null, null, null, null),
+                () => new GameSponsorPlacementChanged(gameId, null, null, null, null, null, null),
                 cancellationToken);
             return;
         }
@@ -124,7 +125,7 @@ internal sealed class SponsorshipModuleFacade : ISponsorshipModule
         current.DisplayOrder = placement.DisplayOrder;
         var changedPlacement = current;
         await _outboxWriter.SaveAndPublishAsync(
-            () => new GameSponsorPlacementChangedV1(
+            () => new GameSponsorPlacementChanged(
                 gameId,
                 new SponsorPlacementId(changedPlacement.Id),
                 new SponsorId(changedPlacement.SponsorId),

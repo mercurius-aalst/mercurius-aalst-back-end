@@ -1,6 +1,6 @@
 ## 1. Sponsorship contracts and project boundaries
 
-- [x] 1.1 Add V1 SponsorCreated, SponsorUpdated, SponsorDeleted, and GameSponsorPlacementChanged integration-event contracts without exposing EF entities.
+- [x] 1.1 Add SponsorCreated, SponsorUpdated, SponsorDeleted, and GameSponsorPlacementChanged integration-event contracts in the `Contracts.V1` namespace without exposing EF entities.
 - [x] 1.2 Add the required Sponsorship implementation project references for Media contracts and Platform eventing, without adding Competition or Media implementation references.
 - [x] 1.3 Move Sponsor and GameSponsorPlacement implementation types into Sponsorship and keep all implementation-only types internal.
 

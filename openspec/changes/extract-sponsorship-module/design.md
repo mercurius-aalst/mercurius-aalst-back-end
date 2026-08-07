@@ -92,7 +92,7 @@ remain unchanged; this phase MUST NOT start deleting stored files as a side effe
 
 ### Mutations publish versioned Sponsorship facts in the shared transaction
 
-`Sponsorship.Contracts` will define distinct V1 integration-event records for create, update,
+`Sponsorship.Contracts.V1` will define distinct integration-event records for create, update,
 delete, and game-placement changes. The module will use `IModuleEventPublisher` to enqueue the
 appropriate record in the same database transaction as the mutation. Because Sponsor and placement
 identifiers are database-generated, a create flow saves the entity to generate its identifier,
@@ -101,8 +101,8 @@ states are durable. Event payloads will contain the identifiers and placement/sp
 by later projections without exposing EF entities.
 
 The existing Platform outbox owns serialization, retries, dispatch, and inbox idempotency. The
-Sponsorship module will not implement an outbox or consumer of its own. Publishing explicit V1
-records is preferred to reusing untyped audit messages because event type names are durable and
+Sponsorship module will not implement an outbox or consumer of its own. Publishing records in an
+explicit V1 namespace is preferred to reusing untyped audit messages because event type names are durable and
 later Discovery consumers need stable factual payloads.
 
 ## Risks / Trade-offs

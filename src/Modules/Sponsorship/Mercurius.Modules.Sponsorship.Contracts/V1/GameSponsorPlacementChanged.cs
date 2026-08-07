@@ -1,8 +1,8 @@
 using Mercurius.Modules.Shared;
 
-namespace Mercurius.Modules.Sponsorship.Contracts;
+namespace Mercurius.Modules.Sponsorship.Contracts.V1;
 
-public sealed record GameSponsorPlacementChangedV1(
+public sealed record GameSponsorPlacementChanged(
     GameId GameId,
     SponsorPlacementId? PlacementId,
     SponsorId? SponsorId,

@@ -16,6 +16,7 @@ using Mercurius.Modules.Sponsorship.Infrastructure;
 using SponsorContractContext = Mercurius.Modules.Sponsorship.Contracts.SponsorContext;
 using SponsorContractTier = Mercurius.Modules.Sponsorship.Contracts.SponsorTier;
 using Mercurius.Modules.Sponsorship.Contracts;
+using Mercurius.Modules.Sponsorship.Contracts.V1;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Platform.Eventing;
@@ -98,11 +99,11 @@ public class SponsorFeatureTests
         await sponsorService.DeleteSponsorAsync(created.Id);
 
         var outbox = await dbContext.OutboxMessages.ToListAsync();
-        Assert.Contains(outbox, message => message.EventType == typeof(SponsorCreatedV1).FullName);
-        Assert.Contains(outbox, message => message.EventType == typeof(SponsorUpdatedV1).FullName);
-        Assert.Contains(outbox, message => message.EventType == typeof(SponsorDeletedV1).FullName);
+        Assert.Contains(outbox, message => message.EventType == typeof(SponsorCreated).FullName);
+        Assert.Contains(outbox, message => message.EventType == typeof(SponsorUpdated).FullName);
+        Assert.Contains(outbox, message => message.EventType == typeof(SponsorDeleted).FullName);
 
-        var createdPayload = outbox.Single(message => message.EventType == typeof(SponsorCreatedV1).FullName).Payload;
+        var createdPayload = outbox.Single(message => message.EventType == typeof(SponsorCreated).FullName).Payload;
         using var document = JsonDocument.Parse(createdPayload);
         Assert.Equal(created.Id, document.RootElement.GetProperty("sponsorId").GetProperty("value").GetInt32());
     }
@@ -136,7 +137,7 @@ public class SponsorFeatureTests
 
         Assert.Null(await sponsorshipModule.GetSponsorPlacementAsync(new GameId(game.Id)));
         var placementEvents = await dbContext.OutboxMessages
-            .Where(message => message.EventType == typeof(GameSponsorPlacementChangedV1).FullName)
+            .Where(message => message.EventType == typeof(GameSponsorPlacementChanged).FullName)
             .ToListAsync();
         Assert.Equal(2, placementEvents.Count);
         Assert.Contains(placementEvents, message => JsonDocument.Parse(message.Payload).RootElement

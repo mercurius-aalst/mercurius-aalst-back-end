@@ -3,6 +3,7 @@ using Mercurius.Modules.Shared;
 using Mercurius.Modules.Shared.Exceptions;
 using Mercurius.Modules.Sponsorship.Application.DTOs;
 using Mercurius.Modules.Sponsorship.Contracts;
+using Mercurius.Modules.Sponsorship.Contracts.V1;
 using Mercurius.Modules.Sponsorship.Domain;
 using Mercurius.Modules.Sponsorship.Infrastructure;
 using Microsoft.EntityFrameworkCore;
@@ -87,7 +88,7 @@ internal sealed class SponsorService : ISponsorService
 
         _dbContext.Sponsors.Add(sponsor);
         await _outboxWriter.SaveAndPublishAsync(
-            () => new SponsorCreatedV1(
+            () => new SponsorCreated(
                 new SponsorId(sponsor.Id),
                 sponsor.Name,
                 sponsor.SponsorTier,
@@ -124,7 +125,7 @@ internal sealed class SponsorService : ISponsorService
         sponsor.SponsorTier = sponsorDTO.SponsorTier;
         sponsor.Description = sponsorDTO.Description;
         await _outboxWriter.SaveAndPublishAsync(
-            () => new SponsorUpdatedV1(
+            () => new SponsorUpdated(
                 new SponsorId(sponsor.Id),
                 sponsor.Name,
                 sponsor.SponsorTier,
@@ -140,7 +141,7 @@ internal sealed class SponsorService : ISponsorService
         var sponsor = await GetSponsorForMutationAsync(id, cancellationToken);
         _dbContext.Sponsors.Remove(sponsor);
         await _outboxWriter.SaveAndPublishAsync(
-            () => new SponsorDeletedV1(new SponsorId(id)),
+            () => new SponsorDeleted(new SponsorId(id)),
             cancellationToken);
     }
 

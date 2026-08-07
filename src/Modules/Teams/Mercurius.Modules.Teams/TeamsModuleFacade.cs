@@ -188,6 +188,20 @@ internal sealed class TeamsModuleFacade : ITeamsModule
         return new MembershipMutationGuard(reasons.Count == 0, reasons);
     }
 
+    public async Task<IReadOnlyList<PublicTeamSearchDocument>> GetPublicTeamSearchDocumentsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.Teams
+            .AsNoTracking()
+            .Where(team => !team.IsDeleted && !string.IsNullOrWhiteSpace(team.Name))
+            .OrderBy(team => team.NormalizedName)
+            .ThenBy(team => team.Id)
+            .Select(team => new PublicTeamSearchDocument(
+                new TeamId(team.Id),
+                team.Name))
+            .ToListAsync(cancellationToken);
+    }
+
     private static bool IsValidPublicUsername(string? username)
     {
         return !string.IsNullOrWhiteSpace(username);

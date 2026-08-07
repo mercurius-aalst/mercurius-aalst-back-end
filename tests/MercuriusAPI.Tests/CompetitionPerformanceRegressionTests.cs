@@ -391,6 +391,10 @@ public class CompetitionPerformanceRegressionTests
 
         public Task<PublicUserProfileSummary?> GetPublicProfileByUsernameAsync(string username, CancellationToken cancellationToken = default) =>
             Task.FromResult<PublicUserProfileSummary?>(null);
+
+        public Task<IReadOnlyList<PublicUserSearchDocument>> GetPublicUserSearchDocumentsAsync(
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<PublicUserSearchDocument>>([]);
     }
 
     private sealed class SequencedTeamsModule : ITeamsModule
@@ -435,6 +439,10 @@ public class CompetitionPerformanceRegressionTests
             UserId userId,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(new MembershipMutationGuard(true, []));
+
+        public Task<IReadOnlyList<PublicTeamSearchDocument>> GetPublicTeamSearchDocumentsAsync(
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<PublicTeamSearchDocument>>([]);
     }
 
     private sealed class SequencedSponsorshipModule : ISponsorshipModule

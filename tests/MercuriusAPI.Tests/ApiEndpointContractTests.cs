@@ -1,10 +1,9 @@
-using Mercurius.LAN.API.Endpoints;
 using Mercurius.LAN.API.Hubs;
-using Mercurius.LAN.API.Services.SearchServices;
 using Mercurius.Modules.Competition;
 using Mercurius.Modules.Competition.Application.Services;
-using Mercurius.Modules.Shared.Search;
 using Mercurius.LAN.API.Data;
+using Mercurius.Modules.Discovery;
+using Mercurius.Modules.Discovery.Contracts;
 using Mercurius.Modules.Identity;
 using Mercurius.Modules.Identity.Services;
 using Mercurius.Modules.Sponsorship;
@@ -111,6 +110,17 @@ public class ApiEndpointContractTests
     }
 
     [Theory]
+    [InlineData("POST", "/internal/discovery/search-index-rebuild-jobs/")]
+    [InlineData("GET", "/internal/discovery/search-index-rebuild-jobs/{jobId:guid}")]
+    public void DiscoveryRebuildRoutes_RequireAdminAuthorization(string method, string routePattern)
+    {
+        var endpoint = GetEndpoint(method, routePattern);
+
+        AssertRequiresAuthorization(endpoint);
+        Assert.Contains(endpoint.Metadata.OfType<AuthorizeAttribute>(), metadata => metadata.Roles == "admin");
+    }
+
+    [Theory]
     [InlineData("POST", "v{version:apiVersion}/lan/games/{id}/users")]
     [InlineData("DELETE", "v{version:apiVersion}/lan/games/{id}/users/{userId}")]
     [InlineData("POST", "v{version:apiVersion}/lan/games/{id}/teams")]
@@ -176,7 +186,7 @@ public class ApiEndpointContractTests
         app.MapTeamsModule();
         app.MapSponsorshipModule();
         app.MapIdentityModule();
-        app.MapSearchEndpoints();
+        app.MapDiscoveryModule();
         app.MapHub<TeamManagementHub>("/v1/lan/team-events").RequireAuthorization();
 
         return ((IEndpointRouteBuilder)app).DataSources
@@ -192,6 +202,6 @@ public class ApiEndpointContractTests
         services.AddScoped<IMatchService>(_ => throw new NotSupportedException());
         services.AddScoped<ITeamService>(_ => throw new NotSupportedException());
         services.AddScoped<IUserService>(_ => throw new NotSupportedException());
-        services.AddScoped<ISearchService>(_ => throw new NotSupportedException());
+        services.AddScoped<IDiscoveryModule>(_ => throw new NotSupportedException());
     }
 }

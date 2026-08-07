@@ -190,6 +190,7 @@ public sealed class UserIntegrationEventPublishingService : IUserService
                 user.Username,
                 user.DisplayName,
                 user.IsDeleted,
+                IsSearchable(user),
                 user.UpdatedAtUtc)
         };
 
@@ -218,6 +219,7 @@ public sealed class UserIntegrationEventPublishingService : IUserService
                 after.Username,
                 after.DisplayName,
                 after.IsDeleted,
+                IsSearchable(after),
                 after.UpdatedAtUtc)
         };
 
@@ -236,6 +238,21 @@ public sealed class UserIntegrationEventPublishingService : IUserService
     {
         return before is null ||
             !string.Equals(before.Username, after.Username, StringComparison.Ordinal);
+    }
+
+    private static bool IsSearchable(GetUserDTO user)
+    {
+        return !user.IsDeleted &&
+            !string.IsNullOrWhiteSpace(user.Username) &&
+            !string.IsNullOrWhiteSpace(user.Firstname) &&
+            !string.IsNullOrWhiteSpace(user.Lastname);
+    }
+
+    private static bool IsSearchable(UserEventState user)
+    {
+        return !user.IsDeleted &&
+            !string.IsNullOrWhiteSpace(user.Username) &&
+            !string.Equals(user.DisplayName, "Incomplete profile", StringComparison.Ordinal);
     }
 
     private Task<UserEventState?> GetUserByAuth0IdAsync(string auth0UserId)

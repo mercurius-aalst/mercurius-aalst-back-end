@@ -181,6 +181,20 @@ internal sealed class CompetitionModuleFacade : ICompetitionModule
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<GameSearchDocument>> GetGameSearchDocumentsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.Games
+            .AsNoTracking()
+            .OrderBy(game => game.Name)
+            .ThenBy(game => game.Id)
+            .Select(game => new GameSearchDocument(
+                new GameId(game.Id),
+                game.Name,
+                game.ImageUrl))
+            .ToListAsync(cancellationToken);
+    }
+
     private IQueryable<GameSearchCandidate> BuildGameSearchQuery(string normalizedQuery)
     {
         var escapedQuery = EscapeLikePattern(normalizedQuery);

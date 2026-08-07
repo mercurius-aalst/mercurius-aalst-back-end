@@ -30,4 +30,7 @@ public interface ITeamsModule
         TeamId teamId,
         UserId userId,
         CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<PublicTeamSearchDocument>> GetPublicTeamSearchDocumentsAsync(
+        CancellationToken cancellationToken = default);
 }

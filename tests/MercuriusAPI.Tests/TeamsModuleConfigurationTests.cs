@@ -70,7 +70,7 @@ public class TeamsModuleConfigurationTests
     [Fact]
     public void AddTeamsModule_AllowsHostCompetitionReadOverrideAndSafeRepeatedTryAddRegistrations()
     {
-        var services = CreateServiceCollection(includeApplicationServices: true);
+        var services = CreateServiceCollection();
         services.AddTeamsModule<MercuriusDBContext>(CreateConfiguration());
 
         Assert.Equal(1, services.Count(descriptor => descriptor.ServiceType == typeof(ITeamsDbContext)));
@@ -150,7 +150,7 @@ public class TeamsModuleConfigurationTests
             teamsModule.GetTeamSummaryAsync(new TeamId(Guid.NewGuid()), cancellationSource.Token));
     }
 
-    private static ServiceCollection CreateServiceCollection(bool includeApplicationServices = false)
+    private static ServiceCollection CreateServiceCollection()
     {
         var services = new ServiceCollection();
         var configuration = CreateConfiguration();
@@ -161,9 +161,6 @@ public class TeamsModuleConfigurationTests
         services.AddSingleton<IIdentityModule, StubIdentityModule>();
         services.AddSingleton<IRealtimePublisher, RecordingRealtimePublisher>();
         services.AddTeamsModule<MercuriusDBContext>(configuration);
-
-        if (includeApplicationServices)
-            services.AddApplicationServices();
 
         return services;
     }
@@ -226,6 +223,10 @@ public class TeamsModuleConfigurationTests
             IReadOnlyDictionary<UserId, UserProfileSummary> users = new Dictionary<UserId, UserProfileSummary>();
             return Task.FromResult(users);
         }
+
+        public Task<IReadOnlyList<PublicUserSearchDocument>> GetPublicUserSearchDocumentsAsync(
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<PublicUserSearchDocument>>([]);
     }
 
     private sealed class RecordingTeamService : ITeamService

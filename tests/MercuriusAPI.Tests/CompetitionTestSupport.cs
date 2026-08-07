@@ -188,6 +188,16 @@ internal static class CompetitionTestSupport
                     .ToDictionary(summary => summary.Id));
         }
 
+        public Task<IReadOnlyList<PublicUserSearchDocument>> GetPublicUserSearchDocumentsAsync(
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<PublicUserSearchDocument>>(
+                _users.Values
+                    .Where(user => user.IsComplete)
+                    .Select(user => new PublicUserSearchDocument(new UserId(user.Id), user.Username!))
+                    .ToList());
+        }
+
         private static UserProfileSummary? ToSummary(User? user)
         {
             return user is null
@@ -258,6 +268,16 @@ internal static class CompetitionTestSupport
             CancellationToken cancellationToken = default)
         {
             return Task.FromResult(new MembershipMutationGuard(true, []));
+        }
+
+        public Task<IReadOnlyList<PublicTeamSearchDocument>> GetPublicTeamSearchDocumentsAsync(
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<PublicTeamSearchDocument>>(
+                _teams.Values
+                    .Where(team => !team.IsDeleted)
+                    .Select(team => new PublicTeamSearchDocument(new TeamId(team.Id), team.Name))
+                    .ToList());
         }
 
         private static TeamRosterSnapshot CreateSnapshot(Team team)

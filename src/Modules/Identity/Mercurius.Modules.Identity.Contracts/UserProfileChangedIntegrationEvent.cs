@@ -7,4 +7,5 @@ public sealed record UserProfileChangedIntegrationEvent(
     string? Username,
     string DisplayName,
     bool IsDeleted,
+    bool IsSearchable,
     DateTime UpdatedAtUtc);

@@ -19,4 +19,7 @@ public interface IIdentityModule
     Task<IReadOnlyDictionary<UserId, UserProfileSummary>> GetUsersByIdsAsync(
         IReadOnlyCollection<UserId> userIds,
         CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<PublicUserSearchDocument>> GetPublicUserSearchDocumentsAsync(
+        CancellationToken cancellationToken = default);
 }

@@ -124,6 +124,19 @@ public class ModuleArchitectureTests
                 "Mercurius.Modules.Media.Contracts",
                 "Mercurius.Modules.Media.Contracts.csproj"));
         }
+        else if (moduleName == "Discovery")
+        {
+            foreach (var sourceModule in new[] { "Identity", "Teams", "Competition", "Sponsorship" })
+            {
+                allowedReferences.Add(Path.Combine(
+                    repositoryRoot,
+                    "src",
+                    "Modules",
+                    sourceModule,
+                    $"Mercurius.Modules.{sourceModule}.Contracts",
+                    $"Mercurius.Modules.{sourceModule}.Contracts.csproj"));
+            }
+        }
 
         Assert.True(
             requiredReferences.IsSubsetOf(references) && references.IsSubsetOf(allowedReferences),

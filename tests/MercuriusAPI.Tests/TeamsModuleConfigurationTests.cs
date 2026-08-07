@@ -28,7 +28,6 @@ public class TeamsModuleConfigurationTests
         AssertLifetime<ITeamService>(services, ServiceLifetime.Transient);
         AssertLifetime<ITeamEndpointService>(services, ServiceLifetime.Transient);
         AssertLifetime<ITeamEventPublisher>(services, ServiceLifetime.Transient);
-        AssertLifetime<ITeamLogoStorage>(services, ServiceLifetime.Transient);
         AssertLifetime<Mercurius.Modules.Teams.Contracts.ITeamRealtimeAuthorizer>(services, ServiceLifetime.Transient);
 
         using var provider = services.BuildServiceProvider();
@@ -95,8 +94,7 @@ public class TeamsModuleConfigurationTests
             typeof(ITeamEventPublisher),
             typeof(Mercurius.Modules.Teams.Contracts.ITeamRealtimeAuthorizer),
             typeof(ITeamService),
-            typeof(ITeamEndpointService),
-            typeof(ITeamLogoStorage)
+            typeof(ITeamEndpointService)
         };
 
         foreach (var interfaceType in interfaces)

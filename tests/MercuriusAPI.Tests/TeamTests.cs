@@ -3,7 +3,7 @@ using Mercurius.LAN.API.Data;
 using Mercurius.Modules.Teams.DTOs;
 using Mercurius.LAN.API.Migrations;
 using Mercurius.LAN.API.Hubs;
-using Mercurius.LAN.API.Services.Files;
+using Mercurius.Modules.Media.Contracts;
 using Mercurius.Modules.Teams.Contracts;
 using Mercurius.Modules.Teams.Infrastructure;
 using Mercurius.Modules.Teams.Services;
@@ -827,7 +827,7 @@ public class TeamTests
         dbContext.Teams.Add(team);
         await dbContext.SaveChangesAsync();
 
-        var teamService = CreateTeamService(dbContext, new StubFileService("/images/team-logo.webp"));
+        var teamService = CreateTeamService(dbContext, new StubMediaModule("/images/team-logo.webp"));
 
         var result = await teamService.UploadTeamLogoAsync(captain.Auth0UserId, team.Id, CreateFormFile());
         var profile = await teamService.GetPublicTeamProfileAsync("alpha");
@@ -1066,22 +1066,6 @@ public class TeamTests
         Assert.False(await authorizer.CanSubscribeToTeamAsync(new TeamId(deletedTeam.Id), new UserId(deletedCaptain.Id)));
     }
 
-    [Fact]
-    public async Task FileValidationService_RejectsUnsupportedLogoContentType()
-    {
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["FileStorage:MaxFileSizeInMB"] = "5"
-            })
-            .Build();
-        var validationService = new FileValidationService(new StubFileService("/images/team-logo.webp"), configuration);
-        var file = CreateFormFile("text/plain");
-
-        await Assert.ThrowsAsync<ValidationException>(() => validationService.SaveImageAsync(file));
-    }
-
-
     private static User CreateUser()
     {
         var id = Interlocked.Increment(ref _nextId);
@@ -1167,7 +1151,7 @@ public class TeamTests
 
     private static ITeamService CreateTeamService(
         MercuriusDBContext dbContext,
-        ITeamLogoStorage? fileService = null,
+        IMediaModule? mediaModule = null,
         ITeamEventPublisher? eventPublisher = null,
         IModuleEventPublisher? moduleEventPublisher = null)
     {
@@ -1186,7 +1170,7 @@ public class TeamTests
                 new TeamsDbContextAdapter<MercuriusDBContext>(dbContext),
                 configuration,
                 new IdentityModuleFacade(dbContext),
-                fileService,
+                mediaModule,
                 new StubTeamCompetitionReadService(dbContext)),
             new TeamsDbContextAdapter<MercuriusDBContext>(dbContext),
             eventPublisher ?? new NullTeamEventPublisher(),
@@ -1203,18 +1187,20 @@ public class TeamTests
         };
     }
 
-    private sealed class StubFileService : IFileService, ITeamLogoStorage
+    private sealed class StubMediaModule : IMediaModule
     {
         private readonly string _imageUrl;
 
-        public StubFileService(string imageUrl)
+        public StubMediaModule(string imageUrl)
         {
             _imageUrl = imageUrl;
         }
 
-        public Task<string> SaveImageAsync(IFormFile image, CancellationToken cancellationToken = default)
+        public Task<StoredMediaAsset> SaveImageAsync(
+            MediaUpload upload,
+            CancellationToken cancellationToken = default)
         {
-            return Task.FromResult(_imageUrl);
+            return Task.FromResult(new StoredMediaAsset(_imageUrl));
         }
 
         public Task DeleteImageAsync(string? imageUrl, CancellationToken cancellationToken = default)
@@ -1222,10 +1208,6 @@ public class TeamTests
             return Task.CompletedTask;
         }
 
-        Task IFileService.DeleteImageAsync(string? imageUrl)
-        {
-            return DeleteImageAsync(imageUrl);
-        }
     }
 
     private sealed class StubTeamCompetitionReadService(MercuriusDBContext dbContext) : ITeamCompetitionReadService

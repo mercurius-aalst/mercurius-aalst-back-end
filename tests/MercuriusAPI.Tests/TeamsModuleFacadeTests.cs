@@ -33,10 +33,8 @@ public class TeamsModuleFacadeTests
         using var provider = services.BuildServiceProvider();
 
         var module = provider.GetRequiredService<ITeamsModule>();
-        var logoStorage = provider.GetRequiredService<ITeamLogoStorage>();
 
         Assert.IsType<TeamsModuleFacade>(module);
-        Assert.IsType<TeamLogoStorage>(logoStorage);
     }
 
     [Fact]

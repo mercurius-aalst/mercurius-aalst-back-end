@@ -32,6 +32,8 @@ internal sealed class FileSystemMediaModule : IMediaModule
     {
         cancellationToken.ThrowIfCancellationRequested();
         ValidateImage(upload);
+        if (upload.Content.CanSeek)
+            upload.Content.Position = 0;
 
         var storageRoot = GetRequiredStorageRoot();
         Directory.CreateDirectory(storageRoot);
@@ -111,8 +113,12 @@ internal sealed class FileSystemMediaModule : IMediaModule
         }
 
         var fileName = normalizedUrl[ImagesPathPrefix.Length..];
-        if (string.IsNullOrWhiteSpace(fileName) || fileName.Contains('/', StringComparison.Ordinal))
+        if (string.IsNullOrWhiteSpace(fileName) ||
+            fileName.Contains('/', StringComparison.Ordinal) ||
+            !IsGeneratedStorageFileName(fileName))
+        {
             return null;
+        }
 
         var folderPath = _configuration["FileStorage:Location"];
         if (string.IsNullOrWhiteSpace(folderPath))
@@ -127,6 +133,22 @@ internal sealed class FileSystemMediaModule : IMediaModule
         return filePath.StartsWith(storageRootWithSeparator, StringComparison.OrdinalIgnoreCase)
             ? filePath
             : null;
+    }
+
+    private static bool IsGeneratedStorageFileName(string fileName)
+    {
+        const string webpExtension = ".webp";
+        if (!fileName.EndsWith(webpExtension, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        var key = fileName[..^webpExtension.Length];
+        if (Guid.TryParseExact(key, "N", out _))
+            return true;
+
+        return key.Length == 12 &&
+               key[8] == '.' &&
+               key.Where((_, index) => index != 8)
+                   .All(char.IsAsciiLetterOrDigit);
     }
 
     private static void DeleteFileQuietly(string filePath)

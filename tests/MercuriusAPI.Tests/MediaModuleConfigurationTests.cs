@@ -58,23 +58,54 @@ public class MediaModuleConfigurationTests
     }
 
     [Fact]
+    public async Task SaveImageAsync_RewindsSeekableContentBeforeEncoding()
+    {
+        var storagePath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        var mediaModule = CreateMediaModule(storagePath);
+        var image = Convert.FromBase64String(
+            "R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==");
+
+        try
+        {
+            await using var stream = new MemoryStream(image);
+            stream.Position = image.Length / 2;
+
+            var asset = await mediaModule.SaveImageAsync(new MediaUpload(stream, "logo.gif", "image/gif", image.Length));
+
+            Assert.True(File.Exists(Path.Combine(storagePath, Path.GetFileName(asset.Url))));
+        }
+        finally
+        {
+            DeleteDirectoryIfPresent(storagePath);
+        }
+    }
+
+    [Fact]
     public async Task DeleteImageAsync_IsIdempotentAndCannotEscapeStorage()
     {
         var storagePath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         var outsidePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.txt");
         Directory.CreateDirectory(storagePath);
-        var storedFile = Path.Combine(storagePath, "logo.webp");
+        var storedFile = Path.Combine(storagePath, "0123456789abcdef0123456789abcdef.webp");
+        var legacyStoredFile = Path.Combine(storagePath, "legacy01.abc.webp");
+        var nonMediaFile = Path.Combine(storagePath, "readme.txt");
         await File.WriteAllTextAsync(storedFile, "stored");
+        await File.WriteAllTextAsync(legacyStoredFile, "legacy stored");
+        await File.WriteAllTextAsync(nonMediaFile, "not media");
         await File.WriteAllTextAsync(outsidePath, "outside");
         var mediaModule = CreateMediaModule(storagePath);
 
         try
         {
-            await mediaModule.DeleteImageAsync("images/logo.webp");
-            await mediaModule.DeleteImageAsync("images/logo.webp");
+            await mediaModule.DeleteImageAsync("images/0123456789abcdef0123456789abcdef.webp");
+            await mediaModule.DeleteImageAsync("images/0123456789abcdef0123456789abcdef.webp");
+            await mediaModule.DeleteImageAsync("images/legacy01.abc.webp");
+            await mediaModule.DeleteImageAsync("images/readme.txt");
             await mediaModule.DeleteImageAsync($"images/../{Path.GetFileName(outsidePath)}");
 
             Assert.False(File.Exists(storedFile));
+            Assert.False(File.Exists(legacyStoredFile));
+            Assert.True(File.Exists(nonMediaFile));
             Assert.True(File.Exists(outsidePath));
         }
         finally

@@ -44,9 +44,10 @@ all three share identical storage policy and do not need separate Media behavior
 
 Media will validate the upload before decoding it, create the configured storage directory, encode
 the stream to lossless WebP, and return the same relative `images/<generated>.webp` reference used
-today. The generated file name never uses untrusted client input. Its delete operation will accept
-only safe image-relative references and will be a successful no-op for missing, blank, or unsafe
-inputs.
+today. Media rewinds seekable upload streams before decoding. The generated file name never uses
+untrusted client input. Its delete operation accepts only safe image-relative references matching
+the current GUID key format or the legacy generated key format, and is a successful no-op for
+missing, blank, or unsafe inputs.
 
 Alternative considered: retain host `IFileService` behind an adapter. Rejected because that keeps
 the Media implementation boundary transitional and leaves duplicate Teams behavior.

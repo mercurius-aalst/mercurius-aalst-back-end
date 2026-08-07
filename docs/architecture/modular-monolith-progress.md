@@ -114,10 +114,14 @@ Do not start the next phase from an unmerged previous phase branch.
     and Sponsorship retain their existing contract-only integration. Imageflow HTTP middleware
     remains host infrastructure. Routes, JSON, authorization, and database schema are unchanged.
 
-- [ ] Phase 14 - Discovery/Search extraction
+- [x] Phase 14 - Discovery/Search extraction
   - Branch: `refactor/phase-14`
-  - PR: pending
-  - Notes: Move search into projections and Discovery.
+  - PR: [#111 Phase 14: Extract Discovery search module](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/111)
+  - Notes: Moves public search composition, version-safe source-event projections, and endpoint
+    mapping into Discovery. Existing public search route, JSON, relevance, cursor, privacy, and
+    rate-limit behavior remain unchanged. Adds admin-only, persisted search-index rebuild jobs and
+    the additive `discovery` schema migration; the EF model snapshot is intentionally deferred
+    because its existing drift is unrelated to this phase.
 
 - [ ] Phase 15 - Persistence boundary tightening
   - Branch: `refactor/phase-15`

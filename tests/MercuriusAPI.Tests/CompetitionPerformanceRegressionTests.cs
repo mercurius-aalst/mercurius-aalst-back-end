@@ -345,8 +345,11 @@ public class CompetitionPerformanceRegressionTests
         public Task<SponsorSummary?> GetSponsorSummaryAsync(SponsorId sponsorId, CancellationToken cancellationToken = default) =>
             Task.FromResult<SponsorSummary?>(null);
 
-        public Task<IReadOnlyList<SponsorSummary>> GetSponsorsAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<SponsorSummary>>([]);
+        public Task<IReadOnlyList<SponsorSearchDocument>> GetSponsorSearchDocumentsPageAsync(
+            SponsorId? afterId,
+            int pageSize,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<SponsorSearchDocument>>([]);
 
         public Task<IReadOnlyDictionary<GameId, SponsorPlacementSummary>> GetSponsorPlacementsAsync(
             IReadOnlyCollection<GameId> gameIds,
@@ -391,6 +394,12 @@ public class CompetitionPerformanceRegressionTests
 
         public Task<PublicUserProfileSummary?> GetPublicProfileByUsernameAsync(string username, CancellationToken cancellationToken = default) =>
             Task.FromResult<PublicUserProfileSummary?>(null);
+
+        public Task<IReadOnlyList<PublicUserSearchDocument>> GetPublicUserSearchDocumentsPageAsync(
+            UserId? afterId,
+            int pageSize,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<PublicUserSearchDocument>>([]);
     }
 
     private sealed class SequencedTeamsModule : ITeamsModule
@@ -435,6 +444,12 @@ public class CompetitionPerformanceRegressionTests
             UserId userId,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(new MembershipMutationGuard(true, []));
+
+        public Task<IReadOnlyList<PublicTeamSearchDocument>> GetPublicTeamSearchDocumentsPageAsync(
+            TeamId? afterId,
+            int pageSize,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<PublicTeamSearchDocument>>([]);
     }
 
     private sealed class SequencedSponsorshipModule : ISponsorshipModule
@@ -461,8 +476,11 @@ public class CompetitionPerformanceRegressionTests
         public Task<SponsorSummary?> GetSponsorSummaryAsync(SponsorId sponsorId, CancellationToken cancellationToken = default) =>
             Task.FromResult<SponsorSummary?>(null);
 
-        public Task<IReadOnlyList<SponsorSummary>> GetSponsorsAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<SponsorSummary>>([]);
+        public Task<IReadOnlyList<SponsorSearchDocument>> GetSponsorSearchDocumentsPageAsync(
+            SponsorId? afterId,
+            int pageSize,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<SponsorSearchDocument>>([]);
 
         public Task<SponsorPlacementSummary?> GetSponsorPlacementAsync(GameId gameId, CancellationToken cancellationToken = default) =>
             Task.FromResult<SponsorPlacementSummary?>(null);

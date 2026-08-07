@@ -12,6 +12,7 @@ using Platform.Eventing;
 using GameCanceledIntegrationEvent = Mercurius.Modules.Competition.Contracts.GameCanceledIntegrationEvent;
 using GameCompletedIntegrationEvent = Mercurius.Modules.Competition.Contracts.GameCompletedIntegrationEvent;
 using GameCreatedIntegrationEvent = Mercurius.Modules.Competition.Contracts.GameCreatedIntegrationEvent;
+using GameDeletedIntegrationEvent = Mercurius.Modules.Competition.Contracts.GameDeletedIntegrationEvent;
 using GameResetIntegrationEvent = Mercurius.Modules.Competition.Contracts.GameResetIntegrationEvent;
 using GameStartedIntegrationEvent = Mercurius.Modules.Competition.Contracts.GameStartedIntegrationEvent;
 using GameUpdatedIntegrationEvent = Mercurius.Modules.Competition.Contracts.GameUpdatedIntegrationEvent;
@@ -152,6 +153,7 @@ internal sealed class GameService : IGameService
             throw new ValidationException("Game cannot be deleted when already in progress.");
 
         _dbContext.Games.Remove(game);
+        _moduleEventPublisher.Publish(new GameDeletedIntegrationEvent(new GameId(game.Id)));
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
@@ -159,7 +161,7 @@ internal sealed class GameService : IGameService
     {
         var game = await GetGameForSimpleMutationAsync(id, cancellationToken);
         game.Cancel();
-        _moduleEventPublisher.Publish(new GameCanceledIntegrationEvent(new GameId(game.Id)));
+        _moduleEventPublisher.Publish(new GameCanceledIntegrationEvent(new GameId(game.Id), game.Name));
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
 

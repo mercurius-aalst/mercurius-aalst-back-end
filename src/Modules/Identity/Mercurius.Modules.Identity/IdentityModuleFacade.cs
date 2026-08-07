@@ -86,6 +86,29 @@ public sealed class IdentityModuleFacade : IIdentityModule
         return users.ToDictionary(user => user.Id);
     }
 
+    public async Task<IReadOnlyList<PublicUserSearchDocument>> GetPublicUserSearchDocumentsPageAsync(
+        UserId? afterId,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        var afterValue = afterId?.Value;
+        return await _dbContext.Users
+            .AsNoTracking()
+            .Where(user =>
+                !user.IsDeleted &&
+                !string.IsNullOrWhiteSpace(user.Username) &&
+                !string.IsNullOrWhiteSpace(user.NormalizedUsername) &&
+                !string.IsNullOrWhiteSpace(user.Firstname) &&
+                !string.IsNullOrWhiteSpace(user.Lastname) &&
+                (!afterValue.HasValue || user.Id > afterValue.Value))
+            .OrderBy(user => user.Id)
+            .Select(user => new PublicUserSearchDocument(
+                new UserId(user.Id),
+                user.Username!))
+            .Take(Math.Clamp(pageSize, 1, 1000))
+            .ToListAsync(cancellationToken);
+    }
+
     private static UserProfileSummary ToUserProfileSummary(User user)
     {
         return new UserProfileSummary(

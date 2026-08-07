@@ -1,4 +1,5 @@
 using Mercurius.Modules.Competition;
+using Mercurius.Modules.Discovery;
 using Mercurius.Modules.Identity.Infrastructure;
 using Mercurius.Modules.Sponsorship;
 using Mercurius.Modules.Teams;
@@ -54,6 +55,7 @@ public partial class MercuriusDBContext : DbContext, IModuleEventDbContext, IIde
         modelBuilder.ApplyTeamsModelConfiguration();
         modelBuilder.ApplyCompetitionModelConfiguration<User, Team>();
         modelBuilder.ApplySponsorshipModelConfiguration();
+        modelBuilder.ApplyDiscoveryModelConfiguration();
         ConfigureGameSponsorPlacementRelationship(modelBuilder);
 
         modelBuilder.Entity<OutboxMessage>(entity =>

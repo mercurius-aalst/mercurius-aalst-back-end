@@ -420,8 +420,11 @@ public class SponsorFeatureTests
         public Task<SponsorSummary?> GetSponsorSummaryAsync(SponsorId sponsorId, CancellationToken cancellationToken = default)
             => Task.FromResult<SponsorSummary?>(null);
 
-        public Task<IReadOnlyList<SponsorSummary>> GetSponsorsAsync(CancellationToken cancellationToken = default)
-            => Task.FromResult<IReadOnlyList<SponsorSummary>>([]);
+        public Task<IReadOnlyList<SponsorSearchDocument>> GetSponsorSearchDocumentsPageAsync(
+            SponsorId? afterId,
+            int pageSize,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<SponsorSearchDocument>>([]);
 
         public Task<IReadOnlyDictionary<GameId, SponsorPlacementSummary>> GetSponsorPlacementsAsync(
             IReadOnlyCollection<GameId> gameIds,

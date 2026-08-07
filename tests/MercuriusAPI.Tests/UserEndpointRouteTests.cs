@@ -1,4 +1,3 @@
-using Mercurius.LAN.API.Endpoints;
 using Mercurius.LAN.API.Configuration;
 using Mercurius.Modules.Identity;
 using Mercurius.Modules.Identity.Services;

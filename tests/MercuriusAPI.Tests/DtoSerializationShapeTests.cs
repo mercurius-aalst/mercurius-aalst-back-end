@@ -4,7 +4,7 @@ using Mercurius.Modules.Identity.DTOs;
 using Mercurius.Modules.Competition.Application.DTOs.Games;
 using Mercurius.Modules.Competition.Application.DTOs.Matches;
 using Mercurius.Modules.Competition.Application.DTOs.Registrations;
-using Mercurius.LAN.API.DTOs.SearchDTOs;
+using Mercurius.Modules.Discovery.Contracts;
 using Mercurius.Modules.Sponsorship.Application.DTOs;
 using Mercurius.Modules.Sponsorship.Domain;
 using Mercurius.Modules.Teams.DTOs;
@@ -125,13 +125,13 @@ public class DtoSerializationShapeTests
             InfoUrl = "https://example.test/mercurius-tech",
             Description = "Tournament partner"
         };
-        var searchResult = new SearchResultDTO
-        {
-            Type = "user",
-            DisplayLabel = user.Username!,
-            SupportingText = "Player",
-            Username = user.Username
-        };
+        var searchResult = new DiscoverySearchResult(
+            "user",
+            user.Username!,
+            "Player",
+            user.Username,
+            null,
+            null);
 
         AssertJsonProperties(match.ToGetMatchDTO(),
             "id",

@@ -1,11 +1,14 @@
-using Mercurius.Modules.Shared;
+using System.Text.Json.Serialization;
 
 namespace Mercurius.Modules.Discovery.Contracts;
 
 public sealed record DiscoverySearchResult(
-    DiscoverySearchResultType Type,
+    string Type,
     string DisplayLabel,
     string SupportingText,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     string? Username,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     string? TeamName,
-    GameId? GameId);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    Guid? GameId);

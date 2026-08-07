@@ -32,4 +32,9 @@ public interface ICompetitionModule
         CompetitionSearchCursor? cursor,
         int limit,
         CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<GameSearchDocument>> GetGameSearchDocumentsPageAsync(
+        GameId? afterId,
+        int pageSize,
+        CancellationToken cancellationToken = default);
 }

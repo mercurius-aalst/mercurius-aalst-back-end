@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Platform.Eventing;
 using Platform.Eventing.Persistence;
 
@@ -13,6 +14,7 @@ public static class ModuleEventingExtensions
         services.TryAddScoped<IModuleEventDbContext>(provider => provider.GetRequiredService<TDbContext>());
         services.TryAddScoped<IModuleEventPublisher, ModuleEventPublisher>();
         services.TryAddScoped<IModuleEventDispatcher, ModuleEventDispatcher>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, ModuleEventDispatchWorker>());
 
         return services;
     }

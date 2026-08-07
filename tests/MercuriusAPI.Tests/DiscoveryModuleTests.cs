@@ -11,6 +11,7 @@ using Mercurius.Modules.Teams.Contracts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Platform.Eventing;
 using Platform.Extensions;
 
@@ -130,6 +131,53 @@ public class DiscoveryModuleTests
     }
 
     [Fact]
+    public async Task HostedDispatcher_ProjectsPublishedUsersWithoutManualDispatch()
+    {
+        using var host = CreateHost(new DiscoverySources());
+        Assert.Equal(2, host.Services.GetServices<IHostedService>().Count());
+        await host.StartAsync();
+
+        try
+        {
+            using var scope = host.Services.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<MercuriusDBContext>();
+            var publisher = scope.ServiceProvider.GetRequiredService<IModuleEventPublisher>();
+            var module = scope.ServiceProvider.GetRequiredService<IDiscoveryModule>();
+            var userId = new UserId(Guid.NewGuid());
+
+            Assert.Single(scope.ServiceProvider.GetServices<IModuleEventHandler<UserProfileChangedIntegrationEvent>>());
+            var initialRebuildCompleted = await WaitForAsync(() =>
+                dbContext.Set<SearchIndexRebuildJob>()
+                    .AsNoTracking()
+                    .AnyAsync(job => job.Status == SearchIndexRebuildJobStatus.Completed));
+            Assert.True(initialRebuildCompleted, "The hosted initial search rebuild did not complete within five seconds.");
+
+            publisher.Publish(new UserProfileChangedIntegrationEvent(
+                userId,
+                "worker-projected-user",
+                "Worker Projected User",
+                false,
+                true,
+                DateTime.UtcNow));
+            await dbContext.SaveChangesAsync();
+
+            var projected = await WaitForAsync(async () =>
+                (await module.SearchAsync(new DiscoverySearchRequest("worker-projected-user", null, 10)))
+                .Results.SingleOrDefault()?.Username == "worker-projected-user");
+            var outbox = await dbContext.OutboxMessages.AsNoTracking().SingleAsync();
+            var documents = await dbContext.Set<SearchDocument>().AsNoTracking().ToListAsync();
+            Assert.True(
+                projected,
+                $"The hosted event dispatcher did not project the published user. Processed: {outbox.ProcessedAtUtc}; Last error: {outbox.LastError}; " +
+                $"documents: {string.Join(", ", documents.Select(document => $"{document.Title}/{document.IsDeleted}"))}");
+        }
+        finally
+        {
+            await host.StopAsync();
+        }
+    }
+
+    [Fact]
     public async Task RebuildJob_UsesSourceContractsAndCoalescesCurrentDocuments()
     {
         var userId = new UserId(Guid.NewGuid());
@@ -196,18 +244,45 @@ public class DiscoveryModuleTests
     private static ServiceProvider CreateProvider(DiscoverySources sources)
     {
         var services = new ServiceCollection();
+        ConfigureServices(services, sources);
+
+        return services.BuildServiceProvider();
+    }
+
+    private static IHost CreateHost(DiscoverySources sources)
+    {
+        return Host.CreateDefaultBuilder()
+            .ConfigureServices(services => ConfigureServices(services, sources))
+            .Build();
+    }
+
+    private static void ConfigureServices(IServiceCollection services, DiscoverySources sources)
+    {
         var configuration = new ConfigurationBuilder().Build();
+        var databaseName = Guid.NewGuid().ToString();
         services.AddSingleton<IConfiguration>(configuration);
         services.AddLogging();
-        services.AddDbContext<MercuriusDBContext>(options => options.UseInMemoryDatabase(Guid.NewGuid().ToString()));
+        services.AddDbContext<MercuriusDBContext>(options => options.UseInMemoryDatabase(databaseName));
         services.AddModuleEventing<MercuriusDBContext>();
         services.AddSingleton<IIdentityModule>(new StubIdentityModule(sources));
         services.AddSingleton<ITeamsModule>(new StubTeamsModule(sources));
         services.AddSingleton<ICompetitionModule>(new StubCompetitionModule(sources));
         services.AddSingleton<ISponsorshipModule>(new StubSponsorshipModule(sources));
         services.AddDiscoveryModule<MercuriusDBContext>(configuration);
+    }
 
-        return services.BuildServiceProvider();
+    private static async Task<bool> WaitForAsync(Func<Task<bool>> condition)
+    {
+        var timeoutAtUtc = DateTime.UtcNow.AddSeconds(5);
+        while (DateTime.UtcNow < timeoutAtUtc)
+        {
+            if (await condition())
+                return true;
+
+            await Task.Delay(TimeSpan.FromMilliseconds(50));
+        }
+
+        return false;
     }
 
     private sealed class DiscoverySources

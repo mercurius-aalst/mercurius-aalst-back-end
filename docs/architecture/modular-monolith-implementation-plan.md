@@ -16,7 +16,7 @@ This is not a mechanical file move. Codex must actively improve the code while m
 
 The migration must happen through a long-lived refactor integration branch and one PR per phase.
 
-This document is intended to be handed to Codex once as the complete migration assignment. Codex should execute the phases sequentially, create the required phase branches and PRs itself, and stop at each PR review checkpoint. The human reviewer should only need to review and merge each phase PR, then let Codex continue from the updated integration branch.
+This document is intended to be handed to Codex once as the complete migration assignment. Codex should execute the phases sequentially, create the required phase branches and PRs itself, and stop at each PR review checkpoint. After each phase PR is created, Codex must run the PR Review Auditor as a subagent and handle its findings before the human review. The human reviewer should only need to review and merge each audited phase PR, then let Codex continue from the updated integration branch.
 
 ---
 
@@ -31,8 +31,10 @@ Codex owns the operational flow of the migration:
 4. Run the required validation.
 5. Open a PR from the phase branch into refactor/modular-monolith.
 6. Include a complete PR description with validation results, behavior impact, risks, and follow-up notes.
-7. Stop and wait for human review/merge before starting the next phase.
-8. After the phase PR is merged, create the next phase branch from the updated refactor/modular-monolith.
+7. Run the PR Review Auditor as a read-only subagent, providing the PR URL, source and target branches, phase scope, validation results, and relevant OpenSpec artifacts.
+8. Resolve or explicitly document the disposition of every actionable auditor finding and record the auditor result in the PR. Rerun the auditor if the phase changes after its audit.
+9. Stop and wait for human review/merge before starting the next phase.
+10. After the phase PR is merged, create the next phase branch from the updated refactor/modular-monolith.
 ```
 
 Do not expect a separate prompt for every phase. The phase sections below are the execution queue.
@@ -96,6 +98,8 @@ Do not PR phase branches directly into `main`, `develop`, or the original bugfix
 After a phase PR is merged into `refactor/modular-monolith`, create the next phase branch from the updated `refactor/modular-monolith`.
 
 Codex must not start the next phase from an unmerged previous phase branch. The integration branch is the only base for phase work.
+
+After creating each phase PR, Codex must run the PR Review Auditor as a subagent before the human review checkpoint. The auditor is read-only: it reviews the PR against `refactor/modular-monolith`, using the PR URL, phase scope, validation results, and relevant OpenSpec artifacts supplied by the parent agent, and returns only evidence-backed, prioritized findings. The parent agent must resolve or explicitly document the disposition of each actionable finding in the PR and rerun the auditor if the phase changes after its audit.
 
 ### Final PR
 

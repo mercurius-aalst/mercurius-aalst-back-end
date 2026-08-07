@@ -70,7 +70,9 @@ These instructions apply to the whole back-end repository.
 - Use one phase branch per phase, created from the latest `refactor/modular-monolith`.
 - Each phase branch must PR into `refactor/modular-monolith`.
 - Do not PR phase branches directly into `main`, `develop`, or earlier bugfix branches.
-- Stop after opening each phase PR and wait for human review and merge before starting the next phase.
+- Immediately after creating each phase PR, run the **PR Review Auditor** as a subagent. Give it the PR URL, source and target branches, phase scope, validation results, and relevant OpenSpec artifacts. The auditor MUST review the PR against its target branch, report only evidence-backed, prioritized findings to the parent agent, and make no changes itself.
+- Resolve or explicitly document the disposition of every actionable auditor finding, then record the auditor result in the phase PR before waiting for human review and merge. If the phase changes after the audit, rerun the PR Review Auditor before the human-review pause.
+- Do not start the next phase until the audited phase PR has been reviewed and merged by a human.
 - In `docs/architecture/modular-monolith-progress.md`, check a phase only when its PR is created; before starting new work, verify on GitHub that the last checked phase PR is merged.
 
 ## Validation

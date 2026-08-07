@@ -1,19 +1,25 @@
-using Mercurius.LAN.API.Data;
-using Mercurius.LAN.API.Models;
 using Mercurius.Modules.Shared;
 using Mercurius.Modules.Shared.Exceptions;
+using Mercurius.Modules.Sponsorship.Application;
 using Mercurius.Modules.Sponsorship.Contracts;
+using Mercurius.Modules.Sponsorship.Contracts.V1;
+using Mercurius.Modules.Sponsorship.Domain;
+using Mercurius.Modules.Sponsorship.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 
-namespace Mercurius.LAN.API.Composition;
+namespace Mercurius.Modules.Sponsorship;
 
-internal sealed class LegacySponsorshipModuleAdapter : ISponsorshipModule
+internal sealed class SponsorshipModuleFacade : ISponsorshipModule
 {
-    private readonly MercuriusDBContext _dbContext;
+    private readonly ISponsorshipDbContext _dbContext;
+    private readonly SponsorshipOutboxWriter _outboxWriter;
 
-    public LegacySponsorshipModuleAdapter(MercuriusDBContext dbContext)
+    public SponsorshipModuleFacade(
+        ISponsorshipDbContext dbContext,
+        SponsorshipOutboxWriter outboxWriter)
     {
         _dbContext = dbContext;
+        _outboxWriter = outboxWriter;
     }
 
     public Task<SponsorSummary?> GetSponsorSummaryAsync(
@@ -57,20 +63,7 @@ internal sealed class LegacySponsorshipModuleAdapter : ISponsorshipModule
         return _dbContext.GameSponsorPlacements
             .AsNoTracking()
             .Where(placement => placement.GameId == gameId.Value)
-            .Select(placement => new SponsorPlacementSummary(
-                new SponsorPlacementId(placement.Id),
-                new GameId(placement.GameId),
-                new SponsorSummary(
-                    new SponsorId(placement.Sponsor.Id),
-                    placement.Sponsor.Name,
-                    placement.Sponsor.SponsorTier,
-                    placement.Sponsor.LogoUrl,
-                    placement.Sponsor.InfoUrl,
-                    placement.Sponsor.Description),
-                placement.Context,
-                placement.Headline,
-                placement.SupportLine,
-                placement.DisplayOrder))
+            .Select(ToPlacementSummary())
             .SingleOrDefaultAsync(cancellationToken);
     }
 
@@ -88,22 +81,8 @@ internal sealed class LegacySponsorshipModuleAdapter : ISponsorshipModule
         var placements = await _dbContext.GameSponsorPlacements
             .AsNoTracking()
             .Where(placement => distinctGameIds.Contains(placement.GameId))
-            .Select(placement => new SponsorPlacementSummary(
-                new SponsorPlacementId(placement.Id),
-                new GameId(placement.GameId),
-                new SponsorSummary(
-                    new SponsorId(placement.Sponsor.Id),
-                    placement.Sponsor.Name,
-                    placement.Sponsor.SponsorTier,
-                    placement.Sponsor.LogoUrl,
-                    placement.Sponsor.InfoUrl,
-                    placement.Sponsor.Description),
-                placement.Context,
-                placement.Headline,
-                placement.SupportLine,
-                placement.DisplayOrder))
+            .Select(ToPlacementSummary())
             .ToListAsync(cancellationToken);
-
         return placements.ToDictionary(placement => placement.GameId);
     }
 
@@ -114,12 +93,15 @@ internal sealed class LegacySponsorshipModuleAdapter : ISponsorshipModule
     {
         var current = await _dbContext.GameSponsorPlacements
             .SingleOrDefaultAsync(candidate => candidate.GameId == gameId.Value, cancellationToken);
-
         if (placement is null)
         {
-            if (current is not null)
-                _dbContext.GameSponsorPlacements.Remove(current);
-            await _dbContext.SaveChangesAsync(cancellationToken);
+            if (current is null)
+                return;
+
+            _dbContext.GameSponsorPlacements.Remove(current);
+            await _outboxWriter.SaveAndPublishAsync(
+                () => new GameSponsorPlacementChanged(gameId, null, null, null, null, null, null),
+                cancellationToken);
             return;
         }
 
@@ -141,6 +123,34 @@ internal sealed class LegacySponsorshipModuleAdapter : ISponsorshipModule
         current.Headline = placement.Headline;
         current.SupportLine = placement.SupportLine;
         current.DisplayOrder = placement.DisplayOrder;
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        var changedPlacement = current;
+        await _outboxWriter.SaveAndPublishAsync(
+            () => new GameSponsorPlacementChanged(
+                gameId,
+                new SponsorPlacementId(changedPlacement.Id),
+                new SponsorId(changedPlacement.SponsorId),
+                changedPlacement.Context,
+                changedPlacement.Headline,
+                changedPlacement.SupportLine,
+                changedPlacement.DisplayOrder),
+            cancellationToken);
+    }
+
+    private static System.Linq.Expressions.Expression<Func<GameSponsorPlacement, SponsorPlacementSummary>> ToPlacementSummary()
+    {
+        return placement => new SponsorPlacementSummary(
+            new SponsorPlacementId(placement.Id),
+            new GameId(placement.GameId),
+            new SponsorSummary(
+                new SponsorId(placement.Sponsor.Id),
+                placement.Sponsor.Name,
+                placement.Sponsor.SponsorTier,
+                placement.Sponsor.LogoUrl,
+                placement.Sponsor.InfoUrl,
+                placement.Sponsor.Description),
+            placement.Context,
+            placement.Headline,
+            placement.SupportLine,
+            placement.DisplayOrder);
     }
 }

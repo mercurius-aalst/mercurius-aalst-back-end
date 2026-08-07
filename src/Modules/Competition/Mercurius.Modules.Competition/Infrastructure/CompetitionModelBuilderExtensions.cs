@@ -5,11 +5,10 @@ namespace Mercurius.Modules.Competition.Infrastructure;
 
 internal static class CompetitionModelBuilderExtensions
 {
-    internal static ModelBuilder ApplyCompetitionConfiguration<TUser, TTeam, TGameSponsorPlacement>(
+    internal static ModelBuilder ApplyCompetitionConfiguration<TUser, TTeam>(
         this ModelBuilder modelBuilder)
         where TUser : class
         where TTeam : class
-        where TGameSponsorPlacement : class
     {
         modelBuilder.Entity<Game>(entity =>
         {
@@ -23,10 +22,6 @@ internal static class CompetitionModelBuilderExtensions
             entity.Property(game => game.RoundBreakDurationMinutes).IsRequired();
             entity.Property(game => game.EstimatedEndTime).IsRequired(false);
             entity.Property(game => game.TeamSize).IsRequired(false);
-            entity.HasOne<TGameSponsorPlacement>()
-                .WithOne()
-                .HasForeignKey<TGameSponsorPlacement>("GameId")
-                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<Match>(entity =>

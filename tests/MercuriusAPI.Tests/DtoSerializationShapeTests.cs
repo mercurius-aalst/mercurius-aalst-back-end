@@ -5,8 +5,8 @@ using Mercurius.Modules.Competition.Application.DTOs.Games;
 using Mercurius.Modules.Competition.Application.DTOs.Matches;
 using Mercurius.Modules.Competition.Application.DTOs.Registrations;
 using Mercurius.LAN.API.DTOs.SearchDTOs;
-using Mercurius.LAN.API.DTOs.SponsorDTOs;
-using Mercurius.LAN.API.Models;
+using Mercurius.Modules.Sponsorship.Application.DTOs;
+using Mercurius.Modules.Sponsorship.Domain;
 using Mercurius.Modules.Teams.DTOs;
 
 namespace Mercurius.LAN.API.Tests;
@@ -160,7 +160,7 @@ public class DtoSerializationShapeTests
             "participant2Score",
             "winnerNextMatchId",
             "loserNextMatchId");
-        AssertJsonProperties(new GetSponsorDTO(sponsor), "id", "name", "sponsorTier", "logoUrl", "infoUrl", "description");
+        AssertJsonProperties(GetSponsorDTO.From(sponsor), "id", "name", "sponsorTier", "logoUrl", "infoUrl", "description");
         AssertJsonProperties(searchResult, "type", "displayLabel", "supportingText", "username");
         AssertJsonProperties(new GetUserDTO(user), "id", "username", "firstname", "lastname", "email", "emailVerified", "discordId", "steamId", "riotId", "displayName", "isDeleted", "createdAtUtc", "updatedAtUtc");
         AssertJsonProperties(new PublicUserProfileDTO
@@ -173,7 +173,7 @@ public class DtoSerializationShapeTests
             RiotId = user.RiotId
         }, "username", "firstname", "lastname", "discordId", "steamId", "riotId");
 
-        var json = Serialize(new GetSponsorDTO(sponsor));
+        var json = Serialize(GetSponsorDTO.From(sponsor));
         Assert.Contains("\"sponsorTier\":\"Gold\"", json, StringComparison.Ordinal);
     }
 

@@ -1,7 +1,6 @@
 using System.Reflection;
 using System.Text.Json;
 using Mercurius.LAN.API.Data;
-using Mercurius.LAN.API.Models;
 using Mercurius.LAN.API.Services.SearchServices;
 using Mercurius.Modules.Competition.Contracts;
 using Mercurius.Modules.Shared;

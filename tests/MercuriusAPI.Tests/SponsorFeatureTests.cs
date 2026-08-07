@@ -1,20 +1,25 @@
 using System.Text;
+using System.Text.Json;
 using Mercurius.LAN.API.Data;
-using Mercurius.LAN.API.Models;
 using Mercurius.Modules.Competition.Application.DTOs.Games;
-using Mercurius.LAN.API.DTOs.SponsorDTOs;
-using Mercurius.LAN.API.Services.Files;
 using Mercurius.Modules.Competition.Infrastructure;
 using Mercurius.Modules.Shared;
 using Mercurius.Modules.Shared.Exceptions;
 using Mercurius.Modules.Media.Contracts;
 using Mercurius.Modules.Competition.Application.Services;
+using Mercurius.Modules.Sponsorship;
+using Mercurius.Modules.Sponsorship.Application;
+using Mercurius.Modules.Sponsorship.Application.DTOs;
+using Mercurius.Modules.Sponsorship.Application.Services;
+using Mercurius.Modules.Sponsorship.Domain;
+using Mercurius.Modules.Sponsorship.Infrastructure;
 using SponsorContractContext = Mercurius.Modules.Sponsorship.Contracts.SponsorContext;
 using SponsorContractTier = Mercurius.Modules.Sponsorship.Contracts.SponsorTier;
 using Mercurius.Modules.Sponsorship.Contracts;
-using Mercurius.LAN.API.Services.SponsorServices;
+using Mercurius.Modules.Sponsorship.Contracts.V1;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Platform.Eventing;
 
 namespace Mercurius.LAN.API.Tests;
 
@@ -24,7 +29,7 @@ public class SponsorFeatureTests
     public async Task CreateSponsorAsync_PersistsTierAndDescription()
     {
         await using var dbContext = CreateDbContext();
-        var sponsorService = new SponsorService(dbContext, new StubFileService());
+        var sponsorService = CreateSponsorService(dbContext);
 
         var sponsor = await sponsorService.CreateSponsorAsync(new CreateSponsorDTO
         {
@@ -38,7 +43,7 @@ public class SponsorFeatureTests
         Assert.Equal(SponsorTier.Presenting, sponsor.SponsorTier);
         Assert.Equal("Primary event partner.", sponsor.Description);
 
-        var storedSponsor = await dbContext.Sponsors.SingleAsync();
+        var storedSponsor = await dbContext.Set<Sponsor>().SingleAsync();
         Assert.Equal(SponsorTier.Presenting, storedSponsor.SponsorTier);
         Assert.Equal("Primary event partner.", storedSponsor.Description);
     }
@@ -47,7 +52,7 @@ public class SponsorFeatureTests
     public async Task UpdateSponsorAsync_UpdatesDescriptionAndTier()
     {
         await using var dbContext = CreateDbContext();
-        var sponsorService = new SponsorService(dbContext, new StubFileService());
+        var sponsorService = CreateSponsorService(dbContext);
         var sponsor = new Sponsor
         {
             Name = "Campus Fiber",
@@ -55,7 +60,7 @@ public class SponsorFeatureTests
             InfoUrl = "https://example.test/campus-fiber",
             LogoUrl = "/images/campus-fiber.png"
         };
-        dbContext.Sponsors.Add(sponsor);
+        dbContext.Set<Sponsor>().Add(sponsor);
         await dbContext.SaveChangesAsync();
 
         var updatedSponsor = await sponsorService.UpdateSponsorAsync(sponsor.Id, new UpdateSponsorDTO
@@ -71,13 +76,110 @@ public class SponsorFeatureTests
     }
 
     [Fact]
+    public async Task SponsorLifecycleMutations_PersistMatchingOutboxEvents()
+    {
+        await using var dbContext = CreateDbContext();
+        var sponsorService = CreateSponsorService(dbContext);
+
+        var created = await sponsorService.CreateSponsorAsync(new CreateSponsorDTO
+        {
+            Name = "Mercurius Tech",
+            SponsorTier = SponsorTier.Presenting,
+            InfoUrl = "https://example.test/mercurius-tech",
+            Description = "Primary event partner.",
+            Logo = CreateFormFile()
+        });
+        await sponsorService.UpdateSponsorAsync(created.Id, new UpdateSponsorDTO
+        {
+            Name = "Mercurius Technology",
+            SponsorTier = SponsorTier.Gold,
+            InfoUrl = "https://example.test/mercurius-technology",
+            Description = "Updated event partner."
+        });
+        await sponsorService.DeleteSponsorAsync(created.Id);
+
+        var outbox = await dbContext.OutboxMessages.ToListAsync();
+        Assert.Contains(outbox, message => message.EventType == typeof(SponsorCreated).FullName);
+        Assert.Contains(outbox, message => message.EventType == typeof(SponsorUpdated).FullName);
+        Assert.Contains(outbox, message => message.EventType == typeof(SponsorDeleted).FullName);
+
+        var createdPayload = outbox.Single(message => message.EventType == typeof(SponsorCreated).FullName).Payload;
+        using var document = JsonDocument.Parse(createdPayload);
+        Assert.Equal(created.Id, document.RootElement.GetProperty("sponsorId").GetProperty("value").GetInt32());
+    }
+
+    [Fact]
+    public async Task SponsorshipModule_ReplacesAndRemovesPlacementWithMatchingOutboxEvents()
+    {
+        await using var dbContext = CreateDbContext();
+        var game = CreateGame();
+        var sponsor = CreateSponsor(1, "Mercurius Tech", SponsorTier.Presenting);
+        dbContext.Set<Game>().Add(game);
+        dbContext.Set<Sponsor>().Add(sponsor);
+        await dbContext.SaveChangesAsync();
+        var sponsorshipModule = CreateSponsorshipModule(dbContext);
+
+        await sponsorshipModule.ReplaceSponsorPlacementAsync(
+            new GameId(game.Id),
+            new SponsorPlacementInput(
+                new SponsorId(sponsor.Id),
+                SponsorContractContext.TournamentPartner,
+                "Presented by Mercurius Tech",
+                "Main stage and stream support",
+                1));
+
+        var placement = await sponsorshipModule.GetSponsorPlacementAsync(new GameId(game.Id));
+        Assert.NotNull(placement);
+        Assert.Equal(sponsor.Id, placement.Sponsor.Id.Value);
+        Assert.Equal(SponsorContractContext.TournamentPartner, placement.Context);
+
+        await sponsorshipModule.ReplaceSponsorPlacementAsync(new GameId(game.Id), null);
+
+        Assert.Null(await sponsorshipModule.GetSponsorPlacementAsync(new GameId(game.Id)));
+        var placementEvents = await dbContext.OutboxMessages
+            .Where(message => message.EventType == typeof(GameSponsorPlacementChanged).FullName)
+            .ToListAsync();
+        Assert.Equal(2, placementEvents.Count);
+        Assert.Contains(placementEvents, message => JsonDocument.Parse(message.Payload).RootElement
+            .GetProperty("sponsorId").GetProperty("value").GetInt32() == sponsor.Id);
+        Assert.Contains(placementEvents, message => JsonDocument.Parse(message.Payload).RootElement
+            .GetProperty("placementId").ValueKind == JsonValueKind.Null);
+    }
+
+    [Fact]
+    public void SponsorshipModel_PreservesExistingTablesAndCascadeRelationships()
+    {
+        using var dbContext = CreateDbContext();
+        var sponsorType = dbContext.Model.FindEntityType(typeof(Sponsor));
+        var placementType = dbContext.Model.FindEntityType(typeof(GameSponsorPlacement));
+
+        Assert.NotNull(sponsorType);
+        Assert.NotNull(placementType);
+        Assert.Equal("Sponsors", sponsorType.GetTableName());
+        Assert.Equal("GameSponsorPlacements", placementType.GetTableName());
+        Assert.Contains(
+            placementType.GetForeignKeys(),
+            foreignKey =>
+                foreignKey.PrincipalEntityType.ClrType == typeof(Sponsor) &&
+                foreignKey.DeleteBehavior == DeleteBehavior.Cascade);
+        Assert.Contains(
+            placementType.GetForeignKeys(),
+            foreignKey =>
+                foreignKey.PrincipalEntityType.ClrType == typeof(Game) &&
+                foreignKey.DeleteBehavior == DeleteBehavior.Cascade);
+        Assert.Contains(placementType.GetIndexes(), index =>
+            index.IsUnique &&
+            index.Properties.Single().Name == nameof(GameSponsorPlacement.GameId));
+    }
+
+    [Fact]
     public async Task ReplaceSponsorPlacementsAsync_ReplacesExistingPlacementAndReturnsSponsorData()
     {
         await using var dbContext = CreateDbContext();
         var game = CreateGame();
         var presentingSponsor = CreateSponsor(1, "Mercurius Tech", SponsorTier.Presenting);
         dbContext.Set<Game>().Add(game);
-        dbContext.Sponsors.Add(presentingSponsor);
+        dbContext.Set<Sponsor>().Add(presentingSponsor);
         await dbContext.SaveChangesAsync();
 
         var sponsorPlacement = CreateSponsorPlacementSummary(game.Id, presentingSponsor, SponsorContractContext.CateringPartner, null, null, 99);
@@ -127,7 +229,7 @@ public class SponsorFeatureTests
         var presentingSponsor = CreateSponsor(1, "Mercurius Tech", SponsorTier.Presenting);
         var prizeSponsor = CreateSponsor(2, "Campus Fiber", SponsorTier.Gold);
         dbContext.Set<Game>().Add(game);
-        dbContext.Sponsors.AddRange(presentingSponsor, prizeSponsor);
+        dbContext.Set<Sponsor>().AddRange(presentingSponsor, prizeSponsor);
         await dbContext.SaveChangesAsync();
 
         var service = new GameService(
@@ -205,7 +307,28 @@ public class SponsorFeatureTests
     {
         var bytes = Encoding.UTF8.GetBytes("logo");
         var stream = new MemoryStream(bytes);
-        return new FormFile(stream, 0, bytes.Length, "logo", "logo.png");
+        return new FormFile(stream, 0, bytes.Length, "logo", "logo.png")
+        {
+            Headers = new HeaderDictionary(),
+            ContentType = "image/png"
+        };
+    }
+
+    private static SponsorService CreateSponsorService(MercuriusDBContext dbContext)
+    {
+        var sponsorshipDbContext = new SponsorshipDbContextAdapter<MercuriusDBContext>(dbContext);
+        return new SponsorService(
+            sponsorshipDbContext,
+            new StubMediaModule(),
+            new SponsorshipOutboxWriter(sponsorshipDbContext, new ModuleEventPublisher(dbContext)));
+    }
+
+    private static SponsorshipModuleFacade CreateSponsorshipModule(MercuriusDBContext dbContext)
+    {
+        var sponsorshipDbContext = new SponsorshipDbContextAdapter<MercuriusDBContext>(dbContext);
+        return new SponsorshipModuleFacade(
+            sponsorshipDbContext,
+            new SponsorshipOutboxWriter(sponsorshipDbContext, new ModuleEventPublisher(dbContext)));
     }
 
     private static Game CreateGame()
@@ -264,15 +387,6 @@ public class SponsorFeatureTests
         {
             return Task.CompletedTask;
         }
-    }
-
-    private sealed class StubFileService : IFileService
-    {
-        public Task<string> SaveImageAsync(IFormFile image, CancellationToken cancellationToken = default)
-            => Task.FromResult("/images/mock-upload.png");
-
-        public Task DeleteImageAsync(string? imageUrl)
-            => Task.CompletedTask;
     }
 
     private sealed class StubMatchModeratorFactory : IMatchModeratorFactory

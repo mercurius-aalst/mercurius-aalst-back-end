@@ -6,6 +6,7 @@ using Mercurius.LAN.API.Hubs;
 using Mercurius.LAN.API.Middleware;
 using Mercurius.Modules.Competition;
 using Mercurius.Modules.Identity;
+using Mercurius.Modules.Sponsorship;
 using Mercurius.Modules.Teams;
 using Platform;
 using Platform.Extensions;
@@ -37,6 +38,7 @@ public class Program
         builder.Services.AddIdentityModule<MercuriusDBContext>(builder.Configuration);
         builder.Services.AddTeamsModule<MercuriusDBContext>(builder.Configuration);
         builder.Services.AddApplicationServices();
+        builder.Services.AddSponsorshipModule<MercuriusDBContext>(builder.Configuration);
         builder.Services.AddCompetitionModule<MercuriusDBContext>(builder.Configuration);
         builder.Services.AddApiProblemDetails<ApiExceptionHandler>();
         builder.Services.AddHttpConventions();
@@ -76,7 +78,7 @@ public class Program
         app.MapCompetitionModule();
         app.MapIdentityModule();
         app.MapTeamsModule();
-        app.MapSponsorEndpoints();
+        app.MapSponsorshipModule();
         app.MapSearchEndpoints();
         app.MapHub<TeamManagementHub>("/v1/lan/team-events").RequireAuthorization();
 

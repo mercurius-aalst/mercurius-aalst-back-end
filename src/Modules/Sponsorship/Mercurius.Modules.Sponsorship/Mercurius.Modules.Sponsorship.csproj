@@ -12,7 +12,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Mercurius.Modules.Sponsorship.Contracts\Mercurius.Modules.Sponsorship.Contracts.csproj" />
+    <ProjectReference Include="..\..\Media\Mercurius.Modules.Media.Contracts\Mercurius.Modules.Media.Contracts.csproj" />
     <ProjectReference Include="..\..\..\Modules.Shared\Modules.Shared.csproj" />
+    <ProjectReference Include="..\..\..\Platform\Platform.csproj" />
   </ItemGroup>
 
 </Project>

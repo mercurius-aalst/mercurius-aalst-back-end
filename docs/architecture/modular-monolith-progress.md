@@ -101,10 +101,10 @@ Do not start the next phase from an unmerged previous phase branch.
   - PR: [#108 Phase 11: extract Competition module](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/108)
   - Notes: Moves games, matches, registrations, rosters, placements, Competition endpoints, and persistence mappings behind the Competition module boundary while preserving routes and JSON shapes. Adds registration snapshots through a hand-authored migration without updating the EF model snapshot.
 
-- [ ] Phase 12 - Sponsorship extraction
+- [x] Phase 12 - Sponsorship extraction
   - Branch: `refactor/phase-12`
-  - PR: pending
-  - Notes: Move sponsor ownership and document placement ownership.
+  - PR: [#109 Phase 12: extract Sponsorship module](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/109)
+  - Notes: Moves Sponsor and GameSponsorPlacement ownership, endpoints, validation, EF configuration, and V1 lifecycle events into Sponsorship. Competition continues through Sponsorship contracts; existing routes, JSON, authorization, and schema remain unchanged. Media storage remains behind the temporary host adapter until Phase 13.
 
 - [ ] Phase 13 - Media extraction
   - Branch: `refactor/phase-13`

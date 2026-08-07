@@ -1,6 +1,8 @@
-namespace Mercurius.LAN.API.Models;
+using Mercurius.Modules.Sponsorship.Contracts;
 
-public class GameSponsorPlacement
+namespace Mercurius.Modules.Sponsorship.Domain;
+
+internal sealed class GameSponsorPlacement
 {
     public int Id { get; set; }
     public Guid GameId { get; set; }

@@ -5,9 +5,10 @@ using Mercurius.LAN.API.Services.SearchServices;
 using Mercurius.Modules.Competition;
 using Mercurius.Modules.Competition.Application.Services;
 using Mercurius.Modules.Shared.Search;
-using Mercurius.LAN.API.Services.SponsorServices;
+using Mercurius.LAN.API.Data;
 using Mercurius.Modules.Identity;
 using Mercurius.Modules.Identity.Services;
+using Mercurius.Modules.Sponsorship;
 using Mercurius.Modules.Teams;
 using Mercurius.Modules.Teams.Services;
 using Platform.Extensions;
@@ -85,6 +86,7 @@ public class OpenApiDocumentTests
         builder.Services.AddAuthorization();
         builder.Services.AddRealtimeNotificationServices();
         RegisterEndpointServices(builder.Services);
+        builder.Services.AddSponsorshipModule<MercuriusDBContext>(builder.Configuration);
         builder.Services.AddHttpConventions();
 
         var app = builder.Build();
@@ -99,7 +101,7 @@ public class OpenApiDocumentTests
 
         app.MapCompetitionModule();
         app.MapTeamsModule();
-        app.MapSponsorEndpoints();
+        app.MapSponsorshipModule();
         app.MapIdentityModule();
         app.MapSearchEndpoints();
         app.MapHub<TeamManagementHub>("/v1/lan/team-events").RequireAuthorization();
@@ -113,7 +115,6 @@ public class OpenApiDocumentTests
         services.AddScoped<ITournamentRegistrationService>(_ => throw new NotSupportedException());
         services.AddScoped<IMatchService>(_ => throw new NotSupportedException());
         services.AddScoped<ITeamService>(_ => throw new NotSupportedException());
-        services.AddScoped<ISponsorService>(_ => throw new NotSupportedException());
         services.AddScoped<IUserService>(_ => throw new NotSupportedException());
         services.AddScoped<ISearchService>(_ => throw new NotSupportedException());
     }

@@ -1,7 +1,6 @@
 using Mercurius.LAN.API.Data;
 using Mercurius.Modules.Teams.DTOs;
 using Mercurius.LAN.API.Migrations;
-using Mercurius.LAN.API.Models;
 using Mercurius.Modules.Teams.Services;
 using Mercurius.Modules.Teams.Infrastructure;
 using Mercurius.Modules.Identity;

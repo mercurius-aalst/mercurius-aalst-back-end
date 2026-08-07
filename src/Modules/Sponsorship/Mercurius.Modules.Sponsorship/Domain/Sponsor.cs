@@ -1,6 +1,8 @@
-namespace Mercurius.LAN.API.Models;
+using Mercurius.Modules.Sponsorship.Contracts;
 
-public class Sponsor
+namespace Mercurius.Modules.Sponsorship.Domain;
+
+internal sealed class Sponsor
 {
     public int Id { get; set; }
     public string Name { get; set; } = null!;
@@ -11,4 +13,3 @@ public class Sponsor
 
     public IList<GameSponsorPlacement> GameSponsorPlacements { get; set; } = [];
 }
-

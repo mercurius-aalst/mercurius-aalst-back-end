@@ -96,6 +96,8 @@ OpenSpec is not required for internal refactoring that preserves behavior, but t
 - Open each phase PR into `refactor/modular-monolith`.
 - Do not start the next phase from an unmerged phase branch.
 - Do not PR phase branches directly into `main`, `develop`, or an earlier bugfix branch.
+- Immediately after creating a phase PR, run the PR Review Auditor as a read-only subagent. Provide the PR URL, source and target branches, phase scope, validation results, and relevant OpenSpec artifacts.
+- The parent agent must resolve or explicitly document the disposition of every actionable auditor finding and record the auditor result in the PR. Rerun the auditor if the phase changes after its audit, before handing the PR to a human reviewer.
 - Use `modular-monolith-progress.md` as the handoff ledger: check a phase when its PR is created, then verify that last checked PR is merged on GitHub before starting the next phase.
 
 ## Per-Phase Validation

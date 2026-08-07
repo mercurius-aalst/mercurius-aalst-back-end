@@ -6,6 +6,7 @@ using Mercurius.LAN.API.Hubs;
 using Mercurius.LAN.API.Middleware;
 using Mercurius.Modules.Competition;
 using Mercurius.Modules.Identity;
+using Mercurius.Modules.Media;
 using Mercurius.Modules.Sponsorship;
 using Mercurius.Modules.Teams;
 using Platform;
@@ -28,6 +29,7 @@ public class Program
         builder.Services.AddDbContext<MercuriusDBContext>(options =>
             options.UseNpgsql(builder.Configuration.GetConnectionString("MercuriusDB")));
         builder.Services.AddModuleEventing<MercuriusDBContext>();
+        builder.Services.AddMediaModule(builder.Configuration);
 
         builder.Services.AddValidation();
         builder.Services.AddVersionedSwagger(

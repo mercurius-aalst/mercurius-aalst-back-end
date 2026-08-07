@@ -20,7 +20,6 @@ public static class TeamsModuleConfiguration
         services.TryAddScoped<ITeamsDbContext, TeamsDbContextAdapter<TDbContext>>();
         services.TryAddTransient<ITeamCompetitionReadService, NullTeamCompetitionReadService>();
         services.AddTransient<ITeamsModule, TeamsModuleFacade>();
-        services.AddTransient<ITeamLogoStorage, TeamLogoStorage>();
         services.AddTransient<ITeamService, TeamService>();
         services.Decorate<ITeamService, TeamEventPublishingDecorator>();
         services.AddTransient<ITeamEndpointService, TeamEndpointService>();

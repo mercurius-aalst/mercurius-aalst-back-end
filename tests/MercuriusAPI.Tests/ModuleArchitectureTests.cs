@@ -66,6 +66,15 @@ public class ModuleArchitectureTests
         };
         if (moduleName == "Teams")
         {
+            var mediaContractsProject = Path.Combine(
+                repositoryRoot,
+                "src",
+                "Modules",
+                "Media",
+                "Mercurius.Modules.Media.Contracts",
+                "Mercurius.Modules.Media.Contracts.csproj");
+            requiredReferences.Add(mediaContractsProject);
+            allowedReferences.Add(mediaContractsProject);
             allowedReferences.Add(Path.Combine(
                 repositoryRoot,
                 "src",
@@ -220,8 +229,6 @@ public class ModuleArchitectureTests
             "Mercurius.Modules.Teams.Services.TeamEventPublishingDecorator",
             "Mercurius.Modules.Teams.Services.ITeamEndpointService",
             "Mercurius.Modules.Teams.Services.TeamEndpointService",
-            "Mercurius.Modules.Teams.Services.TeamLogoStorage",
-            "Mercurius.Modules.Teams.Services.ITeamLogoStorage",
             "Mercurius.Modules.Teams.Services.RealtimeTeamEventPublisher",
             "Mercurius.Modules.Teams.Services.NullTeamEventPublisher",
             "Mercurius.Modules.Teams.Services.EfTeamRealtimeAuthorizer",
@@ -292,6 +299,23 @@ public class ModuleArchitectureTests
         Assert.Null(apiAssembly.GetType("Mercurius.LAN.API.Endpoints.SponsorEndpoints", throwOnError: false));
         Assert.Null(apiAssembly.GetType("Mercurius.LAN.API.Models.Sponsor", throwOnError: false));
         Assert.Null(apiAssembly.GetType("Mercurius.LAN.API.Models.GameSponsorPlacement", throwOnError: false));
+    }
+
+    [Fact]
+    public void MediaImplementationTypes_AreInternalAndApiHostNoLongerOwnsFileServices()
+    {
+        var mediaAssembly = Assembly.Load("Mercurius.Modules.Media");
+        var apiAssembly = Assembly.Load("Mercurius.LAN.API");
+        var storageType = mediaAssembly.GetType(
+            "Mercurius.Modules.Media.Infrastructure.FileSystemMediaModule",
+            throwOnError: false,
+            ignoreCase: false);
+
+        Assert.NotNull(storageType);
+        Assert.False(storageType!.IsPublic, "FileSystemMediaModule must remain an internal module implementation detail.");
+        Assert.Null(apiAssembly.GetType("Mercurius.LAN.API.Composition.LegacyMediaModuleAdapter", throwOnError: false));
+        Assert.Null(apiAssembly.GetType("Mercurius.LAN.API.Services.Files.FileService", throwOnError: false));
+        Assert.Null(apiAssembly.GetType("Mercurius.LAN.API.Services.Files.FileValidationService", throwOnError: false));
     }
 
     [Fact]

@@ -4,6 +4,7 @@ using Mercurius.Modules.Teams.Contracts;
 using Mercurius.Modules.Teams.Domain;
 using Mercurius.Modules.Identity.Contracts;
 using Mercurius.Modules.Identity.Domain;
+using Mercurius.Modules.Media.Contracts;
 using Mercurius.Modules.Shared;
 using Mercurius.Modules.Teams.Infrastructure;
 using Microsoft.EntityFrameworkCore;
@@ -17,7 +18,7 @@ internal sealed class TeamService : ITeamService
     private const int MaxCaptainedTeams = 2;
     private const int MaxTeamSearchResults = 25;
     private readonly ITeamsDbContext _dbContext;
-    private readonly ITeamLogoStorage? _logoStorage;
+    private readonly IMediaModule? _mediaModule;
     private readonly IIdentityModule _identityModule;
     private readonly ITeamCompetitionReadService _competitionReadService;
     private readonly int _inviteResendCooldownDays;
@@ -30,11 +31,11 @@ internal sealed class TeamService : ITeamService
         ITeamsDbContext dbContext,
         IConfiguration configuration,
         IIdentityModule identityModule,
-        ITeamLogoStorage? logoStorage = null,
+        IMediaModule? mediaModule = null,
         ITeamCompetitionReadService? competitionReadService = null)
     {
         _dbContext = dbContext;
-        _logoStorage = logoStorage;
+        _mediaModule = mediaModule;
         _identityModule = identityModule ?? throw new ArgumentNullException(nameof(identityModule));
         _competitionReadService = competitionReadService ?? new NullTeamCompetitionReadService();
         _inviteResendCooldownDays = configuration.GetSection("TeamInvite:ResendCooldownDays").Get<int>();
@@ -448,7 +449,7 @@ internal sealed class TeamService : ITeamService
 
     public async Task<TeamLogoResponseDTO> UploadTeamLogoAsync(string auth0UserId, Guid teamId, IFormFile logo, CancellationToken cancellationToken = default)
     {
-        if (_logoStorage is null)
+        if (_mediaModule is null)
             throw new InvalidOperationException("File service is not configured.");
 
         var currentUser = await GetCurrentUserAsync(auth0UserId, cancellationToken);
@@ -458,17 +459,20 @@ internal sealed class TeamService : ITeamService
 
         EnsureCaptain(team, currentUser.Id.Value);
         var previousLogo = team.LogoUrl;
-        var logoUrl = await _logoStorage.SaveImageAsync(logo, cancellationToken);
-        team.LogoUrl = logoUrl;
+        await using var imageStream = logo.OpenReadStream();
+        var asset = await _mediaModule.SaveImageAsync(
+            new MediaUpload(imageStream, logo.FileName, logo.ContentType, logo.Length),
+            cancellationToken);
+        team.LogoUrl = asset.Url;
         cancellationToken.ThrowIfCancellationRequested();
         await _dbContext.SaveChangesAsync(cancellationToken);
-        await _logoStorage.DeleteImageAsync(previousLogo);
+        await _mediaModule.DeleteImageAsync(previousLogo);
         return new TeamLogoResponseDTO(team.Id, team.LogoUrl);
     }
 
     public async Task<TeamLogoResponseDTO> RemoveTeamLogoAsync(string auth0UserId, Guid teamId, CancellationToken cancellationToken = default)
     {
-        if (_logoStorage is null)
+        if (_mediaModule is null)
             throw new InvalidOperationException("File service is not configured.");
 
         var currentUser = await GetCurrentUserAsync(auth0UserId, cancellationToken);
@@ -481,7 +485,7 @@ internal sealed class TeamService : ITeamService
         team.LogoUrl = null;
         cancellationToken.ThrowIfCancellationRequested();
         await _dbContext.SaveChangesAsync(cancellationToken);
-        await _logoStorage.DeleteImageAsync(previousLogo);
+        await _mediaModule.DeleteImageAsync(previousLogo);
         return new TeamLogoResponseDTO(team.Id, null);
     }
 

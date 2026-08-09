@@ -22,4 +22,4 @@
 
 - [x] 5.1 Run OpenSpec validation and the focused route, authorization, OpenAPI, and serialization tests.
 - [x] 5.2 Run the required performance, clean-code, and security audits and resolve all high- and medium-severity findings in scope.
-- [ ] 5.3 Run `dotnet restore`, `dotnet build`, `dotnet test`, and `dotnet format --verify-no-changes`; record API/OpenAPI and contract impacts for the phase PR.
+- [x] 5.3 Run `dotnet restore`, `dotnet build`, `dotnet test`, and `dotnet format --verify-no-changes`; record API/OpenAPI and contract impacts for the phase PR.

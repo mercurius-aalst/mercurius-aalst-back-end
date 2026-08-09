@@ -132,10 +132,10 @@ Do not start the next phase from an unmerged previous phase branch.
     tests were not run because the local PostgreSQL/Docker service was unavailable; this exception
     was accepted when the Phase 15 OpenSpec change was archived.
 
-- [ ] Phase 16 - Endpoint simplification in place
+- [x] Phase 16 - Endpoint simplification in place
   - Branch: `refactor/phase-16`
-  - PR: pending
-  - Notes: Resource-oriented cleanup with OpenSpec. No `/v2`.
+  - PR: [#113 Phase 16: simplify v1 API endpoints](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/113)
+  - Notes: Replaces action-style v1 game lifecycle, team, tournament-registration, and current-user Identity routes with resource-oriented endpoints. Existing response JSON and authorization behavior are preserved; removed routes are asserted absent. No `/v2`, persistence, migration, or configuration changes.
 
 - [ ] Phase 17 - Tighten internals and public surface
   - Branch: `refactor/phase-17`

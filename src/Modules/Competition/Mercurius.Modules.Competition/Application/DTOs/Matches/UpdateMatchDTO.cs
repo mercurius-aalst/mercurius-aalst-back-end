@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Mercurius.Modules.Competition.Application.DTOs.Matches;
 
-public class UpdateMatchDTO
+internal class UpdateMatchDTO
 {
     [Range(0, int.MaxValue)]
     public int Participant1Score { get; set; }

@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Mercurius.Modules.Identity.Services;
 
-public class UserService : IUserService
+internal class UserService : IUserService
 {
     private const string GenericVerificationMessage = "If verification is available for this account, a verification email has been sent.";
     private const string GenericPasswordResetMessage = "If password reset is available for this account, a password reset email has been sent.";

@@ -2,7 +2,7 @@ using Mercurius.Modules.Identity.Domain;
 
 namespace Mercurius.Modules.Identity.DTOs;
 
-public class GetUserDTO
+internal class GetUserDTO
 {
     public Guid Id { get; set; }
     public string? Username { get; set; }

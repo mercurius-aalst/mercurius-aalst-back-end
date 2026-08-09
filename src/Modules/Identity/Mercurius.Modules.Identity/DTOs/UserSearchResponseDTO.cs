@@ -1,6 +1,6 @@
 namespace Mercurius.Modules.Identity.DTOs;
 
-public sealed class UserSearchResponseDTO
+internal sealed class UserSearchResponseDTO
 {
     public IReadOnlyList<UserSearchResultDTO> Results { get; init; } = [];
 

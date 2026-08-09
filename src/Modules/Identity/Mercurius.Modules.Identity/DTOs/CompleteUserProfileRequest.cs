@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Mercurius.Modules.Identity.DTOs;
 
-public class CompleteUserProfileRequest
+internal class CompleteUserProfileRequest
 {
     [Required]
     [StringLength(32, MinimumLength = 3)]

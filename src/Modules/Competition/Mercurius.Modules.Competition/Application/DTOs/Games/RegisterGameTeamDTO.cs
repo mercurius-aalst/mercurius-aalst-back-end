@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Mercurius.Modules.Competition.Application.DTOs.Games;
 
-public class RegisterGameTeamDTO
+internal class RegisterGameTeamDTO
 {
     [Required]
     public Guid TeamId { get; set; }

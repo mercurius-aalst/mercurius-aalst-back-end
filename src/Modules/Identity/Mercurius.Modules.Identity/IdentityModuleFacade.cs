@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Mercurius.Modules.Identity;
 
-public sealed class IdentityModuleFacade : IIdentityModule
+internal sealed class IdentityModuleFacade : IIdentityModule
 {
     private readonly IIdentityDbContext _dbContext;
 

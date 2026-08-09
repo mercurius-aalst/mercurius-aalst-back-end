@@ -1,6 +1,6 @@
 namespace Mercurius.Modules.Identity.DTOs;
 
-public class CurrentUserProfileResponse
+internal class CurrentUserProfileResponse
 {
     public bool IsComplete { get; set; }
     public GetUserDTO? User { get; set; }

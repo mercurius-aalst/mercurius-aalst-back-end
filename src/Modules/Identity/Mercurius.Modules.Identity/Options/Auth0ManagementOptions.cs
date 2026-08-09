@@ -1,6 +1,6 @@
 namespace Mercurius.Modules.Identity.Options;
 
-public sealed class Auth0ManagementOptions
+internal sealed class Auth0ManagementOptions
 {
     public const string SectionName = "Auth0";
 

@@ -1,6 +1,5 @@
 using System.Reflection;
 using Mercurius.LAN.API.Data;
-using Mercurius.LAN.API.Extensions;
 using Mercurius.Modules.Identity.Contracts;
 using Mercurius.Modules.Shared;
 using Mercurius.Modules.Teams;

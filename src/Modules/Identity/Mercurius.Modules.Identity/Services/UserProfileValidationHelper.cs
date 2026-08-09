@@ -3,7 +3,7 @@ using Mercurius.Modules.Shared.Exceptions;
 
 namespace Mercurius.Modules.Identity.Services;
 
-public static class UserProfileValidationHelper
+internal static class UserProfileValidationHelper
 {
     private static readonly Regex UsernameRegex = new("^[a-zA-Z0-9]{3,32}$", RegexOptions.Compiled);
     private static readonly HashSet<string> ReservedUsernames = new(StringComparer.Ordinal)

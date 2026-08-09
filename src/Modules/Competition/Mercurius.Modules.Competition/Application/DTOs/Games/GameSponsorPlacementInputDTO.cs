@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Mercurius.Modules.Competition.Application.DTOs.Games;
 
-public class GameSponsorPlacementInputDTO
+internal class GameSponsorPlacementInputDTO
 {
     [Range(1, int.MaxValue)]
     public int SponsorId { get; set; }

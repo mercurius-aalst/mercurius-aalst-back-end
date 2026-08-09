@@ -3,7 +3,7 @@ using Mercurius.Modules.Competition.Contracts;
 
 namespace Mercurius.Modules.Competition.Application.DTOs.Registrations;
 
-public class TournamentRegistrationDTO
+internal class TournamentRegistrationDTO
 {
     public Guid Id { get; set; }
     public Guid GameId { get; set; }

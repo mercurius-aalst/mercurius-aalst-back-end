@@ -7,7 +7,7 @@ namespace Mercurius.Modules.Identity.Services;
 /// <summary>
 /// Decorator for IUserService that performs input validation before delegating to the actual business logic.
 /// </summary>
-public class UserValidationService : IUserService
+internal class UserValidationService : IUserService
 {
     private readonly IUserService _inner;
 

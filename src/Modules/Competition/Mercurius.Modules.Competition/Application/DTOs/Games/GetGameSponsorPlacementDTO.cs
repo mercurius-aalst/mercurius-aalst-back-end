@@ -2,7 +2,7 @@ using Mercurius.Modules.Sponsorship.Contracts;
 
 namespace Mercurius.Modules.Competition.Application.DTOs.Games;
 
-public class GetGameSponsorPlacementDTO
+internal class GetGameSponsorPlacementDTO
 {
     public int Id { get; set; }
     public int SponsorId { get; set; }

@@ -1,6 +1,6 @@
 namespace Mercurius.Modules.Identity.DTOs;
 
-public sealed class UserSearchResultDTO
+internal sealed class UserSearchResultDTO
 {
     public required Guid Id { get; init; }
     public required string Type { get; init; }

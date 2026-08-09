@@ -34,7 +34,7 @@ The API MUST expose an authenticated `PUT /v1/lan/users/me` endpoint that create
 - **AND** the existing user profile is not overwritten
 
 ### Requirement: Current user profile update
-The API MUST expose authenticated current-user profile update endpoints that update an existing active profile for the authenticated Auth0 subject.
+The API MUST expose authenticated `PATCH /v1/lan/users/me` as the canonical endpoint that updates an existing active profile for the authenticated Auth0 subject.
 
 #### Scenario: Existing current user is updated
 - **WHEN** an authenticated client requests `PATCH /v1/lan/users/me` with a valid profile payload and an active user exists for the token subject
@@ -45,12 +45,6 @@ The API MUST expose authenticated current-user profile update endpoints that upd
 - **THEN** the API returns 404
 - **AND** no user record is created
 
-#### Scenario: Existing current user is completed through compatibility route
-- **WHEN** an authenticated client requests `POST /v1/lan/users/me/complete-profile` with a valid profile payload and an active user exists for the token subject
-- **THEN** the API updates the local profile fields for that user
-- **AND** the API MUST NOT try to create a new user
-
-#### Scenario: Missing current user is not created by compatibility route
-- **WHEN** an authenticated client requests `POST /v1/lan/users/me/complete-profile` and no user exists for the token subject
-- **THEN** the API returns 404
-- **AND** no user record is created
+#### Scenario: Profile-completion compatibility route is absent
+- **WHEN** a client calls `POST /v1/lan/users/me/complete-profile`
+- **THEN** the API MUST NOT expose that route

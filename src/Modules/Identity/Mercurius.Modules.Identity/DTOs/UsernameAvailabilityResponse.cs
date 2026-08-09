@@ -1,6 +1,6 @@
 namespace Mercurius.Modules.Identity.DTOs;
 
-public sealed class UsernameAvailabilityResponse
+internal sealed class UsernameAvailabilityResponse
 {
     public string Username { get; set; } = string.Empty;
     public string? NormalizedUsername { get; set; }

@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\MercuriusAPI\Mercurius.LAN.API.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Competition\Mercurius.Modules.Competition\Mercurius.Modules.Competition.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Sponsorship\Mercurius.Modules.Sponsorship\Mercurius.Modules.Sponsorship.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,6 +1,6 @@
 # Modular Monolith Migration Progress
 
-Last updated: 2026-07-31
+Last updated: 2026-08-09
 
 This tracker is the repo-local handoff ledger for the modular monolith migration. It records which phase PRs have been created. GitHub remains the source of truth for whether those PRs are open, closed, or merged.
 
@@ -143,10 +143,10 @@ Do not start the next phase from an unmerged previous phase branch.
   - Notes: Makes Competition and Identity implementation types internal, restricts friend assemblies to tests,
     adds reflection-based public-surface coverage, and archives the synced Phase 16 OpenSpec change.
 
-- [ ] Phase 18 - Test suite reshaping
+- [x] Phase 18 - Test suite reshaping
   - Branch: `refactor/phase-18`
-  - PR: pending
-  - Notes: Reshape tests around API, module behavior, events, and architecture.
+  - PR: [#115 Phase 18: reshape module test suite](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/115)
+  - Notes: Splits the catch-all API test assembly into API, Platform, and module test projects; adds Discovery event-projection synchronization coverage while preserving API behavior.
 
 - [ ] Phase 19 - Remove transitional adapters and clean up
   - Branch: `refactor/phase-19`

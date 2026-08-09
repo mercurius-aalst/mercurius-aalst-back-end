@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Mercurius.Modules.Competition.Application.DTOs.Games;
 
-public class UpdateGameDTO
+internal class UpdateGameDTO
 {
     [Required]
     [StringLength(100, MinimumLength = 1)]

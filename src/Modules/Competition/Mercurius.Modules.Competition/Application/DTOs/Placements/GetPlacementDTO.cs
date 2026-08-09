@@ -2,7 +2,7 @@ using Mercurius.Modules.Competition.Application.DTOs.Participants;
 
 namespace Mercurius.Modules.Competition.Application.DTOs.Placements;
 
-public class GetPlacementDTO
+internal class GetPlacementDTO
 {
     public int Place { get; set; }
     public IEnumerable<PublicUserDTO> Users { get; set; } = [];

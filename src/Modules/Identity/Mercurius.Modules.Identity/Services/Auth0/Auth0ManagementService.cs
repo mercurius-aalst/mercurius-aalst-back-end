@@ -8,7 +8,7 @@ using Microsoft.Extensions.Options;
 
 namespace Mercurius.Modules.Identity.Services.Auth0;
 
-public sealed class Auth0ManagementService : IAuth0ManagementService
+internal sealed class Auth0ManagementService : IAuth0ManagementService
 {
     private readonly HttpClient _httpClient;
     private readonly Auth0ManagementOptions _options;

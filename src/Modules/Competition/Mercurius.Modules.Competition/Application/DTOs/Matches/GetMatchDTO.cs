@@ -2,7 +2,7 @@ using Mercurius.Modules.Competition.Contracts;
 
 namespace Mercurius.Modules.Competition.Application.DTOs.Matches;
 
-public class GetMatchDTO
+internal class GetMatchDTO
 {
     public Guid Id { get; set; }
     public DateTime StartTime { get; set; }

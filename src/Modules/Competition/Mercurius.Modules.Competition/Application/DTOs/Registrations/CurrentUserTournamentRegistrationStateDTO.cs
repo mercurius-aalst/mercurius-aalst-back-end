@@ -1,6 +1,6 @@
 namespace Mercurius.Modules.Competition.Application.DTOs.Registrations;
 
-public class CurrentUserTournamentRegistrationStateDTO
+internal class CurrentUserTournamentRegistrationStateDTO
 {
     public Guid GameId { get; set; }
     public TournamentRegistrationDTO? IndividualRegistration { get; set; }

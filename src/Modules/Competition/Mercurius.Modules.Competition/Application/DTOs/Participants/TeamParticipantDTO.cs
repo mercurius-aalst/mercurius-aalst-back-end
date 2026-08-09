@@ -1,6 +1,6 @@
 namespace Mercurius.Modules.Competition.Application.DTOs.Participants;
 
-public class TeamParticipantDTO
+internal class TeamParticipantDTO
 {
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;

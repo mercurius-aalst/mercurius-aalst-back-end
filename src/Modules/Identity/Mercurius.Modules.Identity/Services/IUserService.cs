@@ -2,7 +2,7 @@ using Mercurius.Modules.Identity.DTOs;
 
 namespace Mercurius.Modules.Identity.Services;
 
-public interface IUserService
+internal interface IUserService
 {
     Task<GetUserDTO> CreateUserAsync(CreateUserProfileRequest request);
     Task<GetUserDTO> CreateCurrentUserAsync(string auth0UserId, CompleteUserProfileRequest request);

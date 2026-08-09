@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Mercurius.Modules.Competition.Application.DTOs.Games;
 
-public class ReplaceGameSponsorsDTO
+internal class ReplaceGameSponsorsDTO
 {
     [Required]
     public List<GameSponsorPlacementInputDTO> SponsorPlacements { get; set; } = [];

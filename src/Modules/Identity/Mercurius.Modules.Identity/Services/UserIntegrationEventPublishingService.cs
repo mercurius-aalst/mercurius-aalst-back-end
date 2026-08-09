@@ -8,7 +8,7 @@ using Platform.Eventing;
 
 namespace Mercurius.Modules.Identity.Services;
 
-public sealed class UserIntegrationEventPublishingService : IUserService
+internal sealed class UserIntegrationEventPublishingService : IUserService
 {
     private readonly IUserService _inner;
     private readonly IIdentityDbContext _dbContext;

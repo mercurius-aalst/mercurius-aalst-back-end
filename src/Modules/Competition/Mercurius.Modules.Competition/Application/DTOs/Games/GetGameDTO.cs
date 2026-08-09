@@ -5,7 +5,7 @@ using Mercurius.Modules.Competition.Contracts;
 
 namespace Mercurius.Modules.Competition.Application.DTOs.Games;
 
-public class GetGameDTO
+internal class GetGameDTO
 {
     public Guid Id { get; set; }
     public string Name { get; set; } = null!;

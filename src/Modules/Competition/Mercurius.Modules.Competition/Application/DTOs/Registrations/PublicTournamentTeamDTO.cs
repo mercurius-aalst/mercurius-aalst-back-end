@@ -1,6 +1,6 @@
 namespace Mercurius.Modules.Competition.Application.DTOs.Registrations;
 
-public class PublicTournamentTeamDTO
+internal class PublicTournamentTeamDTO
 {
     public Guid Id { get; set; }
     public string Name { get; set; } = null!;

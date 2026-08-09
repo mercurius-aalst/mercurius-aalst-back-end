@@ -1,6 +1,5 @@
 using Mercurius.LAN.API.Data;
 using Mercurius.LAN.API.Configuration;
-using Mercurius.LAN.API.Extensions;
 using Mercurius.LAN.API.Hubs;
 using Mercurius.LAN.API.Middleware;
 using Mercurius.Modules.Competition;

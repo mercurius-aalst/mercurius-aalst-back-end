@@ -1,6 +1,6 @@
 namespace Mercurius.Modules.Identity.DTOs;
 
-public class PublicUserProfileDTO
+internal class PublicUserProfileDTO
 {
     public string Username { get; set; } = string.Empty;
     public string Firstname { get; set; } = string.Empty;

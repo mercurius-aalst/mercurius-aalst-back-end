@@ -2,7 +2,7 @@ using Mercurius.Modules.Identity.Contracts;
 
 namespace Mercurius.Modules.Competition.Application.DTOs.Participants;
 
-public class PublicUserDTO
+internal class PublicUserDTO
 {
     public Guid Id { get; set; }
     public string Username { get; set; } = string.Empty;

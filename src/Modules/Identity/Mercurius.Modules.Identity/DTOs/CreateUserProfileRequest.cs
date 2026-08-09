@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Mercurius.Modules.Identity.DTOs;
 
-public class CreateUserProfileRequest
+internal class CreateUserProfileRequest
 {
     [StringLength(200, MinimumLength = 1)]
     public string Auth0UserId { get; set; } = string.Empty;

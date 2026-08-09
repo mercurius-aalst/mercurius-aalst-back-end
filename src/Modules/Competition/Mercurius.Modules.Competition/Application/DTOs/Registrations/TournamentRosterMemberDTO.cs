@@ -3,7 +3,7 @@ using Mercurius.Modules.Competition.Contracts;
 
 namespace Mercurius.Modules.Competition.Application.DTOs.Registrations;
 
-public class TournamentRosterMemberDTO
+internal class TournamentRosterMemberDTO
 {
     public Guid Id { get; set; }
     public PublicUserDTO User { get; set; } = null!;

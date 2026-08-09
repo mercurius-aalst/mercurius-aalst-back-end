@@ -137,10 +137,11 @@ Do not start the next phase from an unmerged previous phase branch.
   - PR: [#113 Phase 16: simplify v1 API endpoints](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/113)
   - Notes: Replaces action-style v1 game lifecycle, team, and tournament-registration routes with resource-oriented endpoints, and removes the redundant current-user profile-completion route. Existing response JSON and authorization behavior are preserved; removed routes are asserted absent. Non-persisted Identity-provider commands retain their existing routes. No `/v2`, persistence, migration, or configuration changes.
 
-- [ ] Phase 17 - Tighten internals and public surface
+- [x] Phase 17 - Tighten internals and public surface
   - Branch: `refactor/phase-17`
-  - PR: pending
-  - Notes: Make module implementation details internal and add architecture tests.
+  - PR: [#114 Phase 17: tighten module public surface](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/114)
+  - Notes: Makes Competition and Identity implementation types internal, restricts friend assemblies to tests,
+    adds reflection-based public-surface coverage, and archives the synced Phase 16 OpenSpec change.
 
 - [ ] Phase 18 - Test suite reshaping
   - Branch: `refactor/phase-18`

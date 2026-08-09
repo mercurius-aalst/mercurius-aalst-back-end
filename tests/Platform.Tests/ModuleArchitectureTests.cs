@@ -341,7 +341,9 @@ public class ModuleArchitectureTests
         var competitionAssembly = Assembly.Load("Mercurius.Modules.Competition");
         var interfaces = new[]
         {
-            "Mercurius.Modules.Competition.Application.Services.GameService",
+            "Mercurius.Modules.Competition.Application.Services.IGameQueries",
+            "Mercurius.Modules.Competition.Application.Services.IGameManagementCommands",
+            "Mercurius.Modules.Competition.Application.Services.IGameLifecycleCommands",
             "Mercurius.Modules.Competition.Application.Services.IMatchService",
             "Mercurius.Modules.Competition.Application.Services.ITournamentRegistrationService"
         }
@@ -366,6 +368,46 @@ public class ModuleArchitectureTests
         }
 
         Assert.Null(competitionAssembly.GetType("Mercurius.Modules.Competition.Application.Services.IGameService", throwOnError: false));
+    }
+
+    [Fact]
+    public void CompetitionGameContracts_AreInternalAndSegregated()
+    {
+        var competitionAssembly = Assembly.Load("Mercurius.Modules.Competition");
+        var expectedMethodsByType = new Dictionary<string, string[]>
+        {
+            ["Mercurius.Modules.Competition.Application.Services.IGameQueries"] =
+            [
+                "GetAllGamesAsync",
+                "GetGameByIdAsync"
+            ],
+            ["Mercurius.Modules.Competition.Application.Services.IGameManagementCommands"] =
+            [
+                "CreateGameAsync",
+                "DeleteGameAsync",
+                "ReplaceSponsorPlacementsAsync",
+                "UpdateGameAsync"
+            ],
+            ["Mercurius.Modules.Competition.Application.Services.IGameLifecycleCommands"] =
+            [
+                "CancelGameAsync",
+                "CompleteGameAsync",
+                "ResetGameAsync",
+                "StartGameAsync"
+            ]
+        };
+
+        foreach (var (typeName, expectedMethods) in expectedMethodsByType)
+        {
+            var type = competitionAssembly.GetType(typeName, throwOnError: true)!;
+
+            Assert.False(type.IsPublic, $"{typeName} must remain an internal application contract.");
+            Assert.Equal(
+                expectedMethods.OrderBy(method => method, StringComparer.Ordinal),
+                type.GetMethods(BindingFlags.Public | BindingFlags.Instance)
+                    .Select(method => method.Name)
+                    .OrderBy(method => method, StringComparer.Ordinal));
+        }
     }
 
     private static HashSet<string> GetProjectReferences(string projectPath)

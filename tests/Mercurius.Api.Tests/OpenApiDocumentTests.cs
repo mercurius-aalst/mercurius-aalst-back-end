@@ -128,7 +128,9 @@ public class OpenApiDocumentTests
 
     private static void RegisterEndpointServices(IServiceCollection services)
     {
-        services.AddScoped<GameService>(_ => throw new NotSupportedException());
+        services.AddScoped<IGameQueries>(_ => throw new NotSupportedException());
+        services.AddScoped<IGameManagementCommands>(_ => throw new NotSupportedException());
+        services.AddScoped<IGameLifecycleCommands>(_ => throw new NotSupportedException());
         services.AddScoped<ITournamentRegistrationService>(_ => throw new NotSupportedException());
         services.AddScoped<IMatchService>(_ => throw new NotSupportedException());
         services.AddScoped<ITeamEndpointService>(_ => throw new NotSupportedException());

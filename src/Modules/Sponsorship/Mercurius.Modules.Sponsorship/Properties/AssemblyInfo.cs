@@ -1,3 +1,4 @@
 using System.Runtime.CompilerServices;
 
-[assembly: InternalsVisibleTo("Mercurius.LAN.API.Tests")]
+[assembly: InternalsVisibleTo("Mercurius.Modules.Sponsorship.Tests")]
+[assembly: InternalsVisibleTo("Mercurius.Modules.Competition.Tests")]

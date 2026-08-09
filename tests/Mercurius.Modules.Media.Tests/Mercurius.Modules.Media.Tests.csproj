@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Imageflow.AllPlatforms" Version="0.14.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Modules\Media\Mercurius.Modules.Media\Mercurius.Modules.Media.csproj" />
+  </ItemGroup>
+</Project>

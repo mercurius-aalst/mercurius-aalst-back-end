@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\MercuriusAPI\Mercurius.LAN.API.csproj" />
+  </ItemGroup>
+</Project>

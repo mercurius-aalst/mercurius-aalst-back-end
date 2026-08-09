@@ -12,10 +12,12 @@ public class TournamentRegistrationEndpointRouteTests
 {
     [Theory]
     [InlineData("GET", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/me")]
-    [InlineData("GET", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/eligibility/individual")]
-    [InlineData("POST", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/individual")]
+    [InlineData("GET", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/individual/eligibility")]
+    [InlineData("GET", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/teams/{teamId:guid}/eligibility")]
+    [InlineData("POST", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/teams/{teamId:guid}/roster/eligibility")]
+    [InlineData("PUT", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/individual/me")]
     [InlineData("PUT", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/teams/{teamId:guid}/roster")]
-    [InlineData("POST", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/roster-confirmations/{rosterMemberId:guid}/confirm")]
+    [InlineData("PATCH", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/roster-members/{rosterMemberId:guid}")]
     public void CurrentUserRegistrationRoutes_RequireAuthorization(string method, string routePattern)
     {
         var endpoint = GetRegistrationRouteEndpoint(method, routePattern);
@@ -45,6 +47,19 @@ public class TournamentRegistrationEndpointRouteTests
     public void LegacyGameParticipantMutationRoutes_AreRemoved(string method, string routePattern)
     {
         var endpoints = GetGameRouteEndpoints(method);
+
+        Assert.DoesNotContain(endpoints, endpoint => endpoint.RoutePattern.RawText == routePattern);
+    }
+
+    [Theory]
+    [InlineData("GET", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/eligibility/individual")]
+    [InlineData("GET", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/eligibility/teams/{teamId:guid}")]
+    [InlineData("POST", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/eligibility/teams/{teamId:guid}/roster")]
+    [InlineData("POST", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/individual")]
+    [InlineData("POST", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/roster-confirmations/{rosterMemberId:guid}/confirm")]
+    public void ReplacedRegistrationActionRoutes_AreRemoved(string method, string routePattern)
+    {
+        var endpoints = GetRegistrationRouteEndpoints(method);
 
         Assert.DoesNotContain(endpoints, endpoint => endpoint.RoutePattern.RawText == routePattern);
     }

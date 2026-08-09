@@ -200,7 +200,7 @@ public class TournamentRegistrationServiceTests
             roster.ConfirmationStatus == RosterMemberConfirmationStatus.Pending));
         Assert.Contains(publisher.Events, evt => evt.TeamId == team.Id && evt.UserId == member.Id && evt.Status == nameof(RosterMemberConfirmationStatus.Pending));
 
-        var active = await service.ConfirmRosterAsync(member.Auth0UserId, memberRoster.Id);
+        var active = await service.ConfirmRosterAsync(member.Auth0UserId, game.Id, memberRoster.Id);
 
         Assert.Equal(CompetitionRegistrationStatus.Active, active.Status);
         Assert.Contains(active.RosterMembers, roster => roster.User.Id == member.Id && roster.ConfirmationStatus == CompetitionRosterStatus.Confirmed);
@@ -284,11 +284,33 @@ public class TournamentRegistrationServiceTests
         var pending = await service.SubmitTeamRosterAsync(captain.Auth0UserId, game.Id, new SubmitTeamRosterDTO(team.Id, [captain.Id, member.Id]));
         var memberRoster = Assert.Single(pending.RosterMembers.Where(roster => roster.User.Id == member.Id));
 
-        await Assert.ThrowsAsync<NotFoundException>(() => service.ConfirmRosterAsync(other.Auth0UserId, memberRoster.Id));
+        await Assert.ThrowsAsync<NotFoundException>(() => service.ConfirmRosterAsync(other.Auth0UserId, game.Id, memberRoster.Id));
         Assert.True(await dbContext.Set<TournamentRegistrationRosterMember>().AnyAsync(roster => roster.Id == memberRoster.Id && roster.ConfirmationStatus == RosterMemberConfirmationStatus.Pending));
-        var active = await service.ConfirmRosterAsync(member.Auth0UserId, memberRoster.Id);
+        var active = await service.ConfirmRosterAsync(member.Auth0UserId, game.Id, memberRoster.Id);
 
         Assert.Equal(CompetitionRegistrationStatus.Active, active.Status);
+    }
+
+    [Fact]
+    public async Task ConfirmRosterAsync_RequiresRosterMemberToBelongToGame()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser("captain");
+        var member = CreateUser("member");
+        var team = CreateTeam(captain, member);
+        var game = CreateTeamGame(teamSize: 2);
+        dbContext.Users.AddRange(captain, member);
+        dbContext.Teams.Add(team);
+        dbContext.Set<Game>().Add(game);
+        await dbContext.SaveChangesAsync();
+        var service = CreateService(dbContext);
+        var pending = await service.SubmitTeamRosterAsync(captain.Auth0UserId, game.Id, new SubmitTeamRosterDTO(team.Id, [captain.Id, member.Id]));
+        var memberRoster = Assert.Single(pending.RosterMembers.Where(roster => roster.User.Id == member.Id));
+
+        await Assert.ThrowsAsync<NotFoundException>(() => service.ConfirmRosterAsync(member.Auth0UserId, Guid.NewGuid(), memberRoster.Id));
+
+        Assert.True(await dbContext.Set<TournamentRegistrationRosterMember>().AnyAsync(roster =>
+            roster.Id == memberRoster.Id && roster.ConfirmationStatus == RosterMemberConfirmationStatus.Pending));
     }
 
     [Fact]

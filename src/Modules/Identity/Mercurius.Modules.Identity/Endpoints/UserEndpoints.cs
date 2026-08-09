@@ -53,12 +53,6 @@ internal static class UserEndpoints
         })
         .RequireAuthorization();
 
-        group.MapPost("/me/complete-profile", async (CompleteUserProfileRequest request, ClaimsPrincipal user, IUserService userService) =>
-        {
-            return await userService.CompleteProfileAsync(GetAuth0UserId(user), request);
-        })
-        .RequireAuthorization();
-
         group.MapGet("/me/username-availability", async (string username, ClaimsPrincipal user, IUserService userService) =>
         {
             return await userService.CheckUsernameAvailabilityAsync(GetAuth0UserId(user), username);

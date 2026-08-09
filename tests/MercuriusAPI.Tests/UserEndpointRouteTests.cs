@@ -53,6 +53,26 @@ public class UserEndpointRouteTests
         Assert.Contains(endpoint.Metadata, metadata => metadata is IAuthorizeData);
     }
 
+    [Theory]
+    [InlineData("POST", "v{version:apiVersion}/lan/users/me/resend-verification-email")]
+    [InlineData("POST", "v{version:apiVersion}/lan/users/me/password-reset")]
+    public void CurrentUserIdentityCommandRoutes_RequireAuthorization(string method, string routePattern)
+    {
+        var endpoint = GetUserRouteEndpoint(method, routePattern);
+
+        Assert.DoesNotContain(endpoint.Metadata, metadata => metadata is IAllowAnonymous);
+        Assert.Contains(endpoint.Metadata, metadata => metadata is IAuthorizeData);
+    }
+
+    [Theory]
+    [InlineData("POST", "v{version:apiVersion}/lan/users/me/complete-profile")]
+    public void ReplacedCurrentUserActionRoutes_AreRemoved(string method, string routePattern)
+    {
+        var endpoints = GetUserRouteEndpoints(method);
+
+        Assert.DoesNotContain(endpoints, endpoint => endpoint.RoutePattern.RawText == routePattern);
+    }
+
     [Fact]
     public void UserCollectionRoute_UsesAuthenticatedSearchRateLimitPolicy()
     {

@@ -15,12 +15,12 @@ public class TeamEndpointRouteTests
     [InlineData("GET", "v{version:apiVersion}/lan/teams/me/summary")]
     [InlineData("GET", "v{version:apiVersion}/lan/teams/me/invites")]
     [InlineData("GET", "v{version:apiVersion}/lan/teams/me/sent-invites")]
-    [InlineData("POST", "v{version:apiVersion}/lan/teams/{id}/leave")]
-    [InlineData("POST", "v{version:apiVersion}/lan/teams/{id}/invites/{userId}")]
+    [InlineData("DELETE", "v{version:apiVersion}/lan/teams/{id:guid}/members/me")]
+    [InlineData("POST", "v{version:apiVersion}/lan/teams/{id:guid}/invites")]
     [InlineData("DELETE", "v{version:apiVersion}/lan/teams/{id}/invites/{inviteId}")]
-    [InlineData("PUT", "v{version:apiVersion}/lan/teams/invites/{inviteId}")]
+    [InlineData("PATCH", "v{version:apiVersion}/lan/team-invites/{inviteId:guid}")]
     [InlineData("PUT", "v{version:apiVersion}/lan/teams/{id}/captain")]
-    [InlineData("POST", "v{version:apiVersion}/lan/teams/{id}/logo")]
+    [InlineData("PUT", "v{version:apiVersion}/lan/teams/{id}/logo")]
     [InlineData("DELETE", "v{version:apiVersion}/lan/teams/{id}/logo")]
     public void UserOwnedTeamMutationRoutes_RequireAuthorization(string method, string routePattern)
     {
@@ -38,6 +38,18 @@ public class TeamEndpointRouteTests
     [InlineData("PUT", "v{version:apiVersion}/lan/teams/{id}/users/invite/{userId}")]
     [InlineData("GET", "v{version:apiVersion}/lan/teams/users/{userId}/invites")]
     public void AdminOnlyTeamMutationRoutes_AreRemoved(string method, string routePattern)
+    {
+        var endpoints = GetTeamRouteEndpoints(method);
+
+        Assert.DoesNotContain(endpoints, endpoint => endpoint.RoutePattern.RawText == routePattern);
+    }
+
+    [Theory]
+    [InlineData("POST", "v{version:apiVersion}/lan/teams/{id}/leave")]
+    [InlineData("POST", "v{version:apiVersion}/lan/teams/{id}/invites/{userId}")]
+    [InlineData("PUT", "v{version:apiVersion}/lan/teams/invites/{inviteId}")]
+    [InlineData("POST", "v{version:apiVersion}/lan/teams/{id}/logo")]
+    public void ReplacedTeamActionRoutes_AreRemoved(string method, string routePattern)
     {
         var endpoints = GetTeamRouteEndpoints(method);
 

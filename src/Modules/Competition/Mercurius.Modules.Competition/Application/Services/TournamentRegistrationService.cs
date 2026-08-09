@@ -281,6 +281,7 @@ internal sealed class TournamentRegistrationService : ITournamentRegistrationSer
 
     public async Task<TournamentRegistrationDTO> ConfirmRosterAsync(
         string auth0UserId,
+        Guid gameId,
         Guid rosterMemberId,
         CancellationToken cancellationToken = default)
     {
@@ -292,7 +293,7 @@ internal sealed class TournamentRegistrationService : ITournamentRegistrationSer
             .Include(roster => roster.TournamentRegistration)
                 .ThenInclude(registration => registration.Game)
             .FirstOrDefaultAsync(
-                roster => roster.Id == rosterMemberId && roster.UserId == userId,
+                roster => roster.Id == rosterMemberId && roster.GameId == gameId && roster.UserId == userId,
                 cancellationToken);
         if (member is null || member.ConfirmationStatus != RosterMemberConfirmationStatus.Pending)
             throw new NotFoundException("Pending roster confirmation not found.");

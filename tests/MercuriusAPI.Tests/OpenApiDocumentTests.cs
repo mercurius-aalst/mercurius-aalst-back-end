@@ -46,22 +46,40 @@ public class OpenApiDocumentTests
             AssertPathHasOperation(document, "/v1/lan/games", OperationType.Get);
             AssertPathHasOperation(document, "/v1/lan/games/{id}", OperationType.Get);
             AssertPathHasOperation(document, "/v1/lan/games/{id}", OperationType.Patch);
+            AssertPathHasOperation(document, "/v1/lan/games/{id}/lifecycle-state", OperationType.Put);
             AssertPathHasOperation(document, "/v1/lan/teams", OperationType.Get);
             AssertPathHasOperation(document, "/v1/lan/teams/{id}", OperationType.Delete);
+            AssertPathHasOperation(document, "/v1/lan/teams/{id}/members/me", OperationType.Delete);
+            AssertPathHasOperation(document, "/v1/lan/teams/{id}/invites", OperationType.Post);
+            AssertPathHasOperation(document, "/v1/lan/team-invites/{inviteId}", OperationType.Patch);
+            AssertPathHasOperation(document, "/v1/lan/teams/{id}/logo", OperationType.Put);
             AssertPathHasOperation(document, "/v1/lan/public/teams/{teamName}", OperationType.Get);
             AssertPathHasOperation(document, "/v1/lan/users/me", OperationType.Get);
             AssertPathHasOperation(document, "/v1/lan/public/users/{username}", OperationType.Get);
             AssertPathHasOperation(document, "/v1/lan/games/{gameId}/registrations/me", OperationType.Get);
+            AssertPathHasOperation(document, "/v1/lan/games/{gameId}/registrations/individual/eligibility", OperationType.Get);
+            AssertPathHasOperation(document, "/v1/lan/games/{gameId}/registrations/teams/{teamId}/eligibility", OperationType.Get);
+            AssertPathHasOperation(document, "/v1/lan/games/{gameId}/registrations/teams/{teamId}/roster/eligibility", OperationType.Post);
+            AssertPathHasOperation(document, "/v1/lan/games/{gameId}/registrations/individual/me", OperationType.Put);
+            AssertPathHasOperation(document, "/v1/lan/games/{gameId}/registrations/roster-members/{rosterMemberId}", OperationType.Patch);
             AssertPathHasOperation(document, "/v1/lan/games/{gameId}/registrations/admin", OperationType.Get);
             AssertPathHasOperation(document, "/v1/lan/search", OperationType.Get);
             AssertPathHasOperation(document, "/v1/lan/sponsors", OperationType.Post);
             AssertPathHasOperation(document, "/v1/lan/matches/{id}", OperationType.Put);
+            AssertPathIsAbsent(document, "/v1/lan/games/{id}/start");
+            AssertPathIsAbsent(document, "/v1/lan/teams/{id}/leave");
+            AssertPathIsAbsent(document, "/v1/lan/users/me/complete-profile");
             Assert.DoesNotContain(document.Paths.Keys, path => path.StartsWith("/v2/", StringComparison.OrdinalIgnoreCase));
         }
         finally
         {
             await app.StopAsync();
         }
+    }
+
+    private static void AssertPathIsAbsent(OpenApiDocument document, string path)
+    {
+        Assert.DoesNotContain(document.Paths.Keys, candidate => string.Equals(candidate.TrimEnd('/'), path, StringComparison.Ordinal));
     }
 
     private static void AssertPathHasOperation(OpenApiDocument document, string path, OperationType operation)

@@ -153,7 +153,8 @@ Do not start the next phase from an unmerged previous phase branch.
   - PR: [#116 Phase 19: remove transitional module adapters](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/116)
   - Notes: Removes obsolete Teams and Competition service contracts, production no-op fallbacks,
     and unused Scrutor wiring. Module composition now requires its Media, Competition, realtime,
-    and durable-event dependencies explicitly; routes, JSON, authorization, and persistence remain unchanged.
+    and durable-event dependencies explicitly. It also restores Phase 11 migration discovery and synchronizes
+    EF snapshot/catalog metadata; routes, JSON, authorization, and runtime behavior remain unchanged.
 
 ## Phase 1 Handoff Notes
 

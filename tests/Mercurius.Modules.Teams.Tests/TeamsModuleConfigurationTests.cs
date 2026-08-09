@@ -26,8 +26,12 @@ public class TeamsModuleConfigurationTests
 
         AssertLifetime<ITeamsDbContext>(services, ServiceLifetime.Scoped);
         AssertLifetime<ITeamsModule>(services, ServiceLifetime.Transient);
-        AssertLifetime<TeamService>(services, ServiceLifetime.Transient);
-        AssertLifetime<TeamEventPublishingDecorator>(services, ServiceLifetime.Transient);
+        AssertLifetime<TeamService>(services, ServiceLifetime.Scoped);
+        AssertLifetime<ITeamQueries>(services, ServiceLifetime.Scoped);
+        AssertLifetime<ITeamLogoCommands>(services, ServiceLifetime.Scoped);
+        AssertLifetime<TeamEventPublishingDecorator>(services, ServiceLifetime.Scoped);
+        AssertLifetime<ITeamManagementCommands>(services, ServiceLifetime.Scoped);
+        AssertLifetime<ITeamInviteWorkflows>(services, ServiceLifetime.Scoped);
         AssertLifetime<ITeamEndpointService>(services, ServiceLifetime.Transient);
         AssertLifetime<ITeamEventPublisher>(services, ServiceLifetime.Transient);
         AssertLifetime<Mercurius.Modules.Teams.Contracts.ITeamRealtimeAuthorizer>(services, ServiceLifetime.Transient);
@@ -35,19 +39,36 @@ public class TeamsModuleConfigurationTests
         using var provider = services.BuildServiceProvider();
         using var scope = provider.CreateScope();
 
-        var endpointService = scope.ServiceProvider.GetRequiredService<ITeamEndpointService>();
-        var teamService = scope.ServiceProvider.GetRequiredService<TeamEventPublishingDecorator>();
+        var endpointService = Assert.IsType<TeamEndpointService>(
+            scope.ServiceProvider.GetRequiredService<ITeamEndpointService>());
+        var queries = scope.ServiceProvider.GetRequiredService<ITeamQueries>();
+        var logoCommands = scope.ServiceProvider.GetRequiredService<ITeamLogoCommands>();
+        var managementCommands = scope.ServiceProvider.GetRequiredService<ITeamManagementCommands>();
+        var inviteWorkflows = scope.ServiceProvider.GetRequiredService<ITeamInviteWorkflows>();
         var teamsModule = scope.ServiceProvider.GetRequiredService<ITeamsModule>();
 
-        Assert.IsType<TeamEndpointService>(endpointService);
-        Assert.IsType<TeamEventPublishingDecorator>(teamService);
+        Assert.IsType<TeamService>(queries);
+        Assert.Same(queries, logoCommands);
+        var decorator = Assert.IsType<TeamEventPublishingDecorator>(managementCommands);
+        Assert.Same(decorator, inviteWorkflows);
         Assert.IsType<TeamsModuleFacade>(teamsModule);
 
         var innerService = typeof(TeamEventPublishingDecorator)
             .GetField("_inner", BindingFlags.Instance | BindingFlags.NonPublic)?
-            .GetValue(teamService);
+            .GetValue(decorator);
 
-        Assert.IsType<TeamService>(innerService);
+        Assert.Same(queries, innerService);
+        Assert.Same(queries, GetPrivateField(endpointService, "_queries"));
+        Assert.Same(decorator, GetPrivateField(endpointService, "_managementCommands"));
+        Assert.Same(decorator, GetPrivateField(endpointService, "_inviteWorkflows"));
+        Assert.Same(logoCommands, GetPrivateField(endpointService, "_logoCommands"));
+    }
+
+    private static object? GetPrivateField(object instance, string fieldName)
+    {
+        return instance.GetType()
+            .GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic)?
+            .GetValue(instance);
     }
 
     [Fact]

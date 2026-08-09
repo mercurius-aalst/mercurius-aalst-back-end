@@ -13,7 +13,7 @@ using Microsoft.AspNetCore.Http;
 
 namespace Mercurius.Modules.Teams.Services;
 
-internal sealed class TeamService
+internal sealed class TeamService : ITeamQueries, ITeamManagementCommands, ITeamInviteWorkflows, ITeamLogoCommands
 {
     private const int MaxCaptainedTeams = 2;
     private const int MaxTeamSearchResults = 25;

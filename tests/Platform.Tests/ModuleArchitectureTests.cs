@@ -240,6 +240,10 @@ public class ModuleArchitectureTests
         {
             "Mercurius.Modules.Teams.Services.TeamService",
             "Mercurius.Modules.Teams.Services.TeamEventPublishingDecorator",
+            "Mercurius.Modules.Teams.Services.ITeamQueries",
+            "Mercurius.Modules.Teams.Services.ITeamManagementCommands",
+            "Mercurius.Modules.Teams.Services.ITeamInviteWorkflows",
+            "Mercurius.Modules.Teams.Services.ITeamLogoCommands",
             "Mercurius.Modules.Teams.Services.ITeamEndpointService",
             "Mercurius.Modules.Teams.Services.TeamEndpointService",
             "Mercurius.Modules.Teams.Services.RealtimeTeamEventPublisher",
@@ -260,8 +264,134 @@ public class ModuleArchitectureTests
         }
 
         Assert.Null(assembly.GetType("Mercurius.Modules.Teams.Services.ITeamService", throwOnError: false));
+        Assert.Null(assembly.GetType("Mercurius.Modules.Teams.Services.ITeamApplicationService", throwOnError: false));
         Assert.Null(assembly.GetType("Mercurius.Modules.Teams.Services.NullTeamEventPublisher", throwOnError: false));
         Assert.Null(assembly.GetType("Mercurius.Modules.Teams.Services.NullTeamCompetitionReadService", throwOnError: false));
+    }
+
+    [Fact]
+    public void TeamsApplicationContracts_RequireTrailingCancellationToken()
+    {
+        var teamsAssembly = Assembly.Load("Mercurius.Modules.Teams");
+        var interfaces = new[]
+        {
+            "Mercurius.Modules.Teams.Services.ITeamQueries",
+            "Mercurius.Modules.Teams.Services.ITeamManagementCommands",
+            "Mercurius.Modules.Teams.Services.ITeamInviteWorkflows",
+            "Mercurius.Modules.Teams.Services.ITeamLogoCommands",
+            "Mercurius.Modules.Teams.Services.ITeamEndpointService"
+        }
+            .Select(typeName => teamsAssembly.GetType(typeName, throwOnError: true)!)
+            .ToArray();
+
+        foreach (var interfaceType in interfaces)
+        {
+            var asyncMethods = interfaceType
+                .GetMethods(BindingFlags.Public | BindingFlags.Instance)
+                .Where(method => typeof(Task).IsAssignableFrom(method.ReturnType));
+
+            foreach (var method in asyncMethods)
+            {
+                var cancellationToken = method.GetParameters().Last();
+
+                Assert.Equal(typeof(CancellationToken), cancellationToken.ParameterType);
+                Assert.True(
+                    cancellationToken.HasDefaultValue,
+                    $"{interfaceType.Name}.{method.Name} should default its cancellation token.");
+            }
+        }
+    }
+
+    [Fact]
+    public void TeamsContracts_AreInternalAndSegregated()
+    {
+        var teamsAssembly = Assembly.Load("Mercurius.Modules.Teams");
+        var expectedMethodsByType = new Dictionary<string, string[]>
+        {
+            ["Mercurius.Modules.Teams.Services.ITeamQueries"] =
+            [
+                "GetAllTeamsAsync",
+                "GetPublicTeamProfileAsync",
+                "GetTeamByIdAsync"
+            ],
+            ["Mercurius.Modules.Teams.Services.ITeamManagementCommands"] =
+            [
+                "CreateCurrentUserTeamAsync",
+                "DeleteTeamAsync",
+                "LeaveTeamAsync",
+                "RemoveMemberAsync",
+                "TransferCaptainAsync"
+            ],
+            ["Mercurius.Modules.Teams.Services.ITeamInviteWorkflows"] =
+            [
+                "CancelInviteAsync",
+                "GetCurrentUserInvitesAsync",
+                "GetCurrentUserSentInvitesAsync",
+                "GetCurrentUserTeamSummaryAsync",
+                "InviteUserAsync",
+                "RespondToInviteAsync"
+            ],
+            ["Mercurius.Modules.Teams.Services.ITeamLogoCommands"] =
+            [
+                "RemoveTeamLogoAsync",
+                "UploadTeamLogoAsync"
+            ]
+        };
+
+        foreach (var (typeName, expectedMethods) in expectedMethodsByType)
+        {
+            var type = teamsAssembly.GetType(typeName, throwOnError: true)!;
+            var actualMethods = type.GetMethods().Select(method => method.Name);
+
+            Assert.False(type.IsPublic, $"{typeName} must remain an internal application contract.");
+            Assert.Equal(
+                expectedMethods.OrderBy(method => method, StringComparer.Ordinal),
+                actualMethods.OrderBy(method => method, StringComparer.Ordinal));
+        }
+    }
+
+    [Fact]
+    public void TeamApplicationImplementations_UseOnlyTheirNecessaryFocusedContracts()
+    {
+        var teamsAssembly = Assembly.Load("Mercurius.Modules.Teams");
+        var queriesType = teamsAssembly.GetType("Mercurius.Modules.Teams.Services.ITeamQueries", throwOnError: true)!;
+        var commandsType = teamsAssembly.GetType("Mercurius.Modules.Teams.Services.ITeamManagementCommands", throwOnError: true)!;
+        var inviteWorkflowsType = teamsAssembly.GetType("Mercurius.Modules.Teams.Services.ITeamInviteWorkflows", throwOnError: true)!;
+        var logoCommandsType = teamsAssembly.GetType("Mercurius.Modules.Teams.Services.ITeamLogoCommands", throwOnError: true)!;
+        var teamServiceType = teamsAssembly.GetType("Mercurius.Modules.Teams.Services.TeamService", throwOnError: true)!;
+        var decoratorType = teamsAssembly.GetType("Mercurius.Modules.Teams.Services.TeamEventPublishingDecorator", throwOnError: true)!;
+
+        Assert.Contains(queriesType, teamServiceType.GetInterfaces());
+        Assert.Contains(commandsType, teamServiceType.GetInterfaces());
+        Assert.Contains(inviteWorkflowsType, teamServiceType.GetInterfaces());
+        Assert.Contains(logoCommandsType, teamServiceType.GetInterfaces());
+
+        Assert.DoesNotContain(queriesType, decoratorType.GetInterfaces());
+        Assert.Contains(commandsType, decoratorType.GetInterfaces());
+        Assert.Contains(inviteWorkflowsType, decoratorType.GetInterfaces());
+        Assert.DoesNotContain(logoCommandsType, decoratorType.GetInterfaces());
+    }
+
+    [Fact]
+    public void TeamEndpointService_DependsOnFocusedTeamApplicationContracts()
+    {
+        var teamsAssembly = Assembly.Load("Mercurius.Modules.Teams");
+        var endpointServiceType = teamsAssembly.GetType("Mercurius.Modules.Teams.Services.TeamEndpointService", throwOnError: true)!;
+        var queriesType = teamsAssembly.GetType("Mercurius.Modules.Teams.Services.ITeamQueries", throwOnError: true)!;
+        var commandsType = teamsAssembly.GetType("Mercurius.Modules.Teams.Services.ITeamManagementCommands", throwOnError: true)!;
+        var inviteWorkflowsType = teamsAssembly.GetType("Mercurius.Modules.Teams.Services.ITeamInviteWorkflows", throwOnError: true)!;
+        var logoCommandsType = teamsAssembly.GetType("Mercurius.Modules.Teams.Services.ITeamLogoCommands", throwOnError: true)!;
+        var decoratorType = teamsAssembly.GetType("Mercurius.Modules.Teams.Services.TeamEventPublishingDecorator", throwOnError: true)!;
+        var teamServiceType = teamsAssembly.GetType("Mercurius.Modules.Teams.Services.TeamService", throwOnError: true)!;
+
+        var dependencyTypes = GetDeclaredDependencyTypes(endpointServiceType);
+
+        Assert.Contains(queriesType, dependencyTypes);
+        Assert.Contains(commandsType, dependencyTypes);
+        Assert.Contains(inviteWorkflowsType, dependencyTypes);
+        Assert.Contains(logoCommandsType, dependencyTypes);
+        Assert.DoesNotContain(decoratorType, dependencyTypes);
+        Assert.DoesNotContain(teamServiceType, dependencyTypes);
     }
 
     [Fact]

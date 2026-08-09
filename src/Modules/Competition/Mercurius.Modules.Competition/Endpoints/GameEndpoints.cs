@@ -1,6 +1,7 @@
 using Asp.Versioning;
 using Mercurius.Modules.Competition.Application.DTOs.Games;
 using Mercurius.Modules.Competition.Application.Services;
+using Mercurius.Modules.Competition.Contracts;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -53,24 +54,27 @@ internal static class GameEndpoints
             return await gameService.ReplaceSponsorPlacementsAsync(id, sponsorDTO, cancellationToken);
         });
 
-        group.MapPost("/{id}/start", async (Guid id, IGameService gameService, CancellationToken cancellationToken) =>
+        group.MapPut("/{id}/lifecycle-state", async Task<IResult> (Guid id, UpdateGameLifecycleStateRequestDTO request, IGameService gameService, CancellationToken cancellationToken) =>
         {
-            await gameService.StartGameAsync(id, cancellationToken);
-        });
+            if (request.State is not { } state || !Enum.IsDefined(state))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["state"] = ["A supported game lifecycle state is required."] });
 
-        group.MapPost("/{id}/reset", async (Guid id, IGameService gameService, CancellationToken cancellationToken) =>
-        {
-            await gameService.ResetGameAsync(id, cancellationToken);
-        });
-
-        group.MapPost("/{id}/complete", async (Guid id, IGameService gameService, CancellationToken cancellationToken) =>
-        {
-            return await gameService.CompleteGameAsync(id, cancellationToken);
-        });
-
-        group.MapPost("/{id}/cancel", async (Guid id, IGameService gameService, CancellationToken cancellationToken) =>
-        {
-            await gameService.CancelGameAsync(id, cancellationToken);
+            switch (state)
+            {
+                case GameStatus.Scheduled:
+                    await gameService.ResetGameAsync(id, cancellationToken);
+                    return Results.Ok();
+                case GameStatus.InProgress:
+                    await gameService.StartGameAsync(id, cancellationToken);
+                    return Results.Ok();
+                case GameStatus.Completed:
+                    return Results.Ok(await gameService.CompleteGameAsync(id, cancellationToken));
+                case GameStatus.Canceled:
+                    await gameService.CancelGameAsync(id, cancellationToken);
+                    return Results.Ok();
+                default:
+                    return Results.ValidationProblem(new Dictionary<string, string[]> { ["state"] = ["A supported game lifecycle state is required."] });
+            }
         });
 
         return group;

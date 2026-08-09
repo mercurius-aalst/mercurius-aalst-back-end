@@ -1,6 +1,7 @@
 using Asp.Versioning;
 using Mercurius.Modules.Competition.Application.DTOs.Registrations;
 using Mercurius.Modules.Competition.Application.Services;
+using Mercurius.Modules.Competition.Contracts;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -27,25 +28,25 @@ internal static class TournamentRegistrationEndpoints
         })
         .RequireAuthorization();
 
-        group.MapGet("/eligibility/individual", async (Guid gameId, ClaimsPrincipal user, ITournamentRegistrationService registrationService, CancellationToken cancellationToken) =>
+        group.MapGet("/individual/eligibility", async (Guid gameId, ClaimsPrincipal user, ITournamentRegistrationService registrationService, CancellationToken cancellationToken) =>
         {
             return await registrationService.CheckIndividualEligibilityAsync(GetAuth0UserId(user), gameId, cancellationToken);
         })
         .RequireAuthorization();
 
-        group.MapGet("/eligibility/teams/{teamId:guid}", async (Guid gameId, Guid teamId, ClaimsPrincipal user, ITournamentRegistrationService registrationService, CancellationToken cancellationToken) =>
+        group.MapGet("/teams/{teamId:guid}/eligibility", async (Guid gameId, Guid teamId, ClaimsPrincipal user, ITournamentRegistrationService registrationService, CancellationToken cancellationToken) =>
         {
             return await registrationService.CheckTeamEligibilityAsync(GetAuth0UserId(user), gameId, teamId, cancellationToken);
         })
         .RequireAuthorization();
 
-        group.MapPost("/eligibility/teams/{teamId:guid}/roster", async (Guid gameId, Guid teamId, SubmitTeamRosterDTO request, ClaimsPrincipal user, ITournamentRegistrationService registrationService, CancellationToken cancellationToken) =>
+        group.MapPost("/teams/{teamId:guid}/roster/eligibility", async (Guid gameId, Guid teamId, SubmitTeamRosterDTO request, ClaimsPrincipal user, ITournamentRegistrationService registrationService, CancellationToken cancellationToken) =>
         {
             return await registrationService.CheckRosterEligibilityAsync(GetAuth0UserId(user), gameId, teamId, request.UserIds, cancellationToken);
         })
         .RequireAuthorization();
 
-        group.MapPost("/individual", async (Guid gameId, ClaimsPrincipal user, ITournamentRegistrationService registrationService, CancellationToken cancellationToken) =>
+        group.MapPut("/individual/me", async (Guid gameId, ClaimsPrincipal user, ITournamentRegistrationService registrationService, CancellationToken cancellationToken) =>
         {
             return await registrationService.RegisterIndividualAsync(GetAuth0UserId(user), gameId, cancellationToken);
         })
@@ -72,9 +73,12 @@ internal static class TournamentRegistrationEndpoints
         })
         .RequireAuthorization();
 
-        group.MapPost("/roster-confirmations/{rosterMemberId:guid}/confirm", async (Guid rosterMemberId, ClaimsPrincipal user, ITournamentRegistrationService registrationService, CancellationToken cancellationToken) =>
+        group.MapPatch("/roster-members/{rosterMemberId:guid}", async Task<IResult> (Guid gameId, UpdateRosterMemberConfirmationRequestDTO request, Guid rosterMemberId, ClaimsPrincipal user, ITournamentRegistrationService registrationService, CancellationToken cancellationToken) =>
         {
-            return await registrationService.ConfirmRosterAsync(GetAuth0UserId(user), rosterMemberId, cancellationToken);
+            if (request.ConfirmationStatus is not RosterMemberConfirmationStatus.Confirmed)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["confirmationStatus"] = ["Only the Confirmed status is supported."] });
+
+            return Results.Ok(await registrationService.ConfirmRosterAsync(GetAuth0UserId(user), gameId, rosterMemberId, cancellationToken));
         })
         .RequireAuthorization();
 

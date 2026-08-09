@@ -28,6 +28,11 @@ internal static class TeamEndpoints
             .MapToApiVersion(new ApiVersion(1, 0))
             .WithTags("Public Teams");
 
+        var inviteGroup = endpoints.MapGroup("v{version:apiVersion}/lan/team-invites")
+            .WithApiVersionSet(apiVersionSet)
+            .MapToApiVersion(new ApiVersion(1, 0))
+            .WithTags("Team Invites");
+
         group.MapGet("/", async ([FromServices] ITeamEndpointService teamService, CancellationToken cancellationToken) =>
         {
             return await teamService.GetAllTeamsAsync(cancellationToken);
@@ -64,7 +69,7 @@ internal static class TeamEndpoints
         })
         .RequireAuthorization();
 
-        group.MapPost("/{id}/leave", async (Guid id, ClaimsPrincipal user, [FromServices] ITeamEndpointService teamService, CancellationToken cancellationToken) =>
+        group.MapDelete("/{id:guid}/members/me", async (Guid id, ClaimsPrincipal user, [FromServices] ITeamEndpointService teamService, CancellationToken cancellationToken) =>
         {
             return await teamService.LeaveTeamAsync(GetAuth0UserId(user), id, cancellationToken);
         })
@@ -83,9 +88,12 @@ internal static class TeamEndpoints
         })
         .RequireAuthorization();
 
-        group.MapPost("/{id}/invites/{userId}", async (Guid id, Guid userId, ClaimsPrincipal user, [FromServices] ITeamEndpointService teamService, CancellationToken cancellationToken) =>
+        group.MapPost("/{id:guid}/invites", async Task<IResult> (Guid id, CreateTeamInviteRequestDTO request, ClaimsPrincipal user, [FromServices] ITeamEndpointService teamService, CancellationToken cancellationToken) =>
         {
-            return await teamService.InviteUserAsync(GetAuth0UserId(user), id, userId, cancellationToken);
+            if (request.UserId is not { } userId || userId == Guid.Empty)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["userId"] = ["A recipient user id is required."] });
+
+            return Results.Ok(await teamService.InviteUserAsync(GetAuth0UserId(user), id, userId, cancellationToken));
         })
         .RequireAuthorization();
 
@@ -95,7 +103,7 @@ internal static class TeamEndpoints
         })
         .RequireAuthorization();
 
-        group.MapPut("/invites/{inviteId}", async (Guid inviteId, RespondTeamInviteRequestDTO request, ClaimsPrincipal user, [FromServices] ITeamEndpointService teamService, CancellationToken cancellationToken) =>
+        inviteGroup.MapPatch("/{inviteId:guid}", async (Guid inviteId, RespondTeamInviteRequestDTO request, ClaimsPrincipal user, [FromServices] ITeamEndpointService teamService, CancellationToken cancellationToken) =>
         {
             return await teamService.RespondToInviteAsync(GetAuth0UserId(user), inviteId, request.Accept, cancellationToken);
         })
@@ -107,7 +115,7 @@ internal static class TeamEndpoints
         })
         .RequireAuthorization();
 
-        group.MapPost("/{id}/logo", async (Guid id, IFormFile logo, ClaimsPrincipal user, [FromServices] ITeamEndpointService teamService, CancellationToken cancellationToken) =>
+        group.MapPut("/{id}/logo", async (Guid id, IFormFile logo, ClaimsPrincipal user, [FromServices] ITeamEndpointService teamService, CancellationToken cancellationToken) =>
         {
             return await teamService.UploadTeamLogoAsync(GetAuth0UserId(user), id, logo, cancellationToken);
         })

@@ -53,12 +53,6 @@ internal static class UserEndpoints
         })
         .RequireAuthorization();
 
-        group.MapPost("/me/complete-profile", async (CompleteUserProfileRequest request, ClaimsPrincipal user, IUserService userService) =>
-        {
-            return await userService.CompleteProfileAsync(GetAuth0UserId(user), request);
-        })
-        .RequireAuthorization();
-
         group.MapGet("/me/username-availability", async (string username, ClaimsPrincipal user, IUserService userService) =>
         {
             return await userService.CheckUsernameAvailabilityAsync(GetAuth0UserId(user), username);
@@ -84,13 +78,13 @@ internal static class UserEndpoints
         .RequireAuthorization()
         .RequireRateLimiting("authenticated-search");
 
-        group.MapPost("/me/resend-verification-email", async (ClaimsPrincipal user, IUserService userService) =>
+        group.MapPost("/me/email-verification-requests", async (ClaimsPrincipal user, IUserService userService) =>
         {
             return await userService.ResendVerificationEmailAsync(GetAuth0UserId(user));
         })
         .RequireAuthorization();
 
-        group.MapPost("/me/password-reset", async (ClaimsPrincipal user, IUserService userService) =>
+        group.MapPost("/me/password-reset-requests", async (ClaimsPrincipal user, IUserService userService) =>
         {
             return await userService.SendPasswordResetEmailAsync(GetAuth0UserId(user));
         })

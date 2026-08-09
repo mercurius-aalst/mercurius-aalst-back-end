@@ -10,7 +10,7 @@ internal interface ITournamentRegistrationService
     Task<TournamentRegistrationDTO> RegisterIndividualAsync(string auth0UserId, Guid gameId, CancellationToken cancellationToken = default);
     Task UnregisterIndividualAsync(string auth0UserId, Guid gameId, CancellationToken cancellationToken = default);
     Task<TournamentRegistrationDTO> SubmitTeamRosterAsync(string auth0UserId, Guid gameId, SubmitTeamRosterDTO request, CancellationToken cancellationToken = default);
-    Task<TournamentRegistrationDTO> ConfirmRosterAsync(string auth0UserId, Guid rosterMemberId, CancellationToken cancellationToken = default);
+    Task<TournamentRegistrationDTO> ConfirmRosterAsync(string auth0UserId, Guid gameId, Guid rosterMemberId, CancellationToken cancellationToken = default);
     Task UnregisterTeamAsync(string auth0UserId, Guid gameId, Guid teamId, CancellationToken cancellationToken = default);
     Task<CurrentUserTournamentRegistrationStateDTO> GetCurrentUserStateAsync(string auth0UserId, Guid gameId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<AdminTournamentRegistrationDTO>> GetAdminRegistrationsAsync(Guid gameId, CancellationToken cancellationToken = default);

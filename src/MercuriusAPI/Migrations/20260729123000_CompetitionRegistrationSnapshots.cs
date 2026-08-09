@@ -1,10 +1,14 @@
+using Mercurius.LAN.API.Data;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace Mercurius.LAN.API.Migrations;
 
 /// <summary>
-/// Hand-authored migration for Phase 11. The EF model snapshot is intentionally left unchanged.
+/// Hand-authored migration for Phase 11. The EF model snapshot is synchronized by a later migration.
 /// </summary>
+[DbContext(typeof(MercuriusDBContext))]
+[Migration("20260729123000_CompetitionRegistrationSnapshots")]
 public partial class CompetitionRegistrationSnapshots : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)
@@ -45,9 +49,9 @@ public partial class CompetitionRegistrationSnapshots : Migration
               AND COALESCE(registration."RegisteredByUsernameAtRegistration", '') = '';
 
             UPDATE "TournamentRegistrations" AS registration
-            SET "UsernameAtRegistration" = current_user."Username"
-            FROM "Users" AS current_user
-            WHERE registration."UserId" = current_user."Id"
+            SET "UsernameAtRegistration" = user_profile."Username"
+            FROM "Users" AS user_profile
+            WHERE registration."UserId" = user_profile."Id"
               AND registration."UserId" IS NOT NULL
               AND registration."UsernameAtRegistration" IS NULL;
 
@@ -67,15 +71,15 @@ public partial class CompetitionRegistrationSnapshots : Migration
 
             UPDATE "TournamentRegistrationRosterMembers" AS member
             SET
-                "UsernameAtRegistration" = COALESCE(current_user."Username", ''),
+                "UsernameAtRegistration" = COALESCE(user_profile."Username", ''),
                 "DisplayNameAtRegistration" = CASE
-                    WHEN current_user."IsDeleted" THEN 'Deleted user'
-                    WHEN NULLIF(BTRIM(COALESCE(current_user."Firstname", '') || ' ' || COALESCE(current_user."Lastname", '')), '') IS NOT NULL
-                        THEN BTRIM(COALESCE(current_user."Firstname", '') || ' ' || COALESCE(current_user."Lastname", ''))
-                    ELSE COALESCE(current_user."Username", 'Incomplete profile')
+                    WHEN user_profile."IsDeleted" THEN 'Deleted user'
+                    WHEN NULLIF(BTRIM(COALESCE(user_profile."Firstname", '') || ' ' || COALESCE(user_profile."Lastname", '')), '') IS NOT NULL
+                        THEN BTRIM(COALESCE(user_profile."Firstname", '') || ' ' || COALESCE(user_profile."Lastname", ''))
+                    ELSE COALESCE(user_profile."Username", 'Incomplete profile')
                 END
-            FROM "Users" AS current_user
-            WHERE member."UserId" = current_user."Id"
+            FROM "Users" AS user_profile
+            WHERE member."UserId" = user_profile."Id"
               AND (
                   COALESCE(member."UsernameAtRegistration", '') = ''
                   OR COALESCE(member."DisplayNameAtRegistration", '') = ''
@@ -87,6 +91,13 @@ public partial class CompetitionRegistrationSnapshots : Migration
             WHERE member."TeamId" = team."Id"
               AND member."TeamId" IS NOT NULL
               AND member."TeamNameAtRegistration" IS NULL;
+
+            UPDATE "TournamentRegistrations"
+            SET "RegisteredByUsernameAtRegistration" = ''
+            WHERE "RegisteredByUsernameAtRegistration" IS NULL;
+
+            ALTER TABLE "TournamentRegistrations"
+                ALTER COLUMN "RegisteredByUsernameAtRegistration" SET NOT NULL;
 
             ALTER TABLE "TournamentRegistrationRosterMembers"
                 ALTER COLUMN "UsernameAtRegistration" DROP DEFAULT;

@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.RegularExpressions;
 using Mercurius.LAN.API.Data;
 using Mercurius.LAN.API.Migrations;
 using Mercurius.Modules.Identity.Domain;
@@ -20,6 +21,38 @@ public class PersistenceBoundaryTests
         var migrations = dbContext.GetService<IMigrationsAssembly>();
 
         Assert.Contains("20260807143500_ModuleSchemaOwnership", migrations.Migrations.Keys);
+    }
+
+    [Fact]
+    public void SynchronizeModularModelSnapshot_IsDiscoveredByEfCore()
+    {
+        using var dbContext = CreateDbContext();
+        var migrations = dbContext.GetService<IMigrationsAssembly>();
+
+        Assert.Contains("20260809152209_SynchronizeModularModelSnapshot", migrations.Migrations.Keys);
+    }
+
+    [Fact]
+    public void SynchronizeModularModelSnapshot_OnlyAlignsCatalogMetadataInBothDirections()
+    {
+        var migration = new SynchronizeModularModelSnapshot();
+        var upOperation = Assert.Single(migration.UpOperations.OfType<SqlOperation>());
+        var downOperation = Assert.Single(migration.DownOperations.OfType<SqlOperation>());
+
+        Assert.Equal(45, Regex.Count(upOperation.Sql, "RENAME CONSTRAINT", RegexOptions.CultureInvariant));
+        Assert.Equal(33, Regex.Count(upOperation.Sql, "ALTER INDEX", RegexOptions.CultureInvariant));
+        Assert.Equal(45, Regex.Count(downOperation.Sql, "RENAME CONSTRAINT", RegexOptions.CultureInvariant));
+        Assert.Equal(33, Regex.Count(downOperation.Sql, "ALTER INDEX", RegexOptions.CultureInvariant));
+        Assert.Contains("ALTER COLUMN \"Version\" DROP DEFAULT", upOperation.Sql, StringComparison.Ordinal);
+        Assert.Contains("ALTER COLUMN \"Version\" SET DEFAULT 0", downOperation.Sql, StringComparison.Ordinal);
+
+        foreach (var operation in new[] { upOperation, downOperation })
+        {
+            Assert.DoesNotContain("DROP TABLE", operation.Sql, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("DROP COLUMN", operation.Sql, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("DELETE FROM", operation.Sql, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("TRUNCATE", operation.Sql, StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     [Fact]

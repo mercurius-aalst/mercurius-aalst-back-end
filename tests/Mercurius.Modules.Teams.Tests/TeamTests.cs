@@ -1149,7 +1149,7 @@ public class TeamTests
         return new UniqueConstraintDbContext(options);
     }
 
-    private static ITeamService CreateTeamService(
+    private static TeamEventPublishingDecorator CreateTeamService(
         MercuriusDBContext dbContext,
         IMediaModule? mediaModule = null,
         ITeamEventPublisher? eventPublisher = null,
@@ -1170,11 +1170,11 @@ public class TeamTests
                 new TeamsDbContextAdapter<MercuriusDBContext>(dbContext),
                 configuration,
                 new IdentityModuleFacade(dbContext),
-                mediaModule,
+                mediaModule ?? new StubMediaModule("https://example.test/default-team-logo.webp"),
                 new StubTeamCompetitionReadService(dbContext)),
             new TeamsDbContextAdapter<MercuriusDBContext>(dbContext),
-            eventPublisher ?? new NullTeamEventPublisher(),
-            moduleEventPublisher);
+            eventPublisher ?? new NoopTeamEventPublisher(),
+            moduleEventPublisher ?? new NoopModuleEventPublisher());
     }
 
     private static IFormFile CreateFormFile(string contentType = "image/png")
@@ -1272,6 +1272,19 @@ public class TeamTests
         public sealed record RecordedInviteEvent(Guid TeamId, Guid InviteId, Guid UserId, string Status);
         public sealed record RecordedMembershipEvent(Guid TeamId, Guid UserId, string Action);
         public sealed record RecordedCaptainEvent(Guid TeamId, Guid NewCaptainUserId);
+    }
+
+    private sealed class NoopTeamEventPublisher : ITeamEventPublisher
+    {
+        public Task InviteChangedAsync(Guid teamId, Guid inviteId, Guid affectedUserId, string status, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task MembershipChangedAsync(Guid teamId, Guid affectedUserId, string action, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task CaptainTransferredAsync(Guid teamId, Guid newCaptainUserId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+
+    private sealed class NoopModuleEventPublisher : IModuleEventPublisher
+    {
+        public Guid Publish<TPayload>(TPayload payload, DateTime? occurredAtUtc = null)
+            where TPayload : notnull => Guid.NewGuid();
     }
 
     private sealed class ThrowingInviteChangedTeamEventPublisher : ITeamEventPublisher

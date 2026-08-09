@@ -233,7 +233,7 @@ public class ModuleArchitectureTests
     }
 
     [Fact]
-    public void TeamsImplementationTypes_RemainNonPublicDuringPhase7FollowUp()
+    public void TeamsImplementationTypes_RemainNonPublicAndLegacyFallbacksAreRemoved()
     {
         var assembly = Assembly.Load("Mercurius.Modules.Teams");
         var nonPublicTypeNames = new[]
@@ -243,7 +243,6 @@ public class ModuleArchitectureTests
             "Mercurius.Modules.Teams.Services.ITeamEndpointService",
             "Mercurius.Modules.Teams.Services.TeamEndpointService",
             "Mercurius.Modules.Teams.Services.RealtimeTeamEventPublisher",
-            "Mercurius.Modules.Teams.Services.NullTeamEventPublisher",
             "Mercurius.Modules.Teams.Services.EfTeamRealtimeAuthorizer",
             "Mercurius.Modules.Teams.Domain.TeamInvite",
             "Mercurius.Modules.Teams.Infrastructure.ITeamsDbContext",
@@ -259,6 +258,10 @@ public class ModuleArchitectureTests
             Assert.NotNull(type);
             Assert.False(type!.IsPublic, $"{typeName} must remain non-public.");
         }
+
+        Assert.Null(assembly.GetType("Mercurius.Modules.Teams.Services.ITeamService", throwOnError: false));
+        Assert.Null(assembly.GetType("Mercurius.Modules.Teams.Services.NullTeamEventPublisher", throwOnError: false));
+        Assert.Null(assembly.GetType("Mercurius.Modules.Teams.Services.NullTeamCompetitionReadService", throwOnError: false));
     }
 
     [Fact]
@@ -333,12 +336,12 @@ public class ModuleArchitectureTests
     }
 
     [Fact]
-    public void CompetitionApplicationInterfaces_RequireTrailingCancellationToken()
+    public void CompetitionApplicationServices_RequireTrailingCancellationToken()
     {
         var competitionAssembly = Assembly.Load("Mercurius.Modules.Competition");
         var interfaces = new[]
         {
-            "Mercurius.Modules.Competition.Application.Services.IGameService",
+            "Mercurius.Modules.Competition.Application.Services.GameService",
             "Mercurius.Modules.Competition.Application.Services.IMatchService",
             "Mercurius.Modules.Competition.Application.Services.ITournamentRegistrationService"
         }
@@ -361,6 +364,8 @@ public class ModuleArchitectureTests
                     $"{interfaceType.Name}.{method.Name} should default its cancellation token.");
             }
         }
+
+        Assert.Null(competitionAssembly.GetType("Mercurius.Modules.Competition.Application.Services.IGameService", throwOnError: false));
     }
 
     private static HashSet<string> GetProjectReferences(string projectPath)

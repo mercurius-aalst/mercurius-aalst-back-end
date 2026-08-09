@@ -28,6 +28,8 @@ public class TeamsModuleFacadeTests
             .Build();
 
         services.AddSingleton<IConfiguration>(configuration);
+        services.AddSingleton<ITeamCompetitionReadService>(
+            new StubTeamCompetitionReadService(Array.Empty<PublicTeamTournamentSummary>()));
         services.AddTeamsModule<MercuriusDBContext>(configuration);
 
         using var provider = services.BuildServiceProvider();

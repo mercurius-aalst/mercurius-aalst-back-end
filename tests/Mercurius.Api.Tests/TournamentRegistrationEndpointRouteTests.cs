@@ -75,7 +75,7 @@ public class TournamentRegistrationEndpointRouteTests
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddAuthorization();
         builder.Services.AddApiVersioning();
-        builder.Services.AddScoped<IGameService>(_ => throw new NotSupportedException());
+        builder.Services.AddScoped<GameService>(_ => throw new NotSupportedException());
         builder.Services.AddScoped<ITournamentRegistrationService>(_ => throw new NotSupportedException());
         builder.Services.AddScoped<IMatchService>(_ => throw new NotSupportedException());
 
@@ -95,7 +95,7 @@ public class TournamentRegistrationEndpointRouteTests
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddAuthorization();
         builder.Services.AddApiVersioning();
-        builder.Services.AddScoped<IGameService>(_ => throw new NotSupportedException());
+        builder.Services.AddScoped<GameService>(_ => throw new NotSupportedException());
         builder.Services.AddScoped<ITournamentRegistrationService>(_ => throw new NotSupportedException());
         builder.Services.AddScoped<IMatchService>(_ => throw new NotSupportedException());
 

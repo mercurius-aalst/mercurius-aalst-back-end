@@ -27,7 +27,7 @@ public static class CompetitionModuleConfiguration
         services.AddTransient<RegistrationMappingContextBuilder>();
         services.AddTransient<TournamentRegistrationPersistenceCoordinator>();
         services.AddTransient<TournamentRegistrationReadModelService>();
-        services.AddTransient<IGameService, GameService>();
+        services.AddTransient<GameService>();
         services.AddTransient<IMatchService, MatchService>();
         services.AddTransient<ITournamentRegistrationService, TournamentRegistrationService>();
         services.AddTransient<IMatchModeratorFactory, MatchModeratorFactory>();

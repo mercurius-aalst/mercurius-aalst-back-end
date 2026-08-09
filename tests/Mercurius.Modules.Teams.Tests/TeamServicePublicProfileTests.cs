@@ -6,6 +6,7 @@ using Mercurius.Modules.Teams.Services;
 using Mercurius.Modules.Teams.Infrastructure;
 using Mercurius.Modules.Identity;
 using Mercurius.Modules.Teams.Contracts;
+using Mercurius.Modules.Media.Contracts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 
@@ -133,6 +134,7 @@ public class TeamServicePublicProfileTests
             new TeamsDbContextAdapter<MercuriusDBContext>(dbContext),
             configuration,
             new IdentityModuleFacade(dbContext),
+            new NoopMediaModule(),
             competitionReadService: new StubTeamCompetitionReadService(dbContext));
     }
 
@@ -228,5 +230,13 @@ public class TeamServicePublicProfileTests
 
         public Task<bool> IsTeamInDeleteBlockingTournamentAsync(Guid teamId, CancellationToken cancellationToken = default)
             => Task.FromResult(false);
+    }
+
+    private sealed class NoopMediaModule : IMediaModule
+    {
+        public Task<StoredMediaAsset> SaveImageAsync(MediaUpload upload, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new StoredMediaAsset("https://example.test/team-logo.webp"));
+
+        public Task DeleteImageAsync(string? mediaUrl, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 }

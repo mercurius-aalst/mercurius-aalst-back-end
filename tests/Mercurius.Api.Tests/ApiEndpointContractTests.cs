@@ -207,10 +207,10 @@ public class ApiEndpointContractTests
 
     private static void RegisterEndpointServices(IServiceCollection services)
     {
-        services.AddScoped<IGameService>(_ => throw new NotSupportedException());
+        services.AddScoped<GameService>(_ => throw new NotSupportedException());
         services.AddScoped<ITournamentRegistrationService>(_ => throw new NotSupportedException());
         services.AddScoped<IMatchService>(_ => throw new NotSupportedException());
-        services.AddScoped<ITeamService>(_ => throw new NotSupportedException());
+        services.AddScoped<ITeamEndpointService>(_ => throw new NotSupportedException());
         services.AddScoped<IUserService>(_ => throw new NotSupportedException());
         services.AddScoped<IDiscoveryModule>(_ => throw new NotSupportedException());
     }

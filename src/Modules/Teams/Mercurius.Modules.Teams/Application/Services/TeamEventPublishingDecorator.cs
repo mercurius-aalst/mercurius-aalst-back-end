@@ -17,24 +17,24 @@ using TeamRenamedIntegrationEvent = Mercurius.Modules.Teams.Contracts.TeamRename
 
 namespace Mercurius.Modules.Teams.Services;
 
-internal sealed class TeamEventPublishingDecorator : ITeamService
+internal sealed class TeamEventPublishingDecorator
 {
-    private readonly ITeamService _inner;
+    private readonly TeamService _inner;
     private readonly ITeamsDbContext _dbContext;
     private readonly ITeamEventPublisher _teamEventPublisher;
-    private readonly IModuleEventPublisher? _moduleEventPublisher;
+    private readonly IModuleEventPublisher _moduleEventPublisher;
     private DbSet<TeamInvite> TeamInvites => _dbContext.Set<TeamInvite>();
 
     public TeamEventPublishingDecorator(
-        ITeamService inner,
+        TeamService inner,
         ITeamsDbContext dbContext,
-        ITeamEventPublisher? teamEventPublisher = null,
-        IModuleEventPublisher? moduleEventPublisher = null)
+        ITeamEventPublisher teamEventPublisher,
+        IModuleEventPublisher moduleEventPublisher)
     {
-        _inner = inner;
-        _dbContext = dbContext;
-        _teamEventPublisher = teamEventPublisher ?? new NullTeamEventPublisher();
-        _moduleEventPublisher = moduleEventPublisher;
+        _inner = inner ?? throw new ArgumentNullException(nameof(inner));
+        _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
+        _teamEventPublisher = teamEventPublisher ?? throw new ArgumentNullException(nameof(teamEventPublisher));
+        _moduleEventPublisher = moduleEventPublisher ?? throw new ArgumentNullException(nameof(moduleEventPublisher));
     }
 
     public async Task<GetTeamDTO> CreateTeamAsync(CreateTeamDTO teamDTO, CancellationToken cancellationToken = default)
@@ -408,7 +408,7 @@ internal sealed class TeamEventPublishingDecorator : ITeamService
     {
         var team = await GetTeamForEventAsync(teamId, cancellationToken);
         IncrementTeamVersion(team);
-        _moduleEventPublisher?.Publish(new TeamCreatedIntegrationEvent(
+        _moduleEventPublisher.Publish(new TeamCreatedIntegrationEvent(
             new TeamId(team.Id),
             team.Version,
             team.Name,
@@ -420,7 +420,7 @@ internal sealed class TeamEventPublishingDecorator : ITeamService
     {
         var team = await GetTeamForEventAsync(teamId, cancellationToken);
         IncrementTeamVersion(team);
-        _moduleEventPublisher?.Publish(new TeamRenamedIntegrationEvent(
+        _moduleEventPublisher.Publish(new TeamRenamedIntegrationEvent(
             new TeamId(team.Id),
             team.Version,
             team.Name));
@@ -431,7 +431,7 @@ internal sealed class TeamEventPublishingDecorator : ITeamService
     {
         var team = await GetTeamForEventAsync(teamId, cancellationToken);
         IncrementTeamVersion(team);
-        _moduleEventPublisher?.Publish(new TeamDeletedIntegrationEvent(
+        _moduleEventPublisher.Publish(new TeamDeletedIntegrationEvent(
             new TeamId(team.Id),
             team.Version));
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -441,7 +441,7 @@ internal sealed class TeamEventPublishingDecorator : ITeamService
     {
         var team = await GetTeamForEventAsync(teamId, cancellationToken);
         IncrementTeamVersion(team);
-        _moduleEventPublisher?.Publish(new TeamMemberAddedIntegrationEvent(
+        _moduleEventPublisher.Publish(new TeamMemberAddedIntegrationEvent(
             new TeamId(team.Id),
             team.Version,
             new UserId(userId)));
@@ -452,7 +452,7 @@ internal sealed class TeamEventPublishingDecorator : ITeamService
     {
         var team = await GetTeamForEventAsync(teamId, cancellationToken);
         IncrementTeamVersion(team);
-        _moduleEventPublisher?.Publish(new TeamMemberRemovedIntegrationEvent(
+        _moduleEventPublisher.Publish(new TeamMemberRemovedIntegrationEvent(
             new TeamId(team.Id),
             team.Version,
             new UserId(userId)));
@@ -463,7 +463,7 @@ internal sealed class TeamEventPublishingDecorator : ITeamService
     {
         var team = await GetTeamForEventAsync(teamId, cancellationToken);
         IncrementTeamVersion(team);
-        _moduleEventPublisher?.Publish(new TeamCaptainTransferredIntegrationEvent(
+        _moduleEventPublisher.Publish(new TeamCaptainTransferredIntegrationEvent(
             new TeamId(team.Id),
             team.Version,
             new UserId(newCaptainUserId)));

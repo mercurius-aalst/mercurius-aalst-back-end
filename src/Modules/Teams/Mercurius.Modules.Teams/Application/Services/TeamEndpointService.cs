@@ -5,9 +5,9 @@ namespace Mercurius.Modules.Teams.Services;
 
 internal sealed class TeamEndpointService : ITeamEndpointService
 {
-    private readonly ITeamService _teamService;
+    private readonly TeamEventPublishingDecorator _teamService;
 
-    public TeamEndpointService(ITeamService teamService)
+    public TeamEndpointService(TeamEventPublishingDecorator teamService)
     {
         _teamService = teamService;
     }

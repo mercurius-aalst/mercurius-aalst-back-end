@@ -433,7 +433,7 @@ public class TournamentRegistrationServiceTests
         var identityModule = new IdentityModuleFacade(dbContext);
         var teamsModule = new TeamsModuleFacade(
             new TeamsDbContextAdapter<MercuriusDBContext>(dbContext),
-            new NullTeamCompetitionReadService());
+            new NoopTeamCompetitionReadService());
 
         return new TournamentRegistrationService(
             new CompetitionDbContextAdapter<MercuriusDBContext>(dbContext),
@@ -463,6 +463,18 @@ public class TournamentRegistrationServiceTests
             .Options;
 
         return new MercuriusDBContext(options);
+    }
+
+    private sealed class NoopTeamCompetitionReadService : ITeamCompetitionReadService
+    {
+        public Task<IReadOnlyList<PublicTeamTournamentSummary>> GetPublicTeamTournamentsAsync(Guid teamId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<PublicTeamTournamentSummary>>([]);
+
+        public Task<bool> IsUserInProtectedTournamentRosterAsync(Guid teamId, Guid userId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
+
+        public Task<bool> IsTeamInDeleteBlockingTournamentAsync(Guid teamId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
     }
 
     private static Game CreateIndividualGame()

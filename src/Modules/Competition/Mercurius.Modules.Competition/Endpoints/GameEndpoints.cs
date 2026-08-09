@@ -22,39 +22,39 @@ internal static class GameEndpoints
             .WithTags("Games")
             .RequireAuthorization(new AuthorizeAttribute { Roles = "admin" });
 
-        group.MapGet("/", async (IGameService gameService, CancellationToken cancellationToken) =>
+        group.MapGet("/", async (GameService gameService, CancellationToken cancellationToken) =>
         {
             return await gameService.GetAllGamesAsync(cancellationToken);
         })
         .AllowAnonymous();
 
-        group.MapGet("/{id}", async (Guid id, IGameService gameService, CancellationToken cancellationToken) =>
+        group.MapGet("/{id}", async (Guid id, GameService gameService, CancellationToken cancellationToken) =>
         {
             return await gameService.GetGameByIdAsync(id, cancellationToken);
         })
         .AllowAnonymous();
 
-        group.MapPost("/", async ([FromForm] CreateGameDTO createGameDTO, IGameService gameService, CancellationToken cancellationToken) =>
+        group.MapPost("/", async ([FromForm] CreateGameDTO createGameDTO, GameService gameService, CancellationToken cancellationToken) =>
         {
             return await gameService.CreateGameAsync(createGameDTO, cancellationToken);
         }).DisableAntiforgery();
 
-        group.MapPatch("/{id}", async (Guid id, [FromForm] UpdateGameDTO updateGameDTO, IGameService gameService, CancellationToken cancellationToken) =>
+        group.MapPatch("/{id}", async (Guid id, [FromForm] UpdateGameDTO updateGameDTO, GameService gameService, CancellationToken cancellationToken) =>
         {
             return await gameService.UpdateGameAsync(id, updateGameDTO, cancellationToken);
         }).DisableAntiforgery();
 
-        group.MapDelete("/{id}", async (Guid id, IGameService gameService, CancellationToken cancellationToken) =>
+        group.MapDelete("/{id}", async (Guid id, GameService gameService, CancellationToken cancellationToken) =>
         {
             await gameService.DeleteGameAsync(id, cancellationToken);
         });
 
-        group.MapPut("/{id}/sponsors", async (Guid id, ReplaceGameSponsorsDTO sponsorDTO, IGameService gameService, CancellationToken cancellationToken) =>
+        group.MapPut("/{id}/sponsors", async (Guid id, ReplaceGameSponsorsDTO sponsorDTO, GameService gameService, CancellationToken cancellationToken) =>
         {
             return await gameService.ReplaceSponsorPlacementsAsync(id, sponsorDTO, cancellationToken);
         });
 
-        group.MapPut("/{id}/lifecycle-state", async Task<IResult> (Guid id, UpdateGameLifecycleStateRequestDTO request, IGameService gameService, CancellationToken cancellationToken) =>
+        group.MapPut("/{id}/lifecycle-state", async Task<IResult> (Guid id, UpdateGameLifecycleStateRequestDTO request, GameService gameService, CancellationToken cancellationToken) =>
         {
             if (request.State is not { } state || !Enum.IsDefined(state))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["state"] = ["A supported game lifecycle state is required."] });

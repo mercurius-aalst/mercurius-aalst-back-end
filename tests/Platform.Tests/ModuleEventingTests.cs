@@ -8,6 +8,7 @@ using Mercurius.Modules.Identity.Contracts;
 using Mercurius.Modules.Identity.DTOs;
 using Mercurius.Modules.Identity.Services;
 using Mercurius.Modules.Identity.Services.Auth0;
+using Mercurius.Modules.Media.Contracts;
 using Mercurius.Modules.Teams.Contracts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
@@ -366,7 +367,7 @@ public class ModuleEventingTests
         return new MercuriusDBContext(options);
     }
 
-    private static ITeamService CreateTeamService(MercuriusDBContext dbContext)
+    private static TeamEventPublishingDecorator CreateTeamService(MercuriusDBContext dbContext)
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -380,9 +381,14 @@ public class ModuleEventingTests
         var moduleEventPublisher = new ModuleEventPublisher(dbContext);
 
         return new TeamEventPublishingDecorator(
-            new TeamService(new TeamsDbContextAdapter<MercuriusDBContext>(dbContext), configuration, new IdentityModuleFacade(dbContext)),
+            new TeamService(
+                new TeamsDbContextAdapter<MercuriusDBContext>(dbContext),
+                configuration,
+                new IdentityModuleFacade(dbContext),
+                new NoopMediaModule(),
+                new NoopTeamCompetitionReadService()),
             new TeamsDbContextAdapter<MercuriusDBContext>(dbContext),
-            new NullTeamEventPublisher(),
+            new NoopTeamEventPublisher(),
             moduleEventPublisher);
     }
 
@@ -430,6 +436,33 @@ public class ModuleEventingTests
         {
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class NoopMediaModule : IMediaModule
+    {
+        public Task<StoredMediaAsset> SaveImageAsync(MediaUpload upload, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new StoredMediaAsset("https://example.test/team-logo.webp"));
+
+        public Task DeleteImageAsync(string? mediaUrl, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+
+    private sealed class NoopTeamCompetitionReadService : ITeamCompetitionReadService
+    {
+        public Task<IReadOnlyList<PublicTeamTournamentSummary>> GetPublicTeamTournamentsAsync(Guid teamId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<PublicTeamTournamentSummary>>([]);
+
+        public Task<bool> IsUserInProtectedTournamentRosterAsync(Guid teamId, Guid userId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
+
+        public Task<bool> IsTeamInDeleteBlockingTournamentAsync(Guid teamId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
+    }
+
+    private sealed class NoopTeamEventPublisher : ITeamEventPublisher
+    {
+        public Task InviteChangedAsync(Guid teamId, Guid inviteId, Guid affectedUserId, string status, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task MembershipChangedAsync(Guid teamId, Guid affectedUserId, string action, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task CaptainTransferredAsync(Guid teamId, Guid newCaptainUserId, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 
     private sealed class HandlerState

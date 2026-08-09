@@ -18,10 +18,9 @@ public static class TeamsModuleConfiguration
         where TDbContext : DbContext
     {
         services.TryAddScoped<ITeamsDbContext, TeamsDbContextAdapter<TDbContext>>();
-        services.TryAddTransient<ITeamCompetitionReadService, NullTeamCompetitionReadService>();
         services.AddTransient<ITeamsModule, TeamsModuleFacade>();
-        services.AddTransient<ITeamService, TeamService>();
-        services.Decorate<ITeamService, TeamEventPublishingDecorator>();
+        services.AddTransient<TeamService>();
+        services.AddTransient<TeamEventPublishingDecorator>();
         services.AddTransient<ITeamEndpointService, TeamEndpointService>();
         services.AddTransient<ITeamEventPublisher, RealtimeTeamEventPublisher>();
         services.AddTransient<Contracts.ITeamRealtimeAuthorizer, EfTeamRealtimeAuthorizer>();

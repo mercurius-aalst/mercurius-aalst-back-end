@@ -67,7 +67,7 @@ public class TeamEndpointRouteTests
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddAuthorization();
         builder.Services.AddApiVersioning();
-        builder.Services.AddScoped<ITeamService>(_ => throw new NotSupportedException());
+        builder.Services.AddScoped<ITeamEndpointService>(_ => throw new NotSupportedException());
 
         var app = builder.Build();
         app.MapTeamsModule();

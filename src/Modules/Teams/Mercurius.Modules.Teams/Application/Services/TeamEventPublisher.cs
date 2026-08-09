@@ -37,13 +37,6 @@ internal sealed class RealtimeTeamEventPublisher : ITeamEventPublisher
     }
 }
 
-internal sealed class NullTeamEventPublisher : ITeamEventPublisher
-{
-    public Task InviteChangedAsync(Guid teamId, Guid inviteId, Guid affectedUserId, string status, CancellationToken cancellationToken = default) => Task.CompletedTask;
-    public Task MembershipChangedAsync(Guid teamId, Guid affectedUserId, string action, CancellationToken cancellationToken = default) => Task.CompletedTask;
-    public Task CaptainTransferredAsync(Guid teamId, Guid newCaptainUserId, CancellationToken cancellationToken = default) => Task.CompletedTask;
-}
-
 internal sealed record TeamInviteChangedRealtimeEvent(Guid TeamId, Guid InviteId, Guid UserId, string Status);
 internal sealed record TeamMembershipChangedRealtimeEvent(Guid TeamId, Guid UserId, string Action);
 internal sealed record TeamCaptainTransferredRealtimeEvent(Guid TeamId, Guid NewCaptainUserId);

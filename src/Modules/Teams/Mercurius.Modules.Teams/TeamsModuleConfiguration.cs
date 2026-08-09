@@ -18,10 +18,13 @@ public static class TeamsModuleConfiguration
         where TDbContext : DbContext
     {
         services.TryAddScoped<ITeamsDbContext, TeamsDbContextAdapter<TDbContext>>();
-        services.TryAddTransient<ITeamCompetitionReadService, NullTeamCompetitionReadService>();
         services.AddTransient<ITeamsModule, TeamsModuleFacade>();
-        services.AddTransient<ITeamService, TeamService>();
-        services.Decorate<ITeamService, TeamEventPublishingDecorator>();
+        services.AddScoped<TeamService>();
+        services.AddScoped<ITeamQueries>(serviceProvider => serviceProvider.GetRequiredService<TeamService>());
+        services.AddScoped<ITeamLogoCommands>(serviceProvider => serviceProvider.GetRequiredService<TeamService>());
+        services.AddScoped<TeamEventPublishingDecorator>();
+        services.AddScoped<ITeamManagementCommands>(serviceProvider => serviceProvider.GetRequiredService<TeamEventPublishingDecorator>());
+        services.AddScoped<ITeamInviteWorkflows>(serviceProvider => serviceProvider.GetRequiredService<TeamEventPublishingDecorator>());
         services.AddTransient<ITeamEndpointService, TeamEndpointService>();
         services.AddTransient<ITeamEventPublisher, RealtimeTeamEventPublisher>();
         services.AddTransient<Contracts.ITeamRealtimeAuthorizer, EfTeamRealtimeAuthorizer>();

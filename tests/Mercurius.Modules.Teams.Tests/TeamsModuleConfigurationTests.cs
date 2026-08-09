@@ -1,6 +1,7 @@
 using System.Reflection;
 using Mercurius.LAN.API.Data;
 using Mercurius.Modules.Identity.Contracts;
+using Mercurius.Modules.Media.Contracts;
 using Mercurius.Modules.Shared;
 using Mercurius.Modules.Teams;
 using Mercurius.Modules.Teams.Contracts;
@@ -11,6 +12,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Platform.Eventing;
 using Platform.Realtime;
 
 namespace Mercurius.Modules.Teams.Tests;
@@ -18,13 +20,18 @@ namespace Mercurius.Modules.Teams.Tests;
 public class TeamsModuleConfigurationTests
 {
     [Fact]
-    public void AddTeamsModule_RegistersExpectedLifetimesAndDecoratedServices()
+    public void AddTeamsModule_RegistersExpectedLifetimesAndEventPublishingServices()
     {
         var services = CreateServiceCollection();
 
         AssertLifetime<ITeamsDbContext>(services, ServiceLifetime.Scoped);
         AssertLifetime<ITeamsModule>(services, ServiceLifetime.Transient);
-        AssertLifetime<ITeamService>(services, ServiceLifetime.Transient);
+        AssertLifetime<TeamService>(services, ServiceLifetime.Scoped);
+        AssertLifetime<ITeamQueries>(services, ServiceLifetime.Scoped);
+        AssertLifetime<ITeamLogoCommands>(services, ServiceLifetime.Scoped);
+        AssertLifetime<TeamEventPublishingDecorator>(services, ServiceLifetime.Scoped);
+        AssertLifetime<ITeamManagementCommands>(services, ServiceLifetime.Scoped);
+        AssertLifetime<ITeamInviteWorkflows>(services, ServiceLifetime.Scoped);
         AssertLifetime<ITeamEndpointService>(services, ServiceLifetime.Transient);
         AssertLifetime<ITeamEventPublisher>(services, ServiceLifetime.Transient);
         AssertLifetime<Mercurius.Modules.Teams.Contracts.ITeamRealtimeAuthorizer>(services, ServiceLifetime.Transient);
@@ -32,19 +39,36 @@ public class TeamsModuleConfigurationTests
         using var provider = services.BuildServiceProvider();
         using var scope = provider.CreateScope();
 
-        var endpointService = scope.ServiceProvider.GetRequiredService<ITeamEndpointService>();
-        var teamService = scope.ServiceProvider.GetRequiredService<ITeamService>();
+        var endpointService = Assert.IsType<TeamEndpointService>(
+            scope.ServiceProvider.GetRequiredService<ITeamEndpointService>());
+        var queries = scope.ServiceProvider.GetRequiredService<ITeamQueries>();
+        var logoCommands = scope.ServiceProvider.GetRequiredService<ITeamLogoCommands>();
+        var managementCommands = scope.ServiceProvider.GetRequiredService<ITeamManagementCommands>();
+        var inviteWorkflows = scope.ServiceProvider.GetRequiredService<ITeamInviteWorkflows>();
         var teamsModule = scope.ServiceProvider.GetRequiredService<ITeamsModule>();
 
-        Assert.IsType<TeamEndpointService>(endpointService);
-        Assert.IsType<TeamEventPublishingDecorator>(teamService);
+        Assert.IsType<TeamService>(queries);
+        Assert.Same(queries, logoCommands);
+        var decorator = Assert.IsType<TeamEventPublishingDecorator>(managementCommands);
+        Assert.Same(decorator, inviteWorkflows);
         Assert.IsType<TeamsModuleFacade>(teamsModule);
 
         var innerService = typeof(TeamEventPublishingDecorator)
             .GetField("_inner", BindingFlags.Instance | BindingFlags.NonPublic)?
-            .GetValue(teamService);
+            .GetValue(decorator);
 
-        Assert.IsType<TeamService>(innerService);
+        Assert.Same(queries, innerService);
+        Assert.Same(queries, GetPrivateField(endpointService, "_queries"));
+        Assert.Same(decorator, GetPrivateField(endpointService, "_managementCommands"));
+        Assert.Same(decorator, GetPrivateField(endpointService, "_inviteWorkflows"));
+        Assert.Same(logoCommands, GetPrivateField(endpointService, "_logoCommands"));
+    }
+
+    private static object? GetPrivateField(object instance, string fieldName)
+    {
+        return instance.GetType()
+            .GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic)?
+            .GetValue(instance);
     }
 
     [Fact]
@@ -67,20 +91,13 @@ public class TeamsModuleConfigurationTests
     }
 
     [Fact]
-    public void AddTeamsModule_AllowsHostCompetitionReadOverrideAndSafeRepeatedTryAddRegistrations()
+    public void AddTeamsModule_RequiresAnExplicitCompetitionReadContract()
     {
-        var services = CreateServiceCollection();
+        var services = new ServiceCollection();
         services.AddTeamsModule<MercuriusDBContext>(CreateConfiguration());
 
         Assert.Equal(1, services.Count(descriptor => descriptor.ServiceType == typeof(ITeamsDbContext)));
-        Assert.Equal(1, services.Count(descriptor => descriptor.ServiceType == typeof(ITeamCompetitionReadService)));
-
-        using var provider = services.BuildServiceProvider();
-        using var scope = provider.CreateScope();
-
-        var competitionReadService = scope.ServiceProvider.GetRequiredService<ITeamCompetitionReadService>();
-
-        Assert.IsType<NullTeamCompetitionReadService>(competitionReadService);
+        Assert.DoesNotContain(services, descriptor => descriptor.ServiceType == typeof(ITeamCompetitionReadService));
     }
 
     [Fact]
@@ -92,7 +109,6 @@ public class TeamsModuleConfigurationTests
             typeof(ITeamCompetitionReadService),
             typeof(ITeamEventPublisher),
             typeof(Mercurius.Modules.Teams.Contracts.ITeamRealtimeAuthorizer),
-            typeof(ITeamService),
             typeof(ITeamEndpointService)
         };
 
@@ -109,18 +125,6 @@ public class TeamsModuleConfigurationTests
                 Assert.True(parameters.Last().HasDefaultValue, $"{interfaceType.Name}.{method.Name} should default its cancellation token.");
             }
         }
-    }
-
-    [Fact]
-    public async Task TeamEndpointService_ForwardsCancellationTokenToRepresentativeWrite()
-    {
-        var spy = new RecordingTeamService();
-        var endpointService = new TeamEndpointService(spy);
-        using var cancellationSource = new CancellationTokenSource();
-
-        await endpointService.DeleteTeamAsync("auth0|captain", Guid.NewGuid(), cancellationSource.Token);
-
-        Assert.Equal(cancellationSource.Token, spy.DeleteTeamCancellationToken);
     }
 
     [Fact]
@@ -158,6 +162,9 @@ public class TeamsModuleConfigurationTests
         services.AddDbContext<MercuriusDBContext>(options =>
             options.UseInMemoryDatabase(Guid.NewGuid().ToString()));
         services.AddSingleton<IIdentityModule, StubIdentityModule>();
+        services.AddSingleton<IMediaModule, NoopMediaModule>();
+        services.AddSingleton<ITeamCompetitionReadService, NoopTeamCompetitionReadService>();
+        services.AddSingleton<IModuleEventPublisher, NoopModuleEventPublisher>();
         services.AddSingleton<IRealtimePublisher, RecordingRealtimePublisher>();
         services.AddTeamsModule<MercuriusDBContext>(configuration);
 
@@ -230,40 +237,29 @@ public class TeamsModuleConfigurationTests
             Task.FromResult<IReadOnlyList<PublicUserSearchDocument>>([]);
     }
 
-    private sealed class RecordingTeamService : ITeamService
+    private sealed class NoopMediaModule : IMediaModule
     {
-        public CancellationToken DeleteTeamCancellationToken { get; private set; }
+        public Task<StoredMediaAsset> SaveImageAsync(MediaUpload upload, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new StoredMediaAsset("https://example.test/team-logo.webp"));
 
-        public Task<GetTeamDTO> CreateTeamAsync(CreateTeamDTO teamDTO, CancellationToken cancellationToken = default) => Task.FromResult(new GetTeamDTO());
-        public Task<TeamManagementSummaryDTO> CreateCurrentUserTeamAsync(string auth0UserId, CreateTeamDTO teamDTO, CancellationToken cancellationToken = default) => Task.FromResult(new TeamManagementSummaryDTO());
-        public Task DeleteTeamAsync(Guid teamId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task DeleteImageAsync(string? mediaUrl, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
 
-        public Task DeleteTeamAsync(string auth0UserId, Guid teamId, CancellationToken cancellationToken = default)
-        {
-            DeleteTeamCancellationToken = cancellationToken;
-            return Task.CompletedTask;
-        }
+    private sealed class NoopTeamCompetitionReadService : ITeamCompetitionReadService
+    {
+        public Task<IReadOnlyList<PublicTeamTournamentSummary>> GetPublicTeamTournamentsAsync(Guid teamId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<PublicTeamTournamentSummary>>([]);
 
-        public Task<IEnumerable<GetTeamDTO>> GetAllTeamsAsync(CancellationToken cancellationToken = default) => Task.FromResult<IEnumerable<GetTeamDTO>>([]);
-        public Task<CurrentUserTeamSummaryDTO> GetCurrentUserTeamSummaryAsync(string auth0UserId, CancellationToken cancellationToken = default) => Task.FromResult(new CurrentUserTeamSummaryDTO());
-        public Task<PublicTeamProfileDTO> GetPublicTeamProfileAsync(string teamName, CancellationToken cancellationToken = default) => Task.FromResult(new PublicTeamProfileDTO());
-        public Task<IEnumerable<TeamInviteDTO>> GetUserInvitesAsync(Guid userId, CancellationToken cancellationToken = default) => Task.FromResult<IEnumerable<TeamInviteDTO>>([]);
-        public Task<IEnumerable<TeamInviteSummaryDTO>> GetCurrentUserInvitesAsync(string auth0UserId, CancellationToken cancellationToken = default) => Task.FromResult<IEnumerable<TeamInviteSummaryDTO>>([]);
-        public Task<IEnumerable<TeamInviteSummaryDTO>> GetCurrentUserSentInvitesAsync(string auth0UserId, CancellationToken cancellationToken = default) => Task.FromResult<IEnumerable<TeamInviteSummaryDTO>>([]);
-        public Task<GetTeamDTO> GetTeamByIdAsync(Guid teamId, CancellationToken cancellationToken = default) => Task.FromResult(new GetTeamDTO());
-        public Task<GetTeamDTO> GetTeamByNameAsync(string name, CancellationToken cancellationToken = default) => Task.FromResult(new GetTeamDTO());
-        public Task<TeamInviteDTO> InviteUserAsync(Guid teamId, Guid userId, CancellationToken cancellationToken = default) => Task.FromResult(new TeamInviteDTO());
-        public Task<TeamInviteDTO> InviteUserAsync(string auth0UserId, Guid teamId, Guid userId, CancellationToken cancellationToken = default) => Task.FromResult(new TeamInviteDTO());
-        public Task<TeamInviteDTO> CancelInviteAsync(string auth0UserId, Guid teamId, Guid inviteId, CancellationToken cancellationToken = default) => Task.FromResult(new TeamInviteDTO());
-        public Task<GetTeamDTO> RemoveMemberAsync(Guid id, Guid userId, CancellationToken cancellationToken = default) => Task.FromResult(new GetTeamDTO());
-        public Task<TeamManagementSummaryDTO> RemoveMemberAsync(string auth0UserId, Guid teamId, Guid userId, CancellationToken cancellationToken = default) => Task.FromResult(new TeamManagementSummaryDTO());
-        public Task<TeamManagementSummaryDTO> LeaveTeamAsync(string auth0UserId, Guid teamId, CancellationToken cancellationToken = default) => Task.FromResult(new TeamManagementSummaryDTO());
-        public Task<TeamInviteDTO> RespondToInviteAsync(Guid teamId, Guid userId, bool accept, CancellationToken cancellationToken = default) => Task.FromResult(new TeamInviteDTO());
-        public Task<TeamInviteDTO> RespondToInviteAsync(string auth0UserId, Guid inviteId, bool accept, CancellationToken cancellationToken = default) => Task.FromResult(new TeamInviteDTO());
-        public Task<TeamManagementSummaryDTO> TransferCaptainAsync(string auth0UserId, Guid teamId, Guid newCaptainUserId, CancellationToken cancellationToken = default) => Task.FromResult(new TeamManagementSummaryDTO());
-        public Task<TeamLogoResponseDTO> UploadTeamLogoAsync(string auth0UserId, Guid teamId, IFormFile logo, CancellationToken cancellationToken = default) => Task.FromResult(new TeamLogoResponseDTO(Guid.Empty, null));
-        public Task<TeamLogoResponseDTO> RemoveTeamLogoAsync(string auth0UserId, Guid teamId, CancellationToken cancellationToken = default) => Task.FromResult(new TeamLogoResponseDTO(Guid.Empty, null));
-        public Task<IEnumerable<GetTeamDTO>> SearchTeamsByNameAsync(string query, int? limit = null, CancellationToken cancellationToken = default) => Task.FromResult<IEnumerable<GetTeamDTO>>([]);
-        public Task<GetTeamDTO> UpdateTeamAsync(Guid id, UpdateTeamDTO teamDTO, CancellationToken cancellationToken = default) => Task.FromResult(new GetTeamDTO());
+        public Task<bool> IsUserInProtectedTournamentRosterAsync(Guid teamId, Guid userId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
+
+        public Task<bool> IsTeamInDeleteBlockingTournamentAsync(Guid teamId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
+    }
+
+    private sealed class NoopModuleEventPublisher : IModuleEventPublisher
+    {
+        public Guid Publish<TPayload>(TPayload payload, DateTime? occurredAtUtc = null)
+            where TPayload : notnull => Guid.NewGuid();
     }
 }

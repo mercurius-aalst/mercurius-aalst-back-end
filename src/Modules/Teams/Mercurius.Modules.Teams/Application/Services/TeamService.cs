@@ -13,12 +13,12 @@ using Microsoft.AspNetCore.Http;
 
 namespace Mercurius.Modules.Teams.Services;
 
-internal sealed class TeamService : ITeamService
+internal sealed class TeamService : ITeamQueries, ITeamManagementCommands, ITeamInviteWorkflows, ITeamLogoCommands
 {
     private const int MaxCaptainedTeams = 2;
     private const int MaxTeamSearchResults = 25;
     private readonly ITeamsDbContext _dbContext;
-    private readonly IMediaModule? _mediaModule;
+    private readonly IMediaModule _mediaModule;
     private readonly IIdentityModule _identityModule;
     private readonly ITeamCompetitionReadService _competitionReadService;
     private readonly int _inviteResendCooldownDays;
@@ -31,13 +31,13 @@ internal sealed class TeamService : ITeamService
         ITeamsDbContext dbContext,
         IConfiguration configuration,
         IIdentityModule identityModule,
-        IMediaModule? mediaModule = null,
-        ITeamCompetitionReadService? competitionReadService = null)
+        IMediaModule mediaModule,
+        ITeamCompetitionReadService competitionReadService)
     {
-        _dbContext = dbContext;
-        _mediaModule = mediaModule;
+        _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
+        _mediaModule = mediaModule ?? throw new ArgumentNullException(nameof(mediaModule));
         _identityModule = identityModule ?? throw new ArgumentNullException(nameof(identityModule));
-        _competitionReadService = competitionReadService ?? new NullTeamCompetitionReadService();
+        _competitionReadService = competitionReadService ?? throw new ArgumentNullException(nameof(competitionReadService));
         _inviteResendCooldownDays = configuration.GetSection("TeamInvite:ResendCooldownDays").Get<int>();
         _inviteExpirationDays = configuration.GetSection("TeamInvite:ExpirationDays").Get<int?>() ?? 14;
         _inviteRetentionDays = configuration.GetSection("TeamInvite:RetentionDays").Get<int?>() ?? 90;
@@ -451,9 +451,6 @@ internal sealed class TeamService : ITeamService
 
     public async Task<TeamLogoResponseDTO> UploadTeamLogoAsync(string auth0UserId, Guid teamId, IFormFile logo, CancellationToken cancellationToken = default)
     {
-        if (_mediaModule is null)
-            throw new InvalidOperationException("File service is not configured.");
-
         var currentUser = await GetCurrentUserAsync(auth0UserId, cancellationToken);
         var team = await GetTeamWithMembersQuery().FirstOrDefaultAsync(t => t.Id == teamId, cancellationToken);
         if (team is null)
@@ -474,9 +471,6 @@ internal sealed class TeamService : ITeamService
 
     public async Task<TeamLogoResponseDTO> RemoveTeamLogoAsync(string auth0UserId, Guid teamId, CancellationToken cancellationToken = default)
     {
-        if (_mediaModule is null)
-            throw new InvalidOperationException("File service is not configured.");
-
         var currentUser = await GetCurrentUserAsync(auth0UserId, cancellationToken);
         var team = await GetTeamWithMembersQuery().FirstOrDefaultAsync(t => t.Id == teamId, cancellationToken);
         if (team is null)

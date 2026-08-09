@@ -21,7 +21,7 @@ using PlacementAssignedIntegrationEvent =
 
 namespace Mercurius.Modules.Competition.Application.Services;
 
-internal sealed class GameService : IGameService
+internal sealed class GameService : IGameQueries, IGameManagementCommands, IGameLifecycleCommands
 {
     private readonly ICompetitionDbContext _dbContext;
     private readonly IMatchModeratorFactory _matchModeratorFactory;

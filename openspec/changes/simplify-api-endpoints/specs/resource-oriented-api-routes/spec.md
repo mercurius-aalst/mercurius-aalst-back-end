@@ -22,18 +22,3 @@ The API MUST expose an admin-authorized `PUT /v1/lan/games/{gameId}/lifecycle-st
 #### Scenario: Game lifecycle action routes are absent
 - **WHEN** a client calls `POST /v1/lan/games/{gameId}/start`, `POST /v1/lan/games/{gameId}/reset`, `POST /v1/lan/games/{gameId}/complete`, or `POST /v1/lan/games/{gameId}/cancel`
 - **THEN** the API MUST NOT expose those routes
-
-### Requirement: Current-user Identity request resources
-The API MUST expose authenticated `POST /v1/lan/users/me/email-verification-requests` and `POST /v1/lan/users/me/password-reset-requests` endpoints. Each endpoint MUST retain the current response JSON shape and its existing Identity-provider behavior.
-
-#### Scenario: Authenticated user requests verification email
-- **WHEN** an authenticated user sends `POST /v1/lan/users/me/email-verification-requests`
-- **THEN** the API MUST perform the existing verification-email request behavior and return the existing action response
-
-#### Scenario: Authenticated user requests password reset
-- **WHEN** an authenticated user sends `POST /v1/lan/users/me/password-reset-requests`
-- **THEN** the API MUST perform the existing password-reset request behavior and return the existing action response
-
-#### Scenario: Identity action routes are absent
-- **WHEN** a client calls `POST /v1/lan/users/me/resend-verification-email` or `POST /v1/lan/users/me/password-reset`
-- **THEN** the API MUST NOT expose those routes

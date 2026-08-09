@@ -54,9 +54,9 @@ public class UserEndpointRouteTests
     }
 
     [Theory]
-    [InlineData("POST", "v{version:apiVersion}/lan/users/me/email-verification-requests")]
-    [InlineData("POST", "v{version:apiVersion}/lan/users/me/password-reset-requests")]
-    public void CurrentUserIdentityRequestRoutes_RequireAuthorization(string method, string routePattern)
+    [InlineData("POST", "v{version:apiVersion}/lan/users/me/resend-verification-email")]
+    [InlineData("POST", "v{version:apiVersion}/lan/users/me/password-reset")]
+    public void CurrentUserIdentityCommandRoutes_RequireAuthorization(string method, string routePattern)
     {
         var endpoint = GetUserRouteEndpoint(method, routePattern);
 
@@ -66,8 +66,6 @@ public class UserEndpointRouteTests
 
     [Theory]
     [InlineData("POST", "v{version:apiVersion}/lan/users/me/complete-profile")]
-    [InlineData("POST", "v{version:apiVersion}/lan/users/me/resend-verification-email")]
-    [InlineData("POST", "v{version:apiVersion}/lan/users/me/password-reset")]
     public void ReplacedCurrentUserActionRoutes_AreRemoved(string method, string routePattern)
     {
         var endpoints = GetUserRouteEndpoints(method);

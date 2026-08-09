@@ -55,8 +55,6 @@ public class OpenApiDocumentTests
             AssertPathHasOperation(document, "/v1/lan/teams/{id}/logo", OperationType.Put);
             AssertPathHasOperation(document, "/v1/lan/public/teams/{teamName}", OperationType.Get);
             AssertPathHasOperation(document, "/v1/lan/users/me", OperationType.Get);
-            AssertPathHasOperation(document, "/v1/lan/users/me/email-verification-requests", OperationType.Post);
-            AssertPathHasOperation(document, "/v1/lan/users/me/password-reset-requests", OperationType.Post);
             AssertPathHasOperation(document, "/v1/lan/public/users/{username}", OperationType.Get);
             AssertPathHasOperation(document, "/v1/lan/games/{gameId}/registrations/me", OperationType.Get);
             AssertPathHasOperation(document, "/v1/lan/games/{gameId}/registrations/individual/eligibility", OperationType.Get);

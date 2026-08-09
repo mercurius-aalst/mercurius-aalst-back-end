@@ -51,13 +51,9 @@ The roster confirmation request accepts only the supported confirmed state. Requ
 
 Alternative considered: route confirmation through a registration id and user id. The current API exposes and authorizes a roster-member id; retaining it avoids an unnecessary public identifier change while still making the updated resource explicit.
 
-### Make profile and Identity-triggered email operations resource requests
+### Retain non-persisted Identity-provider commands
 
-- `PATCH /v1/lan/users/me` is the sole update route; `POST /users/me/complete-profile` is removed.
-- `POST /v1/lan/users/me/email-verification-requests` replaces resend-verification-email.
-- `POST /v1/lan/users/me/password-reset-requests` replaces password-reset.
-
-The two request resources retain the existing generic `UserActionResponse` and authenticated behavior. They represent requests to the external Identity provider, not persisted local entities.
+`PATCH /v1/lan/users/me` is the sole profile update route, and `POST /users/me/complete-profile` is removed. The verification-email resend and password-reset operations retain their existing URLs because they trigger external Identity-provider side effects and do not create or expose a local resource. Inventing transient `*-requests` resources would obscure that behavior rather than improve the API.
 
 ### Test contracts from module route maps and generated OpenAPI
 

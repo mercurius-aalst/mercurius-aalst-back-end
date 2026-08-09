@@ -5,7 +5,7 @@
 
 ## 2. Identity and Teams endpoints
 
-- [x] 2.1 Replace the current-user profile completion and Identity action routes with their canonical profile and request-resource routes.
+- [x] 2.1 Remove the current-user profile completion compatibility route while retaining non-persisted Identity-provider command routes.
 - [x] 2.2 Replace team leave, invitation creation and response, and logo upload routes with the specified membership, invitation, and logo resource routes.
 
 ## 3. Competition endpoints

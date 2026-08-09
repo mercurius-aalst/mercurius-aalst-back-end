@@ -7,7 +7,7 @@ The API still exposes several action-style routes that obscure the resources bei
 - **BREAKING** Replace Games lifecycle action routes with one resource-state update endpoint.
 - **BREAKING** Replace Teams leave, invitation-response, invitation-creation, and logo-upload action routes with member, invitation, and logo resource routes.
 - **BREAKING** Replace Competition registration and roster-confirmation action routes with registration and roster-member resource routes, and clarify the proposed-roster eligibility route.
-- **BREAKING** Remove the current-user profile completion compatibility route in favour of the established profile update route, and model verification-email and password-reset requests as resources.
+- **BREAKING** Remove the current-user profile completion compatibility route in favour of the established profile update route.
 - Preserve existing API versioning, authorization policies, response DTO JSON shapes, domain behavior, and database schema.
 - Add route, authorization, OpenAPI, and removed-route contract coverage for every replacement.
 

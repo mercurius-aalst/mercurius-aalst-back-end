@@ -18,13 +18,15 @@ public sealed class ModuleEventPublisher : IModuleEventPublisher
     {
         var payloadType = payload.GetType();
         var messageId = Guid.NewGuid();
+        var occurredAt = occurredAtUtc ?? DateTime.UtcNow;
 
         _dbContext.OutboxMessages.Add(new OutboxMessage
         {
             Id = messageId,
             EventType = ModuleEventTypeNames.GetName(payloadType),
             Payload = JsonSerializer.Serialize(payload, payloadType, SerializerOptions),
-            OccurredAtUtc = occurredAtUtc ?? DateTime.UtcNow
+            OccurredAtUtc = occurredAt,
+            NextAttemptAtUtc = occurredAt
         });
 
         return messageId;

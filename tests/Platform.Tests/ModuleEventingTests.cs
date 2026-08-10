@@ -175,9 +175,12 @@ public class ModuleEventingTests
 
         await PublishTestEventAsync(scope.ServiceProvider);
         await scope.ServiceProvider.GetRequiredService<IModuleEventDispatcher>().DispatchPendingAsync();
+        var dbContext = scope.ServiceProvider.GetRequiredService<MercuriusDBContext>();
+        var failedMessage = await dbContext.OutboxMessages.SingleAsync();
+        failedMessage.NextAttemptAtUtc = DateTime.UtcNow.AddSeconds(-1);
+        await dbContext.SaveChangesAsync();
         await scope.ServiceProvider.GetRequiredService<IModuleEventDispatcher>().DispatchPendingAsync();
 
-        var dbContext = scope.ServiceProvider.GetRequiredService<MercuriusDBContext>();
         var outbox = await dbContext.OutboxMessages.SingleAsync();
         Assert.Equal(1, state.RecordingHandlerCalls);
         Assert.Equal(2, state.FlakyHandlerCalls);
@@ -199,6 +202,7 @@ public class ModuleEventingTests
     {
         var projection = new TeamProjectionState { Name = "Newer name", Version = 2 };
         var services = new ServiceCollection();
+        services.AddLogging();
         services.AddDbContext<MercuriusDBContext>(options => options.UseInMemoryDatabase(Guid.NewGuid().ToString()));
         services.AddSingleton(projection);
         services.AddModuleEventing<MercuriusDBContext>();
@@ -350,6 +354,7 @@ public class ModuleEventingTests
         Action<IServiceCollection> configureHandlers)
     {
         var services = new ServiceCollection();
+        services.AddLogging();
         services.AddDbContext<MercuriusDBContext>(options => options.UseInMemoryDatabase(Guid.NewGuid().ToString()));
         services.AddSingleton(state);
         services.AddModuleEventing<MercuriusDBContext>();

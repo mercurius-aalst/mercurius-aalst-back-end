@@ -47,6 +47,7 @@ public static class TeamsModuleConfiguration
     public static ModelBuilder ApplyTeamsModelConfiguration(this ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfiguration(new TeamConfiguration());
+        modelBuilder.ApplyConfiguration(new TeamMemberConfiguration());
         modelBuilder.ApplyConfiguration(new TeamInviteConfiguration());
 
         return modelBuilder;

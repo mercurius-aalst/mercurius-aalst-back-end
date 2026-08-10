@@ -375,8 +375,9 @@ public class TournamentRegistrationServiceTests
         var firstMember = CreateUser("first");
         var secondMember = CreateUser("second");
         var firstTeam = CreateTeam(captain, firstMember);
-        var secondTeam = new Team("Team Beta", captain) { Id = Guid.NewGuid() };
-        secondTeam.Members.Add(secondMember);
+        var secondTeam = new Team("Team Beta", captain.Id) { Id = Guid.NewGuid() };
+        secondTeam.AddMember(captain.Id);
+        secondTeam.AddMember(secondMember.Id);
         var unregisterGame = CreateTeamGame(teamSize: 2);
         var adminGame = CreateTeamGame(teamSize: 2);
         dbContext.Users.AddRange(captain, firstMember, secondMember);
@@ -403,8 +404,9 @@ public class TournamentRegistrationServiceTests
         var activeCaptain = CreateUser("active-captain");
         var activeMember = CreateUser("active");
         var pendingTeam = CreateTeam(captain, pendingMember);
-        var activeTeam = new Team("Team Beta", activeCaptain) { Id = Guid.NewGuid() };
-        activeTeam.Members.Add(activeMember);
+        var activeTeam = new Team("Team Beta", activeCaptain.Id) { Id = Guid.NewGuid() };
+        activeTeam.AddMember(activeCaptain.Id);
+        activeTeam.AddMember(activeMember.Id);
         var game = CreateTeamGame(teamSize: 2);
         dbContext.Users.AddRange(captain, pendingMember, activeCaptain, activeMember);
         dbContext.Teams.AddRange(pendingTeam, activeTeam);
@@ -433,6 +435,7 @@ public class TournamentRegistrationServiceTests
         var identityModule = new IdentityModuleFacade(dbContext);
         var teamsModule = new TeamsModuleFacade(
             new TeamsDbContextAdapter<MercuriusDBContext>(dbContext),
+            identityModule,
             new NoopTeamCompetitionReadService());
 
         return new TournamentRegistrationService(
@@ -495,9 +498,10 @@ public class TournamentRegistrationServiceTests
 
     private static Team CreateTeam(User captain, params User[] members)
     {
-        var team = new Team("Team Alpha", captain) { Id = Guid.NewGuid() };
+        var team = new Team("Team Alpha", captain.Id) { Id = Guid.NewGuid() };
+        team.AddMember(captain.Id);
         foreach (var member in members)
-            team.Members.Add(member);
+            team.AddMember(member.Id);
         return team;
     }
 

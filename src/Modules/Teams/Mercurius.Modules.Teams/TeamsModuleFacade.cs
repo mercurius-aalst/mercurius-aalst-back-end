@@ -1,3 +1,4 @@
+using Mercurius.Modules.Identity.Contracts;
 using Mercurius.Modules.Shared;
 using Mercurius.Modules.Teams.Contracts;
 using Mercurius.Modules.Teams.Infrastructure;
@@ -8,13 +9,16 @@ namespace Mercurius.Modules.Teams;
 internal sealed class TeamsModuleFacade : ITeamsModule
 {
     private readonly ITeamsDbContext _dbContext;
+    private readonly IIdentityModule _identityModule;
     private readonly ITeamCompetitionReadService _competitionReadService;
 
     public TeamsModuleFacade(
         ITeamsDbContext dbContext,
+        IIdentityModule identityModule,
         ITeamCompetitionReadService competitionReadService)
     {
         _dbContext = dbContext;
+        _identityModule = identityModule;
         _competitionReadService = competitionReadService;
     }
 
@@ -60,19 +64,15 @@ internal sealed class TeamsModuleFacade : ITeamsModule
                 team.CaptainUserId,
                 team.LogoUrl,
                 team.IsDeleted,
-                Members = team.Members
-                    .OrderBy(member => member.Username)
-                    .Select(member => new
-                    {
-                        member.Id,
-                        member.Username,
-                        member.Firstname,
-                        member.Lastname,
-                        member.IsDeleted
-                    })
+                MemberUserIds = team.Members
+                    .Select(member => member.UserId)
                     .ToList()
             })
             .ToListAsync(cancellationToken);
+
+        var users = await GetUserProfilesAsync(
+            teams.SelectMany(team => team.MemberUserIds),
+            cancellationToken);
 
         return teams.ToDictionary(
             team => new TeamId(team.Id),
@@ -82,12 +82,15 @@ internal sealed class TeamsModuleFacade : ITeamsModule
                 team.CaptainUserId.HasValue ? new UserId(team.CaptainUserId.Value) : null,
                 team.LogoUrl,
                 team.IsDeleted,
-                team.Members
-                    .Select(member => new TeamMemberSnapshot(
-                        new UserId(member.Id),
-                        member.Username,
-                        GetDisplayName(member.Username, member.Firstname, member.Lastname, member.IsDeleted),
-                        team.CaptainUserId == member.Id))
+                team.MemberUserIds
+                    .Select(userId => users.GetValueOrDefault(new UserId(userId)))
+                    .Where(user => user is not null)
+                    .OrderBy(user => user!.Username, StringComparer.Ordinal)
+                    .Select(user => new TeamMemberSnapshot(
+                        user!.Id,
+                        user.Username,
+                        user.DisplayName,
+                        team.CaptainUserId == user.Id.Value))
                     .ToList()));
     }
 
@@ -104,10 +107,10 @@ internal sealed class TeamsModuleFacade : ITeamsModule
             {
                 team.Id,
                 team.Name,
-                CaptainUsername = team.Captain == null ? null : team.Captain.Username,
+                team.CaptainUserId,
                 team.LogoUrl,
-                Members = team.Members
-                    .Select(member => member.Username)
+                MemberUserIds = team.Members
+                    .Select(member => member.UserId)
                     .ToList()
             })
             .SingleOrDefaultAsync(cancellationToken);
@@ -115,9 +118,14 @@ internal sealed class TeamsModuleFacade : ITeamsModule
         if (team is null)
             return null;
 
+        var users = await GetUserProfilesAsync(
+            team.MemberUserIds.Concat(
+                team.CaptainUserId.HasValue ? [team.CaptainUserId.Value] : []),
+            cancellationToken);
         var tournaments = await _competitionReadService.GetPublicTeamTournamentsAsync(team.Id, cancellationToken);
 
-        var members = team.Members
+        var members = team.MemberUserIds
+            .Select(userId => users.GetValueOrDefault(new UserId(userId))?.Username)
             .Where(IsValidPublicUsername)
             .Select(username => username!)
             .OrderBy(username => username, StringComparer.OrdinalIgnoreCase)
@@ -125,9 +133,13 @@ internal sealed class TeamsModuleFacade : ITeamsModule
             .Select(username => new PublicTeamMemberSummary(username))
             .ToList();
 
+        var captainUsername = team.CaptainUserId.HasValue
+            ? users.GetValueOrDefault(new UserId(team.CaptainUserId.Value))?.Username
+            : null;
+
         return new PublicTeamProfile(
             team.Name,
-            IsValidPublicUsername(team.CaptainUsername) ? team.CaptainUsername : null,
+            IsValidPublicUsername(captainUsername) ? captainUsername : null,
             team.LogoUrl,
             members,
             tournaments);
@@ -213,19 +225,15 @@ internal sealed class TeamsModuleFacade : ITeamsModule
         return !string.IsNullOrWhiteSpace(username);
     }
 
-    private static string GetDisplayName(
-        string? username,
-        string? firstname,
-        string? lastname,
-        bool isDeleted)
+    private async Task<IReadOnlyDictionary<UserId, UserProfileSummary>> GetUserProfilesAsync(
+        IEnumerable<Guid> userIds,
+        CancellationToken cancellationToken)
     {
-        if (isDeleted)
-            return "Deleted user";
+        var ids = userIds
+            .Distinct()
+            .Select(userId => new UserId(userId))
+            .ToArray();
 
-        var fullName = $"{firstname} {lastname}".Trim();
-        if (!string.IsNullOrWhiteSpace(fullName))
-            return fullName;
-
-        return string.IsNullOrWhiteSpace(username) ? "Incomplete profile" : username;
+        return await _identityModule.GetUsersByIdsAsync(ids, cancellationToken);
     }
 }

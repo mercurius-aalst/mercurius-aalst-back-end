@@ -1,4 +1,3 @@
-using Mercurius.Modules.Identity.Domain;
 using Mercurius.Modules.Shared.Exceptions;
 using Mercurius.Modules.Teams.Contracts;
 
@@ -10,7 +9,6 @@ internal class TeamInvite
     public Guid TeamId { get; set; }
     public Team Team { get; set; } = null!;
     public Guid UserId { get; set; }
-    public User User { get; set; } = null!;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime ExpiresAt { get; set; }
     public TeamInviteStatus Status { get; set; } = TeamInviteStatus.Pending;
@@ -30,7 +28,7 @@ internal class TeamInvite
 
         Status = accept ? TeamInviteStatus.Accepted : TeamInviteStatus.Declined;
         if (accept)
-            Team.Members.Add(User);
+            Team.AddMember(UserId);
         RespondedAt = DateTime.UtcNow;
     }
 

@@ -1,3 +1,4 @@
+using Mercurius.Modules.Identity.Contracts;
 using Mercurius.LAN.API.Data;
 using Mercurius.Modules.Shared;
 using Mercurius.Modules.Teams;
@@ -30,6 +31,7 @@ public class TeamsModuleFacadeTests
         services.AddSingleton<IConfiguration>(configuration);
         services.AddSingleton<ITeamCompetitionReadService>(
             new StubTeamCompetitionReadService(Array.Empty<PublicTeamTournamentSummary>()));
+        services.AddScoped<IIdentityModule, DbContextIdentityModule>();
         services.AddTeamsModule<MercuriusDBContext>(configuration);
 
         using var provider = services.BuildServiceProvider();
@@ -44,11 +46,13 @@ public class TeamsModuleFacadeTests
     {
         await using var dbContext = CreateDbContext();
         var captain = CreateUser("captain", "Captain", "Player");
-        var team = new Team("Alpha Team", captain)
+        var team = new Team("Alpha Team", captain.Id)
         {
             Id = Guid.NewGuid(),
             LogoUrl = "https://example.test/logo.png"
         };
+        team.AddMember(captain.Id);
+        dbContext.Users.Add(captain);
         dbContext.Teams.Add(team);
         await dbContext.SaveChangesAsync();
 
@@ -69,9 +73,13 @@ public class TeamsModuleFacadeTests
     {
         await using var dbContext = CreateDbContext();
         var captain = CreateUser("captain", "Captain", "Player");
-        var team = new Team("Roster Team", captain) { Id = Guid.NewGuid() };
-        team.Members.Add(CreateUser("zeta", null, null));
-        team.Members.Add(CreateUser("alpha", "Alpha", "Member"));
+        var zeta = CreateUser("zeta", null, null);
+        var alpha = CreateUser("alpha", "Alpha", "Member");
+        var team = new Team("Roster Team", captain.Id) { Id = Guid.NewGuid() };
+        team.AddMember(captain.Id);
+        team.AddMember(zeta.Id);
+        team.AddMember(alpha.Id);
+        dbContext.Users.AddRange(captain, zeta, alpha);
         dbContext.Teams.Add(team);
         await dbContext.SaveChangesAsync();
 
@@ -92,14 +100,19 @@ public class TeamsModuleFacadeTests
     {
         await using var dbContext = CreateDbContext();
         var captain = CreateUser("CaptainMerc", "Captain", "Merc");
-        var team = new Team("Mercury Wolves", captain)
+        var zeta = CreateUser("zeta", "Zeta", "Member");
+        var alpha = CreateUser("Alpha", "Alpha", "Member");
+        var hidden = CreateUser(null, "Hidden", "Member");
+        var team = new Team("Mercury Wolves", captain.Id)
         {
             Id = Guid.NewGuid(),
             LogoUrl = "https://example.test/wolves.png"
         };
-        team.Members.Add(CreateUser("zeta", "Zeta", "Member"));
-        team.Members.Add(CreateUser("Alpha", "Alpha", "Member"));
-        team.Members.Add(CreateUser(null, "Hidden", "Member"));
+        team.AddMember(captain.Id);
+        team.AddMember(zeta.Id);
+        team.AddMember(alpha.Id);
+        team.AddMember(hidden.Id);
+        dbContext.Users.AddRange(captain, zeta, alpha, hidden);
         dbContext.Teams.Add(team);
         await dbContext.SaveChangesAsync();
 
@@ -125,10 +138,12 @@ public class TeamsModuleFacadeTests
         await using var dbContext = CreateDbContext();
         var captain = CreateUser("captain", "Captain", "Player");
         var outsider = CreateUser("outsider", "Outside", "Player");
-        var team = new Team("Guard Team", captain) { Id = Guid.NewGuid() };
-        var deletedTeam = new Team("Deleted Team", captain) { Id = Guid.NewGuid() };
+        var team = new Team("Guard Team", captain.Id) { Id = Guid.NewGuid() };
+        team.AddMember(captain.Id);
+        var deletedTeam = new Team("Deleted Team", captain.Id) { Id = Guid.NewGuid() };
+        deletedTeam.AddMember(captain.Id);
         deletedTeam.Delete(DateTime.UtcNow);
-        dbContext.Users.Add(outsider);
+        dbContext.Users.AddRange(captain, outsider);
         dbContext.Teams.AddRange(team, deletedTeam);
         await dbContext.SaveChangesAsync();
 
@@ -152,12 +167,46 @@ public class TeamsModuleFacadeTests
         Assert.Equal(["team_deleted", "captain_required"], deleted.ReasonCodes);
     }
 
+    [Fact]
+    public async Task GetTeamRosterSnapshotsAsync_BatchHydratesAllMembersOnce()
+    {
+        await using var dbContext = CreateDbContext();
+        var firstCaptain = CreateUser("captain-one", "Captain", "One");
+        var firstMember = CreateUser("member-one", "Member", "One");
+        var secondCaptain = CreateUser("captain-two", "Captain", "Two");
+        var firstTeam = new Team("First Team", firstCaptain.Id) { Id = Guid.NewGuid() };
+        firstTeam.AddMember(firstCaptain.Id);
+        firstTeam.AddMember(firstMember.Id);
+        var secondTeam = new Team("Second Team", secondCaptain.Id) { Id = Guid.NewGuid() };
+        secondTeam.AddMember(secondCaptain.Id);
+
+        dbContext.Users.AddRange(firstCaptain, firstMember, secondCaptain);
+        dbContext.Teams.AddRange(firstTeam, secondTeam);
+        await dbContext.SaveChangesAsync();
+
+        var identityModule = new DbContextIdentityModule(dbContext);
+        var module = new TeamsModuleFacade(
+            new TeamsDbContextAdapter<MercuriusDBContext>(dbContext),
+            identityModule,
+            new StubTeamCompetitionReadService([]));
+
+        var rosters = await module.GetTeamRosterSnapshotsAsync(
+            [new TeamId(firstTeam.Id), new TeamId(secondTeam.Id)]);
+
+        Assert.Equal(2, rosters.Count);
+        Assert.Equal(1, identityModule.BatchCallCount);
+        Assert.Equal(
+            new[] { firstCaptain.Id, firstMember.Id, secondCaptain.Id }.Order().ToArray(),
+            identityModule.LastBatchUserIds.Select(userId => userId.Value).Order().ToArray());
+    }
+
     private static TeamsModuleFacade CreateModule(
         MercuriusDBContext dbContext,
         IReadOnlyList<PublicTeamTournamentSummary>? tournaments = null)
     {
         return new TeamsModuleFacade(
             new TeamsDbContextAdapter<MercuriusDBContext>(dbContext),
+            new DbContextIdentityModule(dbContext),
             new StubTeamCompetitionReadService(tournaments ?? Array.Empty<PublicTeamTournamentSummary>()));
     }
 

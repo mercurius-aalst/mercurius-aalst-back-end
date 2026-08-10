@@ -24,7 +24,7 @@ internal sealed class EfTeamRealtimeAuthorizer : ITeamRealtimeAuthorizer
             .AnyAsync(team =>
                 !team.IsDeleted &&
                 team.Id == teamId.Value &&
-                (team.CaptainUserId == userId.Value || team.Members.Any(member => member.Id == userId.Value)),
+                (team.CaptainUserId == userId.Value || team.Members.Any(member => member.UserId == userId.Value)),
                 cancellationToken);
     }
 }

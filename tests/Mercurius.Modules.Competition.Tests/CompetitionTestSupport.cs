@@ -78,7 +78,7 @@ internal static class CompetitionTestSupport
         return new CompetitionDtoMapper(
             new RegistrationMappingContextBuilder(
                 new StubIdentityModule(users ?? []),
-                new StubTeamsModule(teams ?? [])),
+                new StubTeamsModule(teams ?? [], users ?? [])),
             new StubSponsorshipModule(sponsorPlacement));
     }
 
@@ -90,7 +90,7 @@ internal static class CompetitionTestSupport
     {
         return new RegistrationMappingContextBuilder(
                 new StubIdentityModule(users ?? []),
-                new StubTeamsModule(teams ?? []))
+                new StubTeamsModule(teams ?? [], users ?? []))
             .BuildAsync(registrations, placements, CancellationToken.None)
             .GetAwaiter()
             .GetResult();
@@ -99,8 +99,10 @@ internal static class CompetitionTestSupport
     public static IIdentityModule CreateIdentityModule(IReadOnlyCollection<User>? users = null) =>
         new StubIdentityModule(users ?? []);
 
-    public static ITeamsModule CreateTeamsModule(IReadOnlyCollection<Team>? teams = null) =>
-        new StubTeamsModule(teams ?? []);
+    public static ITeamsModule CreateTeamsModule(
+        IReadOnlyCollection<Team>? teams = null,
+        IReadOnlyCollection<User>? users = null) =>
+        new StubTeamsModule(teams ?? [], users ?? []);
 
     public static ISponsorshipModule CreateSponsorshipModule(SponsorPlacementSummary? sponsorPlacement = null) =>
         new StubSponsorshipModule(sponsorPlacement);
@@ -218,9 +220,12 @@ internal static class CompetitionTestSupport
         }
     }
 
-    private sealed class StubTeamsModule(IReadOnlyCollection<Team> teams) : ITeamsModule
+    private sealed class StubTeamsModule(
+        IReadOnlyCollection<Team> teams,
+        IReadOnlyCollection<User> users) : ITeamsModule
     {
         private readonly Dictionary<Guid, Team> _teams = teams.ToDictionary(team => team.Id);
+        private readonly Dictionary<Guid, User> _users = users.ToDictionary(user => user.Id);
 
         public Task<TeamSummary?> GetTeamSummaryAsync(TeamId teamId, CancellationToken cancellationToken = default)
         {
@@ -290,7 +295,7 @@ internal static class CompetitionTestSupport
                     .ToList());
         }
 
-        private static TeamRosterSnapshot CreateSnapshot(Team team)
+        private TeamRosterSnapshot CreateSnapshot(Team team)
         {
             return new TeamRosterSnapshot(
                 new TeamId(team.Id),
@@ -299,11 +304,13 @@ internal static class CompetitionTestSupport
                 team.LogoUrl,
                 team.IsDeleted,
                 team.Members
-                    .Select(member => new TeamMemberSnapshot(
-                        new UserId(member.Id),
-                        member.Username,
-                        member.DisplayName,
-                        member.Id == team.CaptainUserId))
+                    .Select(member => _users.GetValueOrDefault(member.UserId))
+                    .Where(user => user is not null)
+                    .Select(user => new TeamMemberSnapshot(
+                        new UserId(user!.Id),
+                        user.Username,
+                        user.DisplayName,
+                        user.Id == team.CaptainUserId))
                     .ToList());
         }
     }

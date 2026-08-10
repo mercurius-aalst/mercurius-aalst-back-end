@@ -282,8 +282,9 @@ public class ModuleEventingTests
         await using var dbContext = CreateDbContext();
         var captain = CreateUser();
         var newCaptain = CreateUser();
-        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
-        team.Members.Add(newCaptain);
+        var team = new Team("Alpha", captain.Id) { Id = Guid.NewGuid() };
+        team.AddMember(captain.Id);
+        team.AddMember(newCaptain.Id);
         dbContext.Users.AddRange(captain, newCaptain);
         dbContext.Teams.Add(team);
         await dbContext.SaveChangesAsync();
@@ -384,15 +385,18 @@ public class ModuleEventingTests
             })
             .Build();
         var moduleEventPublisher = new ModuleEventPublisher(dbContext);
+        var identityModule = new IdentityModuleFacade(dbContext);
+        var teamsDbContext = new TeamsDbContextAdapter<MercuriusDBContext>(dbContext);
 
         return new TeamEventPublishingDecorator(
             new TeamService(
-                new TeamsDbContextAdapter<MercuriusDBContext>(dbContext),
+                teamsDbContext,
                 configuration,
-                new IdentityModuleFacade(dbContext),
+                identityModule,
                 new NoopMediaModule(),
                 new NoopTeamCompetitionReadService()),
-            new TeamsDbContextAdapter<MercuriusDBContext>(dbContext),
+            teamsDbContext,
+            identityModule,
             new NoopTeamEventPublisher(),
             moduleEventPublisher);
     }

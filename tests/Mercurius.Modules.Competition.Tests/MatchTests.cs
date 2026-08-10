@@ -218,10 +218,12 @@ public class MatchTests
     private static Team CreateTeam(int id)
     {
         var captain = CreateUser(id + 100);
-        return new Team($"Team {id}", captain)
+        var team = new Team($"Team {id}", captain.Id)
         {
             Id = Guid.NewGuid(),
             CaptainUserId = captain.Id
         };
+        team.AddMember(captain.Id);
+        return team;
     }
 }

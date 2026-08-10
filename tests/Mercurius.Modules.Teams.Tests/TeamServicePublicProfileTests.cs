@@ -4,7 +4,6 @@ using Mercurius.Modules.Shared;
 using Mercurius.Modules.Shared.Exceptions;
 using Mercurius.Modules.Teams.Services;
 using Mercurius.Modules.Teams.Infrastructure;
-using Mercurius.Modules.Identity;
 using Mercurius.Modules.Teams.Contracts;
 using Mercurius.Modules.Media.Contracts;
 using Microsoft.EntityFrameworkCore;
@@ -19,9 +18,13 @@ public class TeamServicePublicProfileTests
     {
         await using var dbContext = CreateDbContext();
         var captain = CreateUser("CaptainMerc");
-        var team = new Team("Mercury Wolves", captain) { Id = Guid.NewGuid() };
-        team.Members.Add(CreateUser("zeta"));
-        team.Members.Add(CreateUser("Alpha"));
+        var zetaMember = CreateUser("zeta");
+        var alphaMember = CreateUser("Alpha");
+        var team = new Team("Mercury Wolves", captain.Id) { Id = Guid.NewGuid() };
+        team.AddMember(captain.Id);
+        team.AddMember(zetaMember.Id);
+        team.AddMember(alphaMember.Id);
+        dbContext.Users.AddRange(captain, zetaMember, alphaMember);
         dbContext.Teams.Add(team);
 
         var tournament = CreateGame(Guid.Parse("00000000-0000-0000-0000-000000000001"), "Alpha Cup");
@@ -62,10 +65,15 @@ public class TeamServicePublicProfileTests
     {
         await using var dbContext = CreateDbContext();
         var captain = CreateUser("CaptainOne");
-        var team = new Team("Privacy Squad", captain) { Id = Guid.NewGuid() };
-        team.Members.Add(CreateUser("Bravo"));
-        team.Members.Add(CreateUser(null));
-        team.Members.Add(CreateUser(" "));
+        var bravoMember = CreateUser("Bravo");
+        var unnamedMember = CreateUser(null);
+        var blankMember = CreateUser(" ");
+        var team = new Team("Privacy Squad", captain.Id) { Id = Guid.NewGuid() };
+        team.AddMember(captain.Id);
+        team.AddMember(bravoMember.Id);
+        team.AddMember(unnamedMember.Id);
+        team.AddMember(blankMember.Id);
+        dbContext.Users.AddRange(captain, bravoMember, unnamedMember, blankMember);
         team.TeamInvites.Add(new TeamInvite
         {
             TeamId = team.Id,
@@ -89,14 +97,19 @@ public class TeamServicePublicProfileTests
     {
         await using var dbContext = CreateDbContext();
         var captain = CreateUser("CaptainTournament");
-        var team = new Team("Tournament Squad", captain) { Id = Guid.NewGuid() };
+        var team = new Team("Tournament Squad", captain.Id) { Id = Guid.NewGuid() };
+        team.AddMember(captain.Id);
+        dbContext.Users.Add(captain);
         dbContext.Teams.Add(team);
 
         var alphaOne = CreateGame(Guid.Parse("00000000-0000-0000-0000-000000000001"), "Alpha Cup");
         var alphaTwo = CreateGame(Guid.Parse("00000000-0000-0000-0000-000000000002"), "Alpha Cup");
         var zeta = CreateGame(Guid.Parse("00000000-0000-0000-0000-000000000003"), "Zeta Clash");
 
-        var otherTeam = new Team("Other Team", CreateUser("CaptainOther")) { Id = Guid.NewGuid() };
+        var otherCaptain = CreateUser("CaptainOther");
+        var otherTeam = new Team("Other Team", otherCaptain.Id) { Id = Guid.NewGuid() };
+        otherTeam.AddMember(otherCaptain.Id);
+        dbContext.Users.Add(otherCaptain);
         var hiddenTournament = CreateGame(Guid.Parse("00000000-0000-0000-0000-000000000004"), "Aardvark Cup");
 
         dbContext.Teams.Add(otherTeam);
@@ -104,7 +117,7 @@ public class TeamServicePublicProfileTests
         AddActiveTeamRegistration(dbContext, alphaOne, team, captain);
         AddActiveTeamRegistration(dbContext, alphaTwo, team, captain);
         AddActiveTeamRegistration(dbContext, zeta, team, captain);
-        AddActiveTeamRegistration(dbContext, hiddenTournament, otherTeam, otherTeam.Captain!);
+        AddActiveTeamRegistration(dbContext, hiddenTournament, otherTeam, otherCaptain);
         await dbContext.SaveChangesAsync();
 
         var service = CreateService(dbContext);
@@ -133,7 +146,7 @@ public class TeamServicePublicProfileTests
         return new TeamService(
             new TeamsDbContextAdapter<MercuriusDBContext>(dbContext),
             configuration,
-            new IdentityModuleFacade(dbContext),
+            new DbContextIdentityModule(dbContext),
             new NoopMediaModule(),
             competitionReadService: new StubTeamCompetitionReadService(dbContext));
     }

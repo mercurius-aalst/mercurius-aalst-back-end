@@ -7,7 +7,6 @@ using Mercurius.Modules.Media.Contracts;
 using Mercurius.Modules.Teams.Contracts;
 using Mercurius.Modules.Teams.Infrastructure;
 using Mercurius.Modules.Teams.Services;
-using Mercurius.Modules.Identity;
 using Mercurius.Modules.Shared;
 using Platform.Eventing;
 using Platform.Realtime;
@@ -31,12 +30,12 @@ public class TeamTests
         // Arrange
         var teamName = "Test Team";
         var captain = CreateUser();
-        var team = new Team(teamName, captain);
+        var team = CreateTeam(teamName, captain);
         // Act & Assert
         Assert.Equal(teamName, team.Name);
         Assert.Equal("test team", team.NormalizedName);
         Assert.Equal(captain.Id, team.CaptainUserId);
-        Assert.Contains(captain, team.Members);
+        Assert.Contains(team.Members, member => member.UserId == captain.Id);
     }
 
     [Fact]
@@ -59,7 +58,7 @@ public class TeamTests
         var newCaptain = CreateUser();
 
         dbContext.Users.AddRange(existingCaptain, newCaptain);
-        dbContext.Teams.Add(new Team("Alpha Squad", existingCaptain) { Id = Guid.NewGuid() });
+        dbContext.Teams.Add(CreateTeam("Alpha Squad", existingCaptain));
         await dbContext.SaveChangesAsync();
 
         var teamService = CreateTeamService(dbContext);
@@ -79,8 +78,8 @@ public class TeamTests
         await using var dbContext = CreateDbContext();
         var firstCaptain = CreateUser();
         var secondCaptain = CreateUser();
-        var firstTeam = new Team("Alpha Squad", firstCaptain) { Id = Guid.NewGuid() };
-        var secondTeam = new Team("Beta Squad", secondCaptain) { Id = Guid.NewGuid() };
+        var firstTeam = CreateTeam("Alpha Squad", firstCaptain);
+        var secondTeam = CreateTeam("Beta Squad", secondCaptain);
 
         dbContext.Users.AddRange(firstCaptain, secondCaptain);
         dbContext.Teams.AddRange(firstTeam, secondTeam);
@@ -122,7 +121,7 @@ public class TeamTests
     {
         await using var dbContext = CreateDbContext();
         var captain = CreateUser();
-        var team = new Team("Alpha Squad", captain) { Id = Guid.NewGuid() };
+        var team = CreateTeam("Alpha Squad", captain);
 
         dbContext.Users.Add(captain);
         dbContext.Teams.Add(team);
@@ -145,9 +144,9 @@ public class TeamTests
 
         dbContext.Users.AddRange(alphaCaptain, alpineCaptain, betaCaptain);
         dbContext.Teams.AddRange(
-            new Team("Alpha Squad", alphaCaptain) { Id = Guid.NewGuid() },
-            new Team("Alpine Club", alpineCaptain) { Id = Guid.NewGuid() },
-            new Team("Beta Squad", betaCaptain) { Id = Guid.NewGuid() });
+            CreateTeam("Alpha Squad", alphaCaptain),
+            CreateTeam("Alpine Club", alpineCaptain),
+            CreateTeam("Beta Squad", betaCaptain));
         await dbContext.SaveChangesAsync();
 
         var teamService = CreateTeamService(dbContext);
@@ -238,7 +237,7 @@ public class TeamTests
     {
         var team = CreateTeam();
         var newCaptain = CreateUser();
-        team.Members.Add(newCaptain);
+        team.AddMember(newCaptain.Id);
 
         team.ChangeCaptain(newCaptain.Id);
 
@@ -260,11 +259,11 @@ public class TeamTests
         // Arrange
         var team = CreateTeam();
         var memberToRemove = CreateUser();
-        team.Members.Add(memberToRemove);
+        team.AddMember(memberToRemove.Id);
         // Act
         team.RemoveMember(memberToRemove.Id);
         // Assert
-        Assert.DoesNotContain(memberToRemove, team.Members);
+        Assert.DoesNotContain(team.Members, member => member.UserId == memberToRemove.Id);
     }
     [Fact]
     public void RemoveMember_Should_Not_Remove_User_If_Not_In_Team()
@@ -281,11 +280,9 @@ public class TeamTests
     {
         // Arrange
         var team = CreateTeam();
-        var captain = team.Captain!;
-        team.CaptainUserId = captain.Id;
-        team.Members.Add(captain);
+        var captainUserId = team.CaptainUserId!.Value;
         // Act & Assert
-        Assert.Throws<ValidationException>(() => team.RemoveMember(team.CaptainUserId!.Value));
+        Assert.Throws<ValidationException>(() => team.RemoveMember(captainUserId));
     }
 
     [Fact]
@@ -294,7 +291,7 @@ public class TeamTests
         // Arrange
         var team = CreateTeam();
         var userToInvite = CreateUser();
-        team.Members.Add(userToInvite);
+        team.AddMember(userToInvite.Id);
         // Act & Assert
         Assert.Throws<ValidationException>(() => team.InviteUser(userToInvite.Id, 7));
     }
@@ -377,14 +374,13 @@ public class TeamTests
 
         //Have to do this manually because Actual references are handled by EF Core
         invite.Team = team;
-        invite.User = userToInvite;
 
         // Act
         invite.Respond(true);
 
         // Assert
         Assert.Equal(TeamInviteStatus.Accepted, invite.Status);
-        Assert.Contains(userToInvite, team.Members);
+        Assert.Contains(team.Members, member => member.UserId == userToInvite.Id);
         Assert.NotNull(invite.RespondedAt);
     }
 
@@ -400,7 +396,7 @@ public class TeamTests
         invite.Respond(false);
         // Assert
         Assert.Equal(TeamInviteStatus.Declined, invite.Status);
-        Assert.DoesNotContain(userToInvite, team.Members);
+        Assert.DoesNotContain(team.Members, member => member.UserId == userToInvite.Id);
         Assert.NotNull(invite.RespondedAt);
     }
 
@@ -413,7 +409,6 @@ public class TeamTests
         team.TeamInvites.Clear(); // Ensure no existing invites
         var invite = team.InviteUser(userToInvite.Id, 7);
         invite.Team = team;
-        invite.User = userToInvite;
         invite.Status = TeamInviteStatus.Accepted; // Change status to Accepted
         // Act & Assert
         Assert.Throws<ValidationException>(() => invite.Respond(true));
@@ -426,7 +421,6 @@ public class TeamTests
         var userToInvite = CreateUser();
         var invite = team.InviteUser(userToInvite.Id, 7);
         invite.Team = team;
-        invite.User = userToInvite;
         invite.ExpiresAt = DateTime.UtcNow.AddMinutes(-1);
 
         Assert.Throws<ValidationException>(() => invite.Respond(true));
@@ -441,8 +435,8 @@ public class TeamTests
         var captain = CreateUser();
         dbContext.Users.Add(captain);
         dbContext.Teams.AddRange(
-            new Team("One", captain) { Id = Guid.NewGuid() },
-            new Team("Two", captain) { Id = Guid.NewGuid() });
+            CreateTeam("One", captain),
+            CreateTeam("Two", captain));
         await dbContext.SaveChangesAsync();
 
         var teamService = CreateTeamService(dbContext);
@@ -458,7 +452,7 @@ public class TeamTests
         var captain = CreateUser();
         var outsider = CreateUser();
         var invited = CreateUser();
-        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
+        var team = CreateTeam("Alpha", captain);
         dbContext.Users.AddRange(captain, outsider, invited);
         dbContext.Teams.Add(team);
         await dbContext.SaveChangesAsync();
@@ -475,7 +469,7 @@ public class TeamTests
         await using var dbContext = CreateDbContext();
         var captain = CreateUser();
         var invited = CreateUser();
-        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
+        var team = CreateTeam("Alpha", captain);
         dbContext.Users.AddRange(captain, invited);
         dbContext.Teams.Add(team);
         await dbContext.SaveChangesAsync();
@@ -496,7 +490,7 @@ public class TeamTests
         var captain = CreateUser();
         var invited = CreateUser();
         var otherUser = CreateUser();
-        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
+        var team = CreateTeam("Alpha", captain);
         dbContext.Users.AddRange(captain, invited, otherUser);
         dbContext.Teams.Add(team);
         await dbContext.SaveChangesAsync();
@@ -515,8 +509,8 @@ public class TeamTests
         await using var dbContext = CreateDbContext();
         var captain = CreateUser();
         var member = CreateUser();
-        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
-        team.Members.Add(member);
+        var team = CreateTeam("Alpha", captain);
+        team.AddMember(member.Id);
         var game = new Game("Game", BracketType.SingleElimination, GameFormat.BestOf1, GameFormat.BestOf1, ParticipationMode.Team, 2)
         {
             Id = Guid.NewGuid(),
@@ -540,8 +534,8 @@ public class TeamTests
         await using var dbContext = CreateDbContext();
         var captain = CreateUser();
         var member = CreateUser();
-        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
-        team.Members.Add(member);
+        var team = CreateTeam("Alpha", captain);
+        team.AddMember(member.Id);
         dbContext.Users.AddRange(captain, member);
         dbContext.Teams.Add(team);
         await dbContext.SaveChangesAsync();
@@ -551,7 +545,7 @@ public class TeamTests
         var result = await teamService.RemoveMemberAsync(captain.Auth0UserId, team.Id, member.Id);
 
         Assert.DoesNotContain(result.Members, teamMember => teamMember.Id == member.Id);
-        Assert.DoesNotContain(team.Members, teamMember => teamMember.Id == member.Id);
+        Assert.DoesNotContain(team.Members, teamMember => teamMember.UserId == member.Id);
         Assert.Contains(publisher.MembershipEvents, evt => evt.TeamId == team.Id && evt.UserId == member.Id && evt.Action == "Removed");
     }
 
@@ -562,8 +556,8 @@ public class TeamTests
         var captain = CreateUser();
         var member = CreateUser();
         var outsider = CreateUser();
-        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
-        team.Members.Add(member);
+        var team = CreateTeam("Alpha", captain);
+        team.AddMember(member.Id);
         dbContext.Users.AddRange(captain, member, outsider);
         dbContext.Teams.Add(team);
         await dbContext.SaveChangesAsync();
@@ -572,7 +566,7 @@ public class TeamTests
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
             teamService.RemoveMemberAsync(outsider.Auth0UserId, team.Id, member.Id));
 
-        Assert.Contains(team.Members, teamMember => teamMember.Id == member.Id);
+        Assert.Contains(team.Members, teamMember => teamMember.UserId == member.Id);
     }
 
     [Fact]
@@ -580,7 +574,7 @@ public class TeamTests
     {
         await using var dbContext = CreateDbContext();
         var captain = CreateUser();
-        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
+        var team = CreateTeam("Alpha", captain);
         dbContext.Users.Add(captain);
         dbContext.Teams.Add(team);
         await dbContext.SaveChangesAsync();
@@ -589,7 +583,7 @@ public class TeamTests
         await Assert.ThrowsAsync<ValidationException>(() =>
             teamService.RemoveMemberAsync(captain.Auth0UserId, team.Id, captain.Id));
 
-        Assert.Contains(team.Members, teamMember => teamMember.Id == captain.Id);
+        Assert.Contains(team.Members, teamMember => teamMember.UserId == captain.Id);
     }
 
     [Fact]
@@ -598,8 +592,8 @@ public class TeamTests
         await using var dbContext = CreateDbContext();
         var captain = CreateUser();
         var member = CreateUser();
-        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
-        team.Members.Add(member);
+        var team = CreateTeam("Alpha", captain);
+        team.AddMember(member.Id);
         var game = new Game("Game", BracketType.SingleElimination, GameFormat.BestOf1, GameFormat.BestOf1, ParticipationMode.Team, 2)
         {
             Id = Guid.NewGuid(),
@@ -615,7 +609,7 @@ public class TeamTests
         await Assert.ThrowsAsync<ValidationException>(() =>
             teamService.RemoveMemberAsync(captain.Auth0UserId, team.Id, member.Id));
 
-        Assert.Contains(team.Members, teamMember => teamMember.Id == member.Id);
+        Assert.Contains(team.Members, teamMember => teamMember.UserId == member.Id);
     }
 
     [Theory]
@@ -626,8 +620,8 @@ public class TeamTests
         await using var dbContext = CreateDbContext();
         var captain = CreateUser();
         var member = CreateUser();
-        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
-        team.Members.Add(member);
+        var team = CreateTeam("Alpha", captain);
+        team.AddMember(member.Id);
         var game = new Game("Game", BracketType.SingleElimination, GameFormat.BestOf1, GameFormat.BestOf1, ParticipationMode.Team, 2)
         {
             Id = Guid.NewGuid(),
@@ -642,7 +636,7 @@ public class TeamTests
 
         await teamService.RemoveMemberAsync(captain.Auth0UserId, team.Id, member.Id);
 
-        Assert.DoesNotContain(team.Members, teamMember => teamMember.Id == member.Id);
+        Assert.DoesNotContain(team.Members, teamMember => teamMember.UserId == member.Id);
     }
 
     [Fact]
@@ -651,7 +645,7 @@ public class TeamTests
         await using var dbContext = CreateDbContext();
         var captain = CreateUser();
         var outsider = CreateUser();
-        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
+        var team = CreateTeam("Alpha", captain);
         dbContext.Users.AddRange(captain, outsider);
         dbContext.Teams.Add(team);
         await dbContext.SaveChangesAsync();
@@ -671,7 +665,7 @@ public class TeamTests
     {
         await using var dbContext = CreateDbContext();
         var captain = CreateUser();
-        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
+        var team = CreateTeam("Alpha", captain);
         var game = new Game("Game", BracketType.SingleElimination, GameFormat.BestOf1, GameFormat.BestOf1, ParticipationMode.Team, 1)
         {
             Id = Guid.NewGuid(),
@@ -697,9 +691,9 @@ public class TeamTests
         await using var dbContext = CreateDbContext();
         var captain = CreateUser();
         var member = CreateUser();
-        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
+        var team = CreateTeam("Alpha", captain);
         team.LogoUrl = "/images/alpha.webp";
-        team.Members.Add(member);
+        team.AddMember(member.Id);
         var game = new Game("Completed Game", BracketType.SingleElimination, GameFormat.BestOf1, GameFormat.BestOf1, ParticipationMode.Team, 2)
         {
             Id = Guid.NewGuid(),
@@ -721,7 +715,6 @@ public class TeamTests
             Id = Guid.NewGuid(),
             Team = team,
             TeamId = team.Id,
-            User = member,
             UserId = member.Id,
             Status = TeamInviteStatus.Pending,
             CreatedAt = DateTime.UtcNow,
@@ -760,7 +753,7 @@ public class TeamTests
         await using var dbContext = CreateDbContext();
         var originalCaptain = CreateUser();
         var newCaptain = CreateUser();
-        var team = new Team("Alpha", originalCaptain) { Id = Guid.NewGuid() };
+        var team = CreateTeam("Alpha", originalCaptain);
         dbContext.Users.AddRange(originalCaptain, newCaptain);
         dbContext.Teams.Add(team);
         await dbContext.SaveChangesAsync();
@@ -778,7 +771,7 @@ public class TeamTests
     {
         await using var dbContext = CreateDbContext();
         var captain = CreateUser();
-        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
+        var team = CreateTeam("Alpha", captain);
         dbContext.Users.Add(captain);
         dbContext.Teams.Add(team);
         await dbContext.SaveChangesAsync();
@@ -802,13 +795,13 @@ public class TeamTests
         await using var dbContext = CreateDbContext();
         var captain = CreateUser();
         var target = CreateUser();
-        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
-        team.Members.Add(target);
+        var team = CreateTeam("Alpha", captain);
+        team.AddMember(target.Id);
         dbContext.Users.AddRange(captain, target);
         dbContext.Teams.AddRange(
             team,
-            new Team("Target One", target) { Id = Guid.NewGuid() },
-            new Team("Target Two", target) { Id = Guid.NewGuid() });
+            CreateTeam("Target One", target),
+            CreateTeam("Target Two", target));
         await dbContext.SaveChangesAsync();
 
         var teamService = CreateTeamService(dbContext);
@@ -822,7 +815,7 @@ public class TeamTests
     {
         await using var dbContext = CreateDbContext();
         var captain = CreateUser();
-        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
+        var team = CreateTeam("Alpha", captain);
         dbContext.Users.Add(captain);
         dbContext.Teams.Add(team);
         await dbContext.SaveChangesAsync();
@@ -843,9 +836,9 @@ public class TeamTests
         var captain = CreateUser();
         var member = CreateUser();
         var otherCaptain = CreateUser();
-        var captainedTeam = new Team("Captained", captain) { Id = Guid.NewGuid() };
-        var memberTeam = new Team("Member", otherCaptain) { Id = Guid.NewGuid() };
-        memberTeam.Members.Add(member);
+        var captainedTeam = CreateTeam("Captained", captain);
+        var memberTeam = CreateTeam("Member", otherCaptain);
+        memberTeam.AddMember(member.Id);
         dbContext.Users.AddRange(captain, member, otherCaptain);
         dbContext.Teams.AddRange(captainedTeam, memberTeam);
         await dbContext.SaveChangesAsync();
@@ -865,8 +858,8 @@ public class TeamTests
         await using var dbContext = CreateDbContext();
         var captain = CreateUser();
         var member = CreateUser();
-        var team = new Team("Tournament Team", captain) { Id = Guid.NewGuid() };
-        team.Members.Add(member);
+        var team = CreateTeam("Tournament Team", captain);
+        team.AddMember(member.Id);
         var game = new Game("Team Cup", BracketType.SingleElimination, GameFormat.BestOf1, GameFormat.BestOf1, ParticipationMode.Team, 2)
         {
             Id = Guid.NewGuid()
@@ -920,16 +913,15 @@ public class TeamTests
         var sentRecipient = CreateUser();
         var unrelatedCaptain = CreateUser();
         var unrelatedRecipient = CreateUser();
-        var currentUserTeam = new Team("Current user team", currentUser) { Id = Guid.NewGuid() };
-        var receivedTeam = new Team("Received team", receivedCaptain) { Id = Guid.NewGuid() };
-        var unrelatedTeam = new Team("Unrelated team", unrelatedCaptain) { Id = Guid.NewGuid() };
+        var currentUserTeam = CreateTeam("Current user team", currentUser);
+        var receivedTeam = CreateTeam("Received team", receivedCaptain);
+        var unrelatedTeam = CreateTeam("Unrelated team", unrelatedCaptain);
         var now = DateTime.UtcNow;
         var receivedDueInvite = new TeamInvite
         {
             Id = Guid.NewGuid(),
             Team = receivedTeam,
             TeamId = receivedTeam.Id,
-            User = currentUser,
             UserId = currentUser.Id,
             Status = TeamInviteStatus.Pending,
             CreatedAt = now.AddDays(-20),
@@ -940,7 +932,6 @@ public class TeamTests
             Id = Guid.NewGuid(),
             Team = currentUserTeam,
             TeamId = currentUserTeam.Id,
-            User = sentRecipient,
             UserId = sentRecipient.Id,
             Status = TeamInviteStatus.Pending,
             CreatedAt = now.AddDays(-20),
@@ -951,7 +942,6 @@ public class TeamTests
             Id = Guid.NewGuid(),
             Team = unrelatedTeam,
             TeamId = unrelatedTeam.Id,
-            User = unrelatedRecipient,
             UserId = unrelatedRecipient.Id,
             Status = TeamInviteStatus.Pending,
             CreatedAt = now.AddDays(-20),
@@ -962,7 +952,6 @@ public class TeamTests
             Id = Guid.NewGuid(),
             Team = currentUserTeam,
             TeamId = currentUserTeam.Id,
-            User = sentRecipient,
             UserId = sentRecipient.Id,
             Status = TeamInviteStatus.Declined,
             CreatedAt = now.AddDays(-120),
@@ -1004,7 +993,7 @@ public class TeamTests
         await using var dbContext = CreateDbContext();
         var captain = CreateUser();
         var invited = CreateUser();
-        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
+        var team = CreateTeam("Alpha", captain);
         dbContext.Users.AddRange(captain, invited);
         dbContext.Teams.Add(team);
         await dbContext.SaveChangesAsync();
@@ -1028,8 +1017,8 @@ public class TeamTests
         await using var dbContext = CreateDbContext();
         var captain = CreateUser();
         var member = CreateUser();
-        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
-        team.Members.Add(member);
+        var team = CreateTeam("Alpha", captain);
+        team.AddMember(member.Id);
         dbContext.Users.AddRange(captain, member);
         dbContext.Teams.Add(team);
         dbContext.Set<TeamInvite>().Add(new TeamInvite
@@ -1037,7 +1026,6 @@ public class TeamTests
             Id = Guid.NewGuid(),
             Team = team,
             TeamId = team.Id,
-            User = member,
             UserId = member.Id,
             Status = TeamInviteStatus.Pending,
             CreatedAt = DateTime.UtcNow.AddDays(-10),
@@ -1059,8 +1047,8 @@ public class TeamTests
         await using var dbContext = CreateDbContext();
         var captain = CreateUser();
         var newCaptain = CreateUser();
-        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
-        team.Members.Add(newCaptain);
+        var team = CreateTeam("Alpha", captain);
+        team.AddMember(newCaptain.Id);
         dbContext.Users.AddRange(captain, newCaptain);
         dbContext.Teams.Add(team);
         await dbContext.SaveChangesAsync();
@@ -1107,9 +1095,9 @@ public class TeamTests
         var member = CreateUser();
         var outsider = CreateUser();
         var deletedCaptain = CreateUser();
-        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
-        var deletedTeam = new Team("Deleted", deletedCaptain) { Id = Guid.NewGuid() };
-        team.Members.Add(member);
+        var team = CreateTeam("Alpha", captain);
+        var deletedTeam = CreateTeam("Deleted", deletedCaptain);
+        team.AddMember(member.Id);
         deletedTeam.Delete(DateTime.UtcNow);
         dbContext.Users.AddRange(captain, member, outsider, deletedCaptain);
         dbContext.Teams.AddRange(team, deletedTeam);
@@ -1141,11 +1129,14 @@ public class TeamTests
 
     private static Team CreateTeam()
     {
-        var captain = CreateUser();
-        return new Team("Test Team", captain)
-        {
-            Id = Guid.NewGuid()
-        };
+        return CreateTeam("Test Team", CreateUser());
+    }
+
+    private static Team CreateTeam(string name, User captain)
+    {
+        var team = new Team(name, captain.Id) { Id = Guid.NewGuid() };
+        team.AddMember(captain.Id);
+        return team;
     }
 
     private static MercuriusDBContext CreateDbContext()
@@ -1220,15 +1211,18 @@ public class TeamTests
                 ["TeamInvite:DeclinedResendLimit"] = "3"
             })
             .Build();
+        var identityModule = new DbContextIdentityModule(dbContext);
+        var teamsDbContext = new TeamsDbContextAdapter<MercuriusDBContext>(dbContext);
 
         return new TeamEventPublishingDecorator(
             new TeamService(
-                new TeamsDbContextAdapter<MercuriusDBContext>(dbContext),
+                teamsDbContext,
                 configuration,
-                new IdentityModuleFacade(dbContext),
+                identityModule,
                 mediaModule ?? new StubMediaModule("https://example.test/default-team-logo.webp"),
                 new StubTeamCompetitionReadService(dbContext)),
-            new TeamsDbContextAdapter<MercuriusDBContext>(dbContext),
+            teamsDbContext,
+            identityModule,
             eventPublisher ?? new NoopTeamEventPublisher(),
             moduleEventPublisher ?? new NoopModuleEventPublisher());
     }

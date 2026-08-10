@@ -23,27 +23,27 @@ public class DtoSerializationShapeTests
     {
         var captain = CreateUser(1);
         var member = CreateUser(2);
-        var team = new Team("Alpha Squad", captain)
+        var team = new Team("Alpha Squad", captain.Id)
         {
             Id = Guid.NewGuid(),
             LogoUrl = "/images/alpha.png"
         };
-        team.Members.Add(member);
+        team.AddMember(captain.Id);
+        team.AddMember(member.Id);
         var invite = new TeamInvite
         {
             Id = Guid.NewGuid(),
             Team = team,
             TeamId = team.Id,
-            User = member,
             UserId = member.Id,
             Status = TeamInviteStatus.Pending,
             CreatedAt = DateTime.UtcNow,
             ExpiresAt = DateTime.UtcNow.AddDays(14)
         };
 
-        AssertJsonProperties(new GetTeamDTO(team), "id", "name", "captainUserId", "logoUrl", "members");
+        AssertJsonProperties(new GetTeamDTO(), "id", "name", "captainUserId", "logoUrl", "members");
         AssertJsonProperties(new TeamInviteDTO(invite), "id", "teamId", "userId", "status", "createdAt", "expiresAt", "respondedAt", "cancelledAt", "expiredAt");
-        AssertJsonProperties(new TeamInviteSummaryDTO(invite), "id", "teamId", "teamName", "teamLogoUrl", "userId", "username", "status", "createdAt", "expiresAt");
+        AssertJsonProperties(new TeamInviteSummaryDTO(), "id", "teamId", "teamName", "teamLogoUrl", "userId", "username", "status", "createdAt", "expiresAt");
     }
 
     [Fact]
@@ -51,8 +51,9 @@ public class DtoSerializationShapeTests
     {
         var captain = CreateUser(3);
         var member = CreateUser(4);
-        var team = new Team("Roster Team", captain) { Id = Guid.NewGuid() };
-        team.Members.Add(member);
+        var team = new Team("Roster Team", captain.Id) { Id = Guid.NewGuid() };
+        team.AddMember(captain.Id);
+        team.AddMember(member.Id);
         var game = CreateGame(ParticipationMode.Team, teamSize: 2);
         var registration = CreateTeamRegistration(game, team, captain, [captain, member], TournamentRegistrationStatus.Active);
         game.TournamentRegistrations.Add(registration);

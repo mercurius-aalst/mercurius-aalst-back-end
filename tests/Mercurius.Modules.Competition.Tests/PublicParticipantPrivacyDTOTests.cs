@@ -70,14 +70,14 @@ public class PublicParticipantPrivacyDTOTests
         var team = CreateTeam(30);
         var deletedMember = CreateUser(31);
         deletedMember.IsDeleted = true;
-        team.Members.Add(deletedMember);
+        team.AddMember(deletedMember.Id);
         var placement = new Placement
         {
             Place = 1,
             Teams = [new PlacementTeam { TeamId = team.Id }]
         };
 
-        var json = Serialize(placement.ToGetPlacementDTO(teams: [team]));
+        var json = Serialize(placement.ToGetPlacementDTO(users: [deletedMember], teams: [team]));
 
         Assert.DoesNotContain("Deleted user", json, StringComparison.OrdinalIgnoreCase);
         AssertPrivateUserFieldsAreAbsent(json);
@@ -94,7 +94,22 @@ public class PublicParticipantPrivacyDTOTests
             Status = TeamInviteStatus.Pending
         });
 
-        var json = Serialize(new GetTeamDTO(team));
+        var json = Serialize(new GetTeamDTO
+        {
+            Id = team.Id,
+            Name = team.Name,
+            CaptainUserId = team.CaptainUserId ?? Guid.Empty,
+            LogoUrl = team.LogoUrl,
+            Members =
+            [
+                new TeamPublicUserDTO
+                {
+                    Id = Guid.NewGuid(),
+                    Username = "public-member",
+                    DisplayName = "public-member"
+                }
+            ]
+        });
 
         Assert.Contains("\"members\":", json, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("\"teamInvites\":", json, StringComparison.OrdinalIgnoreCase);
@@ -106,8 +121,9 @@ public class PublicParticipantPrivacyDTOTests
     {
         var captain = CreateUser(5);
         var rosterMember = CreateUser(6);
-        var team = new Team("Roster Team", captain) { Id = Guid.NewGuid() };
-        team.Members.Add(CreateUser(99));
+        var team = new Team("Roster Team", captain.Id) { Id = Guid.NewGuid() };
+        team.AddMember(captain.Id);
+        team.AddMember(CreateUser(99).Id);
         var game = CreateGame(ParticipationMode.Team);
         var registration = new TournamentRegistration
         {
@@ -286,11 +302,12 @@ public class PublicParticipantPrivacyDTOTests
     {
         var captain = CreateUser(id);
         var teammate = CreateUser(id + 10);
-        var team = new Team($"Team {id}", captain)
+        var team = new Team($"Team {id}", captain.Id)
         {
             Id = Guid.NewGuid()
         };
-        team.Members.Add(teammate);
+        team.AddMember(captain.Id);
+        team.AddMember(teammate.Id);
         return team;
     }
 }

@@ -1,3 +1,4 @@
+using Mercurius.Modules.Identity.Contracts;
 using Mercurius.Modules.Teams.DTOs;
 using Mercurius.Modules.Teams.Contracts;
 using Mercurius.Modules.Teams.Domain;
@@ -21,6 +22,7 @@ internal sealed class TeamEventPublishingDecorator : ITeamManagementCommands, IT
 {
     private readonly TeamService _inner;
     private readonly ITeamsDbContext _dbContext;
+    private readonly IIdentityModule _identityModule;
     private readonly ITeamEventPublisher _teamEventPublisher;
     private readonly IModuleEventPublisher _moduleEventPublisher;
     private DbSet<TeamInvite> TeamInvites => _dbContext.Set<TeamInvite>();
@@ -28,11 +30,13 @@ internal sealed class TeamEventPublishingDecorator : ITeamManagementCommands, IT
     public TeamEventPublishingDecorator(
         TeamService inner,
         ITeamsDbContext dbContext,
+        IIdentityModule identityModule,
         ITeamEventPublisher teamEventPublisher,
         IModuleEventPublisher moduleEventPublisher)
     {
         _inner = inner ?? throw new ArgumentNullException(nameof(inner));
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
+        _identityModule = identityModule ?? throw new ArgumentNullException(nameof(identityModule));
         _teamEventPublisher = teamEventPublisher ?? throw new ArgumentNullException(nameof(teamEventPublisher));
         _moduleEventPublisher = moduleEventPublisher ?? throw new ArgumentNullException(nameof(moduleEventPublisher));
     }
@@ -472,11 +476,11 @@ internal sealed class TeamEventPublishingDecorator : ITeamManagementCommands, IT
 
     private async Task<Guid> GetCurrentUserIdAsync(string auth0UserId, CancellationToken cancellationToken)
     {
-        var normalizedAuth0UserId = auth0UserId.Trim();
-        return await _dbContext.Users
-            .Where(user => user.Auth0UserId == normalizedAuth0UserId && !user.IsDeleted)
-            .Select(user => user.Id)
-            .FirstAsync(cancellationToken);
+        var user = await _identityModule.GetUserProfileByAuth0IdAsync(auth0UserId, cancellationToken);
+        if (user is null || user.IsDeleted)
+            throw new InvalidOperationException("Current user profile was not found after a successful team mutation.");
+
+        return user.Id.Value;
     }
 
     private static void IncrementTeamVersion(Team team)

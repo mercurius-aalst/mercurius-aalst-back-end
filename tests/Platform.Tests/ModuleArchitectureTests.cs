@@ -75,13 +75,15 @@ public class ModuleArchitectureTests
                 "Mercurius.Modules.Media.Contracts.csproj");
             requiredReferences.Add(mediaContractsProject);
             allowedReferences.Add(mediaContractsProject);
-            allowedReferences.Add(Path.Combine(
+            var identityContractsProject = Path.Combine(
                 repositoryRoot,
                 "src",
                 "Modules",
                 "Identity",
-                "Mercurius.Modules.Identity",
-                "Mercurius.Modules.Identity.csproj"));
+                "Mercurius.Modules.Identity.Contracts",
+                "Mercurius.Modules.Identity.Contracts.csproj");
+            requiredReferences.Add(identityContractsProject);
+            allowedReferences.Add(identityContractsProject);
         }
         else if (moduleName == "Competition")
         {
@@ -249,9 +251,11 @@ public class ModuleArchitectureTests
             "Mercurius.Modules.Teams.Services.RealtimeTeamEventPublisher",
             "Mercurius.Modules.Teams.Services.EfTeamRealtimeAuthorizer",
             "Mercurius.Modules.Teams.Domain.TeamInvite",
+            "Mercurius.Modules.Teams.Domain.TeamMember",
             "Mercurius.Modules.Teams.Infrastructure.ITeamsDbContext",
             "Mercurius.Modules.Teams.Infrastructure.TeamsDbContextAdapter`1",
             "Mercurius.Modules.Teams.Infrastructure.TeamConfiguration",
+            "Mercurius.Modules.Teams.Infrastructure.TeamMemberConfiguration",
             "Mercurius.Modules.Teams.Infrastructure.TeamInviteConfiguration"
         };
 
@@ -267,6 +271,27 @@ public class ModuleArchitectureTests
         Assert.Null(assembly.GetType("Mercurius.Modules.Teams.Services.ITeamApplicationService", throwOnError: false));
         Assert.Null(assembly.GetType("Mercurius.Modules.Teams.Services.NullTeamEventPublisher", throwOnError: false));
         Assert.Null(assembly.GetType("Mercurius.Modules.Teams.Services.NullTeamCompetitionReadService", throwOnError: false));
+    }
+
+    [Fact]
+    public void TeamsImplementation_DependsOnlyOnIdentityContractsAndDoesNotExposeIdentityPersistence()
+    {
+        var teamsAssembly = Assembly.Load("Mercurius.Modules.Teams");
+        var referencedAssemblies = teamsAssembly.GetReferencedAssemblies()
+            .Select(reference => reference.Name)
+            .ToHashSet(StringComparer.Ordinal);
+
+        Assert.Contains("Mercurius.Modules.Identity.Contracts", referencedAssemblies);
+        Assert.DoesNotContain("Mercurius.Modules.Identity", referencedAssemblies);
+
+        var teamsDbContext = teamsAssembly.GetType(
+            "Mercurius.Modules.Teams.Infrastructure.ITeamsDbContext",
+            throwOnError: true)!;
+        const BindingFlags members = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
+
+        Assert.Null(teamsDbContext.GetProperty("Users", members));
+        Assert.Null(teamsDbContext.GetProperty("ChangeTracker", members));
+        Assert.DoesNotContain(teamsDbContext.GetMethods(members), method => method.Name == "Entry");
     }
 
     [Fact]

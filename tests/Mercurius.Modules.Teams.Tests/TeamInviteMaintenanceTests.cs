@@ -21,14 +21,14 @@ public class TeamInviteMaintenanceTests
         var recipients = Enumerable.Range(0, 8)
             .Select(index => CreateUser($"recipient-{index}"))
             .ToList();
-        var team = new Team("Maintenance team", captain) { Id = Guid.NewGuid() };
+        var team = new Team("Maintenance team", captain.Id) { Id = Guid.NewGuid() };
+        team.AddMember(captain.Id);
         var dueInvites = Enumerable.Range(0, 4)
             .Select(index => new TeamInvite
             {
                 Id = Guid.NewGuid(),
                 Team = team,
                 TeamId = team.Id,
-                User = recipients[index],
                 UserId = recipients[index].Id,
                 Status = TeamInviteStatus.Pending,
                 CreatedAt = now.AddDays(-20),
@@ -99,13 +99,13 @@ public class TeamInviteMaintenanceTests
         await using var dbContext = CreateDbContext();
         var captain = CreateUser("captain");
         var recipient = CreateUser("recipient");
-        var team = new Team("Cancellation team", captain) { Id = Guid.NewGuid() };
+        var team = new Team("Cancellation team", captain.Id) { Id = Guid.NewGuid() };
+        team.AddMember(captain.Id);
         var invite = new TeamInvite
         {
             Id = Guid.NewGuid(),
             Team = team,
             TeamId = team.Id,
-            User = recipient,
             UserId = recipient.Id,
             Status = TeamInviteStatus.Pending,
             CreatedAt = DateTime.UtcNow.AddDays(-20),
@@ -188,7 +188,6 @@ public class TeamInviteMaintenanceTests
             Id = Guid.NewGuid(),
             Team = team,
             TeamId = team.Id,
-            User = recipient,
             UserId = recipient.Id,
             Status = status,
             CreatedAt = terminalAt.AddDays(-14),

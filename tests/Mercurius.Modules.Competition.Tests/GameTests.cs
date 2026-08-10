@@ -261,9 +261,11 @@ public class GameTests
     private static Team CreateTeam(int id)
     {
         var captain = CreateUser(id);
-        return new Team($"Team {id}", captain)
+        var team = new Team($"Team {id}", captain.Id)
         {
             Id = Guid.NewGuid()
         };
+        team.AddMember(captain.Id);
+        return team;
     }
 }

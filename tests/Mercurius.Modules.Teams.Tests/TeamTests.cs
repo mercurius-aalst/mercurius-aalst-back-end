@@ -912,34 +912,90 @@ public class TeamTests
     }
 
     [Fact]
-    public async Task GetCurrentUserTeamSummaryAsync_CleansUpExpiredTerminalInvites()
+    public async Task CurrentUserInviteReads_DoNotMaintainRelatedOrUnrelatedInvites()
     {
         await using var dbContext = CreateDbContext();
-        var captain = CreateUser();
-        var invited = CreateUser();
-        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
-        var oldInvite = new TeamInvite
+        var currentUser = CreateUser();
+        var receivedCaptain = CreateUser();
+        var sentRecipient = CreateUser();
+        var unrelatedCaptain = CreateUser();
+        var unrelatedRecipient = CreateUser();
+        var currentUserTeam = new Team("Current user team", currentUser) { Id = Guid.NewGuid() };
+        var receivedTeam = new Team("Received team", receivedCaptain) { Id = Guid.NewGuid() };
+        var unrelatedTeam = new Team("Unrelated team", unrelatedCaptain) { Id = Guid.NewGuid() };
+        var now = DateTime.UtcNow;
+        var receivedDueInvite = new TeamInvite
         {
             Id = Guid.NewGuid(),
-            Team = team,
-            TeamId = team.Id,
-            User = invited,
-            UserId = invited.Id,
-            Status = TeamInviteStatus.Declined,
-            CreatedAt = DateTime.UtcNow.AddDays(-120),
-            ExpiresAt = DateTime.UtcNow.AddDays(-100),
-            RespondedAt = DateTime.UtcNow.AddDays(-100)
+            Team = receivedTeam,
+            TeamId = receivedTeam.Id,
+            User = currentUser,
+            UserId = currentUser.Id,
+            Status = TeamInviteStatus.Pending,
+            CreatedAt = now.AddDays(-20),
+            ExpiresAt = now.AddDays(-1)
         };
-        dbContext.Users.AddRange(captain, invited);
-        dbContext.Teams.Add(team);
-        dbContext.Set<TeamInvite>().Add(oldInvite);
+        var sentDueInvite = new TeamInvite
+        {
+            Id = Guid.NewGuid(),
+            Team = currentUserTeam,
+            TeamId = currentUserTeam.Id,
+            User = sentRecipient,
+            UserId = sentRecipient.Id,
+            Status = TeamInviteStatus.Pending,
+            CreatedAt = now.AddDays(-20),
+            ExpiresAt = now.AddDays(-1)
+        };
+        var unrelatedDueInvite = new TeamInvite
+        {
+            Id = Guid.NewGuid(),
+            Team = unrelatedTeam,
+            TeamId = unrelatedTeam.Id,
+            User = unrelatedRecipient,
+            UserId = unrelatedRecipient.Id,
+            Status = TeamInviteStatus.Pending,
+            CreatedAt = now.AddDays(-20),
+            ExpiresAt = now.AddDays(-1)
+        };
+        var oldTerminalInvite = new TeamInvite
+        {
+            Id = Guid.NewGuid(),
+            Team = currentUserTeam,
+            TeamId = currentUserTeam.Id,
+            User = sentRecipient,
+            UserId = sentRecipient.Id,
+            Status = TeamInviteStatus.Declined,
+            CreatedAt = now.AddDays(-120),
+            ExpiresAt = now.AddDays(-100),
+            RespondedAt = now.AddDays(-100)
+        };
+        dbContext.Users.AddRange(currentUser, receivedCaptain, sentRecipient, unrelatedCaptain, unrelatedRecipient);
+        dbContext.Teams.AddRange(currentUserTeam, receivedTeam, unrelatedTeam);
+        dbContext.Set<TeamInvite>().AddRange(receivedDueInvite, sentDueInvite, unrelatedDueInvite, oldTerminalInvite);
         await dbContext.SaveChangesAsync();
 
-        var teamService = CreateTeamService(dbContext);
+        var publisher = new RecordingTeamEventPublisher();
+        var teamService = CreateTeamService(dbContext, eventPublisher: publisher);
 
-        await teamService.GetCurrentUserTeamSummaryAsync(invited.Auth0UserId);
+        var summary = await teamService.GetCurrentUserTeamSummaryAsync(currentUser.Auth0UserId);
+        var receivedInvites = await teamService.GetCurrentUserInvitesAsync(currentUser.Auth0UserId);
+        var sentInvites = await teamService.GetCurrentUserSentInvitesAsync(currentUser.Auth0UserId);
 
-        Assert.False(await dbContext.Set<TeamInvite>().AnyAsync(invite => invite.Id == oldInvite.Id));
+        Assert.Empty(summary.ReceivedPendingInvites);
+        Assert.Empty(summary.SentPendingInvites);
+        Assert.Empty(receivedInvites);
+        Assert.Empty(sentInvites);
+        Assert.Empty(publisher.InviteEvents);
+
+        dbContext.ChangeTracker.Clear();
+        var persistedInvites = await dbContext.Set<TeamInvite>()
+            .ToDictionaryAsync(invite => invite.Id);
+
+        Assert.Equal(4, persistedInvites.Count);
+        Assert.Equal(TeamInviteStatus.Pending, persistedInvites[receivedDueInvite.Id].Status);
+        Assert.Equal(TeamInviteStatus.Pending, persistedInvites[sentDueInvite.Id].Status);
+        Assert.Equal(TeamInviteStatus.Pending, persistedInvites[unrelatedDueInvite.Id].Status);
+        Assert.Equal(TeamInviteStatus.Declined, persistedInvites[oldTerminalInvite.Id].Status);
     }
 
     [Fact]

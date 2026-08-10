@@ -23,7 +23,6 @@ internal sealed class TeamService : ITeamQueries, ITeamManagementCommands, ITeam
     private readonly ITeamCompetitionReadService _competitionReadService;
     private readonly int _inviteResendCooldownDays;
     private readonly int _inviteExpirationDays;
-    private readonly int _inviteRetentionDays;
     private readonly int _declinedInviteResendLimit;
     private DbSet<TeamInvite> TeamInvites => _dbContext.Set<TeamInvite>();
 
@@ -40,7 +39,6 @@ internal sealed class TeamService : ITeamQueries, ITeamManagementCommands, ITeam
         _competitionReadService = competitionReadService ?? throw new ArgumentNullException(nameof(competitionReadService));
         _inviteResendCooldownDays = configuration.GetSection("TeamInvite:ResendCooldownDays").Get<int>();
         _inviteExpirationDays = configuration.GetSection("TeamInvite:ExpirationDays").Get<int?>() ?? 14;
-        _inviteRetentionDays = configuration.GetSection("TeamInvite:RetentionDays").Get<int?>() ?? 90;
         _declinedInviteResendLimit = configuration.GetSection("TeamInvite:DeclinedResendLimit").Get<int?>() ?? 3;
     }
 
@@ -271,7 +269,7 @@ internal sealed class TeamService : ITeamQueries, ITeamManagementCommands, ITeam
         var team = await GetTeamForInviteMutationAsync(teamId, cancellationToken);
         if (await GetUserProfileAsync(userId, cancellationToken) is null)
             throw new NotFoundException($"{nameof(User)} not found");
-        await ExpirePendingInvitesAsync(teamId, userId, cancellationToken);
+        await ExpirePendingInviteAsync(teamId, userId, cancellationToken);
         var invite = team.InviteUser(userId, _inviteResendCooldownDays, _inviteExpirationDays, _declinedInviteResendLimit);
         await _dbContext.SaveChangesAsync(cancellationToken);
         return new TeamInviteDTO(invite);
@@ -287,7 +285,7 @@ internal sealed class TeamService : ITeamQueries, ITeamManagementCommands, ITeam
         if (invitedUser is null || invitedUser.IsDeleted)
             throw new NotFoundException($"{nameof(User)} not found");
 
-        await ExpirePendingInvitesAsync(teamId, userId, cancellationToken);
+        await ExpirePendingInviteAsync(teamId, userId, cancellationToken);
         var invite = team.InviteUser(userId, _inviteResendCooldownDays, _inviteExpirationDays, _declinedInviteResendLimit);
         await SaveInviteChangesAsync(cancellationToken);
         return new TeamInviteDTO(invite);
@@ -341,9 +339,10 @@ internal sealed class TeamService : ITeamQueries, ITeamManagementCommands, ITeam
 
     public async Task<IEnumerable<TeamInviteDTO>> GetUserInvitesAsync(Guid userId, CancellationToken cancellationToken = default)
     {
+        var now = DateTime.UtcNow;
         var invites = await TeamInvites
             .AsNoTracking()
-            .Where(i => i.UserId == userId && i.Status == TeamInviteStatus.Pending)
+            .Where(i => i.UserId == userId && i.Status == TeamInviteStatus.Pending && i.ExpiresAt > now)
             .Select(invite => new TeamInviteDTO
             {
                 Id = invite.Id,
@@ -360,8 +359,6 @@ internal sealed class TeamService : ITeamQueries, ITeamManagementCommands, ITeam
     public async Task<CurrentUserTeamSummaryDTO> GetCurrentUserTeamSummaryAsync(string auth0UserId, CancellationToken cancellationToken = default)
     {
         var currentUser = await GetCurrentUserAsync(auth0UserId, cancellationToken);
-        await ExpirePendingInvitesAsync(cancellationToken: cancellationToken);
-        await CleanupTerminalInvitesAsync(cancellationToken);
         var now = DateTime.UtcNow;
 
         var captainedTeams = await ProjectTeamManagementSummaryQuery(
@@ -394,7 +391,6 @@ internal sealed class TeamService : ITeamQueries, ITeamManagementCommands, ITeam
     public async Task<IEnumerable<TeamInviteSummaryDTO>> GetCurrentUserInvitesAsync(string auth0UserId, CancellationToken cancellationToken = default)
     {
         var currentUser = await GetCurrentUserAsync(auth0UserId, cancellationToken);
-        await ExpirePendingInvitesAsync(cancellationToken: cancellationToken);
         var invites = await GetPendingInviteSummariesQuery(DateTime.UtcNow)
             .Where(invite => invite.UserId == currentUser.Id.Value)
             .OrderBy(invite => invite.CreatedAt)
@@ -406,7 +402,6 @@ internal sealed class TeamService : ITeamQueries, ITeamManagementCommands, ITeam
     public async Task<IEnumerable<TeamInviteSummaryDTO>> GetCurrentUserSentInvitesAsync(string auth0UserId, CancellationToken cancellationToken = default)
     {
         var currentUser = await GetCurrentUserAsync(auth0UserId, cancellationToken);
-        await ExpirePendingInvitesAsync(cancellationToken: cancellationToken);
         var invites = await GetPendingInviteSummariesQuery(DateTime.UtcNow)
             .Where(invite => invite.CaptainUserId == currentUser.Id.Value)
             .OrderBy(invite => invite.CreatedAt)
@@ -546,16 +541,16 @@ internal sealed class TeamService : ITeamQueries, ITeamManagementCommands, ITeam
             throw new UnauthorizedAccessException("Only the team captain can perform this action.");
     }
 
-    private async Task ExpirePendingInvitesAsync(Guid? teamId = null, Guid? userId = null, CancellationToken cancellationToken = default)
+    private async Task ExpirePendingInviteAsync(Guid teamId, Guid userId, CancellationToken cancellationToken)
     {
         var now = DateTime.UtcNow;
-        var query = TeamInvites.Where(invite =>
-            invite.Status == TeamInviteStatus.Pending &&
-            invite.ExpiresAt <= now &&
-            (!teamId.HasValue || invite.TeamId == teamId.Value) &&
-            (!userId.HasValue || invite.UserId == userId.Value));
-
-        var invites = await query.ToListAsync(cancellationToken);
+        var invites = await TeamInvites
+            .Where(invite =>
+                invite.TeamId == teamId &&
+                invite.UserId == userId &&
+                invite.Status == TeamInviteStatus.Pending &&
+                invite.ExpiresAt <= now)
+            .ToListAsync(cancellationToken);
         foreach (var invite in invites)
             invite.Expire();
 
@@ -563,22 +558,6 @@ internal sealed class TeamService : ITeamQueries, ITeamManagementCommands, ITeam
         {
             await _dbContext.SaveChangesAsync(cancellationToken);
         }
-    }
-
-    private async Task CleanupTerminalInvitesAsync(CancellationToken cancellationToken)
-    {
-        var cutoff = DateTime.UtcNow.AddDays(-_inviteRetentionDays);
-        var invites = await TeamInvites
-            .Where(invite =>
-                invite.Status != TeamInviteStatus.Pending &&
-                (invite.RespondedAt ?? invite.CancelledAt ?? invite.ExpiredAt ?? invite.CreatedAt) < cutoff)
-            .ToListAsync(cancellationToken);
-
-        if (invites.Count == 0)
-            return;
-
-        TeamInvites.RemoveRange(invites);
-        await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
     private Task<bool> CheckIfTeamNameExistsAsync(string normalizedName, Guid? excludedTeamId = null, CancellationToken cancellationToken = default)

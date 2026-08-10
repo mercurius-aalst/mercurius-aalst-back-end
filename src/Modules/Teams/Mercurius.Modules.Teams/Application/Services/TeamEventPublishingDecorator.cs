@@ -84,11 +84,9 @@ internal sealed class TeamEventPublishingDecorator : ITeamManagementCommands, IT
         return _inner.GetAllTeamsAsync(cancellationToken);
     }
 
-    public async Task<CurrentUserTeamSummaryDTO> GetCurrentUserTeamSummaryAsync(string auth0UserId, CancellationToken cancellationToken = default)
+    public Task<CurrentUserTeamSummaryDTO> GetCurrentUserTeamSummaryAsync(string auth0UserId, CancellationToken cancellationToken = default)
     {
-        return await PublishExpiredInviteEventsAroundAsync(
-            () => _inner.GetCurrentUserTeamSummaryAsync(auth0UserId, cancellationToken),
-            cancellationToken: cancellationToken);
+        return _inner.GetCurrentUserTeamSummaryAsync(auth0UserId, cancellationToken);
     }
 
     public Task<PublicTeamProfileDTO> GetPublicTeamProfileAsync(string teamName, CancellationToken cancellationToken = default)
@@ -101,18 +99,14 @@ internal sealed class TeamEventPublishingDecorator : ITeamManagementCommands, IT
         return _inner.GetUserInvitesAsync(userId, cancellationToken);
     }
 
-    public async Task<IEnumerable<TeamInviteSummaryDTO>> GetCurrentUserInvitesAsync(string auth0UserId, CancellationToken cancellationToken = default)
+    public Task<IEnumerable<TeamInviteSummaryDTO>> GetCurrentUserInvitesAsync(string auth0UserId, CancellationToken cancellationToken = default)
     {
-        return await PublishExpiredInviteEventsAroundAsync(
-            () => _inner.GetCurrentUserInvitesAsync(auth0UserId, cancellationToken),
-            cancellationToken: cancellationToken);
+        return _inner.GetCurrentUserInvitesAsync(auth0UserId, cancellationToken);
     }
 
-    public async Task<IEnumerable<TeamInviteSummaryDTO>> GetCurrentUserSentInvitesAsync(string auth0UserId, CancellationToken cancellationToken = default)
+    public Task<IEnumerable<TeamInviteSummaryDTO>> GetCurrentUserSentInvitesAsync(string auth0UserId, CancellationToken cancellationToken = default)
     {
-        return await PublishExpiredInviteEventsAroundAsync(
-            () => _inner.GetCurrentUserSentInvitesAsync(auth0UserId, cancellationToken),
-            cancellationToken: cancellationToken);
+        return _inner.GetCurrentUserSentInvitesAsync(auth0UserId, cancellationToken);
     }
 
     public Task<GetTeamDTO> GetTeamByIdAsync(Guid teamId, CancellationToken cancellationToken = default)
@@ -333,9 +327,9 @@ internal sealed class TeamEventPublishingDecorator : ITeamManagementCommands, IT
 
     private async Task<TResult> PublishExpiredInviteEventsAroundAsync<TResult>(
         Func<Task<TResult>> operation,
-        Guid? teamId = null,
-        Guid? userId = null,
-        CancellationToken cancellationToken = default)
+        Guid teamId,
+        Guid userId,
+        CancellationToken cancellationToken)
     {
         var candidates = await GetExpiredInviteEventCandidatesAsync(teamId, userId, cancellationToken);
 
@@ -363,7 +357,7 @@ internal sealed class TeamEventPublishingDecorator : ITeamManagementCommands, IT
         return result!;
     }
 
-    private async Task<List<ExpiredTeamInviteChangedCandidate>> GetExpiredInviteEventCandidatesAsync(Guid? teamId, Guid? userId, CancellationToken cancellationToken)
+    private async Task<List<ExpiredTeamInviteChangedCandidate>> GetExpiredInviteEventCandidatesAsync(Guid teamId, Guid userId, CancellationToken cancellationToken)
     {
         var now = DateTime.UtcNow;
         return await TeamInvites
@@ -371,8 +365,8 @@ internal sealed class TeamEventPublishingDecorator : ITeamManagementCommands, IT
             .Where(invite =>
                 invite.Status == TeamInviteStatus.Pending &&
                 invite.ExpiresAt <= now &&
-                (!teamId.HasValue || invite.TeamId == teamId.Value) &&
-                (!userId.HasValue || invite.UserId == userId.Value))
+                invite.TeamId == teamId &&
+                invite.UserId == userId)
             .Select(invite => new ExpiredTeamInviteChangedCandidate(
                 invite.TeamId,
                 invite.Id,

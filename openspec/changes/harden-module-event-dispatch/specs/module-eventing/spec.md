@@ -1,79 +1,56 @@
 ## MODIFIED Requirements
 
 ### Requirement: In-process outbox dispatch
-The system SHALL provide an in-process dispatcher that resolves registered handlers and dispatches eligible outbox messages with exclusive database-visible ownership.
+The system SHALL provide one hosted in-process dispatcher that resolves registered handlers and processes a deterministic bounded set of eligible outbox messages.
 
-#### Scenario: Dispatcher exclusively claims a message
-- **WHEN** one or more application instances attempt to dispatch the same eligible outbox message
-- **THEN** exactly one dispatcher MUST atomically claim that message before entering any handler
-- **AND** all other dispatchers MUST skip the message while that claim remains valid
+#### Scenario: Dispatcher isolates message tracking
+- **WHEN** the dispatcher selects a batch of eligible messages
+- **THEN** it MUST select their identifiers without tracking in occurrence-time and identifier order
+- **AND** it MUST load and process each selected message independently
 
-#### Scenario: Long-running handler retains ownership
-- **WHEN** a handler runs longer than the initial lease duration while its dispatcher remains healthy
-- **THEN** the dispatcher MUST renew its lease before expiry
-- **AND** another dispatcher MUST NOT concurrently enter a handler for that message
+#### Scenario: Earlier failure does not detach later work
+- **WHEN** an earlier selected message fails and failure recovery clears tracked state
+- **THEN** the dispatcher MUST still load every later selected identifier independently
+- **AND** a later successful message MUST persist its processed timestamp
 
-#### Scenario: Abandoned lease is recovered
-- **WHEN** a claimed message's owner stops renewing its lease and the lease expires
-- **THEN** another dispatcher MUST be able to atomically claim and dispatch the message
+#### Scenario: Dispatcher invokes handlers
+- **WHEN** an eligible outbox message has a registered payload type and matching handlers
+- **THEN** the dispatcher MUST deserialize the payload and invoke handlers in their registered order
+- **AND** it MUST mark the outbox message processed only after all handlers complete successfully
 
-#### Scenario: Dispatcher invokes handler
-- **WHEN** an eligible outbox message has a registered payload type and matching handler
-- **THEN** the owning dispatcher MUST deserialize the payload, invoke the handler, and mark the outbox message as processed after successful handling
-
-#### Scenario: Handler failure records retry state
-- **WHEN** a handler fails while processing an outbox message before the maximum attempt count
-- **THEN** the owning dispatcher MUST leave the message pending, increment its retry count, record last-attempt and truncated error information, and schedule its next attempt
-
-#### Scenario: Only the current owner finalizes a claim
-- **WHEN** a dispatcher no longer owns a message after handler execution
-- **THEN** it MUST NOT mark that message processed, schedule its retry, or move it to dead-letter state
-
-#### Scenario: Dispatch cancellation releases owned work
-- **WHEN** dispatch is cancelled while a message is owned
-- **THEN** the dispatcher MUST propagate cancellation and release its claim without counting a failed attempt when it can still prove ownership
+#### Scenario: Dispatch cancellation propagates
+- **WHEN** dispatch is cancelled
+- **THEN** the dispatcher MUST propagate cancellation without recording it as a failed delivery attempt
 
 ## ADDED Requirements
 
 ### Requirement: Bounded retry and dead-letter lifecycle
-The system SHALL retry failed outbox messages on a deterministic bounded schedule and SHALL stop automatic delivery after the configured maximum attempt count.
+The system SHALL retry failed outbox messages on a deterministic capped schedule and SHALL stop automatic delivery after five failed attempts.
 
-#### Scenario: Failure uses capped exponential backoff
-- **WHEN** attempt number `n` fails below the maximum attempt count
-- **THEN** the next attempt MUST be scheduled after `baseDelay * 2^(n-1)`
-- **AND** the scheduled delay MUST NOT exceed the configured maximum retry delay
+#### Scenario: Failure records a deferred retry
+- **WHEN** a handler fails before the fifth failed attempt
+- **THEN** the dispatcher MUST increment the retry count and record the attempt time and truncated error
+- **AND** it MUST schedule the next attempt after a deterministic delay that does not exceed the internal cap
+- **AND** an immediate subsequent dispatch MUST NOT select that message
 
 #### Scenario: Exhausted message becomes dead-lettered
-- **WHEN** a failed attempt reaches the configured maximum attempt count
-- **THEN** the dispatcher MUST record an explicit dead-letter timestamp and terminal error state
+- **WHEN** the fifth delivery attempt fails
+- **THEN** the dispatcher MUST record a dead-letter timestamp and clear its next-attempt timestamp
 - **AND** automatic dispatch MUST NOT select that message again
 
 #### Scenario: Poison messages do not starve later work
-- **WHEN** enough older poison messages fail to fill or cross a dispatch batch boundary
-- **THEN** their delayed or terminal states MUST be excluded from subsequent eligible claims
+- **WHEN** older poison messages fill or cross a bounded dispatch batch
+- **THEN** their deferred or dead-lettered state MUST exclude them from later eligible selections
 - **AND** later healthy eligible messages MUST continue to be dispatched
-
-### Requirement: Bounded terminal outbox retention
-The system SHALL periodically remove old successful and dead-lettered outbox records in bounded batches while preserving shared inbox idempotency for every pending or retained outbox record.
-
-#### Scenario: Successful records expire after success retention
-- **WHEN** a processed outbox record is older than the configured success retention period
-- **THEN** cleanup MUST make it eligible for deletion
-
-#### Scenario: Dead-lettered records expire after dead-letter retention
-- **WHEN** a dead-lettered outbox record is older than the configured dead-letter retention period
-- **THEN** cleanup MUST make it eligible for deletion
-
-#### Scenario: Cleanup is bounded and preserves recent records
-- **WHEN** terminal cleanup runs with more expired records than the configured cleanup batch size
-- **THEN** it MUST delete no more than that batch size in deterministic terminal-time order
-- **AND** it MUST preserve pending, actively leased, and terminal records that have not reached their retention cutoff
-- **AND** it MUST delete inbox markers only for the terminal outbox message ids selected in that cleanup batch and in the same transaction
 
 ### Requirement: At-least-once module event delivery
 The system SHALL describe durable in-process module event dispatch as at-least-once delivery and MUST rely on inbox idempotency or handler-level idempotency for repeated attempts.
 
-#### Scenario: Lease recovery can repeat an attempt
-- **WHEN** ownership is lost after a handler side effect but before durable completion is recorded
-- **THEN** a later owner MAY attempt the message again
-- **AND** the system MUST NOT represent the delivery as exactly once
+#### Scenario: Completion persistence can follow handler effects
+- **WHEN** a process stops after a handler effect but before durable message completion is recorded
+- **THEN** a later dispatch MAY attempt the message again
+- **AND** the system MUST NOT represent delivery as exactly once
+
+#### Scenario: Terminal records remain available
+- **WHEN** an outbox message succeeds or becomes dead-lettered
+- **THEN** the system MUST retain its outbox row and associated inbox markers unless a separate manual operation removes them

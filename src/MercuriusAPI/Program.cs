@@ -27,7 +27,7 @@ public class Program
 
         builder.Services.AddDbContext<MercuriusDBContext>(options =>
             options.UseNpgsql(builder.Configuration.GetConnectionString("MercuriusDB")));
-        builder.Services.AddModuleEventing<MercuriusDBContext>(builder.Configuration);
+        builder.Services.AddModuleEventing<MercuriusDBContext>();
         builder.Services.AddMediaModule(builder.Configuration);
 
         builder.Services.AddValidation();

@@ -831,9 +831,6 @@ namespace Mercurius.LAN.API.Migrations
 
                     b.HasKey("ConsumerName", "MessageId");
 
-                    b.HasIndex("MessageId")
-                        .HasDatabaseName("IX_inbox_messages_message_id");
-
                     b.ToTable("inbox_messages", "platform");
                 });
 
@@ -863,14 +860,6 @@ namespace Mercurius.LAN.API.Migrations
                         .HasColumnType("character varying(4000)")
                         .HasColumnName("last_error");
 
-                    b.Property<DateTime?>("LeaseExpiresAtUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("lease_expires_at_utc");
-
-                    b.Property<Guid?>("LeaseId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("lease_id");
-
                     b.Property<DateTime?>("NextAttemptAtUtc")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("next_attempt_at_utc");
@@ -894,16 +883,8 @@ namespace Mercurius.LAN.API.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("DeadLetteredAtUtc", "Id")
-                        .HasDatabaseName("IX_outbox_messages_dead_letter_retention")
-                        .HasFilter("dead_lettered_at_utc IS NOT NULL");
-
-                    b.HasIndex("ProcessedAtUtc", "Id")
-                        .HasDatabaseName("IX_outbox_messages_processed_retention")
-                        .HasFilter("processed_at_utc IS NOT NULL");
-
-                    b.HasIndex("NextAttemptAtUtc", "LeaseExpiresAtUtc", "OccurredAtUtc", "Id")
-                        .HasDatabaseName("IX_outbox_messages_pending_claim")
+                    b.HasIndex("NextAttemptAtUtc", "OccurredAtUtc", "Id")
+                        .HasDatabaseName("IX_outbox_messages_pending_dispatch")
                         .HasFilter("processed_at_utc IS NULL AND dead_lettered_at_utc IS NULL");
 
                     b.ToTable("outbox_messages", "platform");

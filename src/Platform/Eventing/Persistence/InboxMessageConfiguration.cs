@@ -12,7 +12,5 @@ internal sealed class InboxMessageConfiguration : IEntityTypeConfiguration<Inbox
         entity.Property(message => message.ConsumerName).HasColumnName("consumer_name").HasMaxLength(200).IsRequired();
         entity.Property(message => message.MessageId).HasColumnName("message_id").IsRequired();
         entity.Property(message => message.ProcessedAtUtc).HasColumnName("processed_at_utc").IsRequired();
-        entity.HasIndex(message => message.MessageId)
-            .HasDatabaseName("IX_inbox_messages_message_id");
     }
 }

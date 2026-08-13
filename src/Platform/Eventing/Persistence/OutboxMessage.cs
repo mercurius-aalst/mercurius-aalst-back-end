@@ -9,8 +9,6 @@ public sealed class OutboxMessage
     public int RetryCount { get; set; }
     public DateTime? LastAttemptAtUtc { get; set; }
     public DateTime? NextAttemptAtUtc { get; set; }
-    public Guid? LeaseId { get; set; }
-    public DateTime? LeaseExpiresAtUtc { get; set; }
     public DateTime? ProcessedAtUtc { get; set; }
     public DateTime? DeadLetteredAtUtc { get; set; }
     public string? LastError { get; set; }

@@ -11,6 +11,7 @@ using Mercurius.Modules.Teams;
 using Platform;
 using Platform.Extensions;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 
@@ -53,6 +54,10 @@ public class Program
         builder.Services.AddAuth0JwtAuthentication(
             builder.Configuration.GetSection("Auth0"),
             TeamManagementHub.Route);
+        builder.Services.AddSingleton<TeamManagementHubInvocationRateLimitFilter>();
+        builder.Services.AddSignalR()
+            .AddHubOptions<TeamManagementHub>(options =>
+                options.AddFilter<TeamManagementHubInvocationRateLimitFilter>());
         builder.Services.AddRealtimeNotificationServices<TeamManagementHub>();
         var rateLimitingSection = builder.Configuration.GetSection("RateLimiting");
         builder.Services.AddFixedWindowRateLimiting(new FixedWindowRateLimitingOptions

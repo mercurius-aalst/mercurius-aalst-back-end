@@ -95,14 +95,25 @@ internal sealed class GameService : IGameQueries, IGameManagementCommands, IGame
         return await _mapper.ToGetGameDtoAsync(game, cancellationToken);
     }
 
-    public async Task<IEnumerable<GetGameDTO>> GetAllGamesAsync(
+    public async Task<IReadOnlyList<GetGameDTO>> GetAllGamesAsync(
+        int page,
+        int pageSize,
         CancellationToken cancellationToken = default)
     {
+        var offset = ((long)page - 1) * pageSize;
+        if (offset > int.MaxValue)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return [];
+        }
+
         var games = await CreateGameListQuery()
             .AsNoTracking()
             .OrderBy(game => game.PlannedStartTime)
             .ThenBy(game => game.Name)
             .ThenBy(game => game.Id)
+            .Skip((int)offset)
+            .Take(pageSize)
             .ToListAsync(cancellationToken);
 
         return await _mapper.ToGetGameDtosAsync(games, cancellationToken);

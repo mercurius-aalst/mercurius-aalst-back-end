@@ -2,6 +2,7 @@ using Asp.Versioning;
 using Mercurius.Modules.Competition.Application.DTOs.Registrations;
 using Mercurius.Modules.Competition.Application.Services;
 using Mercurius.Modules.Competition.Contracts;
+using Mercurius.Modules.Shared.Search;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -40,11 +41,17 @@ internal static class TournamentRegistrationEndpoints
         })
         .RequireAuthorization();
 
-        group.MapPost("/teams/{teamId:guid}/roster/eligibility", async (Guid gameId, Guid teamId, SubmitTeamRosterDTO request, ClaimsPrincipal user, ITournamentRegistrationService registrationService, CancellationToken cancellationToken) =>
+        group.MapPost("/teams/{teamId:guid}/roster/eligibility", async Task<IResult> (Guid gameId, Guid teamId, SubmitTeamRosterDTO request, ClaimsPrincipal user, ITournamentRegistrationService registrationService, CancellationToken cancellationToken) =>
         {
-            return await registrationService.CheckRosterEligibilityAsync(GetAuth0UserId(user), gameId, teamId, request.UserIds, cancellationToken);
+            var validationProblem = ValidateRosterUserIds(request.UserIds);
+            if (validationProblem is not null)
+                return validationProblem;
+
+            return Results.Ok(await registrationService.CheckRosterEligibilityAsync(GetAuth0UserId(user), gameId, teamId, request.UserIds, cancellationToken));
         })
-        .RequireAuthorization();
+        .RequireAuthorization()
+        .Produces<RosterCandidateEligibilityResponseDTO>()
+        .ProducesValidationProblem();
 
         group.MapPut("/individual/me", async (Guid gameId, ClaimsPrincipal user, ITournamentRegistrationService registrationService, CancellationToken cancellationToken) =>
         {
@@ -59,12 +66,18 @@ internal static class TournamentRegistrationEndpoints
         })
         .RequireAuthorization();
 
-        group.MapPut("/teams/{teamId:guid}/roster", async (Guid gameId, Guid teamId, SubmitTeamRosterDTO request, ClaimsPrincipal user, ITournamentRegistrationService registrationService, CancellationToken cancellationToken) =>
+        group.MapPut("/teams/{teamId:guid}/roster", async Task<IResult> (Guid gameId, Guid teamId, SubmitTeamRosterDTO request, ClaimsPrincipal user, ITournamentRegistrationService registrationService, CancellationToken cancellationToken) =>
         {
+            var validationProblem = ValidateRosterUserIds(request.UserIds);
+            if (validationProblem is not null)
+                return validationProblem;
+
             var requestWithRouteTeam = request with { TeamId = teamId };
-            return await registrationService.SubmitTeamRosterAsync(GetAuth0UserId(user), gameId, requestWithRouteTeam, cancellationToken);
+            return Results.Ok(await registrationService.SubmitTeamRosterAsync(GetAuth0UserId(user), gameId, requestWithRouteTeam, cancellationToken));
         })
-        .RequireAuthorization();
+        .RequireAuthorization()
+        .Produces<TournamentRegistrationDTO>()
+        .ProducesValidationProblem();
 
         group.MapDelete("/teams/{teamId:guid}", async (Guid gameId, Guid teamId, ClaimsPrincipal user, ITournamentRegistrationService registrationService, CancellationToken cancellationToken) =>
         {
@@ -117,5 +130,22 @@ internal static class TournamentRegistrationEndpoints
     private static string? GetOptionalAuth0UserId(ClaimsPrincipal user)
     {
         return user.FindFirstValue("sub") ?? user.FindFirstValue(ClaimTypes.NameIdentifier);
+    }
+
+    private static IResult? ValidateRosterUserIds(IReadOnlyList<Guid>? userIds)
+    {
+        string? error = null;
+        if (userIds is null)
+            error = "A roster user id collection is required.";
+        else if (userIds.Count > SearchRequestLimits.MaximumPageSize)
+            error = $"A roster cannot contain more than {SearchRequestLimits.MaximumPageSize} user ids.";
+        else if (userIds.Contains(Guid.Empty))
+            error = "Roster user ids cannot be empty.";
+        else if (userIds.Distinct().Count() != userIds.Count)
+            error = "Roster user ids must be unique.";
+
+        return error is null
+            ? null
+            : Results.ValidationProblem(new Dictionary<string, string[]> { ["userIds"] = [error] });
     }
 }

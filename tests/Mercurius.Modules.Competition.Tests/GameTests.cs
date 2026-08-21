@@ -49,6 +49,43 @@ public class GameTests
         Assert.Equal(5, game.TeamSize);
     }
 
+    [Fact]
+    public void Constructor_AcceptsMaximumTeamSize()
+    {
+        var game = CreateGame(participationMode: ParticipationMode.Team, teamSize: Game.MaximumTeamSize);
+
+        Assert.Equal(Game.MaximumTeamSize, game.TeamSize);
+    }
+
+    [Fact]
+    public void Constructor_RejectsTeamSizeAboveMaximum()
+    {
+        var exception = Assert.Throws<ValidationException>(() =>
+            CreateGame(participationMode: ParticipationMode.Team, teamSize: Game.MaximumTeamSize + 1));
+
+        Assert.Equal($"Team tournament size cannot exceed {Game.MaximumTeamSize}.", exception.Message);
+    }
+
+    [Fact]
+    public void Update_RejectsTeamSizeAboveMaximum()
+    {
+        var game = CreateGame(participationMode: ParticipationMode.Team, teamSize: 5);
+
+        var exception = Assert.Throws<ValidationException>(() =>
+            game.Update(
+                game.Name,
+                game.BracketType,
+                game.Format,
+                game.FinalsFormat,
+                ParticipationMode.Team,
+                Game.MaximumTeamSize + 1,
+                game.PlannedStartTime,
+                game.AverageGameDurationMinutes,
+                game.RoundBreakDurationMinutes));
+
+        Assert.Equal($"Team tournament size cannot exceed {Game.MaximumTeamSize}.", exception.Message);
+    }
+
     [Theory]
     [InlineData((int)GameStatus.InProgress)]
     [InlineData((int)GameStatus.Completed)]

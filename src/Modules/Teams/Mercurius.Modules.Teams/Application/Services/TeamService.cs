@@ -108,9 +108,23 @@ internal sealed class TeamService : ITeamQueries, ITeamManagementCommands, ITeam
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task<IEnumerable<GetTeamDTO>> GetAllTeamsAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<GetTeamDTO>> GetAllTeamsAsync(
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default)
     {
+        var offset = ((long)page - 1) * pageSize;
+        if (offset > int.MaxValue)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return [];
+        }
+
         var teams = await GetTeamReadRowsQuery()
+            .OrderBy(team => team.Name)
+            .ThenBy(team => team.Id)
+            .Skip((int)offset)
+            .Take(pageSize)
             .ToListAsync(cancellationToken);
         var users = await GetUserProfilesAsync(
             teams.SelectMany(team => team.MemberUserIds),

@@ -5,7 +5,7 @@ namespace Mercurius.Modules.Teams.Services;
 
 internal interface ITeamEndpointService
 {
-    Task<IReadOnlyList<TeamResponseDTO>> GetAllTeamsAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<TeamResponseDTO>> GetAllTeamsAsync(int page, int pageSize, CancellationToken cancellationToken = default);
     Task<TeamResponseDTO> GetTeamByIdAsync(Guid teamId, CancellationToken cancellationToken = default);
     Task<TeamManagementSummaryResponseDTO> CreateCurrentUserTeamAsync(string auth0UserId, CreateTeamRequestDTO request, CancellationToken cancellationToken = default);
     Task<CurrentUserTeamSummaryResponseDTO> GetCurrentUserTeamSummaryAsync(string auth0UserId, CancellationToken cancellationToken = default);

@@ -159,6 +159,60 @@ public class TeamTests
     }
 
     [Fact]
+    public async Task GetAllTeamsAsync_ReturnsDeterministicNavigablePages_WithOneIdentityBatchPerPage()
+    {
+        await using var dbContext = CreateDbContext();
+        var alphaCaptain = CreateUser();
+        var betaCaptain = CreateUser();
+        var deltaCaptain = CreateUser();
+        var gammaCaptain = CreateUser();
+        dbContext.Users.AddRange(alphaCaptain, betaCaptain, deltaCaptain, gammaCaptain);
+        dbContext.Teams.AddRange(
+            CreateTeam("Gamma", gammaCaptain),
+            CreateTeam("Alpha", alphaCaptain),
+            CreateTeam("Delta", deltaCaptain),
+            CreateTeam("Beta", betaCaptain));
+        await dbContext.SaveChangesAsync();
+        var identityModule = new DbContextIdentityModule(dbContext);
+        var service = CreateTeamQueryService(dbContext, identityModule);
+
+        var firstPage = await service.GetAllTeamsAsync(1, 2);
+        var secondPage = await service.GetAllTeamsAsync(2, 2);
+
+        Assert.Equal(["Alpha", "Beta"], firstPage.Select(team => team.Name).ToArray());
+        Assert.Equal(["Delta", "Gamma"], secondPage.Select(team => team.Name).ToArray());
+        Assert.Equal(2, identityModule.BatchCallCount);
+        Assert.Equal(
+            secondPage.SelectMany(team => team.Members).Select(member => new UserId(member.Id)).OrderBy(id => id.Value),
+            identityModule.LastBatchUserIds.OrderBy(id => id.Value));
+    }
+
+    [Fact]
+    public async Task GetAllTeamsAsync_OverflowingOffset_ReturnsEmptyWithoutIdentityLookup()
+    {
+        await using var dbContext = CreateDbContext();
+        var identityModule = new DbContextIdentityModule(dbContext);
+        var service = CreateTeamQueryService(dbContext, identityModule);
+
+        var page = await service.GetAllTeamsAsync(int.MaxValue, 50);
+
+        Assert.Empty(page);
+        Assert.Equal(0, identityModule.BatchCallCount);
+    }
+
+    [Fact]
+    public async Task GetAllTeamsAsync_OverflowingOffset_ObservesCancellation()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = CreateTeamQueryService(dbContext, new DbContextIdentityModule(dbContext));
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            service.GetAllTeamsAsync(int.MaxValue, 50, cancellation.Token));
+    }
+
+    [Fact]
     public void NormalizeName_ThrowsValidation_When_NameIsInvalid()
     {
         Assert.Throws<ValidationException>(() => Team.NormalizeName("   "));
@@ -780,7 +834,7 @@ public class TeamTests
 
         await teamService.DeleteTeamAsync(captain.Auth0UserId, team.Id);
 
-        Assert.Empty(await teamService.GetAllTeamsAsync());
+        Assert.Empty(await teamService.GetAllTeamsAsync(1, 20));
         Assert.Empty(await teamService.SearchTeamsByNameAsync("alp"));
         await Assert.ThrowsAsync<NotFoundException>(() => teamService.GetTeamByIdAsync(team.Id));
         await Assert.ThrowsAsync<NotFoundException>(() => teamService.GetPublicTeamProfileAsync("alpha"));
@@ -1225,6 +1279,28 @@ public class TeamTests
             identityModule,
             eventPublisher ?? new NoopTeamEventPublisher(),
             moduleEventPublisher ?? new NoopModuleEventPublisher());
+    }
+
+    private static TeamService CreateTeamQueryService(
+        MercuriusDBContext dbContext,
+        Mercurius.Modules.Identity.Contracts.IIdentityModule identityModule)
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["TeamInvite:ResendCooldownDays"] = "7",
+                ["TeamInvite:ExpirationDays"] = "14",
+                ["TeamInvite:RetentionDays"] = "90",
+                ["TeamInvite:DeclinedResendLimit"] = "3"
+            })
+            .Build();
+
+        return new TeamService(
+            new TeamsDbContextAdapter<MercuriusDBContext>(dbContext),
+            configuration,
+            identityModule,
+            new StubMediaModule("https://example.test/default-team-logo.webp"),
+            new StubTeamCompetitionReadService(dbContext));
     }
 
     private static IFormFile CreateFormFile(string contentType = "image/png")

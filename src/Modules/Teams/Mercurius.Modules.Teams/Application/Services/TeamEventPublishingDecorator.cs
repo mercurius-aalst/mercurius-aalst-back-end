@@ -83,9 +83,9 @@ internal sealed class TeamEventPublishingDecorator : ITeamManagementCommands, IT
             cancellationToken);
     }
 
-    public Task<IEnumerable<GetTeamDTO>> GetAllTeamsAsync(CancellationToken cancellationToken = default)
+    public Task<IReadOnlyList<GetTeamDTO>> GetAllTeamsAsync(int page, int pageSize, CancellationToken cancellationToken = default)
     {
-        return _inner.GetAllTeamsAsync(cancellationToken);
+        return _inner.GetAllTeamsAsync(page, pageSize, cancellationToken);
     }
 
     public Task<CurrentUserTeamSummaryDTO> GetCurrentUserTeamSummaryAsync(string auth0UserId, CancellationToken cancellationToken = default)

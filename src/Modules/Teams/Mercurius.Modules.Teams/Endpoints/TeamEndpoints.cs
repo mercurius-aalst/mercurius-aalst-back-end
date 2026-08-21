@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Asp.Versioning;
 using Mercurius.Modules.Teams.DTOs;
 using Mercurius.Modules.Teams.Services;
+using Mercurius.Modules.Shared.Search;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -33,11 +34,19 @@ internal static class TeamEndpoints
             .MapToApiVersion(new ApiVersion(1, 0))
             .WithTags("Team Invites");
 
-        group.MapGet("/", async ([FromServices] ITeamEndpointService teamService, CancellationToken cancellationToken) =>
+        group.MapGet("/", async Task<IResult> (int? page, int? pageSize, [FromServices] ITeamEndpointService teamService, CancellationToken cancellationToken) =>
         {
-            return await teamService.GetAllTeamsAsync(cancellationToken);
+            var validationProblem = ValidatePaging(page, pageSize);
+            if (validationProblem is not null)
+                return validationProblem;
+
+            var normalizedPage = page ?? 1;
+            var normalizedPageSize = SearchRequest.BoundPageSize(pageSize);
+            return Results.Ok(await teamService.GetAllTeamsAsync(normalizedPage, normalizedPageSize, cancellationToken));
         })
-        .AllowAnonymous();
+        .AllowAnonymous()
+        .Produces<IReadOnlyList<TeamResponseDTO>>()
+        .ProducesValidationProblem();
 
         group.MapGet("/{id:guid}", async (Guid id, [FromServices] ITeamEndpointService teamService, CancellationToken cancellationToken) =>
         {
@@ -145,5 +154,16 @@ internal static class TeamEndpoints
             throw new UnauthorizedAccessException("Authenticated user id is missing.");
 
         return subject;
+    }
+
+    private static IResult? ValidatePaging(int? page, int? pageSize)
+    {
+        var errors = new Dictionary<string, string[]>();
+        if (page is <= 0)
+            errors["page"] = ["page must be greater than 0."];
+        if (pageSize is <= 0)
+            errors["pageSize"] = ["pageSize must be greater than 0."];
+
+        return errors.Count == 0 ? null : Results.ValidationProblem(errors);
     }
 }

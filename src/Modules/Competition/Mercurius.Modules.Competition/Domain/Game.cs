@@ -5,6 +5,7 @@ namespace Mercurius.Modules.Competition.Domain;
 internal sealed class Game
 {
     private const int MaxAverageGameDurationMinutes = 1440;
+    internal const int MaximumTeamSize = 50;
 
     public Guid Id { get; set; }
     public string Name { get; set; } = null!;
@@ -190,6 +191,8 @@ internal sealed class Game
         {
             if (!teamSize.HasValue || teamSize.Value <= 0)
                 throw new ValidationException("Team tournaments require a team size greater than zero.");
+            if (teamSize.Value > MaximumTeamSize)
+                throw new ValidationException($"Team tournament size cannot exceed {MaximumTeamSize}.");
 
             TeamSize = teamSize.Value;
             return;

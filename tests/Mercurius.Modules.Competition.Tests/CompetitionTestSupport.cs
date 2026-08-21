@@ -73,13 +73,14 @@ internal static class CompetitionTestSupport
     public static CompetitionDtoMapper CreateMapper(
         IReadOnlyCollection<User>? users = null,
         IReadOnlyCollection<Team>? teams = null,
-        SponsorPlacementSummary? sponsorPlacement = null)
+        SponsorPlacementSummary? sponsorPlacement = null,
+        ISponsorshipModule? sponsorshipModule = null)
     {
         return new CompetitionDtoMapper(
             new RegistrationMappingContextBuilder(
                 new StubIdentityModule(users ?? []),
                 new StubTeamsModule(teams ?? [], users ?? [])),
-            new StubSponsorshipModule(sponsorPlacement));
+            sponsorshipModule ?? new StubSponsorshipModule(sponsorPlacement));
     }
 
     private static RegistrationMappingContext CreateContext(

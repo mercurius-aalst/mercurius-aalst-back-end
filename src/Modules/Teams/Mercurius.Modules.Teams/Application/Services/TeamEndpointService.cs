@@ -22,9 +22,9 @@ internal sealed class TeamEndpointService : ITeamEndpointService
         _logoCommands = logoCommands;
     }
 
-    public async Task<IReadOnlyList<TeamResponseDTO>> GetAllTeamsAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<TeamResponseDTO>> GetAllTeamsAsync(int page, int pageSize, CancellationToken cancellationToken = default)
     {
-        var teams = await _queries.GetAllTeamsAsync(cancellationToken);
+        var teams = await _queries.GetAllTeamsAsync(page, pageSize, cancellationToken);
         return teams.Select(MapTeam).ToList();
     }
 

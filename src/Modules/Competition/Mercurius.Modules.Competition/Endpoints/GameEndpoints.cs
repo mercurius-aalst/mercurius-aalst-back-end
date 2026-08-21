@@ -2,6 +2,7 @@ using Asp.Versioning;
 using Mercurius.Modules.Competition.Application.DTOs.Games;
 using Mercurius.Modules.Competition.Application.Services;
 using Mercurius.Modules.Competition.Contracts;
+using Mercurius.Modules.Shared.Search;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -22,11 +23,19 @@ internal static class GameEndpoints
             .WithTags("Games")
             .RequireAuthorization(new AuthorizeAttribute { Roles = "admin" });
 
-        group.MapGet("/", async (IGameQueries gameQueries, CancellationToken cancellationToken) =>
+        group.MapGet("/", async Task<IResult> (int? page, int? pageSize, IGameQueries gameQueries, CancellationToken cancellationToken) =>
         {
-            return await gameQueries.GetAllGamesAsync(cancellationToken);
+            var validationProblem = ValidatePaging(page, pageSize);
+            if (validationProblem is not null)
+                return validationProblem;
+
+            var normalizedPage = page ?? 1;
+            var normalizedPageSize = SearchRequest.BoundPageSize(pageSize);
+            return Results.Ok(await gameQueries.GetAllGamesAsync(normalizedPage, normalizedPageSize, cancellationToken));
         })
-        .AllowAnonymous();
+        .AllowAnonymous()
+        .Produces<IReadOnlyList<GetGameDTO>>()
+        .ProducesValidationProblem();
 
         group.MapGet("/{id}", async (Guid id, IGameQueries gameQueries, CancellationToken cancellationToken) =>
         {
@@ -78,5 +87,16 @@ internal static class GameEndpoints
         });
 
         return group;
+    }
+
+    private static IResult? ValidatePaging(int? page, int? pageSize)
+    {
+        var errors = new Dictionary<string, string[]>();
+        if (page is <= 0)
+            errors["page"] = ["page must be greater than 0."];
+        if (pageSize is <= 0)
+            errors["pageSize"] = ["pageSize must be greater than 0."];
+
+        return errors.Count == 0 ? null : Results.ValidationProblem(errors);
     }
 }

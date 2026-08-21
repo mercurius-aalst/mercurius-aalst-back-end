@@ -60,7 +60,7 @@ public class CompetitionPerformanceRegressionTests
         var sponsorPlacement = CreateSponsorPlacement(game.Id);
         var service = CreateGameService(dbContext, [user], sponsorPlacement);
 
-        var listItem = Assert.Single(await service.GetAllGamesAsync());
+        var listItem = Assert.Single(await service.GetAllGamesAsync(1, 20));
         var detailItem = await service.GetGameByIdAsync(game.Id);
 
         Assert.Equal(game.Id, listItem.Id);
@@ -74,6 +74,59 @@ public class CompetitionPerformanceRegressionTests
         Assert.Single(detailItem.Registrations);
         Assert.Equal(user.Username, detailItem.Registrations.Single().User?.Username);
         Assert.Equal(sponsorPlacement.Headline, detailItem.SponsorPlacement?.Headline);
+    }
+
+    [Fact]
+    public async Task GetAllGamesAsync_PagesAfterDeterministicOrdering_AndBatchesEnrichment()
+    {
+        await using var dbContext = CreateDbContext();
+        var first = CreateGame("Zulu");
+        first.Id = Guid.Parse("00000000-0000-0000-0000-000000000004");
+        first.PlannedStartTime = new DateTime(2026, 8, 2, 18, 0, 0, DateTimeKind.Utc);
+        var second = CreateGame("Beta");
+        second.Id = Guid.Parse("00000000-0000-0000-0000-000000000003");
+        second.PlannedStartTime = new DateTime(2026, 8, 1, 18, 0, 0, DateTimeKind.Utc);
+        var third = CreateGame("Alpha");
+        third.Id = Guid.Parse("00000000-0000-0000-0000-000000000002");
+        third.PlannedStartTime = new DateTime(2026, 8, 1, 18, 0, 0, DateTimeKind.Utc);
+        var fourth = CreateGame("Alpha");
+        fourth.Id = Guid.Parse("00000000-0000-0000-0000-000000000001");
+        fourth.PlannedStartTime = new DateTime(2026, 8, 1, 18, 0, 0, DateTimeKind.Utc);
+        dbContext.Set<Game>().AddRange(first, second, third, fourth);
+        await dbContext.SaveChangesAsync();
+        var sponsorshipModule = new StaticSponsorshipModule(null);
+        var service = CreateGameService(dbContext, [], sponsorPlacement: null, sponsorshipModule);
+
+        var page = await service.GetAllGamesAsync(2, 2);
+
+        Assert.Equal([second.Id, first.Id], page.Select(game => game.Id).ToArray());
+        Assert.Equal(1, sponsorshipModule.BatchCallCount);
+        Assert.Equal([second.Id, first.Id], sponsorshipModule.LastBatchGameIds.Select(gameId => gameId.Value).ToArray());
+    }
+
+    [Fact]
+    public async Task GetAllGamesAsync_OverflowingOffset_ReturnsEmptyWithoutEnrichment()
+    {
+        await using var dbContext = CreateDbContext();
+        var sponsorshipModule = new StaticSponsorshipModule(null);
+        var service = CreateGameService(dbContext, [], sponsorPlacement: null, sponsorshipModule);
+
+        var page = await service.GetAllGamesAsync(int.MaxValue, 50);
+
+        Assert.Empty(page);
+        Assert.Equal(0, sponsorshipModule.BatchCallCount);
+    }
+
+    [Fact]
+    public async Task GetAllGamesAsync_OverflowingOffset_ObservesCancellation()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = CreateGameService(dbContext, [], sponsorPlacement: null);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            service.GetAllGamesAsync(int.MaxValue, 50, cancellation.Token));
     }
 
     [Fact]
@@ -233,14 +286,18 @@ public class CompetitionPerformanceRegressionTests
     private static GameService CreateGameService(
         MercuriusDBContext dbContext,
         IReadOnlyCollection<User> users,
-        SponsorPlacementSummary? sponsorPlacement)
+        SponsorPlacementSummary? sponsorPlacement,
+        ISponsorshipModule? sponsorshipModule = null)
     {
         return new GameService(
             new CompetitionDbContextAdapter<MercuriusDBContext>(dbContext),
             new FixedMatchModeratorFactory(),
             new StubMediaModule(),
-            new StaticSponsorshipModule(sponsorPlacement),
-            CompetitionTestSupport.CreateMapper(users, sponsorPlacement: sponsorPlacement),
+            sponsorshipModule ?? new StaticSponsorshipModule(sponsorPlacement),
+            CompetitionTestSupport.CreateMapper(
+                users,
+                sponsorPlacement: sponsorPlacement,
+                sponsorshipModule: sponsorshipModule),
             CompetitionTestSupport.CreateModuleEventPublisher());
     }
 
@@ -342,6 +399,9 @@ public class CompetitionPerformanceRegressionTests
 
     private sealed class StaticSponsorshipModule(SponsorPlacementSummary? sponsorPlacement) : ISponsorshipModule
     {
+        public int BatchCallCount { get; private set; }
+        public IReadOnlyCollection<GameId> LastBatchGameIds { get; private set; } = [];
+
         public Task<SponsorSummary?> GetSponsorSummaryAsync(SponsorId sponsorId, CancellationToken cancellationToken = default) =>
             Task.FromResult<SponsorSummary?>(null);
 
@@ -355,6 +415,8 @@ public class CompetitionPerformanceRegressionTests
             IReadOnlyCollection<GameId> gameIds,
             CancellationToken cancellationToken = default)
         {
+            BatchCallCount++;
+            LastBatchGameIds = gameIds;
             if (sponsorPlacement is null)
                 return Task.FromResult<IReadOnlyDictionary<GameId, SponsorPlacementSummary>>(new Dictionary<GameId, SponsorPlacementSummary>());
 

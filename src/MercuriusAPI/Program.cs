@@ -64,11 +64,11 @@ public class Program
         app.UseCors(CorsPolicyName);
         app.ApplyMigrations<MercuriusDBContext>();
         app.UseApiExceptionHandling();
+        app.UseSecurityPipeline();
         app.UseImageflowWithCaching(
             requestPath: "/images",
             storagePath: app.Configuration["FileStorage:Location"],
             cacheControl: "public, max-age=31536000");
-        app.UseSecurityPipeline();
         app.UseStaticFiles(new StaticFileOptions
         {
             FileProvider = new PhysicalFileProvider(Path.Combine(AppContext.BaseDirectory, "staticfiles")),

@@ -128,6 +128,27 @@ public class TournamentRegistrationEndpointRouteTests
         Assert.Equal(submissionResponse.TeamId, service.LastSubmission?.TeamId);
     }
 
+    [Fact]
+    public async Task AdminRegistrationList_ValidatesAndNormalizesPagingBeforeServiceInvocation()
+    {
+        var service = new RecordingTournamentRegistrationService();
+        await using var app = CreateRegistrationApp(service);
+        await app.StartAsync();
+        using var client = CreateClient(app);
+        var gameId = Guid.NewGuid();
+        var path = $"v1/lan/games/{gameId}/registrations/admin";
+
+        using var invalidResponse = await client.GetAsync($"{path}?page=0");
+        Assert.Equal(StatusCodes.Status400BadRequest, (int)invalidResponse.StatusCode);
+        Assert.Equal(0, service.AdminRegistrationCallCount);
+
+        using var defaultResponse = await client.GetAsync(path);
+        using var cappedResponse = await client.GetAsync($"{path}?page=2&pageSize=51");
+        Assert.Equal(StatusCodes.Status200OK, (int)defaultResponse.StatusCode);
+        Assert.Equal(StatusCodes.Status200OK, (int)cappedResponse.StatusCode);
+        Assert.Equal((gameId, 2, 50), service.LastAdminRegistrationRequest);
+    }
+
     private static RouteEndpoint GetRegistrationRouteEndpoint(string method, string routePattern)
     {
         return GetRegistrationRouteEndpoints(method)
@@ -153,7 +174,8 @@ public class TournamentRegistrationEndpointRouteTests
         {
             context.User = new ClaimsPrincipal(new ClaimsIdentity(
             [
-                new Claim(ClaimTypes.NameIdentifier, "auth0|roster-test")
+                new Claim(ClaimTypes.NameIdentifier, "auth0|roster-test"),
+                new Claim(ClaimTypes.Role, "admin")
             ], "Test"));
             await next(context);
         });
@@ -237,8 +259,10 @@ public class TournamentRegistrationEndpointRouteTests
     {
         public int RosterEligibilityCallCount { get; private set; }
         public int RosterSubmissionCallCount { get; private set; }
+        public int AdminRegistrationCallCount { get; private set; }
         public IReadOnlyList<Guid>? LastUserIds { get; private set; }
         public SubmitTeamRosterDTO? LastSubmission { get; private set; }
+        public (Guid GameId, int Page, int PageSize) LastAdminRegistrationRequest { get; private set; }
 
         public Task<RosterCandidateEligibilityResponseDTO> CheckRosterEligibilityAsync(
             string auth0UserId,
@@ -271,7 +295,12 @@ public class TournamentRegistrationEndpointRouteTests
         public Task<TournamentRegistrationDTO> ConfirmRosterAsync(string auth0UserId, Guid gameId, Guid rosterMemberId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task UnregisterTeamAsync(string auth0UserId, Guid gameId, Guid teamId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<CurrentUserTournamentRegistrationStateDTO> GetCurrentUserStateAsync(string auth0UserId, Guid gameId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<IReadOnlyList<AdminTournamentRegistrationDTO>> GetAdminRegistrationsAsync(Guid gameId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<AdminTournamentRegistrationDTO>> GetAdminRegistrationsAsync(Guid gameId, int page, int pageSize, CancellationToken cancellationToken = default)
+        {
+            AdminRegistrationCallCount++;
+            LastAdminRegistrationRequest = (gameId, page, pageSize);
+            return Task.FromResult<IReadOnlyList<AdminTournamentRegistrationDTO>>([]);
+        }
         public Task RemoveIndividualAsAdminAsync(Guid gameId, Guid userId, string? reason, string? adminAuth0UserId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task RemoveTeamAsAdminAsync(Guid gameId, Guid teamId, string? reason, string? adminAuth0UserId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
@@ -290,7 +319,8 @@ public class TournamentRegistrationEndpointRouteTests
         {
             var principal = new ClaimsPrincipal(new ClaimsIdentity(
             [
-                new Claim(ClaimTypes.NameIdentifier, "auth0|roster-test")
+                new Claim(ClaimTypes.NameIdentifier, "auth0|roster-test"),
+                new Claim(ClaimTypes.Role, "admin")
             ], Scheme.Name));
             return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(principal, Scheme.Name)));
         }

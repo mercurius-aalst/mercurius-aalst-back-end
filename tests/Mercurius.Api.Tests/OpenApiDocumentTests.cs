@@ -58,6 +58,7 @@ public class OpenApiDocumentTests
             AssertPathHasOperation(document, "/v1/lan/public/teams/{teamName}", OperationType.Get);
             AssertPathHasOperation(document, "/v1/lan/users/me", OperationType.Get);
             AssertPathHasOperation(document, "/v1/lan/public/users/{username}", OperationType.Get);
+            AssertPagedRawArrayOperation(document, "/v1/lan/users");
             AssertPathHasOperation(document, "/v1/lan/games/{gameId}/registrations/me", OperationType.Get);
             AssertPathHasOperation(document, "/v1/lan/games/{gameId}/registrations/individual/eligibility", OperationType.Get);
             AssertPathHasOperation(document, "/v1/lan/games/{gameId}/registrations/teams/{teamId}/eligibility", OperationType.Get);
@@ -65,6 +66,7 @@ public class OpenApiDocumentTests
             AssertPathHasOperation(document, "/v1/lan/games/{gameId}/registrations/individual/me", OperationType.Put);
             AssertPathHasOperation(document, "/v1/lan/games/{gameId}/registrations/roster-members/{rosterMemberId}", OperationType.Patch);
             AssertPathHasOperation(document, "/v1/lan/games/{gameId}/registrations/admin", OperationType.Get);
+            AssertPagedRawArrayOperation(document, "/v1/lan/games/{gameId}/registrations/admin");
             AssertPathHasOperation(document, "/v1/lan/search", OperationType.Get);
             AssertPathHasOperation(document, "/v1/lan/sponsors", OperationType.Post);
             AssertPathHasOperation(document, "/v1/lan/matches/{id}", OperationType.Put);

@@ -416,7 +416,7 @@ public class TournamentRegistrationServiceTests
         var service = CreateService(dbContext);
         var pending = await service.SubmitTeamRosterAsync(captain.Auth0UserId, game.Id, new SubmitTeamRosterDTO(pendingTeam.Id, [captain.Id, pendingMember.Id]));
 
-        var registrations = await service.GetAdminRegistrationsAsync(game.Id);
+        var registrations = await service.GetAdminRegistrationsAsync(game.Id, page: 1, pageSize: 20);
 
         Assert.Contains(registrations, registration =>
             registration.Id == pending.Id &&
@@ -425,6 +425,42 @@ public class TournamentRegistrationServiceTests
         Assert.Contains(registrations, registration =>
             registration.Status == CompetitionRegistrationStatus.Active &&
             registration.RosterMembers.Any(member => member.User.Id == activeMember.Id && member.ConfirmationStatus == CompetitionRosterStatus.Confirmed));
+    }
+
+    [Fact]
+    public async Task GetAdminRegistrationsAsync_PagesBeforeMappingAndHandlesOverflow()
+    {
+        await using var dbContext = CreateDbContext();
+        var first = CreateUser("first");
+        var second = CreateUser("second");
+        var game = CreateIndividualGame();
+        dbContext.Users.AddRange(first, second);
+        dbContext.Set<Game>().Add(game);
+        AddIndividualRegistration(dbContext, game, second);
+        AddIndividualRegistration(dbContext, game, first);
+        await dbContext.SaveChangesAsync();
+
+        var registrations = dbContext.Set<TournamentRegistration>()
+            .Where(registration => registration.GameId == game.Id)
+            .OrderBy(registration => registration.Id)
+            .ToList();
+        registrations[0].CreatedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        registrations[1].CreatedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        await dbContext.SaveChangesAsync();
+        var service = CreateService(dbContext);
+
+        var firstPage = await service.GetAdminRegistrationsAsync(game.Id, page: 1, pageSize: 1);
+        var secondPage = await service.GetAdminRegistrationsAsync(game.Id, page: 2, pageSize: 1);
+        var overflowPage = await service.GetAdminRegistrationsAsync(game.Id, page: int.MaxValue, pageSize: 50);
+        using var cancellationSource = new CancellationTokenSource();
+        cancellationSource.Cancel();
+
+        Assert.Single(firstPage);
+        Assert.Single(secondPage);
+        Assert.NotEqual(firstPage[0].Id, secondPage[0].Id);
+        Assert.Empty(overflowPage);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            service.GetAdminRegistrationsAsync(game.Id, int.MaxValue, 50, cancellationSource.Token));
     }
 
     private static TournamentRegistrationService CreateService(

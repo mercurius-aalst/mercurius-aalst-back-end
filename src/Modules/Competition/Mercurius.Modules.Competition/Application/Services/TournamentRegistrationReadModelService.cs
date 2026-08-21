@@ -87,13 +87,23 @@ internal sealed class TournamentRegistrationReadModelService(
 
     public async Task<IReadOnlyList<AdminTournamentRegistrationDTO>> GetAdminRegistrationsAsync(
         Guid gameId,
+        int page,
+        int pageSize,
         CancellationToken cancellationToken)
     {
+        var offset = (long)(page - 1) * pageSize;
+        cancellationToken.ThrowIfCancellationRequested();
+        if (offset > int.MaxValue)
+            return [];
+
         var registrations = await GetRegistrationQuery()
             .Where(registration => registration.GameId == gameId)
             .OrderBy(registration => registration.Kind)
             .ThenBy(registration => registration.Status)
             .ThenBy(registration => registration.CreatedAtUtc)
+            .ThenBy(registration => registration.Id)
+            .Skip((int)offset)
+            .Take(pageSize)
             .ToListAsync(cancellationToken);
 
         return await mapper.ToAdminRegistrationDtosAsync(registrations, cancellationToken);

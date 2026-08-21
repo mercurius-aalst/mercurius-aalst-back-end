@@ -150,9 +150,9 @@ internal sealed class UserIntegrationEventPublishingService : IUserService
             await _realtimeConnectionManager.RevokeUserAsync(after!.Id, CancellationToken.None);
     }
 
-    public Task<IEnumerable<GetUserDTO>> GetAllUsersAsync()
+    public Task<IReadOnlyList<GetUserDTO>> GetAllUsersAsync(int page, int pageSize, CancellationToken cancellationToken = default)
     {
-        return _inner.GetAllUsersAsync();
+        return _inner.GetAllUsersAsync(page, pageSize, cancellationToken);
     }
 
     public Task<GetUserDTO> GetUserByIdAsync(Guid id)

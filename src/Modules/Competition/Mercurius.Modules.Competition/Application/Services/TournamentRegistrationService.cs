@@ -367,10 +367,12 @@ internal sealed class TournamentRegistrationService : ITournamentRegistrationSer
 
     public async Task<IReadOnlyList<AdminTournamentRegistrationDTO>> GetAdminRegistrationsAsync(
         Guid gameId,
+        int page,
+        int pageSize,
         CancellationToken cancellationToken = default)
     {
         _ = await GetGameAsync(gameId, cancellationToken);
-        return await _readModelService.GetAdminRegistrationsAsync(gameId, cancellationToken);
+        return await _readModelService.GetAdminRegistrationsAsync(gameId, page, pageSize, cancellationToken);
     }
 
     public async Task RemoveIndividualAsAdminAsync(

@@ -59,7 +59,7 @@ internal static class UserEndpoints
         })
         .RequireAuthorization();
 
-        group.MapGet("/", async (HttpRequest request, string? query, string? cursor, int? pageSize, ClaimsPrincipal user, IUserService userService, CancellationToken cancellationToken) =>
+        group.MapGet("/", async Task<IResult> (HttpRequest request, string? query, string? cursor, int? page, int? pageSize, ClaimsPrincipal user, IUserService userService, CancellationToken cancellationToken) =>
         {
             if (request.Query.ContainsKey("query"))
             {
@@ -73,10 +73,19 @@ internal static class UserEndpoints
             if (!user.IsInRole("admin"))
                 return Results.Forbid();
 
-            return Results.Ok(await userService.GetAllUsersAsync());
+            var validationProblem = ValidatePaging(page, pageSize);
+            if (validationProblem is not null)
+                return validationProblem;
+
+            return Results.Ok(await userService.GetAllUsersAsync(
+                page ?? 1,
+                SearchRequest.BoundPageSize(pageSize),
+                cancellationToken));
         })
         .RequireAuthorization()
-        .RequireRateLimiting("authenticated-search");
+        .RequireRateLimiting("authenticated-search")
+        .Produces<IReadOnlyList<GetUserDTO>>()
+        .ProducesValidationProblem();
 
         group.MapPost("/me/resend-verification-email", async (ClaimsPrincipal user, IUserService userService) =>
         {
@@ -139,5 +148,16 @@ internal static class UserEndpoints
             throw new UnauthorizedAccessException("Authenticated user id is missing.");
 
         return subject;
+    }
+
+    private static IResult? ValidatePaging(int? page, int? pageSize)
+    {
+        var errors = new Dictionary<string, string[]>();
+        if (page is <= 0)
+            errors["page"] = ["page must be greater than 0."];
+        if (pageSize is <= 0)
+            errors["pageSize"] = ["pageSize must be greater than 0."];
+
+        return errors.Count == 0 ? null : Results.ValidationProblem(errors);
     }
 }

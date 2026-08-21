@@ -98,10 +98,20 @@ internal static class TournamentRegistrationEndpoints
         var adminGroup = group.MapGroup("/admin")
             .RequireAuthorization(new AuthorizeAttribute { Roles = "admin" });
 
-        adminGroup.MapGet("/", async (Guid gameId, ITournamentRegistrationService registrationService, CancellationToken cancellationToken) =>
+        adminGroup.MapGet("/", async Task<IResult> (Guid gameId, int? page, int? pageSize, ITournamentRegistrationService registrationService, CancellationToken cancellationToken) =>
         {
-            return await registrationService.GetAdminRegistrationsAsync(gameId, cancellationToken);
-        });
+            var validationProblem = ValidatePaging(page, pageSize);
+            if (validationProblem is not null)
+                return validationProblem;
+
+            return Results.Ok(await registrationService.GetAdminRegistrationsAsync(
+                gameId,
+                page ?? 1,
+                SearchRequest.BoundPageSize(pageSize),
+                cancellationToken));
+        })
+        .Produces<IReadOnlyList<AdminTournamentRegistrationDTO>>()
+        .ProducesValidationProblem();
 
         adminGroup.MapDelete("/users/{userId:guid}", async (Guid gameId, Guid userId, [FromBody] RemoveRegistrationDTO request, ClaimsPrincipal user, ITournamentRegistrationService registrationService, CancellationToken cancellationToken) =>
         {
@@ -147,5 +157,16 @@ internal static class TournamentRegistrationEndpoints
         return error is null
             ? null
             : Results.ValidationProblem(new Dictionary<string, string[]> { ["userIds"] = [error] });
+    }
+
+    private static IResult? ValidatePaging(int? page, int? pageSize)
+    {
+        var errors = new Dictionary<string, string[]>();
+        if (page is <= 0)
+            errors["page"] = ["page must be greater than 0."];
+        if (pageSize is <= 0)
+            errors["pageSize"] = ["pageSize must be greater than 0."];
+
+        return errors.Count == 0 ? null : Results.ValidationProblem(errors);
     }
 }

@@ -8,6 +8,7 @@ using Mercurius.Modules.Shared;
 using Mercurius.Modules.Shared.Exceptions;
 using Mercurius.Modules.Sponsorship.Contracts;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Platform.Eventing;
 using GameCanceledIntegrationEvent = Mercurius.Modules.Competition.Contracts.GameCanceledIntegrationEvent;
 using GameCompletedIntegrationEvent = Mercurius.Modules.Competition.Contracts.GameCompletedIntegrationEvent;
@@ -29,6 +30,7 @@ internal sealed class GameService : IGameQueries, IGameManagementCommands, IGame
     private readonly ISponsorshipModule _sponsorshipModule;
     private readonly CompetitionDtoMapper _mapper;
     private readonly IModuleEventPublisher _moduleEventPublisher;
+    private readonly ILogger<GameService> _logger;
 
     public GameService(
         ICompetitionDbContext dbContext,
@@ -36,7 +38,8 @@ internal sealed class GameService : IGameQueries, IGameManagementCommands, IGame
         IMediaModule mediaModule,
         ISponsorshipModule sponsorshipModule,
         CompetitionDtoMapper mapper,
-        IModuleEventPublisher moduleEventPublisher)
+        IModuleEventPublisher moduleEventPublisher,
+        ILogger<GameService> logger)
     {
         _dbContext = dbContext;
         _matchModeratorFactory = matchModeratorFactory;
@@ -44,6 +47,7 @@ internal sealed class GameService : IGameQueries, IGameManagementCommands, IGame
         _sponsorshipModule = sponsorshipModule;
         _mapper = mapper;
         _moduleEventPublisher = moduleEventPublisher;
+        _logger = logger;
     }
 
     public async Task<GetGameDTO> CreateGameAsync(
@@ -74,11 +78,22 @@ internal sealed class GameService : IGameQueries, IGameManagementCommands, IGame
                 createGameDTO.Image.ContentType,
                 createGameDTO.Image.Length),
             cancellationToken);
-        game.ImageUrl = asset.Url;
+        var committed = false;
+        try
+        {
+            game.ImageUrl = asset.Url;
+            _dbContext.Games.Add(game);
+            _moduleEventPublisher.Publish(new GameCreatedIntegrationEvent(new GameId(game.Id), game.Name));
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            committed = true;
+        }
+        catch
+        {
+            if (!committed)
+                await DeleteImageBestEffortAsync(asset.Url, "compensate an uncommitted Game image");
+            throw;
+        }
 
-        _dbContext.Games.Add(game);
-        _moduleEventPublisher.Publish(new GameCreatedIntegrationEvent(new GameId(game.Id), game.Name));
-        await _dbContext.SaveChangesAsync(cancellationToken);
         return await GetGameByIdAsync(game.Id, cancellationToken);
     }
 
@@ -139,6 +154,8 @@ internal sealed class GameService : IGameQueries, IGameManagementCommands, IGame
             gameDTO.AverageGameDurationMinutes,
             gameDTO.RoundBreakDurationMinutes);
 
+        var previousImageUrl = game.ImageUrl;
+        string? newImageUrl = null;
         if (gameDTO.Image is not null)
         {
             await using var imageStream = gameDTO.Image.OpenReadStream();
@@ -149,11 +166,29 @@ internal sealed class GameService : IGameQueries, IGameManagementCommands, IGame
                     gameDTO.Image.ContentType,
                     gameDTO.Image.Length),
                 cancellationToken);
-            game.ImageUrl = asset.Url;
+            newImageUrl = asset.Url;
         }
 
-        _moduleEventPublisher.Publish(new GameUpdatedIntegrationEvent(new GameId(game.Id), game.Name));
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        var committed = false;
+        try
+        {
+            if (newImageUrl is not null)
+                game.ImageUrl = newImageUrl;
+
+            _moduleEventPublisher.Publish(new GameUpdatedIntegrationEvent(new GameId(game.Id), game.Name));
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            committed = true;
+        }
+        catch
+        {
+            if (!committed && !string.Equals(newImageUrl, previousImageUrl, StringComparison.Ordinal))
+                await DeleteImageBestEffortAsync(newImageUrl, "compensate an uncommitted Game image replacement");
+            throw;
+        }
+
+        if (newImageUrl is not null && !string.Equals(previousImageUrl, newImageUrl, StringComparison.Ordinal))
+            await DeleteImageBestEffortAsync(previousImageUrl, "retire a replaced Game image");
+
         return await GetGameByIdAsync(game.Id, cancellationToken);
     }
 
@@ -163,9 +198,11 @@ internal sealed class GameService : IGameQueries, IGameManagementCommands, IGame
         if (game.Status == GameStatus.InProgress)
             throw new ValidationException("Game cannot be deleted when already in progress.");
 
+        var imageUrl = game.ImageUrl;
         _dbContext.Games.Remove(game);
         _moduleEventPublisher.Publish(new GameDeletedIntegrationEvent(new GameId(game.Id)));
         await _dbContext.SaveChangesAsync(cancellationToken);
+        await DeleteImageBestEffortAsync(imageUrl, "retire a deleted Game image");
     }
 
     public async Task CancelGameAsync(Guid id, CancellationToken cancellationToken = default)
@@ -340,6 +377,21 @@ internal sealed class GameService : IGameQueries, IGameManagementCommands, IGame
         catch (ArgumentOutOfRangeException)
         {
             throw new ValidationException("Estimated tournament schedule exceeds supported date range.");
+        }
+    }
+
+    private async Task DeleteImageBestEffortAsync(string? imageUrl, string action)
+    {
+        if (string.IsNullOrWhiteSpace(imageUrl))
+            return;
+
+        try
+        {
+            await _mediaModule.DeleteImageAsync(imageUrl, CancellationToken.None);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(exception, "Failed to {MediaCleanupAction} at {MediaUrl}.", action, imageUrl);
         }
     }
 }

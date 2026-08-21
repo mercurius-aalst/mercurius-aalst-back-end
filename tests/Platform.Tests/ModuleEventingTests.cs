@@ -468,7 +468,8 @@ public class ModuleEventingTests
                 configuration,
                 identityModule,
                 new NoopMediaModule(),
-                new NoopTeamCompetitionReadService()),
+                new NoopTeamCompetitionReadService(),
+                Microsoft.Extensions.Logging.Abstractions.NullLogger<TeamService>.Instance),
             teamsDbContext,
             identityModule,
             new NoopTeamEventPublisher(),
@@ -543,6 +544,9 @@ public class ModuleEventingTests
             Task.FromResult(false);
 
         public Task<bool> IsTeamInDeleteBlockingTournamentAsync(Guid teamId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
+
+        public Task<bool> IsTeamLogoReferencedAsync(string logoUrl, CancellationToken cancellationToken = default) =>
             Task.FromResult(false);
     }
 

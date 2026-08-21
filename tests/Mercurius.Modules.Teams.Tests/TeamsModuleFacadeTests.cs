@@ -263,5 +263,12 @@ public class TeamsModuleFacadeTests
         {
             return Task.FromResult(false);
         }
+
+        public Task<bool> IsTeamLogoReferencedAsync(
+            string logoUrl,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(false);
+        }
     }
 }

@@ -155,7 +155,8 @@ public class GameScheduleTests
             mediaModule,
             CompetitionTestSupport.CreateSponsorshipModule(),
             CompetitionTestSupport.CreateMapper(),
-            CompetitionTestSupport.CreateModuleEventPublisher());
+            CompetitionTestSupport.CreateModuleEventPublisher(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<GameService>.Instance);
         using var cancellationSource = new CancellationTokenSource();
         var imageBytes = new byte[] { 1, 2, 3 };
         var image = new FormFile(new MemoryStream(imageBytes), 0, imageBytes.Length, "image", "game.png")
@@ -299,7 +300,8 @@ public class GameScheduleTests
             new UnsupportedMediaModule(),
             CompetitionTestSupport.CreateSponsorshipModule(),
             CompetitionTestSupport.CreateMapper(),
-            CompetitionTestSupport.CreateModuleEventPublisher());
+            CompetitionTestSupport.CreateModuleEventPublisher(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<GameService>.Instance);
     }
 
     private sealed class FixedScheduleMatchModerator : IMatchModerator

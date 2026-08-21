@@ -478,6 +478,9 @@ public class TournamentRegistrationServiceTests
 
         public Task<bool> IsTeamInDeleteBlockingTournamentAsync(Guid teamId, CancellationToken cancellationToken = default) =>
             Task.FromResult(false);
+
+        public Task<bool> IsTeamLogoReferencedAsync(string logoUrl, CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
     }
 
     private static Game CreateIndividualGame()

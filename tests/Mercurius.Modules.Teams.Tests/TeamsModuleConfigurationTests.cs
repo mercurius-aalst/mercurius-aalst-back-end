@@ -199,6 +199,7 @@ public class TeamsModuleConfigurationTests
         services.AddSingleton<IModuleEventPublisher, NoopModuleEventPublisher>();
         services.AddSingleton<IRealtimePublisher, RecordingRealtimePublisher>();
         services.AddSingleton<IRealtimeConnectionManager, NoopRealtimeConnectionManager>();
+        services.AddLogging();
         services.AddTeamsModule<MercuriusDBContext>(configuration);
 
         return services;
@@ -290,6 +291,9 @@ public class TeamsModuleConfigurationTests
             Task.FromResult(false);
 
         public Task<bool> IsTeamInDeleteBlockingTournamentAsync(Guid teamId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
+
+        public Task<bool> IsTeamLogoReferencedAsync(string logoUrl, CancellationToken cancellationToken = default) =>
             Task.FromResult(false);
     }
 

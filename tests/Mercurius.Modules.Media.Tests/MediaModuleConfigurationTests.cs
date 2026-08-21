@@ -88,9 +88,13 @@ public class MediaModuleConfigurationTests
         Directory.CreateDirectory(storagePath);
         var storedFile = Path.Combine(storagePath, "0123456789abcdef0123456789abcdef.webp");
         var legacyStoredFile = Path.Combine(storagePath, "legacy01.abc.webp");
+        var externalUrlTarget = Path.Combine(storagePath, "fedcba9876543210fedcba9876543210.webp");
+        var defaultFile = Path.Combine(storagePath, "default-team-logo.webp");
         var nonMediaFile = Path.Combine(storagePath, "readme.txt");
         await File.WriteAllTextAsync(storedFile, "stored");
         await File.WriteAllTextAsync(legacyStoredFile, "legacy stored");
+        await File.WriteAllTextAsync(externalUrlTarget, "external target");
+        await File.WriteAllTextAsync(defaultFile, "default asset");
         await File.WriteAllTextAsync(nonMediaFile, "not media");
         await File.WriteAllTextAsync(outsidePath, "outside");
         var mediaModule = CreateMediaModule(storagePath);
@@ -102,9 +106,16 @@ public class MediaModuleConfigurationTests
             await mediaModule.DeleteImageAsync("images/legacy01.abc.webp");
             await mediaModule.DeleteImageAsync("images/readme.txt");
             await mediaModule.DeleteImageAsync($"images/../{Path.GetFileName(outsidePath)}");
+            await mediaModule.DeleteImageAsync(null);
+            await mediaModule.DeleteImageAsync(" ");
+            await mediaModule.DeleteImageAsync("https://cdn.example.test/images/fedcba9876543210fedcba9876543210.webp");
+            await mediaModule.DeleteImageAsync("/images/fedcba9876543210fedcba9876543210.webp");
+            await mediaModule.DeleteImageAsync("images/default-team-logo.webp");
 
             Assert.False(File.Exists(storedFile));
             Assert.False(File.Exists(legacyStoredFile));
+            Assert.True(File.Exists(externalUrlTarget));
+            Assert.True(File.Exists(defaultFile));
             Assert.True(File.Exists(nonMediaFile));
             Assert.True(File.Exists(outsidePath));
         }

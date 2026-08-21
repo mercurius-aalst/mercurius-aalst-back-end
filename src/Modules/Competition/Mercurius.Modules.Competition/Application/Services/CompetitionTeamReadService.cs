@@ -58,4 +58,15 @@ internal sealed class CompetitionTeamReadService : ITeamCompetitionReadService
                  registration.Game.Status == GameStatus.InProgress),
             cancellationToken);
     }
+
+    public Task<bool> IsTeamLogoReferencedAsync(
+        string logoUrl,
+        CancellationToken cancellationToken = default)
+    {
+        return _dbContext.TournamentRegistrations
+            .AsNoTracking()
+            .AnyAsync(
+                registration => registration.TeamLogoUrlAtRegistration == logoUrl,
+                cancellationToken);
+    }
 }

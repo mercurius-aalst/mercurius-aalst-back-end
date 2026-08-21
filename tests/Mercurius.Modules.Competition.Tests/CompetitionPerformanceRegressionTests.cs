@@ -298,7 +298,8 @@ public class CompetitionPerformanceRegressionTests
                 users,
                 sponsorPlacement: sponsorPlacement,
                 sponsorshipModule: sponsorshipModule),
-            CompetitionTestSupport.CreateModuleEventPublisher());
+            CompetitionTestSupport.CreateModuleEventPublisher(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<GameService>.Instance);
     }
 
     private static MercuriusDBContext CreateDbContext()

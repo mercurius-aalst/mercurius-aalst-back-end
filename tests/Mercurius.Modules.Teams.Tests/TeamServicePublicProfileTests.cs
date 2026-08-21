@@ -148,7 +148,8 @@ public class TeamServicePublicProfileTests
             configuration,
             new DbContextIdentityModule(dbContext),
             new NoopMediaModule(),
-            competitionReadService: new StubTeamCompetitionReadService(dbContext));
+            competitionReadService: new StubTeamCompetitionReadService(dbContext),
+            logger: Microsoft.Extensions.Logging.Abstractions.NullLogger<TeamService>.Instance);
     }
 
     private static MercuriusDBContext CreateDbContext()
@@ -242,6 +243,9 @@ public class TeamServicePublicProfileTests
             => Task.FromResult(false);
 
         public Task<bool> IsTeamInDeleteBlockingTournamentAsync(Guid teamId, CancellationToken cancellationToken = default)
+            => Task.FromResult(false);
+
+        public Task<bool> IsTeamLogoReferencedAsync(string logoUrl, CancellationToken cancellationToken = default)
             => Task.FromResult(false);
     }
 

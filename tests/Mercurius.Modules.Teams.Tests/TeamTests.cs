@@ -17,6 +17,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace Mercurius.Modules.Teams.Tests;
 
@@ -782,7 +783,8 @@ public class TeamTests
         dbContext.Set<Match>().Add(match);
         await dbContext.SaveChangesAsync();
 
-        var teamService = CreateTeamService(dbContext);
+        var mediaModule = new StubMediaModule("/images/replacement.webp");
+        var teamService = CreateTeamService(dbContext, mediaModule);
 
         await teamService.DeleteTeamAsync(captain.Auth0UserId, team.Id);
 
@@ -799,6 +801,7 @@ public class TeamTests
         Assert.True(await dbContext.Set<TournamentRegistration>().AnyAsync(registration => registration.GameId == game.Id && registration.TeamId == team.Id));
         Assert.True(await dbContext.Set<Match>().AnyAsync(m => m.Id == match.Id && m.TeamParticipant1Id == team.Id));
         Assert.True(await dbContext.Set<Placement>().AnyAsync(p => p.Id == placement.Id && p.Teams.Any(t => t.TeamId == team.Id)));
+        Assert.Empty(mediaModule.DeletedImages);
     }
 
     [Fact]
@@ -881,6 +884,111 @@ public class TeamTests
 
         Assert.Equal("/images/team-logo.webp", result.LogoUrl);
         Assert.Equal("/images/team-logo.webp", profile.LogoUrl);
+    }
+
+    [Fact]
+    public async Task UploadTeamLogoAsync_CancellationAfterSaveCompensatesNewLogoWithNonCancelledToken()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var team = CreateTeam("Alpha", captain);
+        team.LogoUrl = "/images/original.webp";
+        dbContext.Users.Add(captain);
+        dbContext.Teams.Add(team);
+        await dbContext.SaveChangesAsync();
+        using var cancellation = new CancellationTokenSource();
+        var mediaModule = new StubMediaModule("/images/new.webp")
+        {
+            CancelAfterSave = cancellation
+        };
+        var teamService = CreateTeamService(dbContext, mediaModule);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            teamService.UploadTeamLogoAsync(
+                captain.Auth0UserId,
+                team.Id,
+                CreateFormFile(),
+                cancellation.Token));
+
+        var deletedImage = Assert.Single(mediaModule.DeletedImages);
+        Assert.Equal("/images/new.webp", deletedImage.ImageUrl);
+        Assert.Equal(CancellationToken.None, deletedImage.CancellationToken);
+        dbContext.ChangeTracker.Clear();
+        Assert.Equal(
+            "/images/original.webp",
+            (await dbContext.Teams.SingleAsync(candidate => candidate.Id == team.Id)).LogoUrl);
+    }
+
+    [Fact]
+    public async Task UploadTeamLogoAsync_SuccessRetiresOnlyPreviousLogo()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var team = CreateTeam("Alpha", captain);
+        team.LogoUrl = "/images/original.webp";
+        dbContext.Users.Add(captain);
+        dbContext.Teams.Add(team);
+        await dbContext.SaveChangesAsync();
+        var mediaModule = new StubMediaModule("/images/new.webp");
+        var teamService = CreateTeamService(dbContext, mediaModule);
+
+        var result = await teamService.UploadTeamLogoAsync(captain.Auth0UserId, team.Id, CreateFormFile());
+
+        Assert.Equal("/images/new.webp", result.LogoUrl);
+        var deletedImage = Assert.Single(mediaModule.DeletedImages);
+        Assert.Equal("/images/original.webp", deletedImage.ImageUrl);
+        Assert.Equal(CancellationToken.None, deletedImage.CancellationToken);
+    }
+
+    [Fact]
+    public async Task UploadTeamLogoAsync_DoesNotRetireUnchangedOrHistoricallyReferencedLogo()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var team = CreateTeam("Alpha", captain);
+        team.LogoUrl = "/images/original.webp";
+        var game = new Game("Completed Game", BracketType.SingleElimination, GameFormat.BestOf1, GameFormat.BestOf1, ParticipationMode.Team, 1)
+        {
+            Id = Guid.NewGuid(),
+            Status = GameStatus.Completed
+        };
+        dbContext.Users.Add(captain);
+        dbContext.Teams.Add(team);
+        dbContext.Set<Game>().Add(game);
+        AddTeamRegistration(dbContext, game, team, captain, [captain], TournamentRegistrationStatus.Active);
+        await dbContext.SaveChangesAsync();
+        var historicalMediaModule = new StubMediaModule("/images/new.webp");
+        var teamService = CreateTeamService(dbContext, historicalMediaModule);
+
+        await teamService.UploadTeamLogoAsync(captain.Auth0UserId, team.Id, CreateFormFile());
+
+        Assert.Empty(historicalMediaModule.DeletedImages);
+
+        var unchangedMediaModule = new StubMediaModule("/images/new.webp");
+        teamService = CreateTeamService(dbContext, unchangedMediaModule);
+        await teamService.UploadTeamLogoAsync(captain.Auth0UserId, team.Id, CreateFormFile());
+        Assert.Empty(unchangedMediaModule.DeletedImages);
+    }
+
+    [Fact]
+    public async Task RemoveTeamLogoAsync_DoesNotRetireLogoSharedByAnotherCurrentTeam()
+    {
+        await using var dbContext = CreateDbContext();
+        var firstCaptain = CreateUser();
+        var secondCaptain = CreateUser();
+        var firstTeam = CreateTeam("Alpha", firstCaptain);
+        var secondTeam = CreateTeam("Beta", secondCaptain);
+        firstTeam.LogoUrl = "/images/shared.webp";
+        secondTeam.LogoUrl = "/images/shared.webp";
+        dbContext.Users.AddRange(firstCaptain, secondCaptain);
+        dbContext.Teams.AddRange(firstTeam, secondTeam);
+        await dbContext.SaveChangesAsync();
+        var mediaModule = new StubMediaModule("/images/unused.webp");
+        var teamService = CreateTeamService(dbContext, mediaModule);
+
+        await teamService.RemoveTeamLogoAsync(firstCaptain.Auth0UserId, firstTeam.Id);
+
+        Assert.Empty(mediaModule.DeletedImages);
     }
 
     [Fact]
@@ -1189,6 +1297,174 @@ public class TeamTests
     }
 
     [Fact]
+    public async Task DeleteTeamAsync_RetiresUnreferencedLogoAfterCommitAndGroupRevocation()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var team = CreateTeam("Alpha", captain);
+        team.LogoUrl = "/images/original.webp";
+        dbContext.Users.Add(captain);
+        dbContext.Teams.Add(team);
+        await dbContext.SaveChangesAsync();
+        var operationOrder = new List<string>();
+        var mediaModule = new StubMediaModule("/images/unused.webp")
+        {
+            OperationOrder = operationOrder
+        };
+        var realtimeConnectionManager = new RecordingRealtimeConnectionManager
+        {
+            OperationOrder = operationOrder
+        };
+        var teamService = CreateTeamService(
+            dbContext,
+            mediaModule,
+            moduleEventPublisher: new ModuleEventPublisher(dbContext),
+            realtimeConnectionManager: realtimeConnectionManager);
+
+        await teamService.DeleteTeamAsync(captain.Auth0UserId, team.Id);
+
+        Assert.Equal(["RevokeGroup", "DeleteImage"], operationOrder);
+        var deletedImage = Assert.Single(mediaModule.DeletedImages);
+        Assert.Equal("/images/original.webp", deletedImage.ImageUrl);
+        Assert.Equal(CancellationToken.None, deletedImage.CancellationToken);
+        dbContext.ChangeTracker.Clear();
+        Assert.True((await dbContext.Teams.SingleAsync(candidate => candidate.Id == team.Id)).IsDeleted);
+        Assert.Contains(
+            await dbContext.OutboxMessages.Select(message => message.EventType).ToListAsync(),
+            eventType => eventType == typeof(TeamDeletedIntegrationEvent).FullName);
+    }
+
+    [Fact]
+    public async Task DeleteTeamAsync_DurableEventFailureNeverRetiresLogoOrRevokesGroup()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var team = CreateTeam("Alpha", captain);
+        team.LogoUrl = "/images/original.webp";
+        dbContext.Users.Add(captain);
+        dbContext.Teams.Add(team);
+        await dbContext.SaveChangesAsync();
+        var mediaModule = new StubMediaModule("/images/unused.webp");
+        var realtimeConnectionManager = new RecordingRealtimeConnectionManager();
+        var teamService = CreateTeamService(
+            dbContext,
+            mediaModule,
+            moduleEventPublisher: new ThrowingModuleEventPublisher(),
+            realtimeConnectionManager: realtimeConnectionManager);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            teamService.DeleteTeamAsync(captain.Auth0UserId, team.Id));
+
+        Assert.Empty(mediaModule.DeletedImages);
+        Assert.Empty(realtimeConnectionManager.GroupRevocations);
+    }
+
+    [Fact]
+    public async Task DeleteTeamAsync_PostCommitLogoDeleteFailureIsLoggedAndNonFatal()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var team = CreateTeam("Alpha", captain);
+        team.LogoUrl = "/images/original.webp";
+        dbContext.Users.Add(captain);
+        dbContext.Teams.Add(team);
+        await dbContext.SaveChangesAsync();
+        var operationOrder = new List<string>();
+        var mediaModule = new StubMediaModule("/images/unused.webp")
+        {
+            DeleteException = new IOException("planned delete failure"),
+            OperationOrder = operationOrder
+        };
+        var logger = new RecordingLogger<TeamService>();
+        var realtimeConnectionManager = new RecordingRealtimeConnectionManager
+        {
+            OperationOrder = operationOrder
+        };
+        var teamService = CreateTeamService(
+            dbContext,
+            mediaModule,
+            moduleEventPublisher: new ModuleEventPublisher(dbContext),
+            realtimeConnectionManager: realtimeConnectionManager,
+            logger: logger);
+
+        await teamService.DeleteTeamAsync(captain.Auth0UserId, team.Id);
+
+        Assert.Equal(["RevokeGroup", "DeleteImage"], operationOrder);
+        Assert.Contains(logger.Entries, entry =>
+            entry.Level == LogLevel.Warning &&
+            entry.Exception is IOException &&
+            entry.Message.Contains("retire an unreferenced Team logo", StringComparison.Ordinal));
+        dbContext.ChangeTracker.Clear();
+        Assert.True((await dbContext.Teams.SingleAsync(candidate => candidate.Id == team.Id)).IsDeleted);
+    }
+
+    [Fact]
+    public async Task DeleteTeamAsync_PostCommitRevocationFailureStillAttemptsLogoRetirement()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var team = CreateTeam("Alpha", captain);
+        team.LogoUrl = "/images/original.webp";
+        dbContext.Users.Add(captain);
+        dbContext.Teams.Add(team);
+        await dbContext.SaveChangesAsync();
+        var operationOrder = new List<string>();
+        var mediaModule = new StubMediaModule("/images/unused.webp")
+        {
+            OperationOrder = operationOrder
+        };
+        var realtimeConnectionManager = new RecordingRealtimeConnectionManager
+        {
+            OperationOrder = operationOrder,
+            ThrowOnRevocation = true
+        };
+        var teamService = CreateTeamService(
+            dbContext,
+            mediaModule,
+            moduleEventPublisher: new ModuleEventPublisher(dbContext),
+            realtimeConnectionManager: realtimeConnectionManager);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            teamService.DeleteTeamAsync(captain.Auth0UserId, team.Id));
+
+        Assert.Equal("planned post-commit revocation failure", exception.Message);
+        Assert.Equal(["RevokeGroup", "DeleteImage"], operationOrder);
+        Assert.Single(mediaModule.DeletedImages);
+        dbContext.ChangeTracker.Clear();
+        Assert.True((await dbContext.Teams.SingleAsync(candidate => candidate.Id == team.Id)).IsDeleted);
+    }
+
+    [Fact]
+    public async Task RemoveTeamLogoAsync_ReferenceQueryFailureRetainsLogoAndLogsWarning()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var team = CreateTeam("Alpha", captain);
+        team.LogoUrl = "/images/original.webp";
+        dbContext.Users.Add(captain);
+        dbContext.Teams.Add(team);
+        await dbContext.SaveChangesAsync();
+        var mediaModule = new StubMediaModule("/images/unused.webp");
+        var competitionReadService = new StubTeamCompetitionReadService(dbContext)
+        {
+            ThrowOnLogoReferenceQuery = true
+        };
+        var logger = new RecordingLogger<TeamService>();
+        var teamService = CreateTeamService(
+            dbContext,
+            mediaModule,
+            competitionReadService: competitionReadService,
+            logger: logger);
+
+        await teamService.RemoveTeamLogoAsync(captain.Auth0UserId, team.Id);
+
+        Assert.Empty(mediaModule.DeletedImages);
+        Assert.Contains(logger.Entries, entry =>
+            entry.Level == LogLevel.Warning &&
+            entry.Message.Contains("file was retained", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task RemoveMemberAsync_DoesNotRevokeWhenDurableEventPublicationFails()
     {
         await using var dbContext = CreateDbContext();
@@ -1350,6 +1626,7 @@ public class TeamTests
             RegisteredByUsernameAtRegistration = captain.Username ?? string.Empty,
             TeamId = team.Id,
             TeamNameAtRegistration = team.Name,
+            TeamLogoUrlAtRegistration = team.LogoUrl,
             TeamCaptainUserIdAtRegistration = team.CaptainUserId,
             RosterMembers = rosterMembers.Select(member => new TournamentRegistrationRosterMember
             {
@@ -1384,7 +1661,9 @@ public class TeamTests
         IMediaModule? mediaModule = null,
         ITeamEventPublisher? eventPublisher = null,
         IModuleEventPublisher? moduleEventPublisher = null,
-        IRealtimeConnectionManager? realtimeConnectionManager = null)
+        IRealtimeConnectionManager? realtimeConnectionManager = null,
+        ITeamCompetitionReadService? competitionReadService = null,
+        ILogger<TeamService>? logger = null)
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -1404,7 +1683,8 @@ public class TeamTests
                 configuration,
                 identityModule,
                 mediaModule ?? new StubMediaModule("https://example.test/default-team-logo.webp"),
-                new StubTeamCompetitionReadService(dbContext)),
+                competitionReadService ?? new StubTeamCompetitionReadService(dbContext),
+                logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<TeamService>.Instance),
             teamsDbContext,
             identityModule,
             eventPublisher ?? new NoopTeamEventPublisher(),
@@ -1431,7 +1711,8 @@ public class TeamTests
             configuration,
             identityModule,
             new StubMediaModule("https://example.test/default-team-logo.webp"),
-            new StubTeamCompetitionReadService(dbContext));
+            new StubTeamCompetitionReadService(dbContext),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<TeamService>.Instance);
     }
 
     private static IFormFile CreateFormFile(string contentType = "image/png")
@@ -1453,22 +1734,38 @@ public class TeamTests
             _imageUrl = imageUrl;
         }
 
+        public CancellationTokenSource? CancelAfterSave { get; init; }
+
+        public Exception? DeleteException { get; init; }
+
+        public List<string>? OperationOrder { get; init; }
+
+        public List<DeletedImage> DeletedImages { get; } = [];
+
         public Task<StoredMediaAsset> SaveImageAsync(
             MediaUpload upload,
             CancellationToken cancellationToken = default)
         {
+            CancelAfterSave?.Cancel();
             return Task.FromResult(new StoredMediaAsset(_imageUrl));
         }
 
         public Task DeleteImageAsync(string? imageUrl, CancellationToken cancellationToken = default)
         {
-            return Task.CompletedTask;
+            DeletedImages.Add(new DeletedImage(imageUrl, cancellationToken));
+            OperationOrder?.Add("DeleteImage");
+            return DeleteException is null
+                ? Task.CompletedTask
+                : Task.FromException(DeleteException);
         }
-
     }
+
+    private sealed record DeletedImage(string? ImageUrl, CancellationToken CancellationToken);
 
     private sealed class StubTeamCompetitionReadService(MercuriusDBContext dbContext) : ITeamCompetitionReadService
     {
+        public bool ThrowOnLogoReferenceQuery { get; init; }
+
         public async Task<IReadOnlyList<PublicTeamTournamentSummary>> GetPublicTeamTournamentsAsync(Guid teamId, CancellationToken cancellationToken = default)
         {
             return await dbContext.Set<TournamentRegistration>()
@@ -1500,7 +1797,40 @@ public class TeamTests
                     (registration.Game.Status == GameStatus.Scheduled || registration.Game.Status == GameStatus.InProgress))
                 .AnyAsync(cancellationToken);
         }
+
+        public Task<bool> IsTeamLogoReferencedAsync(string logoUrl, CancellationToken cancellationToken = default)
+        {
+            if (ThrowOnLogoReferenceQuery)
+                return Task.FromException<bool>(new InvalidOperationException("planned reference query failure"));
+
+            return dbContext.Set<TournamentRegistration>()
+                .AsNoTracking()
+                .AnyAsync(
+                    registration => registration.TeamLogoUrlAtRegistration == logoUrl,
+                    cancellationToken);
+        }
     }
+
+    private sealed class RecordingLogger<T> : ILogger<T>
+    {
+        public List<LogEntry> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            Entries.Add(new LogEntry(logLevel, formatter(state, exception), exception));
+        }
+    }
+
+    private sealed record LogEntry(LogLevel Level, string Message, Exception? Exception);
 
     private sealed class RecordingTeamEventPublisher : ITeamEventPublisher
     {

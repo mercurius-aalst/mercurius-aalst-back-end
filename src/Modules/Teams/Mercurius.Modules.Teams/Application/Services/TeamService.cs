@@ -8,6 +8,7 @@ using Mercurius.Modules.Shared;
 using Mercurius.Modules.Teams.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Http;
 
 namespace Mercurius.Modules.Teams.Services;
@@ -20,6 +21,7 @@ internal sealed class TeamService : ITeamQueries, ITeamManagementCommands, ITeam
     private readonly IMediaModule _mediaModule;
     private readonly IIdentityModule _identityModule;
     private readonly ITeamCompetitionReadService _competitionReadService;
+    private readonly ILogger<TeamService> _logger;
     private readonly int _inviteResendCooldownDays;
     private readonly int _inviteExpirationDays;
     private readonly int _declinedInviteResendLimit;
@@ -30,12 +32,14 @@ internal sealed class TeamService : ITeamQueries, ITeamManagementCommands, ITeam
         IConfiguration configuration,
         IIdentityModule identityModule,
         IMediaModule mediaModule,
-        ITeamCompetitionReadService competitionReadService)
+        ITeamCompetitionReadService competitionReadService,
+        ILogger<TeamService> logger)
     {
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
         _mediaModule = mediaModule ?? throw new ArgumentNullException(nameof(mediaModule));
         _identityModule = identityModule ?? throw new ArgumentNullException(nameof(identityModule));
         _competitionReadService = competitionReadService ?? throw new ArgumentNullException(nameof(competitionReadService));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _inviteResendCooldownDays = configuration.GetSection("TeamInvite:ResendCooldownDays").Get<int>();
         _inviteExpirationDays = configuration.GetSection("TeamInvite:ExpirationDays").Get<int?>() ?? 14;
         _declinedInviteResendLimit = configuration.GetSection("TeamInvite:DeclinedResendLimit").Get<int?>() ?? 3;
@@ -504,10 +508,22 @@ internal sealed class TeamService : ITeamQueries, ITeamManagementCommands, ITeam
         var asset = await _mediaModule.SaveImageAsync(
             new MediaUpload(imageStream, logo.FileName, logo.ContentType, logo.Length),
             cancellationToken);
-        team.LogoUrl = asset.Url;
-        cancellationToken.ThrowIfCancellationRequested();
-        await _dbContext.SaveChangesAsync(cancellationToken);
-        await _mediaModule.DeleteImageAsync(previousLogo);
+        var committed = false;
+        try
+        {
+            team.LogoUrl = asset.Url;
+            cancellationToken.ThrowIfCancellationRequested();
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            committed = true;
+        }
+        catch
+        {
+            if (!committed && !string.Equals(asset.Url, previousLogo, StringComparison.Ordinal))
+                await DeleteImageBestEffortAsync(asset.Url, "compensate an uncommitted Team logo replacement");
+            throw;
+        }
+
+        await RetireLogoIfUnreferencedAsync(previousLogo, team.LogoUrl);
         return new TeamLogoResponseDTO(team.Id, team.LogoUrl);
     }
 
@@ -523,8 +539,56 @@ internal sealed class TeamService : ITeamQueries, ITeamManagementCommands, ITeam
         team.LogoUrl = null;
         cancellationToken.ThrowIfCancellationRequested();
         await _dbContext.SaveChangesAsync(cancellationToken);
-        await _mediaModule.DeleteImageAsync(previousLogo);
+        await RetireLogoIfUnreferencedAsync(previousLogo, null);
         return new TeamLogoResponseDTO(team.Id, null);
+    }
+
+    internal async Task RetireLogoIfUnreferencedAsync(string? logoUrl, string? currentLogoUrl)
+    {
+        if (string.IsNullOrWhiteSpace(logoUrl) ||
+            string.Equals(logoUrl, currentLogoUrl, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        try
+        {
+            var hasCurrentReference = await _dbContext.Teams
+                .AsNoTracking()
+                .AnyAsync(
+                    team => !team.IsDeleted && team.LogoUrl == logoUrl,
+                    CancellationToken.None);
+            if (hasCurrentReference ||
+                await _competitionReadService.IsTeamLogoReferencedAsync(logoUrl, CancellationToken.None))
+            {
+                return;
+            }
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(
+                exception,
+                "Failed to verify references for Team logo at {MediaUrl}; the file was retained.",
+                logoUrl);
+            return;
+        }
+
+        await DeleteImageBestEffortAsync(logoUrl, "retire an unreferenced Team logo");
+    }
+
+    private async Task DeleteImageBestEffortAsync(string? imageUrl, string action)
+    {
+        if (string.IsNullOrWhiteSpace(imageUrl))
+            return;
+
+        try
+        {
+            await _mediaModule.DeleteImageAsync(imageUrl, CancellationToken.None);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(exception, "Failed to {MediaCleanupAction} at {MediaUrl}.", action, imageUrl);
+        }
     }
 
     private static bool IsValidPublicUsername(string? username)

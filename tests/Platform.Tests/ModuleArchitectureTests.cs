@@ -574,7 +574,9 @@ public class ModuleArchitectureTests
             .Descendants("ProjectReference")
             .Select(reference => reference.Attribute("Include")?.Value)
             .Where(include => !string.IsNullOrWhiteSpace(include))
-            .Select(include => Path.GetFullPath(Path.Combine(projectDirectory, include!)))
+            .Select(include => Path.GetFullPath(Path.Combine(
+                projectDirectory,
+                include!.Replace('\\', Path.DirectorySeparatorChar).Replace('/', Path.DirectorySeparatorChar))))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
 

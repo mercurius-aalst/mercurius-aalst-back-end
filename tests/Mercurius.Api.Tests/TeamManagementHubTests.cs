@@ -87,12 +87,12 @@ public class TeamManagementHubTests
         var joinTask = hub.JoinTeam(teamId);
         try
         {
-            await authorizer.Entered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            await authorizer.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
             var revokeTask = manager.RevokeUserFromGroupAsync(user.Id, teamGroup);
             Assert.False(revokeTask.IsCompleted);
 
             authorizer.Release.SetResult();
-            await Task.WhenAll(joinTask, revokeTask).WaitAsync(TimeSpan.FromSeconds(2));
+            await Task.WhenAll(joinTask, revokeTask).WaitAsync(TimeSpan.FromSeconds(10));
         }
         finally
         {

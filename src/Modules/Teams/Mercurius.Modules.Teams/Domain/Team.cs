@@ -1,4 +1,3 @@
-using Mercurius.Modules.Identity.Domain;
 using Mercurius.Modules.Shared.Exceptions;
 using Mercurius.Modules.Teams.Contracts;
 
@@ -10,26 +9,17 @@ public class Team
     public string Name { get; set; } = string.Empty;
     public string NormalizedName { get; set; } = string.Empty;
     public Guid? CaptainUserId { get; set; }
-    public User? Captain { get; set; }
     public string? LogoUrl { get; set; }
     public bool IsDeleted { get; set; }
     public DateTime? DeletedAtUtc { get; set; }
     public long Version { get; set; }
 
-    public IList<User> Members { get; set; } = new List<User>();
+    internal IList<TeamMember> Members { get; set; } = new List<TeamMember>();
     internal IList<TeamInvite> TeamInvites { get; set; } = new List<TeamInvite>();
 
     public Team()
     {
 
-    }
-
-    public Team(string name, User captain)
-    {
-        UpdateName(name);
-        Captain = captain;
-        CaptainUserId = captain.Id;
-        Members.Add(captain);
     }
 
     public Team(string name, Guid captainUserId)
@@ -66,7 +56,7 @@ public class Team
 
     public void ChangeCaptain(Guid captainUserId)
     {
-        if (!Members.Any(m => m.Id == captainUserId))
+        if (!Members.Any(member => member.UserId == captainUserId))
             throw new ValidationException($"New captain must be part of the team.");
 
         CaptainUserId = captainUserId;
@@ -74,12 +64,22 @@ public class Team
 
     public void RemoveMember(Guid userId)
     {
-        var member = Members.FirstOrDefault(m => m.Id == userId);
+        var member = Members.FirstOrDefault(teamMember => teamMember.UserId == userId);
         if (member is null)
-            throw new NotFoundException($"{nameof(User)} not found in {Name}");
-        if (member.Id == CaptainUserId)
+            throw new NotFoundException($"User not found in {Name}");
+        if (member.UserId == CaptainUserId)
             throw new ValidationException("The captain cannot be removed from a team");
         Members.Remove(member);
+    }
+
+    internal void AddMember(Guid userId)
+    {
+        Members.Add(new TeamMember
+        {
+            Team = this,
+            TeamId = Id,
+            UserId = userId
+        });
     }
 
     public void Delete(DateTime deletedAtUtc)
@@ -90,7 +90,6 @@ public class Team
         var deletedName = $"deleted-team-{Id:N}";
         Name = deletedName;
         NormalizedName = deletedName;
-        Captain = null;
         CaptainUserId = null;
         LogoUrl = null;
         Members.Clear();
@@ -101,7 +100,7 @@ public class Team
 
     internal TeamInvite InviteUser(Guid userId, int inviteResendCooldownDays, int inviteExpirationDays = 14, int declinedInviteResendLimit = 3)
     {
-        if (Members.Any(p => p.Id == userId))
+        if (Members.Any(member => member.UserId == userId))
             throw new ValidationException("User is already in the team");
         if (TeamInvites.Any(i => i.UserId == userId && i.Status == TeamInviteStatus.Pending))
             throw new ValidationException("User already has a pending invite to this team");

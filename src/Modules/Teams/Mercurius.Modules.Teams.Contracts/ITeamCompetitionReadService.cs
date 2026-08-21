@@ -14,4 +14,8 @@ public interface ITeamCompetitionReadService
     Task<bool> IsTeamInDeleteBlockingTournamentAsync(
         Guid teamId,
         CancellationToken cancellationToken = default);
+
+    Task<bool> IsTeamLogoReferencedAsync(
+        string logoUrl,
+        CancellationToken cancellationToken = default);
 }

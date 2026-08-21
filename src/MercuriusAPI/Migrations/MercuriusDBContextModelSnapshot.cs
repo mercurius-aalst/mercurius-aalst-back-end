@@ -783,6 +783,22 @@ namespace Mercurius.LAN.API.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CancelledAt", "Id")
+                        .HasDatabaseName("IX_team_invites_cancelled_retention")
+                        .HasFilter("\"Status\" = 3");
+
+                    b.HasIndex("ExpiredAt", "Id")
+                        .HasDatabaseName("IX_team_invites_expired_retention")
+                        .HasFilter("\"Status\" = 4");
+
+                    b.HasIndex("ExpiresAt", "Id")
+                        .HasDatabaseName("IX_team_invites_pending_expiration")
+                        .HasFilter("\"Status\" = 0");
+
+                    b.HasIndex("RespondedAt", "Id")
+                        .HasDatabaseName("IX_team_invites_responded_retention")
+                        .HasFilter("\"Status\" = 1 OR \"Status\" = 2");
+
                     b.HasIndex("TeamId", "UserId")
                         .IsUnique()
                         .HasDatabaseName("IX_TeamInvites_TeamId_UserId_Pending")
@@ -822,6 +838,10 @@ namespace Mercurius.LAN.API.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<DateTime?>("DeadLetteredAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("dead_lettered_at_utc");
+
                     b.Property<string>("EventType")
                         .IsRequired()
                         .HasMaxLength(300)
@@ -836,6 +856,10 @@ namespace Mercurius.LAN.API.Migrations
                         .HasMaxLength(4000)
                         .HasColumnType("character varying(4000)")
                         .HasColumnName("last_error");
+
+                    b.Property<DateTime?>("NextAttemptAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("next_attempt_at_utc");
 
                     b.Property<DateTime>("OccurredAtUtc")
                         .HasColumnType("timestamp with time zone")
@@ -856,7 +880,9 @@ namespace Mercurius.LAN.API.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ProcessedAtUtc", "OccurredAtUtc");
+                    b.HasIndex("NextAttemptAtUtc", "OccurredAtUtc", "Id")
+                        .HasDatabaseName("IX_outbox_messages_pending_dispatch")
+                        .HasFilter("processed_at_utc IS NULL AND dead_lettered_at_utc IS NULL");
 
                     b.ToTable("outbox_messages", "platform");
                 });

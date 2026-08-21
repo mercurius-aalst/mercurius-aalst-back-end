@@ -8,6 +8,10 @@ public interface ITeamsModule
         TeamId teamId,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<TeamId>> GetCaptainedTeamIdsAsync(
+        UserId userId,
+        CancellationToken cancellationToken = default);
+
     Task<TeamRosterSnapshot?> GetTeamRosterSnapshotAsync(
         TeamId teamId,
         CancellationToken cancellationToken = default);

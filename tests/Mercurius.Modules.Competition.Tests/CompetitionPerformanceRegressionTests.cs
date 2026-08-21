@@ -60,7 +60,7 @@ public class CompetitionPerformanceRegressionTests
         var sponsorPlacement = CreateSponsorPlacement(game.Id);
         var service = CreateGameService(dbContext, [user], sponsorPlacement);
 
-        var listItem = Assert.Single(await service.GetAllGamesAsync());
+        var listItem = Assert.Single(await service.GetAllGamesAsync(1, 20));
         var detailItem = await service.GetGameByIdAsync(game.Id);
 
         Assert.Equal(game.Id, listItem.Id);
@@ -74,6 +74,59 @@ public class CompetitionPerformanceRegressionTests
         Assert.Single(detailItem.Registrations);
         Assert.Equal(user.Username, detailItem.Registrations.Single().User?.Username);
         Assert.Equal(sponsorPlacement.Headline, detailItem.SponsorPlacement?.Headline);
+    }
+
+    [Fact]
+    public async Task GetAllGamesAsync_PagesAfterDeterministicOrdering_AndBatchesEnrichment()
+    {
+        await using var dbContext = CreateDbContext();
+        var first = CreateGame("Zulu");
+        first.Id = Guid.Parse("00000000-0000-0000-0000-000000000004");
+        first.PlannedStartTime = new DateTime(2026, 8, 2, 18, 0, 0, DateTimeKind.Utc);
+        var second = CreateGame("Beta");
+        second.Id = Guid.Parse("00000000-0000-0000-0000-000000000003");
+        second.PlannedStartTime = new DateTime(2026, 8, 1, 18, 0, 0, DateTimeKind.Utc);
+        var third = CreateGame("Alpha");
+        third.Id = Guid.Parse("00000000-0000-0000-0000-000000000002");
+        third.PlannedStartTime = new DateTime(2026, 8, 1, 18, 0, 0, DateTimeKind.Utc);
+        var fourth = CreateGame("Alpha");
+        fourth.Id = Guid.Parse("00000000-0000-0000-0000-000000000001");
+        fourth.PlannedStartTime = new DateTime(2026, 8, 1, 18, 0, 0, DateTimeKind.Utc);
+        dbContext.Set<Game>().AddRange(first, second, third, fourth);
+        await dbContext.SaveChangesAsync();
+        var sponsorshipModule = new StaticSponsorshipModule(null);
+        var service = CreateGameService(dbContext, [], sponsorPlacement: null, sponsorshipModule);
+
+        var page = await service.GetAllGamesAsync(2, 2);
+
+        Assert.Equal([second.Id, first.Id], page.Select(game => game.Id).ToArray());
+        Assert.Equal(1, sponsorshipModule.BatchCallCount);
+        Assert.Equal([second.Id, first.Id], sponsorshipModule.LastBatchGameIds.Select(gameId => gameId.Value).ToArray());
+    }
+
+    [Fact]
+    public async Task GetAllGamesAsync_OverflowingOffset_ReturnsEmptyWithoutEnrichment()
+    {
+        await using var dbContext = CreateDbContext();
+        var sponsorshipModule = new StaticSponsorshipModule(null);
+        var service = CreateGameService(dbContext, [], sponsorPlacement: null, sponsorshipModule);
+
+        var page = await service.GetAllGamesAsync(int.MaxValue, 50);
+
+        Assert.Empty(page);
+        Assert.Equal(0, sponsorshipModule.BatchCallCount);
+    }
+
+    [Fact]
+    public async Task GetAllGamesAsync_OverflowingOffset_ObservesCancellation()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = CreateGameService(dbContext, [], sponsorPlacement: null);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            service.GetAllGamesAsync(int.MaxValue, 50, cancellation.Token));
     }
 
     [Fact]
@@ -208,6 +261,69 @@ public class CompetitionPerformanceRegressionTests
     }
 
     [Fact]
+    public async Task GetCurrentUserStateAsync_OnlyHydratesRegistrationsForCurrentCaptainedTeams()
+    {
+        await using var dbContext = CreateDbContext();
+        var game = CreateGame("Bounded captain lookup");
+        var currentCaptainId = Guid.NewGuid();
+        var formerCaptainId = Guid.NewGuid();
+        var captainedTeamId = new TeamId(Guid.Parse("00000000-0000-0000-0000-000000000001"));
+        var captainedRegistration = CreateTeamRegistration(
+            game,
+            captainedTeamId.Value,
+            formerCaptainId,
+            formerCaptainId);
+        game.TournamentRegistrations.Add(captainedRegistration);
+
+        var unrelatedTeamIds = Enumerable.Range(2, 25)
+            .Select(value => Guid.Parse($"00000000-0000-0000-0000-{value:D12}"))
+            .ToArray();
+        foreach (var teamId in unrelatedTeamIds)
+        {
+            var unrelatedUserId = Guid.NewGuid();
+            game.TournamentRegistrations.Add(CreateTeamRegistration(
+                game,
+                teamId,
+                unrelatedUserId,
+                unrelatedUserId));
+        }
+
+        dbContext.Set<Game>().Add(game);
+        await dbContext.SaveChangesAsync();
+
+        var teamsModule = new TrackingCurrentCaptainTeamsModule(
+            new UserId(currentCaptainId),
+            new TeamRosterSnapshot(
+                captainedTeamId,
+                "Current Captain Team",
+                new UserId(currentCaptainId),
+                null,
+                false,
+                []));
+        var identityModule = CompetitionTestSupport.CreateIdentityModule();
+        var contextBuilder = new RegistrationMappingContextBuilder(identityModule, teamsModule);
+        var readModelService = new TournamentRegistrationReadModelService(
+            new CompetitionDbContextAdapter<MercuriusDBContext>(dbContext),
+            teamsModule,
+            contextBuilder,
+            new CompetitionDtoMapper(contextBuilder, new StaticSponsorshipModule(null)));
+
+        var state = await readModelService.GetCurrentUserStateAsync(
+            currentCaptainId,
+            game,
+            CancellationToken.None);
+
+        var captainManaged = Assert.Single(state.CaptainManagedRegistrations);
+        Assert.Equal(captainedRegistration.Id, captainManaged.Id);
+        Assert.Equal(currentCaptainId, captainManaged.Team?.CaptainUserId);
+        Assert.True(state.CanUnregister);
+        Assert.Equal(1, teamsModule.CaptainedTeamIdsCallCount);
+        var rosterBatch = Assert.Single(teamsModule.RosterBatchTeamIds);
+        Assert.Equal([captainedTeamId.Value], rosterBatch.Select(teamId => teamId.Value).ToArray());
+        Assert.DoesNotContain(rosterBatch, teamId => unrelatedTeamIds.Contains(teamId.Value));
+    }
+
+    [Fact]
     public void SearchGamesAsync_UsesLowerNamePredicate_ForFunctionalTrigramIndexAlignment()
     {
         using var dbContext = CreateTranslationDbContext();
@@ -233,15 +349,20 @@ public class CompetitionPerformanceRegressionTests
     private static GameService CreateGameService(
         MercuriusDBContext dbContext,
         IReadOnlyCollection<User> users,
-        SponsorPlacementSummary? sponsorPlacement)
+        SponsorPlacementSummary? sponsorPlacement,
+        ISponsorshipModule? sponsorshipModule = null)
     {
         return new GameService(
             new CompetitionDbContextAdapter<MercuriusDBContext>(dbContext),
             new FixedMatchModeratorFactory(),
             new StubMediaModule(),
-            new StaticSponsorshipModule(sponsorPlacement),
-            CompetitionTestSupport.CreateMapper(users, sponsorPlacement: sponsorPlacement),
-            CompetitionTestSupport.CreateModuleEventPublisher());
+            sponsorshipModule ?? new StaticSponsorshipModule(sponsorPlacement),
+            CompetitionTestSupport.CreateMapper(
+                users,
+                sponsorPlacement: sponsorPlacement,
+                sponsorshipModule: sponsorshipModule),
+            CompetitionTestSupport.CreateModuleEventPublisher(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<GameService>.Instance);
     }
 
     private static MercuriusDBContext CreateDbContext()
@@ -285,6 +406,43 @@ public class CompetitionPerformanceRegressionTests
         UserId = user.Id,
         UsernameAtRegistration = user.Username
     };
+
+    private static TournamentRegistration CreateTeamRegistration(
+        Game game,
+        Guid teamId,
+        Guid captainUserIdAtRegistration,
+        Guid rosterUserId)
+    {
+        var registration = new TournamentRegistration
+        {
+            Id = Guid.NewGuid(),
+            Game = game,
+            GameId = game.Id,
+            Kind = TournamentRegistrationKind.Team,
+            Status = TournamentRegistrationStatus.Active,
+            RegisteredByUserId = captainUserIdAtRegistration,
+            RegisteredByUsernameAtRegistration = "snapshot-captain",
+            TeamId = teamId,
+            TeamNameAtRegistration = "Snapshot Team",
+            TeamCaptainUserIdAtRegistration = captainUserIdAtRegistration
+        };
+        registration.RosterMembers.Add(new TournamentRegistrationRosterMember
+        {
+            Id = Guid.NewGuid(),
+            TournamentRegistration = registration,
+            TournamentRegistrationId = registration.Id,
+            Game = game,
+            GameId = game.Id,
+            TeamId = teamId,
+            TeamNameAtRegistration = registration.TeamNameAtRegistration,
+            UserId = rosterUserId,
+            UsernameAtRegistration = "snapshot-player",
+            DisplayNameAtRegistration = "Snapshot Player",
+            IsCaptain = rosterUserId == captainUserIdAtRegistration,
+            ConfirmationStatus = RosterMemberConfirmationStatus.Confirmed
+        });
+        return registration;
+    }
 
     private static User CreateUser(string username)
     {
@@ -342,6 +500,9 @@ public class CompetitionPerformanceRegressionTests
 
     private sealed class StaticSponsorshipModule(SponsorPlacementSummary? sponsorPlacement) : ISponsorshipModule
     {
+        public int BatchCallCount { get; private set; }
+        public IReadOnlyCollection<GameId> LastBatchGameIds { get; private set; } = [];
+
         public Task<SponsorSummary?> GetSponsorSummaryAsync(SponsorId sponsorId, CancellationToken cancellationToken = default) =>
             Task.FromResult<SponsorSummary?>(null);
 
@@ -355,6 +516,8 @@ public class CompetitionPerformanceRegressionTests
             IReadOnlyCollection<GameId> gameIds,
             CancellationToken cancellationToken = default)
         {
+            BatchCallCount++;
+            LastBatchGameIds = gameIds;
             if (sponsorPlacement is null)
                 return Task.FromResult<IReadOnlyDictionary<GameId, SponsorPlacementSummary>>(new Dictionary<GameId, SponsorPlacementSummary>());
 
@@ -426,10 +589,80 @@ public class CompetitionPerformanceRegressionTests
         public Task<TeamSummary?> GetTeamSummaryAsync(TeamId teamId, CancellationToken cancellationToken = default) =>
             Task.FromResult<TeamSummary?>(null);
 
+        public Task<IReadOnlyList<TeamId>> GetCaptainedTeamIdsAsync(
+            UserId userId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<TeamId>>([]);
+
         public Task<TeamRosterSnapshot?> GetTeamRosterSnapshotAsync(TeamId teamId, CancellationToken cancellationToken = default) =>
             Task.FromResult<TeamRosterSnapshot?>(null);
 
         public Task<PublicTeamProfile?> GetPublicTeamProfileAsync(string teamName, CancellationToken cancellationToken = default) =>
+            Task.FromResult<PublicTeamProfile?>(null);
+
+        public Task<TeamRegistrationEligibility> GetRegistrationEligibilityAsync(
+            TeamId teamId,
+            UserId requestedBy,
+            GameId gameId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new TeamRegistrationEligibility(true, []));
+
+        public Task<MembershipMutationGuard> CanMutateMembershipAsync(
+            TeamId teamId,
+            UserId userId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new MembershipMutationGuard(true, []));
+
+        public Task<IReadOnlyList<PublicTeamSearchDocument>> GetPublicTeamSearchDocumentsPageAsync(
+            TeamId? afterId,
+            int pageSize,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<PublicTeamSearchDocument>>([]);
+    }
+
+    private sealed class TrackingCurrentCaptainTeamsModule(
+        UserId currentCaptainId,
+        TeamRosterSnapshot team) : ITeamsModule
+    {
+        public int CaptainedTeamIdsCallCount { get; private set; }
+        public List<IReadOnlyCollection<TeamId>> RosterBatchTeamIds { get; } = [];
+
+        public Task<IReadOnlyList<TeamId>> GetCaptainedTeamIdsAsync(
+            UserId userId,
+            CancellationToken cancellationToken = default)
+        {
+            CaptainedTeamIdsCallCount++;
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult<IReadOnlyList<TeamId>>(
+                userId == currentCaptainId ? [team.TeamId] : []);
+        }
+
+        public Task<IReadOnlyDictionary<TeamId, TeamRosterSnapshot>> GetTeamRosterSnapshotsAsync(
+            IReadOnlyCollection<TeamId> teamIds,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var requestedTeamIds = teamIds.ToArray();
+            RosterBatchTeamIds.Add(requestedTeamIds);
+            return Task.FromResult<IReadOnlyDictionary<TeamId, TeamRosterSnapshot>>(
+                requestedTeamIds.Contains(team.TeamId)
+                    ? new Dictionary<TeamId, TeamRosterSnapshot> { [team.TeamId] = team }
+                    : new Dictionary<TeamId, TeamRosterSnapshot>());
+        }
+
+        public Task<TeamSummary?> GetTeamSummaryAsync(
+            TeamId teamId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<TeamSummary?>(null);
+
+        public Task<TeamRosterSnapshot?> GetTeamRosterSnapshotAsync(
+            TeamId teamId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<TeamRosterSnapshot?>(teamId == team.TeamId ? team : null);
+
+        public Task<PublicTeamProfile?> GetPublicTeamProfileAsync(
+            string teamName,
+            CancellationToken cancellationToken = default) =>
             Task.FromResult<PublicTeamProfile?>(null);
 
         public Task<TeamRegistrationEligibility> GetRegistrationEligibilityAsync(

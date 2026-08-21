@@ -15,8 +15,8 @@ public static class SecurityPipelineExtensions
     public static IApplicationBuilder UseSecurityPipeline(this IApplicationBuilder app)
     {
         app.UseAuthentication();
-        app.UseAuthorization();
         app.UseRateLimiter();
+        app.UseAuthorization();
 
         return app;
     }

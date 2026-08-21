@@ -25,6 +25,18 @@ public static class TeamsModuleConfiguration
         services.AddScoped<TeamEventPublishingDecorator>();
         services.AddScoped<ITeamManagementCommands>(serviceProvider => serviceProvider.GetRequiredService<TeamEventPublishingDecorator>());
         services.AddScoped<ITeamInviteWorkflows>(serviceProvider => serviceProvider.GetRequiredService<TeamEventPublishingDecorator>());
+        services.AddOptions<TeamInviteMaintenanceOptions>()
+            .Bind(configuration.GetSection(TeamInviteMaintenanceOptions.SectionName))
+            .Validate(options => options.RetentionDays is >= 1 and <= 3650, "TeamInvite:RetentionDays must be between 1 and 3650.")
+            .Validate(options => options.MaintenanceBatchSize is >= 1 and <= 1000, "TeamInvite:MaintenanceBatchSize must be between 1 and 1000.")
+            .Validate(options => options.MaintenanceIntervalSeconds is >= 1 and <= 86400, "TeamInvite:MaintenanceIntervalSeconds must be between 1 and 86400.")
+            .Validate(options =>
+                    options.MaintenanceEventConcurrency >= 1 &&
+                    options.MaintenanceEventConcurrency <= Math.Min(64, options.MaintenanceBatchSize),
+                "TeamInvite:MaintenanceEventConcurrency must be between 1 and the maintenance batch size, with a maximum of 64.")
+            .ValidateOnStart();
+        services.AddScoped<TeamInviteMaintenanceService>();
+        services.AddHostedService<TeamInviteMaintenanceWorker>();
         services.AddTransient<ITeamEndpointService, TeamEndpointService>();
         services.AddTransient<ITeamEventPublisher, RealtimeTeamEventPublisher>();
         services.AddTransient<Contracts.ITeamRealtimeAuthorizer, EfTeamRealtimeAuthorizer>();
@@ -35,6 +47,7 @@ public static class TeamsModuleConfiguration
     public static ModelBuilder ApplyTeamsModelConfiguration(this ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfiguration(new TeamConfiguration());
+        modelBuilder.ApplyConfiguration(new TeamMemberConfiguration());
         modelBuilder.ApplyConfiguration(new TeamInviteConfiguration());
 
         return modelBuilder;

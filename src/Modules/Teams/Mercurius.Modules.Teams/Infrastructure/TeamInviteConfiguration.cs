@@ -23,5 +23,17 @@ internal sealed class TeamInviteConfiguration : IEntityTypeConfiguration<TeamInv
             .HasDatabaseName("IX_TeamInvites_TeamId_UserId_Pending");
         entity.HasIndex(invite => new { invite.UserId, invite.Status, invite.ExpiresAt });
         entity.HasIndex(invite => new { invite.TeamId, invite.Status, invite.ExpiresAt });
+        entity.HasIndex(invite => new { invite.ExpiresAt, invite.Id })
+            .HasFilter("\"Status\" = 0")
+            .HasDatabaseName("IX_team_invites_pending_expiration");
+        entity.HasIndex(invite => new { invite.RespondedAt, invite.Id })
+            .HasFilter("\"Status\" = 1 OR \"Status\" = 2")
+            .HasDatabaseName("IX_team_invites_responded_retention");
+        entity.HasIndex(invite => new { invite.CancelledAt, invite.Id })
+            .HasFilter("\"Status\" = 3")
+            .HasDatabaseName("IX_team_invites_cancelled_retention");
+        entity.HasIndex(invite => new { invite.ExpiredAt, invite.Id })
+            .HasFilter("\"Status\" = 4")
+            .HasDatabaseName("IX_team_invites_expired_retention");
     }
 }

@@ -1,5 +1,4 @@
 using Mercurius.Modules.Identity.Contracts;
-using Mercurius.Modules.Identity.Domain;
 
 namespace Mercurius.Modules.Teams.DTOs;
 
@@ -14,16 +13,6 @@ internal class TeamPublicUserDTO
 
     public TeamPublicUserDTO()
     {
-    }
-
-    public TeamPublicUserDTO(User user)
-    {
-        Id = user.Id;
-        Username = string.IsNullOrWhiteSpace(user.Username) ? "Incomplete profile" : user.Username;
-        DisplayName = Username;
-        DiscordId = user.DiscordId;
-        SteamId = user.SteamId;
-        RiotId = user.RiotId;
     }
 
     public TeamPublicUserDTO(UserProfileSummary user)

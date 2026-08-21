@@ -10,16 +10,22 @@ namespace Platform.Eventing;
 internal sealed class ModuleEventDispatcher : IModuleEventDispatcher
 {
     private const int LastErrorMaxLength = 4000;
+    private const int MaxAttempts = 5;
+    private static readonly TimeSpan RetryBaseDelay = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan RetryMaxDelay = TimeSpan.FromMinutes(5);
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
     private readonly IModuleEventDbContext _dbContext;
     private readonly IServiceProvider _serviceProvider;
+    private readonly TimeProvider _timeProvider;
 
     public ModuleEventDispatcher(
         IModuleEventDbContext dbContext,
-        IServiceProvider serviceProvider)
+        IServiceProvider serviceProvider,
+        TimeProvider timeProvider)
     {
         _dbContext = dbContext;
         _serviceProvider = serviceProvider;
+        _timeProvider = timeProvider;
     }
 
     public async Task<int> DispatchPendingAsync(int batchSize = 50, CancellationToken cancellationToken = default)
@@ -27,17 +33,31 @@ internal sealed class ModuleEventDispatcher : IModuleEventDispatcher
         if (batchSize <= 0)
             throw new ArgumentOutOfRangeException(nameof(batchSize), "Batch size must be greater than zero.");
 
-        var messages = await _dbContext.OutboxMessages
-            .Where(message => message.ProcessedAtUtc == null)
+        var now = GetUtcNow();
+        var messageIds = await _dbContext.OutboxMessages
+            .AsNoTracking()
+            .Where(message =>
+                message.ProcessedAtUtc == null &&
+                message.DeadLetteredAtUtc == null &&
+                (message.NextAttemptAtUtc == null || message.NextAttemptAtUtc <= now))
             .OrderBy(message => message.OccurredAtUtc)
             .ThenBy(message => message.Id)
             .Take(batchSize)
+            .Select(message => message.Id)
             .ToListAsync(cancellationToken);
 
         var processedCount = 0;
-        foreach (var message in messages)
+        foreach (var messageId in messageIds)
         {
-            if (await DispatchMessageAsync(message, cancellationToken))
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var message = await _dbContext.OutboxMessages.SingleOrDefaultAsync(
+                candidate =>
+                    candidate.Id == messageId &&
+                    candidate.ProcessedAtUtc == null &&
+                    candidate.DeadLetteredAtUtc == null,
+                cancellationToken);
+            if (message is not null && await DispatchMessageAsync(message, cancellationToken))
                 processedCount++;
         }
 
@@ -57,15 +77,25 @@ internal sealed class ModuleEventDispatcher : IModuleEventDispatcher
             foreach (var handler in ResolveHandlers(payloadType))
                 await DispatchToHandlerAsync(handler, payloadType, payload, context, cancellationToken);
 
-            message.ProcessedAtUtc = DateTime.UtcNow;
-            message.LastAttemptAtUtc = message.ProcessedAtUtc;
+            var processedAtUtc = GetUtcNow();
+            message.ProcessedAtUtc = processedAtUtc;
+            message.LastAttemptAtUtc = processedAtUtc;
+            message.NextAttemptAtUtc = null;
             message.LastError = null;
             await _dbContext.SaveChangesAsync(cancellationToken);
             return true;
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            ClearTrackedState();
+            throw;
+        }
         catch (Exception exception)
         {
-            await SaveFailedDispatchStateAsync(message.Id, TruncateError(exception.ToString()), cancellationToken);
+            await SaveFailedDispatchStateAsync(
+                message.Id,
+                TruncateError(exception.ToString()),
+                cancellationToken);
             return false;
         }
     }
@@ -75,15 +105,25 @@ internal sealed class ModuleEventDispatcher : IModuleEventDispatcher
         string lastError,
         CancellationToken cancellationToken)
     {
-        if (_dbContext is DbContext dbContext)
-            dbContext.ChangeTracker.Clear();
+        ClearTrackedState();
 
         var message = await _dbContext.OutboxMessages
             .SingleAsync(outbox => outbox.Id == messageId, cancellationToken);
+        var attemptedAtUtc = GetUtcNow();
 
         message.RetryCount++;
-        message.LastAttemptAtUtc = DateTime.UtcNow;
+        message.LastAttemptAtUtc = attemptedAtUtc;
         message.LastError = lastError;
+        if (message.RetryCount >= MaxAttempts)
+        {
+            message.NextAttemptAtUtc = null;
+            message.DeadLetteredAtUtc = attemptedAtUtc;
+        }
+        else
+        {
+            message.NextAttemptAtUtc = attemptedAtUtc + CalculateRetryDelay(message.RetryCount);
+        }
+
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
@@ -125,15 +165,27 @@ internal sealed class ModuleEventDispatcher : IModuleEventDispatcher
         {
             ConsumerName = consumerName,
             MessageId = context.MessageId,
-            ProcessedAtUtc = DateTime.UtcNow
+            ProcessedAtUtc = GetUtcNow()
         });
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    private static string TruncateError(string error)
+    private void ClearTrackedState()
     {
-        return error.Length <= LastErrorMaxLength
+        if (_dbContext is DbContext dbContext)
+            dbContext.ChangeTracker.Clear();
+    }
+
+    private static TimeSpan CalculateRetryDelay(int retryCount)
+    {
+        var delayTicks = RetryBaseDelay.Ticks * (1L << (retryCount - 1));
+        return TimeSpan.FromTicks(Math.Min(delayTicks, RetryMaxDelay.Ticks));
+    }
+
+    private DateTime GetUtcNow() => _timeProvider.GetUtcNow().UtcDateTime;
+
+    private static string TruncateError(string error) =>
+        error.Length <= LastErrorMaxLength
             ? error
             : error[..LastErrorMaxLength];
-    }
 }

@@ -23,9 +23,24 @@ internal class UserService : IUserService
         _auth0ManagementService = auth0ManagementService;
     }
 
-    public async Task<IEnumerable<GetUserDTO>> GetAllUsersAsync()
+    public async Task<IReadOnlyList<GetUserDTO>> GetAllUsersAsync(
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default)
     {
-        return await _dbContext.Users.AsNoTracking().Select(u => new GetUserDTO(u)).ToListAsync();
+        var offset = (long)(page - 1) * pageSize;
+        cancellationToken.ThrowIfCancellationRequested();
+        if (offset > int.MaxValue)
+            return [];
+
+        return await _dbContext.Users
+            .AsNoTracking()
+            .OrderBy(user => user.NormalizedUsername)
+            .ThenBy(user => user.Id)
+            .Skip((int)offset)
+            .Take(pageSize)
+            .Select(user => new GetUserDTO(user))
+            .ToListAsync(cancellationToken);
     }
 
     public async Task<GetUserDTO> CreateUserAsync(CreateUserProfileRequest request)

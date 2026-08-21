@@ -13,6 +13,7 @@ using Platform.Extensions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
@@ -149,9 +150,19 @@ public class ApiEndpointContractTests
     [Fact]
     public void TeamManagementHub_RemainsMappedAndAuthenticated()
     {
-        var endpoint = GetRouteEndpoint("/v1/lan/team-events");
+        var endpoint = GetRouteEndpoint(TeamManagementHub.Route);
 
         AssertRequiresAuthorization(endpoint);
+    }
+
+    [Fact]
+    public void TeamManagementHub_ClosesConnectionOnAuthenticationExpiration()
+    {
+        var endpoint = GetRouteEndpoint($"{TeamManagementHub.Route}/negotiate");
+        var options = Assert.IsType<HttpConnectionDispatcherOptions>(
+            endpoint.Metadata.GetMetadata<HttpConnectionDispatcherOptions>());
+
+        Assert.True(options.CloseOnAuthenticationExpiration);
     }
 
     private static void AssertRequiresAuthorization(RouteEndpoint endpoint)
@@ -197,7 +208,10 @@ public class ApiEndpointContractTests
         app.MapSponsorshipModule();
         app.MapIdentityModule();
         app.MapDiscoveryModule();
-        app.MapHub<TeamManagementHub>("/v1/lan/team-events").RequireAuthorization();
+        app.MapHub<TeamManagementHub>(
+                TeamManagementHub.Route,
+                options => options.CloseOnAuthenticationExpiration = true)
+            .RequireAuthorization();
 
         return ((IEndpointRouteBuilder)app).DataSources
             .SelectMany(source => source.Endpoints)

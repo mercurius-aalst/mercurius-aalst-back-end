@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Platform.Realtime;
 
 namespace Platform.Extensions;
@@ -16,6 +17,7 @@ public static class RealtimeNotificationExtensions
     {
         services.AddRealtimeNotificationServices();
         services.AddTransient<IRealtimePublisher, SignalRRealtimePublisher<THub>>();
+        services.TryAddSingleton<IRealtimeConnectionManager, SignalRRealtimeConnectionManager<THub>>();
         return services;
     }
 }

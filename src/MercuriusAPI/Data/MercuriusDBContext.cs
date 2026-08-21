@@ -14,6 +14,7 @@ namespace Mercurius.LAN.API.Data;
 public class MercuriusDBContext : DbContext, IModuleEventDbContext, IIdentityDbContext
 {
     private const string TeamInviteEntityType = "Mercurius.Modules.Teams.Domain.TeamInvite";
+    private const string TeamMemberEntityType = "Mercurius.Modules.Teams.Domain.TeamMember";
     private const string MatchEntityType = "Mercurius.Modules.Competition.Domain.Match";
     private const string TournamentRegistrationEntityType = "Mercurius.Modules.Competition.Domain.TournamentRegistration";
     private const string TournamentRegistrationRosterMemberEntityType = "Mercurius.Modules.Competition.Domain.TournamentRegistrationRosterMember";
@@ -49,35 +50,26 @@ public class MercuriusDBContext : DbContext, IModuleEventDbContext, IIdentityDbC
     private static void ConfigureCrossModuleRelationships(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Team>()
-            .HasOne(team => team.Captain)
+            .HasOne(typeof(User).FullName!, null)
             .WithMany()
-            .HasForeignKey(team => team.CaptainUserId)
-            .IsRequired(false);
+            .HasForeignKey(nameof(Team.CaptainUserId))
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.ClientSetNull)
+            .HasConstraintName("FK_teams_users_CaptainUserId");
 
-        modelBuilder.Entity<Team>()
-            .HasMany(team => team.Members)
-            .WithMany()
-            .UsingEntity<Dictionary<string, object>>(
-                "TeamUser",
-                join => join.HasOne<User>()
-                    .WithMany()
-                    .HasForeignKey("UserId")
-                    .OnDelete(DeleteBehavior.Cascade),
-                join => join.HasOne<Team>()
-                    .WithMany()
-                    .HasForeignKey("TeamId")
-                    .OnDelete(DeleteBehavior.Cascade),
-                join =>
-                {
-                    join.ToTable("team_members", "teams");
-                    join.HasKey("TeamId", "UserId");
-                });
-
-        modelBuilder.Entity(TeamInviteEntityType)
-            .HasOne(typeof(User).FullName!, "User")
+        modelBuilder.Entity(TeamMemberEntityType)
+            .HasOne(typeof(User).FullName!, null)
             .WithMany()
             .HasForeignKey("UserId")
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Cascade)
+            .HasConstraintName("FK_team_members_users_UserId");
+
+        modelBuilder.Entity(TeamInviteEntityType)
+            .HasOne(typeof(User).FullName!, null)
+            .WithMany()
+            .HasForeignKey("UserId")
+            .OnDelete(DeleteBehavior.Cascade)
+            .HasConstraintName("FK_team_invites_users_UserId");
 
         ConfigureOptionalCrossModuleReference(modelBuilder, MatchEntityType, "UserParticipant1Id");
         ConfigureOptionalCrossModuleReference(modelBuilder, MatchEntityType, "UserParticipant2Id");

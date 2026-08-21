@@ -62,6 +62,7 @@ public class PersistenceBoundaryTests
 
         AssertTable(dbContext, typeof(User), "identity", "users");
         AssertTable(dbContext, typeof(Team), "teams", "teams");
+        AssertTable(dbContext, "Mercurius.Modules.Teams.Domain.TeamMember", "teams", "team_members");
         AssertTable(dbContext, "Mercurius.Modules.Teams.Domain.TeamInvite", "teams", "team_invites");
         AssertTable(dbContext, "Mercurius.Modules.Competition.Domain.Game", "competition", "games");
         AssertTable(dbContext, "Mercurius.Modules.Competition.Domain.Match", "competition", "matches");
@@ -77,14 +78,62 @@ public class PersistenceBoundaryTests
     {
         using var dbContext = CreateDbContext();
 
+        var teamMember = GetEntityType(dbContext, "Mercurius.Modules.Teams.Domain.TeamMember");
         var teamInvite = GetEntityType(dbContext, "Mercurius.Modules.Teams.Domain.TeamInvite");
         var registration = GetEntityType(dbContext, "Mercurius.Modules.Competition.Domain.TournamentRegistration");
         var placementUser = GetEntityType(dbContext, "Mercurius.Modules.Competition.Domain.PlacementUser");
 
+        AssertForeignKey(teamMember, typeof(User), "UserId", DeleteBehavior.Cascade);
+        AssertForeignKey(teamMember, typeof(Team), "TeamId", DeleteBehavior.Cascade);
         AssertForeignKey(teamInvite, typeof(User), "UserId", DeleteBehavior.Cascade);
         AssertForeignKey(registration, typeof(User), "RegisteredByUserId", DeleteBehavior.Restrict);
         AssertForeignKey(registration, typeof(Team), "TeamId", DeleteBehavior.Restrict);
         AssertForeignKey(placementUser, typeof(User), "UserId", DeleteBehavior.Cascade);
+    }
+
+    [Fact]
+    public void RuntimeModel_PreservesTeamsIdentityBoundaryMetadata()
+    {
+        using var dbContext = CreateDbContext();
+
+        var team = Assert.IsAssignableFrom<IEntityType>(dbContext.Model.FindEntityType(typeof(Team)));
+        var teamMember = GetEntityType(dbContext, "Mercurius.Modules.Teams.Domain.TeamMember");
+        var teamInvite = GetEntityType(dbContext, "Mercurius.Modules.Teams.Domain.TeamInvite");
+
+        Assert.Equal("teams", teamMember.GetSchema());
+        Assert.Equal("team_members", teamMember.GetTableName());
+
+        var primaryKey = Assert.IsAssignableFrom<IKey>(teamMember.FindPrimaryKey());
+        Assert.Equal(["TeamId", "UserId"], primaryKey.Properties.Select(property => property.Name));
+        Assert.Equal("PK_team_members", primaryKey.GetName());
+
+        var userIndex = Assert.Single(teamMember.GetIndexes(), index =>
+            index.Properties.Select(property => property.Name).SequenceEqual(["UserId"]));
+        Assert.Equal("IX_team_members_UserId", userIndex.GetDatabaseName());
+
+        var memberTeamForeignKey = GetForeignKey(teamMember, typeof(Team), "TeamId");
+        Assert.Equal("FK_team_members_teams_TeamId", memberTeamForeignKey.GetConstraintName());
+        Assert.Equal(DeleteBehavior.Cascade, memberTeamForeignKey.DeleteBehavior);
+        Assert.Equal("Team", memberTeamForeignKey.DependentToPrincipal?.Name);
+        Assert.Equal("Members", memberTeamForeignKey.PrincipalToDependent?.Name);
+
+        var memberUserForeignKey = GetForeignKey(teamMember, typeof(User), "UserId");
+        Assert.Equal("FK_team_members_users_UserId", memberUserForeignKey.GetConstraintName());
+        Assert.Equal(DeleteBehavior.Cascade, memberUserForeignKey.DeleteBehavior);
+        Assert.Null(memberUserForeignKey.DependentToPrincipal);
+        Assert.Null(memberUserForeignKey.PrincipalToDependent);
+
+        var captainForeignKey = GetForeignKey(team, typeof(User), nameof(Team.CaptainUserId));
+        Assert.Equal("FK_teams_users_CaptainUserId", captainForeignKey.GetConstraintName());
+        Assert.Equal(DeleteBehavior.ClientSetNull, captainForeignKey.DeleteBehavior);
+        Assert.Null(captainForeignKey.DependentToPrincipal);
+        Assert.Null(captainForeignKey.PrincipalToDependent);
+
+        var inviteUserForeignKey = GetForeignKey(teamInvite, typeof(User), "UserId");
+        Assert.Equal("FK_team_invites_users_UserId", inviteUserForeignKey.GetConstraintName());
+        Assert.Equal(DeleteBehavior.Cascade, inviteUserForeignKey.DeleteBehavior);
+        Assert.Null(inviteUserForeignKey.DependentToPrincipal);
+        Assert.Null(inviteUserForeignKey.PrincipalToDependent);
     }
 
     [Fact]
@@ -98,6 +147,10 @@ public class PersistenceBoundaryTests
             typeof(Mercurius.Modules.Teams.TeamsModuleConfiguration).Assembly,
             "Mercurius.Modules.Teams.Infrastructure.TeamConfiguration",
             typeof(Team));
+        AssertConfigurationEntity(
+            typeof(Mercurius.Modules.Teams.TeamsModuleConfiguration).Assembly,
+            "Mercurius.Modules.Teams.Infrastructure.TeamMemberConfiguration",
+            "Mercurius.Modules.Teams.Domain.TeamMember");
         AssertConfigurationEntity(
             typeof(Mercurius.Modules.Competition.CompetitionModuleConfiguration).Assembly,
             "Mercurius.Modules.Competition.Infrastructure.GameConfiguration",
@@ -173,6 +226,16 @@ public class PersistenceBoundaryTests
     private static IEntityType GetEntityType(MercuriusDBContext dbContext, string entityTypeName)
     {
         return Assert.IsAssignableFrom<IEntityType>(dbContext.Model.FindEntityType(entityTypeName));
+    }
+
+    private static IForeignKey GetForeignKey(
+        IEntityType dependentEntity,
+        Type principalType,
+        string foreignKeyProperty)
+    {
+        return Assert.Single(dependentEntity.GetForeignKeys(), foreignKey =>
+            foreignKey.PrincipalEntityType.ClrType == principalType &&
+            foreignKey.Properties.Select(property => property.Name).SequenceEqual([foreignKeyProperty]));
     }
 
     private static void AssertForeignKey(

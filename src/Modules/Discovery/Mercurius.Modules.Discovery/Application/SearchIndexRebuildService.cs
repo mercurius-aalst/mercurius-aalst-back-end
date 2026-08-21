@@ -15,7 +15,6 @@ internal sealed class SearchIndexRebuildService
 {
     private const string FailureMessage = "The rebuild failed. Check server logs for details.";
     private const int RebuildPageSize = 1000;
-    private static readonly TimeSpan RunningJobRecoveryThreshold = TimeSpan.FromMinutes(15);
     private readonly IDiscoveryDbContext _dbContext;
     private readonly IIdentityModule _identityModule;
     private readonly ITeamsModule _teamsModule;
@@ -41,8 +40,6 @@ internal sealed class SearchIndexRebuildService
 
     public async Task<DiscoverySearchIndexRebuildJob> CreateJobAsync(CancellationToken cancellationToken)
     {
-        await RecoverStaleRunningJobsAsync(cancellationToken);
-
         var activeJob = await _dbContext.SearchIndexRebuildJobs
             .AsNoTracking()
             .Where(job => job.Status == SearchIndexRebuildJobStatus.Pending || job.Status == SearchIndexRebuildJobStatus.Running)
@@ -105,8 +102,6 @@ internal sealed class SearchIndexRebuildService
 
     public async Task<bool> RunNextAsync(CancellationToken cancellationToken)
     {
-        await RecoverStaleRunningJobsAsync(cancellationToken);
-
         var job = await _dbContext.SearchIndexRebuildJobs
             .Where(candidate => candidate.Status == SearchIndexRebuildJobStatus.Pending)
             .OrderBy(candidate => candidate.CreatedAtUtc)
@@ -123,6 +118,10 @@ internal sealed class SearchIndexRebuildService
         {
             var sourceVersion = job.StartedAtUtc.Value.Ticks;
             await RebuildDocumentsAsync(job, sourceVersion, job.StartedAtUtc.Value, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception exception)
         {
@@ -145,19 +144,18 @@ internal sealed class SearchIndexRebuildService
         return true;
     }
 
-    private async Task RecoverStaleRunningJobsAsync(CancellationToken cancellationToken)
+    public async Task RecoverInterruptedJobsAsync(CancellationToken cancellationToken)
     {
-        var staleBeforeUtc = DateTime.UtcNow - RunningJobRecoveryThreshold;
-        var staleJobs = await _dbContext.SearchIndexRebuildJobs
+        var interruptedJobs = await _dbContext.SearchIndexRebuildJobs
             .Where(job =>
-                job.Status == SearchIndexRebuildJobStatus.Running &&
-                (!job.StartedAtUtc.HasValue || job.StartedAtUtc <= staleBeforeUtc))
+                job.Status == SearchIndexRebuildJobStatus.Running)
             .ToListAsync(cancellationToken);
-        if (staleJobs.Count == 0)
+        if (interruptedJobs.Count == 0)
             return;
 
-        foreach (var job in staleJobs)
+        foreach (var job in interruptedJobs)
         {
+            await ClearStagedDocumentsAsync(job.Id, cancellationToken);
             job.Status = SearchIndexRebuildJobStatus.Pending;
             job.StartedAtUtc = null;
             job.CompletedAtUtc = null;
@@ -166,9 +164,8 @@ internal sealed class SearchIndexRebuildService
 
         await _dbContext.SaveChangesAsync(cancellationToken);
         _logger.LogWarning(
-            "Requeued {Count} stale Discovery search-index rebuild job(s) after {Threshold}.",
-            staleJobs.Count,
-            RunningJobRecoveryThreshold);
+            "Requeued {Count} interrupted Discovery search-index rebuild job(s) at worker startup.",
+            interruptedJobs.Count);
     }
 
     private async Task RebuildDocumentsAsync(

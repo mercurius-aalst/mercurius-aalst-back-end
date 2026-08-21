@@ -1,6 +1,3 @@
-
-using Mercurius.Modules.Teams.Domain;
-
 namespace Mercurius.Modules.Teams.DTOs;
 
 internal class GetTeamDTO
@@ -15,13 +12,5 @@ internal class GetTeamDTO
     {
     }
 
-    public GetTeamDTO(Team team)
-    {
-        Id = team.Id;
-        Name = team.Name;
-        LogoUrl = team.LogoUrl;
-        Members = team.Members.Select(member => new TeamPublicUserDTO(member));
-        CaptainUserId = team.CaptainUserId ?? Guid.Empty;
-    }
 }
 

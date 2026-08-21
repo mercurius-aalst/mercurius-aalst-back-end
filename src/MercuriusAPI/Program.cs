@@ -10,6 +10,8 @@ using Mercurius.Modules.Sponsorship;
 using Mercurius.Modules.Teams;
 using Platform;
 using Platform.Extensions;
+using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 
@@ -24,6 +26,12 @@ public class Program
         var builder = WebApplication.CreateBuilder(args);
         builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
             .AddEnvironmentVariables("Mercurius.LAN.API_");
+        var mediaUploadRequestLimits = MediaUploadRequestLimits.FromConfiguration(builder.Configuration);
+
+        builder.WebHost.ConfigureKestrel(options =>
+            options.Limits.MaxRequestBodySize = mediaUploadRequestLimits.MaxRequestBodySize);
+        builder.Services.Configure<FormOptions>(options =>
+            options.MultipartBodyLengthLimit = mediaUploadRequestLimits.MaxFileSizeInBytes);
 
         builder.Services.AddDbContext<MercuriusDBContext>(options =>
             options.UseNpgsql(builder.Configuration.GetConnectionString("MercuriusDB")));
@@ -43,7 +51,13 @@ public class Program
         builder.Services.AddDiscoveryModule<MercuriusDBContext>(builder.Configuration);
         builder.Services.AddApiProblemDetails<ApiExceptionHandler>();
         builder.Services.AddHttpConventions();
-        builder.Services.AddAuth0JwtAuthentication(builder.Configuration.GetSection("Auth0"));
+        builder.Services.AddAuth0JwtAuthentication(
+            builder.Configuration.GetSection("Auth0"),
+            TeamManagementHub.Route);
+        builder.Services.AddSingleton<TeamManagementHubInvocationRateLimitFilter>();
+        builder.Services.AddSignalR()
+            .AddHubOptions<TeamManagementHub>(options =>
+                options.AddFilter<TeamManagementHubInvocationRateLimitFilter>());
         builder.Services.AddRealtimeNotificationServices<TeamManagementHub>();
         var rateLimitingSection = builder.Configuration.GetSection("RateLimiting");
         builder.Services.AddFixedWindowRateLimiting(new FixedWindowRateLimitingOptions
@@ -64,11 +78,11 @@ public class Program
         app.UseCors(CorsPolicyName);
         app.ApplyMigrations<MercuriusDBContext>();
         app.UseApiExceptionHandling();
+        app.UseSecurityPipeline();
         app.UseImageflowWithCaching(
             requestPath: "/images",
             storagePath: app.Configuration["FileStorage:Location"],
             cacheControl: "public, max-age=31536000");
-        app.UseSecurityPipeline();
         app.UseStaticFiles(new StaticFileOptions
         {
             FileProvider = new PhysicalFileProvider(Path.Combine(AppContext.BaseDirectory, "staticfiles")),
@@ -81,7 +95,10 @@ public class Program
         app.MapTeamsModule();
         app.MapSponsorshipModule();
         app.MapDiscoveryModule();
-        app.MapHub<TeamManagementHub>("/v1/lan/team-events").RequireAuthorization();
+        app.MapHub<TeamManagementHub>(
+                TeamManagementHub.Route,
+                options => options.CloseOnAuthenticationExpiration = true)
+            .RequireAuthorization();
 
         app.Run();
     }

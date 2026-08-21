@@ -43,6 +43,11 @@ internal static class SponsorshipCompetitionTestDoubles
         public Task<TeamSummary?> GetTeamSummaryAsync(TeamId teamId, CancellationToken cancellationToken = default) =>
             Task.FromResult<TeamSummary?>(null);
 
+        public Task<IReadOnlyList<TeamId>> GetCaptainedTeamIdsAsync(
+            UserId userId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<TeamId>>([]);
+
         public Task<TeamRosterSnapshot?> GetTeamRosterSnapshotAsync(TeamId teamId, CancellationToken cancellationToken = default) =>
             Task.FromResult<TeamRosterSnapshot?>(null);
 

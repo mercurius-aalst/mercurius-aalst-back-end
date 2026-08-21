@@ -141,7 +141,8 @@ internal class UserValidationService : IUserService
         return _inner.UpdateUserAsync(id, request);
     }
 
-    public Task<IEnumerable<GetUserDTO>> GetAllUsersAsync() => _inner.GetAllUsersAsync();
+    public Task<IReadOnlyList<GetUserDTO>> GetAllUsersAsync(int page, int pageSize, CancellationToken cancellationToken = default) =>
+        _inner.GetAllUsersAsync(page, pageSize, cancellationToken);
     public Task<GetUserDTO> GetUserByIdAsync(Guid id) => _inner.GetUserByIdAsync(id);
 
     private static void ValidateProfileRequest(

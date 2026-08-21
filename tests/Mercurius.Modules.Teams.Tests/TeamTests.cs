@@ -7,7 +7,6 @@ using Mercurius.Modules.Media.Contracts;
 using Mercurius.Modules.Teams.Contracts;
 using Mercurius.Modules.Teams.Infrastructure;
 using Mercurius.Modules.Teams.Services;
-using Mercurius.Modules.Identity;
 using Mercurius.Modules.Shared;
 using Platform.Eventing;
 using Platform.Realtime;
@@ -18,6 +17,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace Mercurius.Modules.Teams.Tests;
 
@@ -31,12 +31,12 @@ public class TeamTests
         // Arrange
         var teamName = "Test Team";
         var captain = CreateUser();
-        var team = new Team(teamName, captain);
+        var team = CreateTeam(teamName, captain);
         // Act & Assert
         Assert.Equal(teamName, team.Name);
         Assert.Equal("test team", team.NormalizedName);
         Assert.Equal(captain.Id, team.CaptainUserId);
-        Assert.Contains(captain, team.Members);
+        Assert.Contains(team.Members, member => member.UserId == captain.Id);
     }
 
     [Fact]
@@ -59,7 +59,7 @@ public class TeamTests
         var newCaptain = CreateUser();
 
         dbContext.Users.AddRange(existingCaptain, newCaptain);
-        dbContext.Teams.Add(new Team("Alpha Squad", existingCaptain) { Id = Guid.NewGuid() });
+        dbContext.Teams.Add(CreateTeam("Alpha Squad", existingCaptain));
         await dbContext.SaveChangesAsync();
 
         var teamService = CreateTeamService(dbContext);
@@ -79,8 +79,8 @@ public class TeamTests
         await using var dbContext = CreateDbContext();
         var firstCaptain = CreateUser();
         var secondCaptain = CreateUser();
-        var firstTeam = new Team("Alpha Squad", firstCaptain) { Id = Guid.NewGuid() };
-        var secondTeam = new Team("Beta Squad", secondCaptain) { Id = Guid.NewGuid() };
+        var firstTeam = CreateTeam("Alpha Squad", firstCaptain);
+        var secondTeam = CreateTeam("Beta Squad", secondCaptain);
 
         dbContext.Users.AddRange(firstCaptain, secondCaptain);
         dbContext.Teams.AddRange(firstTeam, secondTeam);
@@ -122,7 +122,7 @@ public class TeamTests
     {
         await using var dbContext = CreateDbContext();
         var captain = CreateUser();
-        var team = new Team("Alpha Squad", captain) { Id = Guid.NewGuid() };
+        var team = CreateTeam("Alpha Squad", captain);
 
         dbContext.Users.Add(captain);
         dbContext.Teams.Add(team);
@@ -145,9 +145,9 @@ public class TeamTests
 
         dbContext.Users.AddRange(alphaCaptain, alpineCaptain, betaCaptain);
         dbContext.Teams.AddRange(
-            new Team("Alpha Squad", alphaCaptain) { Id = Guid.NewGuid() },
-            new Team("Alpine Club", alpineCaptain) { Id = Guid.NewGuid() },
-            new Team("Beta Squad", betaCaptain) { Id = Guid.NewGuid() });
+            CreateTeam("Alpha Squad", alphaCaptain),
+            CreateTeam("Alpine Club", alpineCaptain),
+            CreateTeam("Beta Squad", betaCaptain));
         await dbContext.SaveChangesAsync();
 
         var teamService = CreateTeamService(dbContext);
@@ -157,6 +157,60 @@ public class TeamTests
         Assert.Contains(results, team => team.Name == "Alpha Squad");
         Assert.Contains(results, team => team.Name == "Alpine Club");
         Assert.DoesNotContain(results, team => team.Name == "Beta Squad");
+    }
+
+    [Fact]
+    public async Task GetAllTeamsAsync_ReturnsDeterministicNavigablePages_WithOneIdentityBatchPerPage()
+    {
+        await using var dbContext = CreateDbContext();
+        var alphaCaptain = CreateUser();
+        var betaCaptain = CreateUser();
+        var deltaCaptain = CreateUser();
+        var gammaCaptain = CreateUser();
+        dbContext.Users.AddRange(alphaCaptain, betaCaptain, deltaCaptain, gammaCaptain);
+        dbContext.Teams.AddRange(
+            CreateTeam("Gamma", gammaCaptain),
+            CreateTeam("Alpha", alphaCaptain),
+            CreateTeam("Delta", deltaCaptain),
+            CreateTeam("Beta", betaCaptain));
+        await dbContext.SaveChangesAsync();
+        var identityModule = new DbContextIdentityModule(dbContext);
+        var service = CreateTeamQueryService(dbContext, identityModule);
+
+        var firstPage = await service.GetAllTeamsAsync(1, 2);
+        var secondPage = await service.GetAllTeamsAsync(2, 2);
+
+        Assert.Equal(["Alpha", "Beta"], firstPage.Select(team => team.Name).ToArray());
+        Assert.Equal(["Delta", "Gamma"], secondPage.Select(team => team.Name).ToArray());
+        Assert.Equal(2, identityModule.BatchCallCount);
+        Assert.Equal(
+            secondPage.SelectMany(team => team.Members).Select(member => new UserId(member.Id)).OrderBy(id => id.Value),
+            identityModule.LastBatchUserIds.OrderBy(id => id.Value));
+    }
+
+    [Fact]
+    public async Task GetAllTeamsAsync_OverflowingOffset_ReturnsEmptyWithoutIdentityLookup()
+    {
+        await using var dbContext = CreateDbContext();
+        var identityModule = new DbContextIdentityModule(dbContext);
+        var service = CreateTeamQueryService(dbContext, identityModule);
+
+        var page = await service.GetAllTeamsAsync(int.MaxValue, 50);
+
+        Assert.Empty(page);
+        Assert.Equal(0, identityModule.BatchCallCount);
+    }
+
+    [Fact]
+    public async Task GetAllTeamsAsync_OverflowingOffset_ObservesCancellation()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = CreateTeamQueryService(dbContext, new DbContextIdentityModule(dbContext));
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            service.GetAllTeamsAsync(int.MaxValue, 50, cancellation.Token));
     }
 
     [Fact]
@@ -238,7 +292,7 @@ public class TeamTests
     {
         var team = CreateTeam();
         var newCaptain = CreateUser();
-        team.Members.Add(newCaptain);
+        team.AddMember(newCaptain.Id);
 
         team.ChangeCaptain(newCaptain.Id);
 
@@ -260,11 +314,11 @@ public class TeamTests
         // Arrange
         var team = CreateTeam();
         var memberToRemove = CreateUser();
-        team.Members.Add(memberToRemove);
+        team.AddMember(memberToRemove.Id);
         // Act
         team.RemoveMember(memberToRemove.Id);
         // Assert
-        Assert.DoesNotContain(memberToRemove, team.Members);
+        Assert.DoesNotContain(team.Members, member => member.UserId == memberToRemove.Id);
     }
     [Fact]
     public void RemoveMember_Should_Not_Remove_User_If_Not_In_Team()
@@ -281,11 +335,9 @@ public class TeamTests
     {
         // Arrange
         var team = CreateTeam();
-        var captain = team.Captain!;
-        team.CaptainUserId = captain.Id;
-        team.Members.Add(captain);
+        var captainUserId = team.CaptainUserId!.Value;
         // Act & Assert
-        Assert.Throws<ValidationException>(() => team.RemoveMember(team.CaptainUserId!.Value));
+        Assert.Throws<ValidationException>(() => team.RemoveMember(captainUserId));
     }
 
     [Fact]
@@ -294,7 +346,7 @@ public class TeamTests
         // Arrange
         var team = CreateTeam();
         var userToInvite = CreateUser();
-        team.Members.Add(userToInvite);
+        team.AddMember(userToInvite.Id);
         // Act & Assert
         Assert.Throws<ValidationException>(() => team.InviteUser(userToInvite.Id, 7));
     }
@@ -377,14 +429,13 @@ public class TeamTests
 
         //Have to do this manually because Actual references are handled by EF Core
         invite.Team = team;
-        invite.User = userToInvite;
 
         // Act
         invite.Respond(true);
 
         // Assert
         Assert.Equal(TeamInviteStatus.Accepted, invite.Status);
-        Assert.Contains(userToInvite, team.Members);
+        Assert.Contains(team.Members, member => member.UserId == userToInvite.Id);
         Assert.NotNull(invite.RespondedAt);
     }
 
@@ -400,7 +451,7 @@ public class TeamTests
         invite.Respond(false);
         // Assert
         Assert.Equal(TeamInviteStatus.Declined, invite.Status);
-        Assert.DoesNotContain(userToInvite, team.Members);
+        Assert.DoesNotContain(team.Members, member => member.UserId == userToInvite.Id);
         Assert.NotNull(invite.RespondedAt);
     }
 
@@ -413,7 +464,6 @@ public class TeamTests
         team.TeamInvites.Clear(); // Ensure no existing invites
         var invite = team.InviteUser(userToInvite.Id, 7);
         invite.Team = team;
-        invite.User = userToInvite;
         invite.Status = TeamInviteStatus.Accepted; // Change status to Accepted
         // Act & Assert
         Assert.Throws<ValidationException>(() => invite.Respond(true));
@@ -426,7 +476,6 @@ public class TeamTests
         var userToInvite = CreateUser();
         var invite = team.InviteUser(userToInvite.Id, 7);
         invite.Team = team;
-        invite.User = userToInvite;
         invite.ExpiresAt = DateTime.UtcNow.AddMinutes(-1);
 
         Assert.Throws<ValidationException>(() => invite.Respond(true));
@@ -441,8 +490,8 @@ public class TeamTests
         var captain = CreateUser();
         dbContext.Users.Add(captain);
         dbContext.Teams.AddRange(
-            new Team("One", captain) { Id = Guid.NewGuid() },
-            new Team("Two", captain) { Id = Guid.NewGuid() });
+            CreateTeam("One", captain),
+            CreateTeam("Two", captain));
         await dbContext.SaveChangesAsync();
 
         var teamService = CreateTeamService(dbContext);
@@ -458,7 +507,7 @@ public class TeamTests
         var captain = CreateUser();
         var outsider = CreateUser();
         var invited = CreateUser();
-        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
+        var team = CreateTeam("Alpha", captain);
         dbContext.Users.AddRange(captain, outsider, invited);
         dbContext.Teams.Add(team);
         await dbContext.SaveChangesAsync();
@@ -475,7 +524,7 @@ public class TeamTests
         await using var dbContext = CreateDbContext();
         var captain = CreateUser();
         var invited = CreateUser();
-        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
+        var team = CreateTeam("Alpha", captain);
         dbContext.Users.AddRange(captain, invited);
         dbContext.Teams.Add(team);
         await dbContext.SaveChangesAsync();
@@ -496,7 +545,7 @@ public class TeamTests
         var captain = CreateUser();
         var invited = CreateUser();
         var otherUser = CreateUser();
-        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
+        var team = CreateTeam("Alpha", captain);
         dbContext.Users.AddRange(captain, invited, otherUser);
         dbContext.Teams.Add(team);
         await dbContext.SaveChangesAsync();
@@ -515,8 +564,8 @@ public class TeamTests
         await using var dbContext = CreateDbContext();
         var captain = CreateUser();
         var member = CreateUser();
-        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
-        team.Members.Add(member);
+        var team = CreateTeam("Alpha", captain);
+        team.AddMember(member.Id);
         var game = new Game("Game", BracketType.SingleElimination, GameFormat.BestOf1, GameFormat.BestOf1, ParticipationMode.Team, 2)
         {
             Id = Guid.NewGuid(),
@@ -540,8 +589,8 @@ public class TeamTests
         await using var dbContext = CreateDbContext();
         var captain = CreateUser();
         var member = CreateUser();
-        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
-        team.Members.Add(member);
+        var team = CreateTeam("Alpha", captain);
+        team.AddMember(member.Id);
         dbContext.Users.AddRange(captain, member);
         dbContext.Teams.Add(team);
         await dbContext.SaveChangesAsync();
@@ -551,7 +600,7 @@ public class TeamTests
         var result = await teamService.RemoveMemberAsync(captain.Auth0UserId, team.Id, member.Id);
 
         Assert.DoesNotContain(result.Members, teamMember => teamMember.Id == member.Id);
-        Assert.DoesNotContain(team.Members, teamMember => teamMember.Id == member.Id);
+        Assert.DoesNotContain(team.Members, teamMember => teamMember.UserId == member.Id);
         Assert.Contains(publisher.MembershipEvents, evt => evt.TeamId == team.Id && evt.UserId == member.Id && evt.Action == "Removed");
     }
 
@@ -562,8 +611,8 @@ public class TeamTests
         var captain = CreateUser();
         var member = CreateUser();
         var outsider = CreateUser();
-        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
-        team.Members.Add(member);
+        var team = CreateTeam("Alpha", captain);
+        team.AddMember(member.Id);
         dbContext.Users.AddRange(captain, member, outsider);
         dbContext.Teams.Add(team);
         await dbContext.SaveChangesAsync();
@@ -572,7 +621,7 @@ public class TeamTests
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
             teamService.RemoveMemberAsync(outsider.Auth0UserId, team.Id, member.Id));
 
-        Assert.Contains(team.Members, teamMember => teamMember.Id == member.Id);
+        Assert.Contains(team.Members, teamMember => teamMember.UserId == member.Id);
     }
 
     [Fact]
@@ -580,7 +629,7 @@ public class TeamTests
     {
         await using var dbContext = CreateDbContext();
         var captain = CreateUser();
-        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
+        var team = CreateTeam("Alpha", captain);
         dbContext.Users.Add(captain);
         dbContext.Teams.Add(team);
         await dbContext.SaveChangesAsync();
@@ -589,7 +638,7 @@ public class TeamTests
         await Assert.ThrowsAsync<ValidationException>(() =>
             teamService.RemoveMemberAsync(captain.Auth0UserId, team.Id, captain.Id));
 
-        Assert.Contains(team.Members, teamMember => teamMember.Id == captain.Id);
+        Assert.Contains(team.Members, teamMember => teamMember.UserId == captain.Id);
     }
 
     [Fact]
@@ -598,8 +647,8 @@ public class TeamTests
         await using var dbContext = CreateDbContext();
         var captain = CreateUser();
         var member = CreateUser();
-        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
-        team.Members.Add(member);
+        var team = CreateTeam("Alpha", captain);
+        team.AddMember(member.Id);
         var game = new Game("Game", BracketType.SingleElimination, GameFormat.BestOf1, GameFormat.BestOf1, ParticipationMode.Team, 2)
         {
             Id = Guid.NewGuid(),
@@ -615,7 +664,7 @@ public class TeamTests
         await Assert.ThrowsAsync<ValidationException>(() =>
             teamService.RemoveMemberAsync(captain.Auth0UserId, team.Id, member.Id));
 
-        Assert.Contains(team.Members, teamMember => teamMember.Id == member.Id);
+        Assert.Contains(team.Members, teamMember => teamMember.UserId == member.Id);
     }
 
     [Theory]
@@ -626,8 +675,8 @@ public class TeamTests
         await using var dbContext = CreateDbContext();
         var captain = CreateUser();
         var member = CreateUser();
-        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
-        team.Members.Add(member);
+        var team = CreateTeam("Alpha", captain);
+        team.AddMember(member.Id);
         var game = new Game("Game", BracketType.SingleElimination, GameFormat.BestOf1, GameFormat.BestOf1, ParticipationMode.Team, 2)
         {
             Id = Guid.NewGuid(),
@@ -642,7 +691,7 @@ public class TeamTests
 
         await teamService.RemoveMemberAsync(captain.Auth0UserId, team.Id, member.Id);
 
-        Assert.DoesNotContain(team.Members, teamMember => teamMember.Id == member.Id);
+        Assert.DoesNotContain(team.Members, teamMember => teamMember.UserId == member.Id);
     }
 
     [Fact]
@@ -651,7 +700,7 @@ public class TeamTests
         await using var dbContext = CreateDbContext();
         var captain = CreateUser();
         var outsider = CreateUser();
-        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
+        var team = CreateTeam("Alpha", captain);
         dbContext.Users.AddRange(captain, outsider);
         dbContext.Teams.Add(team);
         await dbContext.SaveChangesAsync();
@@ -671,7 +720,7 @@ public class TeamTests
     {
         await using var dbContext = CreateDbContext();
         var captain = CreateUser();
-        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
+        var team = CreateTeam("Alpha", captain);
         var game = new Game("Game", BracketType.SingleElimination, GameFormat.BestOf1, GameFormat.BestOf1, ParticipationMode.Team, 1)
         {
             Id = Guid.NewGuid(),
@@ -697,9 +746,9 @@ public class TeamTests
         await using var dbContext = CreateDbContext();
         var captain = CreateUser();
         var member = CreateUser();
-        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
+        var team = CreateTeam("Alpha", captain);
         team.LogoUrl = "/images/alpha.webp";
-        team.Members.Add(member);
+        team.AddMember(member.Id);
         var game = new Game("Completed Game", BracketType.SingleElimination, GameFormat.BestOf1, GameFormat.BestOf1, ParticipationMode.Team, 2)
         {
             Id = Guid.NewGuid(),
@@ -721,7 +770,6 @@ public class TeamTests
             Id = Guid.NewGuid(),
             Team = team,
             TeamId = team.Id,
-            User = member,
             UserId = member.Id,
             Status = TeamInviteStatus.Pending,
             CreatedAt = DateTime.UtcNow,
@@ -735,7 +783,8 @@ public class TeamTests
         dbContext.Set<Match>().Add(match);
         await dbContext.SaveChangesAsync();
 
-        var teamService = CreateTeamService(dbContext);
+        var mediaModule = new StubMediaModule("/images/replacement.webp");
+        var teamService = CreateTeamService(dbContext, mediaModule);
 
         await teamService.DeleteTeamAsync(captain.Auth0UserId, team.Id);
 
@@ -752,6 +801,7 @@ public class TeamTests
         Assert.True(await dbContext.Set<TournamentRegistration>().AnyAsync(registration => registration.GameId == game.Id && registration.TeamId == team.Id));
         Assert.True(await dbContext.Set<Match>().AnyAsync(m => m.Id == match.Id && m.TeamParticipant1Id == team.Id));
         Assert.True(await dbContext.Set<Placement>().AnyAsync(p => p.Id == placement.Id && p.Teams.Any(t => t.TeamId == team.Id)));
+        Assert.Empty(mediaModule.DeletedImages);
     }
 
     [Fact]
@@ -760,7 +810,7 @@ public class TeamTests
         await using var dbContext = CreateDbContext();
         var originalCaptain = CreateUser();
         var newCaptain = CreateUser();
-        var team = new Team("Alpha", originalCaptain) { Id = Guid.NewGuid() };
+        var team = CreateTeam("Alpha", originalCaptain);
         dbContext.Users.AddRange(originalCaptain, newCaptain);
         dbContext.Teams.Add(team);
         await dbContext.SaveChangesAsync();
@@ -778,7 +828,7 @@ public class TeamTests
     {
         await using var dbContext = CreateDbContext();
         var captain = CreateUser();
-        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
+        var team = CreateTeam("Alpha", captain);
         dbContext.Users.Add(captain);
         dbContext.Teams.Add(team);
         await dbContext.SaveChangesAsync();
@@ -787,7 +837,7 @@ public class TeamTests
 
         await teamService.DeleteTeamAsync(captain.Auth0UserId, team.Id);
 
-        Assert.Empty(await teamService.GetAllTeamsAsync());
+        Assert.Empty(await teamService.GetAllTeamsAsync(1, 20));
         Assert.Empty(await teamService.SearchTeamsByNameAsync("alp"));
         await Assert.ThrowsAsync<NotFoundException>(() => teamService.GetTeamByIdAsync(team.Id));
         await Assert.ThrowsAsync<NotFoundException>(() => teamService.GetPublicTeamProfileAsync("alpha"));
@@ -802,13 +852,13 @@ public class TeamTests
         await using var dbContext = CreateDbContext();
         var captain = CreateUser();
         var target = CreateUser();
-        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
-        team.Members.Add(target);
+        var team = CreateTeam("Alpha", captain);
+        team.AddMember(target.Id);
         dbContext.Users.AddRange(captain, target);
         dbContext.Teams.AddRange(
             team,
-            new Team("Target One", target) { Id = Guid.NewGuid() },
-            new Team("Target Two", target) { Id = Guid.NewGuid() });
+            CreateTeam("Target One", target),
+            CreateTeam("Target Two", target));
         await dbContext.SaveChangesAsync();
 
         var teamService = CreateTeamService(dbContext);
@@ -822,7 +872,7 @@ public class TeamTests
     {
         await using var dbContext = CreateDbContext();
         var captain = CreateUser();
-        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
+        var team = CreateTeam("Alpha", captain);
         dbContext.Users.Add(captain);
         dbContext.Teams.Add(team);
         await dbContext.SaveChangesAsync();
@@ -837,15 +887,120 @@ public class TeamTests
     }
 
     [Fact]
+    public async Task UploadTeamLogoAsync_CancellationAfterSaveCompensatesNewLogoWithNonCancelledToken()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var team = CreateTeam("Alpha", captain);
+        team.LogoUrl = "/images/original.webp";
+        dbContext.Users.Add(captain);
+        dbContext.Teams.Add(team);
+        await dbContext.SaveChangesAsync();
+        using var cancellation = new CancellationTokenSource();
+        var mediaModule = new StubMediaModule("/images/new.webp")
+        {
+            CancelAfterSave = cancellation
+        };
+        var teamService = CreateTeamService(dbContext, mediaModule);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            teamService.UploadTeamLogoAsync(
+                captain.Auth0UserId,
+                team.Id,
+                CreateFormFile(),
+                cancellation.Token));
+
+        var deletedImage = Assert.Single(mediaModule.DeletedImages);
+        Assert.Equal("/images/new.webp", deletedImage.ImageUrl);
+        Assert.Equal(CancellationToken.None, deletedImage.CancellationToken);
+        dbContext.ChangeTracker.Clear();
+        Assert.Equal(
+            "/images/original.webp",
+            (await dbContext.Teams.SingleAsync(candidate => candidate.Id == team.Id)).LogoUrl);
+    }
+
+    [Fact]
+    public async Task UploadTeamLogoAsync_SuccessRetiresOnlyPreviousLogo()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var team = CreateTeam("Alpha", captain);
+        team.LogoUrl = "/images/original.webp";
+        dbContext.Users.Add(captain);
+        dbContext.Teams.Add(team);
+        await dbContext.SaveChangesAsync();
+        var mediaModule = new StubMediaModule("/images/new.webp");
+        var teamService = CreateTeamService(dbContext, mediaModule);
+
+        var result = await teamService.UploadTeamLogoAsync(captain.Auth0UserId, team.Id, CreateFormFile());
+
+        Assert.Equal("/images/new.webp", result.LogoUrl);
+        var deletedImage = Assert.Single(mediaModule.DeletedImages);
+        Assert.Equal("/images/original.webp", deletedImage.ImageUrl);
+        Assert.Equal(CancellationToken.None, deletedImage.CancellationToken);
+    }
+
+    [Fact]
+    public async Task UploadTeamLogoAsync_DoesNotRetireUnchangedOrHistoricallyReferencedLogo()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var team = CreateTeam("Alpha", captain);
+        team.LogoUrl = "/images/original.webp";
+        var game = new Game("Completed Game", BracketType.SingleElimination, GameFormat.BestOf1, GameFormat.BestOf1, ParticipationMode.Team, 1)
+        {
+            Id = Guid.NewGuid(),
+            Status = GameStatus.Completed
+        };
+        dbContext.Users.Add(captain);
+        dbContext.Teams.Add(team);
+        dbContext.Set<Game>().Add(game);
+        AddTeamRegistration(dbContext, game, team, captain, [captain], TournamentRegistrationStatus.Active);
+        await dbContext.SaveChangesAsync();
+        var historicalMediaModule = new StubMediaModule("/images/new.webp");
+        var teamService = CreateTeamService(dbContext, historicalMediaModule);
+
+        await teamService.UploadTeamLogoAsync(captain.Auth0UserId, team.Id, CreateFormFile());
+
+        Assert.Empty(historicalMediaModule.DeletedImages);
+
+        var unchangedMediaModule = new StubMediaModule("/images/new.webp");
+        teamService = CreateTeamService(dbContext, unchangedMediaModule);
+        await teamService.UploadTeamLogoAsync(captain.Auth0UserId, team.Id, CreateFormFile());
+        Assert.Empty(unchangedMediaModule.DeletedImages);
+    }
+
+    [Fact]
+    public async Task RemoveTeamLogoAsync_DoesNotRetireLogoSharedByAnotherCurrentTeam()
+    {
+        await using var dbContext = CreateDbContext();
+        var firstCaptain = CreateUser();
+        var secondCaptain = CreateUser();
+        var firstTeam = CreateTeam("Alpha", firstCaptain);
+        var secondTeam = CreateTeam("Beta", secondCaptain);
+        firstTeam.LogoUrl = "/images/shared.webp";
+        secondTeam.LogoUrl = "/images/shared.webp";
+        dbContext.Users.AddRange(firstCaptain, secondCaptain);
+        dbContext.Teams.AddRange(firstTeam, secondTeam);
+        await dbContext.SaveChangesAsync();
+        var mediaModule = new StubMediaModule("/images/unused.webp");
+        var teamService = CreateTeamService(dbContext, mediaModule);
+
+        await teamService.RemoveTeamLogoAsync(firstCaptain.Auth0UserId, firstTeam.Id);
+
+        Assert.Empty(mediaModule.DeletedImages);
+    }
+
+    [Fact]
     public async Task GetCurrentUserTeamSummaryAsync_ReturnsCaptainedMemberAndInviteViews()
     {
         await using var dbContext = CreateDbContext();
         var captain = CreateUser();
         var member = CreateUser();
         var otherCaptain = CreateUser();
-        var captainedTeam = new Team("Captained", captain) { Id = Guid.NewGuid() };
-        var memberTeam = new Team("Member", otherCaptain) { Id = Guid.NewGuid() };
-        memberTeam.Members.Add(member);
+        var captainedTeam = CreateTeam("Captained", captain);
+        var memberTeam = CreateTeam("Member", otherCaptain);
+        memberTeam.AddMember(member.Id);
         dbContext.Users.AddRange(captain, member, otherCaptain);
         dbContext.Teams.AddRange(captainedTeam, memberTeam);
         await dbContext.SaveChangesAsync();
@@ -865,8 +1020,8 @@ public class TeamTests
         await using var dbContext = CreateDbContext();
         var captain = CreateUser();
         var member = CreateUser();
-        var team = new Team("Tournament Team", captain) { Id = Guid.NewGuid() };
-        team.Members.Add(member);
+        var team = CreateTeam("Tournament Team", captain);
+        team.AddMember(member.Id);
         var game = new Game("Team Cup", BracketType.SingleElimination, GameFormat.BestOf1, GameFormat.BestOf1, ParticipationMode.Team, 2)
         {
             Id = Guid.NewGuid()
@@ -912,34 +1067,86 @@ public class TeamTests
     }
 
     [Fact]
-    public async Task GetCurrentUserTeamSummaryAsync_CleansUpExpiredTerminalInvites()
+    public async Task CurrentUserInviteReads_DoNotMaintainRelatedOrUnrelatedInvites()
     {
         await using var dbContext = CreateDbContext();
-        var captain = CreateUser();
-        var invited = CreateUser();
-        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
-        var oldInvite = new TeamInvite
+        var currentUser = CreateUser();
+        var receivedCaptain = CreateUser();
+        var sentRecipient = CreateUser();
+        var unrelatedCaptain = CreateUser();
+        var unrelatedRecipient = CreateUser();
+        var currentUserTeam = CreateTeam("Current user team", currentUser);
+        var receivedTeam = CreateTeam("Received team", receivedCaptain);
+        var unrelatedTeam = CreateTeam("Unrelated team", unrelatedCaptain);
+        var now = DateTime.UtcNow;
+        var receivedDueInvite = new TeamInvite
         {
             Id = Guid.NewGuid(),
-            Team = team,
-            TeamId = team.Id,
-            User = invited,
-            UserId = invited.Id,
-            Status = TeamInviteStatus.Declined,
-            CreatedAt = DateTime.UtcNow.AddDays(-120),
-            ExpiresAt = DateTime.UtcNow.AddDays(-100),
-            RespondedAt = DateTime.UtcNow.AddDays(-100)
+            Team = receivedTeam,
+            TeamId = receivedTeam.Id,
+            UserId = currentUser.Id,
+            Status = TeamInviteStatus.Pending,
+            CreatedAt = now.AddDays(-20),
+            ExpiresAt = now.AddDays(-1)
         };
-        dbContext.Users.AddRange(captain, invited);
-        dbContext.Teams.Add(team);
-        dbContext.Set<TeamInvite>().Add(oldInvite);
+        var sentDueInvite = new TeamInvite
+        {
+            Id = Guid.NewGuid(),
+            Team = currentUserTeam,
+            TeamId = currentUserTeam.Id,
+            UserId = sentRecipient.Id,
+            Status = TeamInviteStatus.Pending,
+            CreatedAt = now.AddDays(-20),
+            ExpiresAt = now.AddDays(-1)
+        };
+        var unrelatedDueInvite = new TeamInvite
+        {
+            Id = Guid.NewGuid(),
+            Team = unrelatedTeam,
+            TeamId = unrelatedTeam.Id,
+            UserId = unrelatedRecipient.Id,
+            Status = TeamInviteStatus.Pending,
+            CreatedAt = now.AddDays(-20),
+            ExpiresAt = now.AddDays(-1)
+        };
+        var oldTerminalInvite = new TeamInvite
+        {
+            Id = Guid.NewGuid(),
+            Team = currentUserTeam,
+            TeamId = currentUserTeam.Id,
+            UserId = sentRecipient.Id,
+            Status = TeamInviteStatus.Declined,
+            CreatedAt = now.AddDays(-120),
+            ExpiresAt = now.AddDays(-100),
+            RespondedAt = now.AddDays(-100)
+        };
+        dbContext.Users.AddRange(currentUser, receivedCaptain, sentRecipient, unrelatedCaptain, unrelatedRecipient);
+        dbContext.Teams.AddRange(currentUserTeam, receivedTeam, unrelatedTeam);
+        dbContext.Set<TeamInvite>().AddRange(receivedDueInvite, sentDueInvite, unrelatedDueInvite, oldTerminalInvite);
         await dbContext.SaveChangesAsync();
 
-        var teamService = CreateTeamService(dbContext);
+        var publisher = new RecordingTeamEventPublisher();
+        var teamService = CreateTeamService(dbContext, eventPublisher: publisher);
 
-        await teamService.GetCurrentUserTeamSummaryAsync(invited.Auth0UserId);
+        var summary = await teamService.GetCurrentUserTeamSummaryAsync(currentUser.Auth0UserId);
+        var receivedInvites = await teamService.GetCurrentUserInvitesAsync(currentUser.Auth0UserId);
+        var sentInvites = await teamService.GetCurrentUserSentInvitesAsync(currentUser.Auth0UserId);
 
-        Assert.False(await dbContext.Set<TeamInvite>().AnyAsync(invite => invite.Id == oldInvite.Id));
+        Assert.Empty(summary.ReceivedPendingInvites);
+        Assert.Empty(summary.SentPendingInvites);
+        Assert.Empty(receivedInvites);
+        Assert.Empty(sentInvites);
+        Assert.Empty(publisher.InviteEvents);
+
+        dbContext.ChangeTracker.Clear();
+        var persistedInvites = await dbContext.Set<TeamInvite>()
+            .ToDictionaryAsync(invite => invite.Id);
+
+        Assert.Equal(4, persistedInvites.Count);
+        Assert.Equal(TeamInviteStatus.Pending, persistedInvites[receivedDueInvite.Id].Status);
+        Assert.Equal(TeamInviteStatus.Pending, persistedInvites[sentDueInvite.Id].Status);
+        Assert.Equal(TeamInviteStatus.Pending, persistedInvites[unrelatedDueInvite.Id].Status);
+        Assert.Equal(TeamInviteStatus.Declined, persistedInvites[oldTerminalInvite.Id].Status);
     }
 
     [Fact]
@@ -948,7 +1155,7 @@ public class TeamTests
         await using var dbContext = CreateDbContext();
         var captain = CreateUser();
         var invited = CreateUser();
-        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
+        var team = CreateTeam("Alpha", captain);
         dbContext.Users.AddRange(captain, invited);
         dbContext.Teams.Add(team);
         await dbContext.SaveChangesAsync();
@@ -972,8 +1179,8 @@ public class TeamTests
         await using var dbContext = CreateDbContext();
         var captain = CreateUser();
         var member = CreateUser();
-        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
-        team.Members.Add(member);
+        var team = CreateTeam("Alpha", captain);
+        team.AddMember(member.Id);
         dbContext.Users.AddRange(captain, member);
         dbContext.Teams.Add(team);
         dbContext.Set<TeamInvite>().Add(new TeamInvite
@@ -981,7 +1188,6 @@ public class TeamTests
             Id = Guid.NewGuid(),
             Team = team,
             TeamId = team.Id,
-            User = member,
             UserId = member.Id,
             Status = TeamInviteStatus.Pending,
             CreatedAt = DateTime.UtcNow.AddDays(-10),
@@ -1003,8 +1209,8 @@ public class TeamTests
         await using var dbContext = CreateDbContext();
         var captain = CreateUser();
         var newCaptain = CreateUser();
-        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
-        team.Members.Add(newCaptain);
+        var team = CreateTeam("Alpha", captain);
+        team.AddMember(newCaptain.Id);
         dbContext.Users.AddRange(captain, newCaptain);
         dbContext.Teams.Add(team);
         await dbContext.SaveChangesAsync();
@@ -1019,6 +1225,303 @@ public class TeamTests
             teamService.TransferCaptainAsync(captain.Auth0UserId, team.Id, newCaptain.Id));
 
         Assert.Empty(publisher.CaptainEvents);
+    }
+
+    [Fact]
+    public async Task RemoveMemberAsync_RevokesAfterCommitBeforeMembershipBroadcast()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var member = CreateUser();
+        var team = CreateTeam("Alpha", captain);
+        team.AddMember(member.Id);
+        dbContext.Users.AddRange(captain, member);
+        dbContext.Teams.Add(team);
+        await dbContext.SaveChangesAsync();
+        var operationOrder = new List<string>();
+        var realtimeConnectionManager = new RecordingRealtimeConnectionManager
+        {
+            OperationOrder = operationOrder
+        };
+        var publisher = new RecordingTeamEventPublisher(operationOrder);
+        var teamService = CreateTeamService(
+            dbContext,
+            eventPublisher: publisher,
+            moduleEventPublisher: new ModuleEventPublisher(dbContext),
+            realtimeConnectionManager: realtimeConnectionManager);
+
+        await teamService.RemoveMemberAsync(captain.Auth0UserId, team.Id, member.Id);
+
+        Assert.Equal(["RevokeUserFromGroup", "MembershipBroadcast"], operationOrder);
+        var revocation = Assert.Single(realtimeConnectionManager.UserGroupRevocations);
+        Assert.Equal(member.Id, revocation.UserId);
+        Assert.Equal(TeamRealtimeGroups.GetTeamGroup(team.Id), revocation.GroupName);
+        Assert.Equal(CancellationToken.None, revocation.CancellationToken);
+        Assert.Contains(
+            await dbContext.OutboxMessages.Select(message => message.EventType).ToListAsync(),
+            eventType => eventType == typeof(TeamMemberRemovedIntegrationEvent).FullName);
+    }
+
+    [Fact]
+    public async Task LeaveAndDeleteTeamAsync_RevokeAffectedProcessLocalGroups()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var member = CreateUser();
+        var leavingTeam = CreateTeam("Leaving", captain);
+        var deletedTeam = CreateTeam("Deleted", captain);
+        leavingTeam.AddMember(member.Id);
+        dbContext.Users.AddRange(captain, member);
+        dbContext.Teams.AddRange(leavingTeam, deletedTeam);
+        await dbContext.SaveChangesAsync();
+        var realtimeConnectionManager = new RecordingRealtimeConnectionManager();
+        var teamService = CreateTeamService(
+            dbContext,
+            moduleEventPublisher: new ModuleEventPublisher(dbContext),
+            realtimeConnectionManager: realtimeConnectionManager);
+
+        await teamService.LeaveTeamAsync(member.Auth0UserId, leavingTeam.Id);
+        await teamService.DeleteTeamAsync(captain.Auth0UserId, deletedTeam.Id);
+
+        Assert.Contains(
+            realtimeConnectionManager.UserGroupRevocations,
+            revocation =>
+                revocation.UserId == member.Id &&
+                revocation.GroupName == TeamRealtimeGroups.GetTeamGroup(leavingTeam.Id) &&
+                revocation.CancellationToken == CancellationToken.None);
+        Assert.Contains(
+            realtimeConnectionManager.GroupRevocations,
+            revocation =>
+                revocation.GroupName == TeamRealtimeGroups.GetTeamGroup(deletedTeam.Id) &&
+                revocation.CancellationToken == CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task DeleteTeamAsync_RetiresUnreferencedLogoAfterCommitAndGroupRevocation()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var team = CreateTeam("Alpha", captain);
+        team.LogoUrl = "/images/original.webp";
+        dbContext.Users.Add(captain);
+        dbContext.Teams.Add(team);
+        await dbContext.SaveChangesAsync();
+        var operationOrder = new List<string>();
+        var mediaModule = new StubMediaModule("/images/unused.webp")
+        {
+            OperationOrder = operationOrder
+        };
+        var realtimeConnectionManager = new RecordingRealtimeConnectionManager
+        {
+            OperationOrder = operationOrder
+        };
+        var teamService = CreateTeamService(
+            dbContext,
+            mediaModule,
+            moduleEventPublisher: new ModuleEventPublisher(dbContext),
+            realtimeConnectionManager: realtimeConnectionManager);
+
+        await teamService.DeleteTeamAsync(captain.Auth0UserId, team.Id);
+
+        Assert.Equal(["RevokeGroup", "DeleteImage"], operationOrder);
+        var deletedImage = Assert.Single(mediaModule.DeletedImages);
+        Assert.Equal("/images/original.webp", deletedImage.ImageUrl);
+        Assert.Equal(CancellationToken.None, deletedImage.CancellationToken);
+        dbContext.ChangeTracker.Clear();
+        Assert.True((await dbContext.Teams.SingleAsync(candidate => candidate.Id == team.Id)).IsDeleted);
+        Assert.Contains(
+            await dbContext.OutboxMessages.Select(message => message.EventType).ToListAsync(),
+            eventType => eventType == typeof(TeamDeletedIntegrationEvent).FullName);
+    }
+
+    [Fact]
+    public async Task DeleteTeamAsync_DurableEventFailureNeverRetiresLogoOrRevokesGroup()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var team = CreateTeam("Alpha", captain);
+        team.LogoUrl = "/images/original.webp";
+        dbContext.Users.Add(captain);
+        dbContext.Teams.Add(team);
+        await dbContext.SaveChangesAsync();
+        var mediaModule = new StubMediaModule("/images/unused.webp");
+        var realtimeConnectionManager = new RecordingRealtimeConnectionManager();
+        var teamService = CreateTeamService(
+            dbContext,
+            mediaModule,
+            moduleEventPublisher: new ThrowingModuleEventPublisher(),
+            realtimeConnectionManager: realtimeConnectionManager);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            teamService.DeleteTeamAsync(captain.Auth0UserId, team.Id));
+
+        Assert.Empty(mediaModule.DeletedImages);
+        Assert.Empty(realtimeConnectionManager.GroupRevocations);
+    }
+
+    [Fact]
+    public async Task DeleteTeamAsync_PostCommitLogoDeleteFailureIsLoggedAndNonFatal()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var team = CreateTeam("Alpha", captain);
+        team.LogoUrl = "/images/original.webp";
+        dbContext.Users.Add(captain);
+        dbContext.Teams.Add(team);
+        await dbContext.SaveChangesAsync();
+        var operationOrder = new List<string>();
+        var mediaModule = new StubMediaModule("/images/unused.webp")
+        {
+            DeleteException = new IOException("planned delete failure"),
+            OperationOrder = operationOrder
+        };
+        var logger = new RecordingLogger<TeamService>();
+        var realtimeConnectionManager = new RecordingRealtimeConnectionManager
+        {
+            OperationOrder = operationOrder
+        };
+        var teamService = CreateTeamService(
+            dbContext,
+            mediaModule,
+            moduleEventPublisher: new ModuleEventPublisher(dbContext),
+            realtimeConnectionManager: realtimeConnectionManager,
+            logger: logger);
+
+        await teamService.DeleteTeamAsync(captain.Auth0UserId, team.Id);
+
+        Assert.Equal(["RevokeGroup", "DeleteImage"], operationOrder);
+        Assert.Contains(logger.Entries, entry =>
+            entry.Level == LogLevel.Warning &&
+            entry.Exception is IOException &&
+            entry.Message.Contains("retire an unreferenced Team logo", StringComparison.Ordinal));
+        dbContext.ChangeTracker.Clear();
+        Assert.True((await dbContext.Teams.SingleAsync(candidate => candidate.Id == team.Id)).IsDeleted);
+    }
+
+    [Fact]
+    public async Task DeleteTeamAsync_PostCommitRevocationFailureStillAttemptsLogoRetirement()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var team = CreateTeam("Alpha", captain);
+        team.LogoUrl = "/images/original.webp";
+        dbContext.Users.Add(captain);
+        dbContext.Teams.Add(team);
+        await dbContext.SaveChangesAsync();
+        var operationOrder = new List<string>();
+        var mediaModule = new StubMediaModule("/images/unused.webp")
+        {
+            OperationOrder = operationOrder
+        };
+        var realtimeConnectionManager = new RecordingRealtimeConnectionManager
+        {
+            OperationOrder = operationOrder,
+            ThrowOnRevocation = true
+        };
+        var teamService = CreateTeamService(
+            dbContext,
+            mediaModule,
+            moduleEventPublisher: new ModuleEventPublisher(dbContext),
+            realtimeConnectionManager: realtimeConnectionManager);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            teamService.DeleteTeamAsync(captain.Auth0UserId, team.Id));
+
+        Assert.Equal("planned post-commit revocation failure", exception.Message);
+        Assert.Equal(["RevokeGroup", "DeleteImage"], operationOrder);
+        Assert.Single(mediaModule.DeletedImages);
+        dbContext.ChangeTracker.Clear();
+        Assert.True((await dbContext.Teams.SingleAsync(candidate => candidate.Id == team.Id)).IsDeleted);
+    }
+
+    [Fact]
+    public async Task RemoveTeamLogoAsync_ReferenceQueryFailureRetainsLogoAndLogsWarning()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var team = CreateTeam("Alpha", captain);
+        team.LogoUrl = "/images/original.webp";
+        dbContext.Users.Add(captain);
+        dbContext.Teams.Add(team);
+        await dbContext.SaveChangesAsync();
+        var mediaModule = new StubMediaModule("/images/unused.webp");
+        var competitionReadService = new StubTeamCompetitionReadService(dbContext)
+        {
+            ThrowOnLogoReferenceQuery = true
+        };
+        var logger = new RecordingLogger<TeamService>();
+        var teamService = CreateTeamService(
+            dbContext,
+            mediaModule,
+            competitionReadService: competitionReadService,
+            logger: logger);
+
+        await teamService.RemoveTeamLogoAsync(captain.Auth0UserId, team.Id);
+
+        Assert.Empty(mediaModule.DeletedImages);
+        Assert.Contains(logger.Entries, entry =>
+            entry.Level == LogLevel.Warning &&
+            entry.Message.Contains("file was retained", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task RemoveMemberAsync_DoesNotRevokeWhenDurableEventPublicationFails()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var member = CreateUser();
+        var team = CreateTeam("Alpha", captain);
+        team.AddMember(member.Id);
+        dbContext.Users.AddRange(captain, member);
+        dbContext.Teams.Add(team);
+        await dbContext.SaveChangesAsync();
+        var realtimeConnectionManager = new RecordingRealtimeConnectionManager();
+        var teamService = CreateTeamService(
+            dbContext,
+            moduleEventPublisher: new ThrowingModuleEventPublisher(),
+            realtimeConnectionManager: realtimeConnectionManager);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            teamService.RemoveMemberAsync(captain.Auth0UserId, team.Id, member.Id));
+
+        Assert.Empty(realtimeConnectionManager.UserGroupRevocations);
+    }
+
+    [Fact]
+    public async Task RemoveMemberAsync_PostCommitRevocationFailureLeavesMutationAndOutboxCommitted()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var member = CreateUser();
+        var team = CreateTeam("Alpha", captain);
+        team.AddMember(member.Id);
+        dbContext.Users.AddRange(captain, member);
+        dbContext.Teams.Add(team);
+        await dbContext.SaveChangesAsync();
+        var realtimeConnectionManager = new RecordingRealtimeConnectionManager
+        {
+            ThrowOnRevocation = true
+        };
+        var publisher = new RecordingTeamEventPublisher();
+        var teamService = CreateTeamService(
+            dbContext,
+            eventPublisher: publisher,
+            moduleEventPublisher: new ModuleEventPublisher(dbContext),
+            realtimeConnectionManager: realtimeConnectionManager);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            teamService.RemoveMemberAsync(captain.Auth0UserId, team.Id, member.Id));
+
+        Assert.Equal("planned post-commit revocation failure", exception.Message);
+        dbContext.ChangeTracker.Clear();
+        var persistedTeam = await dbContext.Teams
+            .Include(candidate => candidate.Members)
+            .SingleAsync(candidate => candidate.Id == team.Id);
+        Assert.DoesNotContain(persistedTeam.Members, candidate => candidate.UserId == member.Id);
+        Assert.Contains(
+            await dbContext.OutboxMessages.Select(message => message.EventType).ToListAsync(),
+            eventType => eventType == typeof(TeamMemberRemovedIntegrationEvent).FullName);
+        Assert.Empty(publisher.MembershipEvents);
     }
 
     [Fact]
@@ -1051,9 +1554,9 @@ public class TeamTests
         var member = CreateUser();
         var outsider = CreateUser();
         var deletedCaptain = CreateUser();
-        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
-        var deletedTeam = new Team("Deleted", deletedCaptain) { Id = Guid.NewGuid() };
-        team.Members.Add(member);
+        var team = CreateTeam("Alpha", captain);
+        var deletedTeam = CreateTeam("Deleted", deletedCaptain);
+        team.AddMember(member.Id);
         deletedTeam.Delete(DateTime.UtcNow);
         dbContext.Users.AddRange(captain, member, outsider, deletedCaptain);
         dbContext.Teams.AddRange(team, deletedTeam);
@@ -1085,11 +1588,14 @@ public class TeamTests
 
     private static Team CreateTeam()
     {
-        var captain = CreateUser();
-        return new Team("Test Team", captain)
-        {
-            Id = Guid.NewGuid()
-        };
+        return CreateTeam("Test Team", CreateUser());
+    }
+
+    private static Team CreateTeam(string name, User captain)
+    {
+        var team = new Team(name, captain.Id) { Id = Guid.NewGuid() };
+        team.AddMember(captain.Id);
+        return team;
     }
 
     private static MercuriusDBContext CreateDbContext()
@@ -1120,6 +1626,7 @@ public class TeamTests
             RegisteredByUsernameAtRegistration = captain.Username ?? string.Empty,
             TeamId = team.Id,
             TeamNameAtRegistration = team.Name,
+            TeamLogoUrlAtRegistration = team.LogoUrl,
             TeamCaptainUserIdAtRegistration = team.CaptainUserId,
             RosterMembers = rosterMembers.Select(member => new TournamentRegistrationRosterMember
             {
@@ -1153,7 +1660,41 @@ public class TeamTests
         MercuriusDBContext dbContext,
         IMediaModule? mediaModule = null,
         ITeamEventPublisher? eventPublisher = null,
-        IModuleEventPublisher? moduleEventPublisher = null)
+        IModuleEventPublisher? moduleEventPublisher = null,
+        IRealtimeConnectionManager? realtimeConnectionManager = null,
+        ITeamCompetitionReadService? competitionReadService = null,
+        ILogger<TeamService>? logger = null)
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["TeamInvite:ResendCooldownDays"] = "7",
+                ["TeamInvite:ExpirationDays"] = "14",
+                ["TeamInvite:RetentionDays"] = "90",
+                ["TeamInvite:DeclinedResendLimit"] = "3"
+            })
+            .Build();
+        var identityModule = new DbContextIdentityModule(dbContext);
+        var teamsDbContext = new TeamsDbContextAdapter<MercuriusDBContext>(dbContext);
+
+        return new TeamEventPublishingDecorator(
+            new TeamService(
+                teamsDbContext,
+                configuration,
+                identityModule,
+                mediaModule ?? new StubMediaModule("https://example.test/default-team-logo.webp"),
+                competitionReadService ?? new StubTeamCompetitionReadService(dbContext),
+                logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<TeamService>.Instance),
+            teamsDbContext,
+            identityModule,
+            eventPublisher ?? new NoopTeamEventPublisher(),
+            moduleEventPublisher ?? new NoopModuleEventPublisher(),
+            realtimeConnectionManager ?? new NoopRealtimeConnectionManager());
+    }
+
+    private static TeamService CreateTeamQueryService(
+        MercuriusDBContext dbContext,
+        Mercurius.Modules.Identity.Contracts.IIdentityModule identityModule)
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -1165,16 +1706,13 @@ public class TeamTests
             })
             .Build();
 
-        return new TeamEventPublishingDecorator(
-            new TeamService(
-                new TeamsDbContextAdapter<MercuriusDBContext>(dbContext),
-                configuration,
-                new IdentityModuleFacade(dbContext),
-                mediaModule ?? new StubMediaModule("https://example.test/default-team-logo.webp"),
-                new StubTeamCompetitionReadService(dbContext)),
+        return new TeamService(
             new TeamsDbContextAdapter<MercuriusDBContext>(dbContext),
-            eventPublisher ?? new NoopTeamEventPublisher(),
-            moduleEventPublisher ?? new NoopModuleEventPublisher());
+            configuration,
+            identityModule,
+            new StubMediaModule("https://example.test/default-team-logo.webp"),
+            new StubTeamCompetitionReadService(dbContext),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<TeamService>.Instance);
     }
 
     private static IFormFile CreateFormFile(string contentType = "image/png")
@@ -1196,22 +1734,38 @@ public class TeamTests
             _imageUrl = imageUrl;
         }
 
+        public CancellationTokenSource? CancelAfterSave { get; init; }
+
+        public Exception? DeleteException { get; init; }
+
+        public List<string>? OperationOrder { get; init; }
+
+        public List<DeletedImage> DeletedImages { get; } = [];
+
         public Task<StoredMediaAsset> SaveImageAsync(
             MediaUpload upload,
             CancellationToken cancellationToken = default)
         {
+            CancelAfterSave?.Cancel();
             return Task.FromResult(new StoredMediaAsset(_imageUrl));
         }
 
         public Task DeleteImageAsync(string? imageUrl, CancellationToken cancellationToken = default)
         {
-            return Task.CompletedTask;
+            DeletedImages.Add(new DeletedImage(imageUrl, cancellationToken));
+            OperationOrder?.Add("DeleteImage");
+            return DeleteException is null
+                ? Task.CompletedTask
+                : Task.FromException(DeleteException);
         }
-
     }
+
+    private sealed record DeletedImage(string? ImageUrl, CancellationToken CancellationToken);
 
     private sealed class StubTeamCompetitionReadService(MercuriusDBContext dbContext) : ITeamCompetitionReadService
     {
+        public bool ThrowOnLogoReferenceQuery { get; init; }
+
         public async Task<IReadOnlyList<PublicTeamTournamentSummary>> GetPublicTeamTournamentsAsync(Guid teamId, CancellationToken cancellationToken = default)
         {
             return await dbContext.Set<TournamentRegistration>()
@@ -1243,10 +1797,50 @@ public class TeamTests
                     (registration.Game.Status == GameStatus.Scheduled || registration.Game.Status == GameStatus.InProgress))
                 .AnyAsync(cancellationToken);
         }
+
+        public Task<bool> IsTeamLogoReferencedAsync(string logoUrl, CancellationToken cancellationToken = default)
+        {
+            if (ThrowOnLogoReferenceQuery)
+                return Task.FromException<bool>(new InvalidOperationException("planned reference query failure"));
+
+            return dbContext.Set<TournamentRegistration>()
+                .AsNoTracking()
+                .AnyAsync(
+                    registration => registration.TeamLogoUrlAtRegistration == logoUrl,
+                    cancellationToken);
+        }
     }
+
+    private sealed class RecordingLogger<T> : ILogger<T>
+    {
+        public List<LogEntry> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            Entries.Add(new LogEntry(logLevel, formatter(state, exception), exception));
+        }
+    }
+
+    private sealed record LogEntry(LogLevel Level, string Message, Exception? Exception);
 
     private sealed class RecordingTeamEventPublisher : ITeamEventPublisher
     {
+        private readonly List<string>? _operationOrder;
+
+        public RecordingTeamEventPublisher(List<string>? operationOrder = null)
+        {
+            _operationOrder = operationOrder;
+        }
+
         public List<RecordedInviteEvent> InviteEvents { get; } = [];
         public List<RecordedMembershipEvent> MembershipEvents { get; } = [];
         public List<RecordedCaptainEvent> CaptainEvents { get; } = [];
@@ -1260,6 +1854,7 @@ public class TeamTests
         public Task MembershipChangedAsync(Guid teamId, Guid affectedUserId, string action, CancellationToken cancellationToken = default)
         {
             MembershipEvents.Add(new RecordedMembershipEvent(teamId, affectedUserId, action));
+            _operationOrder?.Add("MembershipBroadcast");
             return Task.CompletedTask;
         }
 

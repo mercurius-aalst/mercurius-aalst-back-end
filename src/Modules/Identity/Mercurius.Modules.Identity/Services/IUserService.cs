@@ -17,7 +17,7 @@ internal interface IUserService
     Task<UserActionResponse> AnonymizeCurrentUserAsync(string auth0UserId);
     Task DeleteUserAsync(string username);
     Task DeleteUserByIdAsync(Guid id);
-    Task<IEnumerable<GetUserDTO>> GetAllUsersAsync();
+    Task<IReadOnlyList<GetUserDTO>> GetAllUsersAsync(int page, int pageSize, CancellationToken cancellationToken = default);
     Task<GetUserDTO> GetUserByIdAsync(Guid id);
     Task<GetUserDTO> UpdateUserAsync(Guid id, UpdateUserProfileRequest request);
 }

@@ -4,6 +4,7 @@ using Mercurius.Modules.Teams.Contracts;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.SignalR;
+using Platform.Realtime;
 using System.Security.Claims;
 
 namespace Mercurius.LAN.API.Hubs;
@@ -11,52 +12,101 @@ namespace Mercurius.LAN.API.Hubs;
 [Authorize]
 public class TeamManagementHub : Hub
 {
+    public const string Route = "/v1/lan/team-events";
+
     private readonly MercuriusDBContext _dbContext;
+    private readonly IRealtimeConnectionManager _connectionManager;
     private readonly ITeamRealtimeAuthorizer _teamRealtimeAuthorizer;
 
     public TeamManagementHub(
         MercuriusDBContext dbContext,
-        ITeamRealtimeAuthorizer teamRealtimeAuthorizer)
+        ITeamRealtimeAuthorizer teamRealtimeAuthorizer,
+        IRealtimeConnectionManager connectionManager)
     {
         _dbContext = dbContext;
         _teamRealtimeAuthorizer = teamRealtimeAuthorizer;
+        _connectionManager = connectionManager;
     }
 
     public override async Task OnConnectedAsync()
     {
-        var userId = await GetCurrentUserIdAsync();
-        if (userId.HasValue)
-            await Groups.AddToGroupAsync(
-                Context.ConnectionId,
-                TeamRealtimeGroups.GetUserGroup(userId.Value),
-                Context.ConnectionAborted);
+        await _connectionManager.ExecuteWithAccessGateAsync(
+            async cancellationToken =>
+            {
+                var userId = await GetCurrentUserIdAsync(cancellationToken);
+                if (!userId.HasValue)
+                    return;
+
+                var personalGroup = TeamRealtimeGroups.GetUserGroup(userId.Value);
+                await Groups.AddToGroupAsync(Context.ConnectionId, personalGroup, cancellationToken);
+                _connectionManager.RegisterConnection(userId.Value, Context.ConnectionId, personalGroup);
+            },
+            Context.ConnectionAborted);
 
         await base.OnConnectedAsync();
     }
 
     public async Task JoinTeam(Guid teamId)
     {
-        var userId = await GetCurrentUserIdAsync();
-        if (!userId.HasValue)
-            throw new HubException("Current user profile was not found.");
+        await _connectionManager.ExecuteWithAccessGateAsync(
+            async cancellationToken =>
+            {
+                var userId = await GetCurrentUserIdAsync(cancellationToken);
+                if (!userId.HasValue)
+                    throw new HubException("Current user profile was not found.");
 
-        var canJoin = await _teamRealtimeAuthorizer.CanSubscribeToTeamAsync(
-            new TeamId(teamId),
-            new UserId(userId.Value),
+                var canJoin = await _teamRealtimeAuthorizer.CanSubscribeToTeamAsync(
+                    new TeamId(teamId),
+                    new UserId(userId.Value),
+                    cancellationToken);
+
+                if (!canJoin)
+                    throw new HubException("You are not allowed to subscribe to this team.");
+
+                var teamGroup = TeamRealtimeGroups.GetTeamGroup(teamId);
+                await Groups.AddToGroupAsync(Context.ConnectionId, teamGroup, cancellationToken);
+                _connectionManager.TrackGroup(Context.ConnectionId, teamGroup);
+            },
             Context.ConnectionAborted);
-
-        if (!canJoin)
-            throw new HubException("You are not allowed to subscribe to this team.");
-
-        await Groups.AddToGroupAsync(Context.ConnectionId, TeamRealtimeGroups.GetTeamGroup(teamId), Context.ConnectionAborted);
     }
 
     public Task LeaveTeam(Guid teamId)
     {
-        return Groups.RemoveFromGroupAsync(Context.ConnectionId, TeamRealtimeGroups.GetTeamGroup(teamId), Context.ConnectionAborted);
+        return _connectionManager.ExecuteWithAccessGateAsync(
+            async cancellationToken =>
+            {
+                var teamGroup = TeamRealtimeGroups.GetTeamGroup(teamId);
+                try
+                {
+                    await Groups.RemoveFromGroupAsync(Context.ConnectionId, teamGroup, cancellationToken);
+                }
+                finally
+                {
+                    _connectionManager.UntrackGroup(Context.ConnectionId, teamGroup);
+                }
+            },
+            Context.ConnectionAborted);
     }
 
-    private async Task<Guid?> GetCurrentUserIdAsync()
+    public override async Task OnDisconnectedAsync(Exception? exception)
+    {
+        try
+        {
+            await _connectionManager.ExecuteWithAccessGateAsync(
+                _ =>
+                {
+                    _connectionManager.UnregisterConnection(Context.ConnectionId);
+                    return Task.CompletedTask;
+                },
+                CancellationToken.None);
+        }
+        finally
+        {
+            await base.OnDisconnectedAsync(exception);
+        }
+    }
+
+    private async Task<Guid?> GetCurrentUserIdAsync(CancellationToken cancellationToken)
     {
         var auth0UserId = Context.User?.FindFirstValue("sub") ?? Context.User?.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrWhiteSpace(auth0UserId))
@@ -65,6 +115,6 @@ public class TeamManagementHub : Hub
         return await _dbContext.Users
             .Where(user => user.Auth0UserId == auth0UserId.Trim() && !user.IsDeleted)
             .Select(user => (Guid?)user.Id)
-            .FirstOrDefaultAsync(Context.ConnectionAborted);
+            .FirstOrDefaultAsync(cancellationToken);
     }
 }

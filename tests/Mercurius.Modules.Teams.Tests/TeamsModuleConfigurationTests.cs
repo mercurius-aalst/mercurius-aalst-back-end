@@ -12,6 +12,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using Platform.Eventing;
 using Platform.Realtime;
 
@@ -32,9 +34,14 @@ public class TeamsModuleConfigurationTests
         AssertLifetime<TeamEventPublishingDecorator>(services, ServiceLifetime.Scoped);
         AssertLifetime<ITeamManagementCommands>(services, ServiceLifetime.Scoped);
         AssertLifetime<ITeamInviteWorkflows>(services, ServiceLifetime.Scoped);
+        AssertLifetime<TeamInviteMaintenanceService>(services, ServiceLifetime.Scoped);
         AssertLifetime<ITeamEndpointService>(services, ServiceLifetime.Transient);
         AssertLifetime<ITeamEventPublisher>(services, ServiceLifetime.Transient);
         AssertLifetime<Mercurius.Modules.Teams.Contracts.ITeamRealtimeAuthorizer>(services, ServiceLifetime.Transient);
+        Assert.Contains(services, descriptor =>
+            descriptor.ServiceType == typeof(IHostedService) &&
+            descriptor.ImplementationType == typeof(TeamInviteMaintenanceWorker) &&
+            descriptor.Lifetime == ServiceLifetime.Singleton);
 
         using var provider = services.BuildServiceProvider();
         using var scope = provider.CreateScope();
@@ -52,6 +59,11 @@ public class TeamsModuleConfigurationTests
         var decorator = Assert.IsType<TeamEventPublishingDecorator>(managementCommands);
         Assert.Same(decorator, inviteWorkflows);
         Assert.IsType<TeamsModuleFacade>(teamsModule);
+        var maintenanceOptions = provider.GetRequiredService<IOptions<TeamInviteMaintenanceOptions>>().Value;
+
+        Assert.Equal(25, maintenanceOptions.MaintenanceBatchSize);
+        Assert.Equal(120, maintenanceOptions.MaintenanceIntervalSeconds);
+        Assert.Equal(3, maintenanceOptions.MaintenanceEventConcurrency);
 
         var innerService = typeof(TeamEventPublishingDecorator)
             .GetField("_inner", BindingFlags.Instance | BindingFlags.NonPublic)?
@@ -98,6 +110,26 @@ public class TeamsModuleConfigurationTests
 
         Assert.Equal(1, services.Count(descriptor => descriptor.ServiceType == typeof(ITeamsDbContext)));
         Assert.DoesNotContain(services, descriptor => descriptor.ServiceType == typeof(ITeamCompetitionReadService));
+    }
+
+    [Fact]
+    public void AddTeamsModule_RejectsMaintenanceEventConcurrencyAboveBatchSize()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["TeamInvite:RetentionDays"] = "90",
+                ["TeamInvite:MaintenanceBatchSize"] = "2",
+                ["TeamInvite:MaintenanceIntervalSeconds"] = "60",
+                ["TeamInvite:MaintenanceEventConcurrency"] = "3"
+            })
+            .Build();
+        var services = new ServiceCollection();
+        services.AddTeamsModule<MercuriusDBContext>(configuration);
+        using var provider = services.BuildServiceProvider();
+
+        Assert.Throws<OptionsValidationException>(() =>
+            provider.GetRequiredService<IOptions<TeamInviteMaintenanceOptions>>().Value);
     }
 
     [Fact]
@@ -166,6 +198,8 @@ public class TeamsModuleConfigurationTests
         services.AddSingleton<ITeamCompetitionReadService, NoopTeamCompetitionReadService>();
         services.AddSingleton<IModuleEventPublisher, NoopModuleEventPublisher>();
         services.AddSingleton<IRealtimePublisher, RecordingRealtimePublisher>();
+        services.AddSingleton<IRealtimeConnectionManager, NoopRealtimeConnectionManager>();
+        services.AddLogging();
         services.AddTeamsModule<MercuriusDBContext>(configuration);
 
         return services;
@@ -180,6 +214,9 @@ public class TeamsModuleConfigurationTests
                 ["TeamInvite:ExpirationDays"] = "14",
                 ["TeamInvite:RetentionDays"] = "90",
                 ["TeamInvite:DeclinedResendLimit"] = "3",
+                ["TeamInvite:MaintenanceBatchSize"] = "25",
+                ["TeamInvite:MaintenanceIntervalSeconds"] = "120",
+                ["TeamInvite:MaintenanceEventConcurrency"] = "3",
                 ["FileStorage:MaxFileSizeInMB"] = "2",
                 ["FileStorage:Location"] = Path.Combine(Path.GetTempPath(), "teams-module-tests")
             })
@@ -254,6 +291,9 @@ public class TeamsModuleConfigurationTests
             Task.FromResult(false);
 
         public Task<bool> IsTeamInDeleteBlockingTournamentAsync(Guid teamId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
+
+        public Task<bool> IsTeamLogoReferencedAsync(string logoUrl, CancellationToken cancellationToken = default) =>
             Task.FromResult(false);
     }
 

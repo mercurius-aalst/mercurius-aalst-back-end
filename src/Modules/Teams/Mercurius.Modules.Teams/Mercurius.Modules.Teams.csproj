@@ -18,7 +18,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Mercurius.Modules.Teams.Contracts\Mercurius.Modules.Teams.Contracts.csproj" />
     <ProjectReference Include="..\..\Media\Mercurius.Modules.Media.Contracts\Mercurius.Modules.Media.Contracts.csproj" />
-    <ProjectReference Include="..\..\Identity\Mercurius.Modules.Identity\Mercurius.Modules.Identity.csproj" />
+    <ProjectReference Include="..\..\Identity\Mercurius.Modules.Identity.Contracts\Mercurius.Modules.Identity.Contracts.csproj" />
     <ProjectReference Include="..\..\..\Modules.Shared\Modules.Shared.csproj" />
     <ProjectReference Include="..\..\..\Platform\Platform.csproj" />
   </ItemGroup>

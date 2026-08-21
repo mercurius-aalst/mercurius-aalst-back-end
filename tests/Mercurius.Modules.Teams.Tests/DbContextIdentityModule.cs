@@ -1,0 +1,85 @@
+using Mercurius.LAN.API.Data;
+using Mercurius.Modules.Identity.Contracts;
+using Mercurius.Modules.Shared;
+using Microsoft.EntityFrameworkCore;
+
+namespace Mercurius.Modules.Teams.Tests;
+
+internal sealed class DbContextIdentityModule : IIdentityModule
+{
+    private readonly MercuriusDBContext _dbContext;
+
+    public int BatchCallCount { get; private set; }
+    public IReadOnlyCollection<UserId> LastBatchUserIds { get; private set; } = [];
+
+    public DbContextIdentityModule(MercuriusDBContext dbContext)
+    {
+        _dbContext = dbContext;
+    }
+
+    public Task<UserProfileSummary?> GetUserProfileAsync(
+        UserId userId,
+        CancellationToken cancellationToken = default)
+    {
+        return _dbContext.Users
+            .AsNoTracking()
+            .Where(user => user.Id == userId.Value)
+            .Select(user => ToSummary(user))
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    public Task<UserProfileSummary?> GetUserProfileByAuth0IdAsync(
+        string auth0UserId,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedAuth0UserId = auth0UserId.Trim();
+        return _dbContext.Users
+            .AsNoTracking()
+            .Where(user => user.Auth0UserId == normalizedAuth0UserId)
+            .Select(user => ToSummary(user))
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    public Task<PublicUserProfileSummary?> GetPublicProfileByUsernameAsync(
+        string username,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult<PublicUserProfileSummary?>(null);
+    }
+
+    public async Task<IReadOnlyDictionary<UserId, UserProfileSummary>> GetUsersByIdsAsync(
+        IReadOnlyCollection<UserId> userIds,
+        CancellationToken cancellationToken = default)
+    {
+        BatchCallCount++;
+        LastBatchUserIds = userIds;
+        var ids = userIds.Select(userId => userId.Value).Distinct().ToArray();
+        var users = await _dbContext.Users
+            .AsNoTracking()
+            .Where(user => ids.Contains(user.Id))
+            .Select(user => ToSummary(user))
+            .ToListAsync(cancellationToken);
+
+        return users.ToDictionary(user => user.Id);
+    }
+
+    public Task<IReadOnlyList<PublicUserSearchDocument>> GetPublicUserSearchDocumentsPageAsync(
+        UserId? afterId,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult<IReadOnlyList<PublicUserSearchDocument>>([]);
+    }
+
+    private static UserProfileSummary ToSummary(Modules.Identity.Domain.User user)
+    {
+        return new UserProfileSummary(
+            new UserId(user.Id),
+            user.Username,
+            user.DisplayName,
+            user.IsDeleted,
+            user.DiscordId,
+            user.SteamId,
+            user.RiotId);
+    }
+}

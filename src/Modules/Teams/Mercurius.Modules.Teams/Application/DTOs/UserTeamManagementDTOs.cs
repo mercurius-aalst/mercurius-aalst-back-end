@@ -1,6 +1,3 @@
-using Mercurius.Modules.Teams.Domain;
-using Mercurius.Modules.Teams.Contracts;
-
 namespace Mercurius.Modules.Teams.DTOs;
 
 internal class CurrentUserTeamSummaryDTO
@@ -24,15 +21,6 @@ internal class TeamManagementSummaryDTO
     {
     }
 
-    public TeamManagementSummaryDTO(Team team)
-    {
-        Id = team.Id;
-        Name = team.Name;
-        CaptainUserId = team.CaptainUserId ?? Guid.Empty;
-        CaptainUsername = team.Captain?.Username;
-        LogoUrl = team.LogoUrl;
-        Members = team.Members.Select(member => new TeamPublicUserDTO(member));
-    }
 }
 
 internal class TeamInviteSummaryDTO
@@ -51,17 +39,5 @@ internal class TeamInviteSummaryDTO
     {
     }
 
-    public TeamInviteSummaryDTO(TeamInvite invite)
-    {
-        Id = invite.Id;
-        TeamId = invite.TeamId;
-        TeamName = invite.Team.Name;
-        TeamLogoUrl = invite.Team.LogoUrl;
-        UserId = invite.UserId;
-        Username = invite.User.Username;
-        Status = invite.Status.ToString();
-        CreatedAt = invite.CreatedAt;
-        ExpiresAt = invite.ExpiresAt;
-    }
 }
 

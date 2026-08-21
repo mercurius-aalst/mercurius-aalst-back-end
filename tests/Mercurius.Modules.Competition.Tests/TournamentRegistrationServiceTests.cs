@@ -375,8 +375,9 @@ public class TournamentRegistrationServiceTests
         var firstMember = CreateUser("first");
         var secondMember = CreateUser("second");
         var firstTeam = CreateTeam(captain, firstMember);
-        var secondTeam = new Team("Team Beta", captain) { Id = Guid.NewGuid() };
-        secondTeam.Members.Add(secondMember);
+        var secondTeam = new Team("Team Beta", captain.Id) { Id = Guid.NewGuid() };
+        secondTeam.AddMember(captain.Id);
+        secondTeam.AddMember(secondMember.Id);
         var unregisterGame = CreateTeamGame(teamSize: 2);
         var adminGame = CreateTeamGame(teamSize: 2);
         dbContext.Users.AddRange(captain, firstMember, secondMember);
@@ -403,8 +404,9 @@ public class TournamentRegistrationServiceTests
         var activeCaptain = CreateUser("active-captain");
         var activeMember = CreateUser("active");
         var pendingTeam = CreateTeam(captain, pendingMember);
-        var activeTeam = new Team("Team Beta", activeCaptain) { Id = Guid.NewGuid() };
-        activeTeam.Members.Add(activeMember);
+        var activeTeam = new Team("Team Beta", activeCaptain.Id) { Id = Guid.NewGuid() };
+        activeTeam.AddMember(activeCaptain.Id);
+        activeTeam.AddMember(activeMember.Id);
         var game = CreateTeamGame(teamSize: 2);
         dbContext.Users.AddRange(captain, pendingMember, activeCaptain, activeMember);
         dbContext.Teams.AddRange(pendingTeam, activeTeam);
@@ -414,7 +416,7 @@ public class TournamentRegistrationServiceTests
         var service = CreateService(dbContext);
         var pending = await service.SubmitTeamRosterAsync(captain.Auth0UserId, game.Id, new SubmitTeamRosterDTO(pendingTeam.Id, [captain.Id, pendingMember.Id]));
 
-        var registrations = await service.GetAdminRegistrationsAsync(game.Id);
+        var registrations = await service.GetAdminRegistrationsAsync(game.Id, page: 1, pageSize: 20);
 
         Assert.Contains(registrations, registration =>
             registration.Id == pending.Id &&
@@ -425,6 +427,42 @@ public class TournamentRegistrationServiceTests
             registration.RosterMembers.Any(member => member.User.Id == activeMember.Id && member.ConfirmationStatus == CompetitionRosterStatus.Confirmed));
     }
 
+    [Fact]
+    public async Task GetAdminRegistrationsAsync_PagesBeforeMappingAndHandlesOverflow()
+    {
+        await using var dbContext = CreateDbContext();
+        var first = CreateUser("first");
+        var second = CreateUser("second");
+        var game = CreateIndividualGame();
+        dbContext.Users.AddRange(first, second);
+        dbContext.Set<Game>().Add(game);
+        AddIndividualRegistration(dbContext, game, second);
+        AddIndividualRegistration(dbContext, game, first);
+        await dbContext.SaveChangesAsync();
+
+        var registrations = dbContext.Set<TournamentRegistration>()
+            .Where(registration => registration.GameId == game.Id)
+            .OrderBy(registration => registration.Id)
+            .ToList();
+        registrations[0].CreatedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        registrations[1].CreatedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        await dbContext.SaveChangesAsync();
+        var service = CreateService(dbContext);
+
+        var firstPage = await service.GetAdminRegistrationsAsync(game.Id, page: 1, pageSize: 1);
+        var secondPage = await service.GetAdminRegistrationsAsync(game.Id, page: 2, pageSize: 1);
+        var overflowPage = await service.GetAdminRegistrationsAsync(game.Id, page: int.MaxValue, pageSize: 50);
+        using var cancellationSource = new CancellationTokenSource();
+        cancellationSource.Cancel();
+
+        Assert.Single(firstPage);
+        Assert.Single(secondPage);
+        Assert.NotEqual(firstPage[0].Id, secondPage[0].Id);
+        Assert.Empty(overflowPage);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            service.GetAdminRegistrationsAsync(game.Id, int.MaxValue, 50, cancellationSource.Token));
+    }
+
     private static TournamentRegistrationService CreateService(
         MercuriusDBContext dbContext,
         ICompetitionRealtimePublisher? publisher = null,
@@ -433,6 +471,7 @@ public class TournamentRegistrationServiceTests
         var identityModule = new IdentityModuleFacade(dbContext);
         var teamsModule = new TeamsModuleFacade(
             new TeamsDbContextAdapter<MercuriusDBContext>(dbContext),
+            identityModule,
             new NoopTeamCompetitionReadService());
 
         return new TournamentRegistrationService(
@@ -475,6 +514,9 @@ public class TournamentRegistrationServiceTests
 
         public Task<bool> IsTeamInDeleteBlockingTournamentAsync(Guid teamId, CancellationToken cancellationToken = default) =>
             Task.FromResult(false);
+
+        public Task<bool> IsTeamLogoReferencedAsync(string logoUrl, CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
     }
 
     private static Game CreateIndividualGame()
@@ -495,9 +537,10 @@ public class TournamentRegistrationServiceTests
 
     private static Team CreateTeam(User captain, params User[] members)
     {
-        var team = new Team("Team Alpha", captain) { Id = Guid.NewGuid() };
+        var team = new Team("Team Alpha", captain.Id) { Id = Guid.NewGuid() };
+        team.AddMember(captain.Id);
         foreach (var member in members)
-            team.Members.Add(member);
+            team.AddMember(member.Id);
         return team;
     }
 

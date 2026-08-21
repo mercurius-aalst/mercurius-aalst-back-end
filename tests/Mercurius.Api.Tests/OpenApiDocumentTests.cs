@@ -48,6 +48,8 @@ public class OpenApiDocumentTests
             AssertPathHasOperation(document, "/v1/lan/games/{id}", OperationType.Patch);
             AssertPathHasOperation(document, "/v1/lan/games/{id}/lifecycle-state", OperationType.Put);
             AssertPathHasOperation(document, "/v1/lan/teams", OperationType.Get);
+            AssertPagedRawArrayOperation(document, "/v1/lan/games");
+            AssertPagedRawArrayOperation(document, "/v1/lan/teams");
             AssertPathHasOperation(document, "/v1/lan/teams/{id}", OperationType.Delete);
             AssertPathHasOperation(document, "/v1/lan/teams/{id}/members/me", OperationType.Delete);
             AssertPathHasOperation(document, "/v1/lan/teams/{id}/invites", OperationType.Post);
@@ -56,6 +58,7 @@ public class OpenApiDocumentTests
             AssertPathHasOperation(document, "/v1/lan/public/teams/{teamName}", OperationType.Get);
             AssertPathHasOperation(document, "/v1/lan/users/me", OperationType.Get);
             AssertPathHasOperation(document, "/v1/lan/public/users/{username}", OperationType.Get);
+            AssertPagedRawArrayOperation(document, "/v1/lan/users");
             AssertPathHasOperation(document, "/v1/lan/games/{gameId}/registrations/me", OperationType.Get);
             AssertPathHasOperation(document, "/v1/lan/games/{gameId}/registrations/individual/eligibility", OperationType.Get);
             AssertPathHasOperation(document, "/v1/lan/games/{gameId}/registrations/teams/{teamId}/eligibility", OperationType.Get);
@@ -63,6 +66,7 @@ public class OpenApiDocumentTests
             AssertPathHasOperation(document, "/v1/lan/games/{gameId}/registrations/individual/me", OperationType.Put);
             AssertPathHasOperation(document, "/v1/lan/games/{gameId}/registrations/roster-members/{rosterMemberId}", OperationType.Patch);
             AssertPathHasOperation(document, "/v1/lan/games/{gameId}/registrations/admin", OperationType.Get);
+            AssertPagedRawArrayOperation(document, "/v1/lan/games/{gameId}/registrations/admin");
             AssertPathHasOperation(document, "/v1/lan/search", OperationType.Get);
             AssertPathHasOperation(document, "/v1/lan/sponsors", OperationType.Post);
             AssertPathHasOperation(document, "/v1/lan/matches/{id}", OperationType.Put);
@@ -89,6 +93,24 @@ public class OpenApiDocumentTests
 
         Assert.True(matchingPath is not null, $"Missing {path}. Available paths: {string.Join(", ", document.Paths.Keys.OrderBy(key => key, StringComparer.Ordinal))}");
         Assert.True(document.Paths[matchingPath].Operations.ContainsKey(operation), $"{path} should expose {operation}.");
+    }
+
+    private static void AssertPagedRawArrayOperation(OpenApiDocument document, string path)
+    {
+        var matchingPath = document.Paths.Keys.Single(candidate =>
+            string.Equals(candidate.TrimEnd('/'), path, StringComparison.Ordinal));
+        var operation = document.Paths[matchingPath].Operations[OperationType.Get];
+
+        foreach (var name in new[] { "page", "pageSize" })
+        {
+            var parameter = Assert.Single(operation.Parameters, parameter => parameter.Name == name);
+            Assert.Equal(ParameterLocation.Query, parameter.In);
+            Assert.False(parameter.Required);
+            Assert.Equal("integer", parameter.Schema.Type);
+        }
+
+        var successResponse = operation.Responses["200"];
+        Assert.Contains(successResponse.Content.Values, mediaType => mediaType.Schema.Type == "array");
     }
 
     private static WebApplication CreateSwaggerApp()
@@ -121,7 +143,10 @@ public class OpenApiDocumentTests
         app.MapSponsorshipModule();
         app.MapIdentityModule();
         app.MapDiscoveryModule();
-        app.MapHub<TeamManagementHub>("/v1/lan/team-events").RequireAuthorization();
+        app.MapHub<TeamManagementHub>(
+                TeamManagementHub.Route,
+                options => options.CloseOnAuthenticationExpiration = true)
+            .RequireAuthorization();
 
         return app;
     }

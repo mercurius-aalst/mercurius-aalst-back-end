@@ -827,6 +827,35 @@ public class UserTests
     }
 
     [Fact]
+    public async Task GetAllUsersAsync_ReturnsDeterministicBoundedPagesAndHandlesOverflow()
+    {
+        await using var dbContext = CreateDbContext();
+        var alpha = CreateStoredUser("auth0|alpha", "alpha@example.com", "Alpha");
+        var bravoFirst = CreateStoredUser("auth0|bravo-first", "bravo-first@example.com", "Bravo");
+        var bravoSecond = CreateStoredUser("auth0|bravo-second", "bravo-second@example.com", "Bravo");
+        bravoFirst.Id = Guid.Parse("00000000-0000-0000-0000-000000000001");
+        bravoSecond.Id = Guid.Parse("00000000-0000-0000-0000-000000000002");
+        dbContext.Users.AddRange(bravoSecond, alpha, bravoFirst);
+        await dbContext.SaveChangesAsync();
+
+        var service = new UserService(
+            dbContext,
+            new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("public@example.com", true, true)));
+
+        var firstPage = await service.GetAllUsersAsync(page: 1, pageSize: 2);
+        var secondPage = await service.GetAllUsersAsync(page: 2, pageSize: 2);
+        var overflowPage = await service.GetAllUsersAsync(page: int.MaxValue, pageSize: 50);
+        using var cancellationSource = new CancellationTokenSource();
+        cancellationSource.Cancel();
+
+        Assert.Equal([alpha.Id, bravoFirst.Id], firstPage.Select(user => user.Id));
+        Assert.Equal([bravoSecond.Id], secondPage.Select(user => user.Id));
+        Assert.Empty(overflowPage);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            service.GetAllUsersAsync(page: int.MaxValue, pageSize: 50, cancellationSource.Token));
+    }
+
+    [Fact]
     public async Task SearchUsersAsync_DoesNotRequireFirstOrLastName()
     {
         await using var dbContext = CreateDbContext();
@@ -1073,7 +1102,8 @@ public class UserTests
 
         public Task DeleteUserAsync(string username) => Task.CompletedTask;
         public Task DeleteUserByIdAsync(Guid id) => Task.CompletedTask;
-        public Task<IEnumerable<GetUserDTO>> GetAllUsersAsync() => Task.FromResult<IEnumerable<GetUserDTO>>([]);
+        public Task<IReadOnlyList<GetUserDTO>> GetAllUsersAsync(int page, int pageSize, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<GetUserDTO>>([]);
         public Task<GetUserDTO> GetUserByIdAsync(Guid id) => Task.FromResult(CreatedUser);
         public Task<GetUserDTO> UpdateUserAsync(Guid id, UpdateUserProfileRequest request) => Task.FromResult(CreatedUser);
     }

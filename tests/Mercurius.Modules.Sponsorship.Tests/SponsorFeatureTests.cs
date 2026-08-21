@@ -198,7 +198,8 @@ public class SponsorFeatureTests
             new CompetitionDtoMapper(
                 new RegistrationMappingContextBuilder(identityModule, teamsModule),
                 sponsorshipModule),
-            SponsorshipCompetitionTestDoubles.CreateModuleEventPublisher());
+            SponsorshipCompetitionTestDoubles.CreateModuleEventPublisher(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<GameService>.Instance);
         var updatedGame = await service.ReplaceSponsorPlacementsAsync(game.Id, new ReplaceGameSponsorsDTO
         {
             SponsorPlacements =
@@ -244,7 +245,8 @@ public class SponsorFeatureTests
                     SponsorshipCompetitionTestDoubles.CreateIdentityModule(),
                     SponsorshipCompetitionTestDoubles.CreateTeamsModule()),
                 new RecordingSponsorshipModule([presentingSponsor.Id, prizeSponsor.Id])),
-            SponsorshipCompetitionTestDoubles.CreateModuleEventPublisher());
+            SponsorshipCompetitionTestDoubles.CreateModuleEventPublisher(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<GameService>.Instance);
 
         var exception = await Assert.ThrowsAsync<ValidationException>(() => service.ReplaceSponsorPlacementsAsync(game.Id, new ReplaceGameSponsorsDTO
         {
@@ -285,7 +287,8 @@ public class SponsorFeatureTests
                     SponsorshipCompetitionTestDoubles.CreateIdentityModule(),
                     SponsorshipCompetitionTestDoubles.CreateTeamsModule()),
                 new RecordingSponsorshipModule([])),
-            SponsorshipCompetitionTestDoubles.CreateModuleEventPublisher());
+            SponsorshipCompetitionTestDoubles.CreateModuleEventPublisher(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<GameService>.Instance);
         var gameId = await dbContext.Set<Game>().Select(game => game.Id).SingleAsync();
 
         var exception = await Assert.ThrowsAsync<NotFoundException>(() => service.ReplaceSponsorPlacementsAsync(gameId, new ReplaceGameSponsorsDTO
@@ -330,7 +333,8 @@ public class SponsorFeatureTests
         return new SponsorService(
             sponsorshipDbContext,
             new StubMediaModule(),
-            new SponsorshipOutboxWriter(sponsorshipDbContext, new ModuleEventPublisher(dbContext)));
+            new SponsorshipOutboxWriter(sponsorshipDbContext, new ModuleEventPublisher(dbContext)),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<SponsorService>.Instance);
     }
 
     private static SponsorshipModuleFacade CreateSponsorshipModule(MercuriusDBContext dbContext)

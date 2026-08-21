@@ -25,17 +25,8 @@ internal sealed class TournamentRegistrationReadModelService(
                 registration.RosterMembers.Any(member => member.UserId == userId))
             .ToListAsync(cancellationToken);
 
-        var captainCandidateTeamIds = await dbContext.TournamentRegistrations
-            .AsNoTracking()
-            .Where(registration => registration.GameId == game.Id && registration.TeamId.HasValue)
-            .Select(registration => registration.TeamId!.Value)
-            .Distinct()
-            .Select(teamId => new TeamId(teamId))
-            .ToArrayAsync(cancellationToken);
-        var captainedTeamIds = (await teamsModule.GetTeamRosterSnapshotsAsync(captainCandidateTeamIds, cancellationToken))
-            .Values
-            .Where(team => team.CaptainUserId?.Value == userId)
-            .Select(team => team.TeamId.Value)
+        var captainedTeamIds = (await teamsModule.GetCaptainedTeamIdsAsync(new UserId(userId), cancellationToken))
+            .Select(teamId => teamId.Value)
             .ToHashSet();
 
         if (captainedTeamIds.Count != 0)
@@ -87,13 +78,23 @@ internal sealed class TournamentRegistrationReadModelService(
 
     public async Task<IReadOnlyList<AdminTournamentRegistrationDTO>> GetAdminRegistrationsAsync(
         Guid gameId,
+        int page,
+        int pageSize,
         CancellationToken cancellationToken)
     {
+        var offset = (long)(page - 1) * pageSize;
+        cancellationToken.ThrowIfCancellationRequested();
+        if (offset > int.MaxValue)
+            return [];
+
         var registrations = await GetRegistrationQuery()
             .Where(registration => registration.GameId == gameId)
             .OrderBy(registration => registration.Kind)
             .ThenBy(registration => registration.Status)
             .ThenBy(registration => registration.CreatedAtUtc)
+            .ThenBy(registration => registration.Id)
+            .Skip((int)offset)
+            .Take(pageSize)
             .ToListAsync(cancellationToken);
 
         return await mapper.ToAdminRegistrationDtosAsync(registrations, cancellationToken);

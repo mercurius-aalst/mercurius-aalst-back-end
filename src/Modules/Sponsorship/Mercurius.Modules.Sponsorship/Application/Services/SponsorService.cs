@@ -7,6 +7,7 @@ using Mercurius.Modules.Sponsorship.Contracts.V1;
 using Mercurius.Modules.Sponsorship.Domain;
 using Mercurius.Modules.Sponsorship.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Mercurius.Modules.Sponsorship.Application.Services;
 
@@ -15,15 +16,18 @@ internal sealed class SponsorService : ISponsorService
     private readonly ISponsorshipDbContext _dbContext;
     private readonly IMediaModule _mediaModule;
     private readonly SponsorshipOutboxWriter _outboxWriter;
+    private readonly ILogger<SponsorService> _logger;
 
     public SponsorService(
         ISponsorshipDbContext dbContext,
         IMediaModule mediaModule,
-        SponsorshipOutboxWriter outboxWriter)
+        SponsorshipOutboxWriter outboxWriter,
+        ILogger<SponsorService> logger)
     {
         _dbContext = dbContext;
         _mediaModule = mediaModule;
         _outboxWriter = outboxWriter;
+        _logger = logger;
     }
 
     public async Task<IReadOnlyList<GetSponsorDTO>> GetSponsorsAsync(CancellationToken cancellationToken = default)
@@ -77,26 +81,37 @@ internal sealed class SponsorService : ISponsorService
                 sponsorDTO.Logo.ContentType,
                 sponsorDTO.Logo.Length),
             cancellationToken);
-        var sponsor = new Sponsor
+        var committed = false;
+        try
         {
-            Name = sponsorDTO.Name,
-            SponsorTier = sponsorDTO.SponsorTier,
-            LogoUrl = logo.Url,
-            InfoUrl = sponsorDTO.InfoUrl,
-            Description = sponsorDTO.Description
-        };
+            var sponsor = new Sponsor
+            {
+                Name = sponsorDTO.Name,
+                SponsorTier = sponsorDTO.SponsorTier,
+                LogoUrl = logo.Url,
+                InfoUrl = sponsorDTO.InfoUrl,
+                Description = sponsorDTO.Description
+            };
 
-        _dbContext.Sponsors.Add(sponsor);
-        await _outboxWriter.SaveAndPublishAsync(
-            () => new SponsorCreated(
-                new SponsorId(sponsor.Id),
-                sponsor.Name,
-                sponsor.SponsorTier,
-                sponsor.LogoUrl,
-                sponsor.InfoUrl,
-                sponsor.Description),
-            cancellationToken);
-        return GetSponsorDTO.From(sponsor);
+            _dbContext.Sponsors.Add(sponsor);
+            await _outboxWriter.SaveAndPublishAsync(
+                () => new SponsorCreated(
+                    new SponsorId(sponsor.Id),
+                    sponsor.Name,
+                    sponsor.SponsorTier,
+                    sponsor.LogoUrl,
+                    sponsor.InfoUrl,
+                    sponsor.Description),
+                cancellationToken);
+            committed = true;
+            return GetSponsorDTO.From(sponsor);
+        }
+        catch
+        {
+            if (!committed)
+                await DeleteImageBestEffortAsync(logo.Url, "compensate an uncommitted Sponsor logo");
+            throw;
+        }
     }
 
     public async Task<GetSponsorDTO> UpdateSponsorAsync(
@@ -105,9 +120,8 @@ internal sealed class SponsorService : ISponsorService
         CancellationToken cancellationToken = default)
     {
         var sponsor = await GetSponsorForMutationAsync(id, cancellationToken);
-        if (!string.IsNullOrWhiteSpace(sponsorDTO.Name))
-            sponsor.Name = sponsorDTO.Name;
-
+        var previousLogoUrl = sponsor.LogoUrl;
+        string? newLogoUrl = null;
         if (sponsorDTO.Logo is not null)
         {
             await using var imageStream = sponsorDTO.Logo.OpenReadStream();
@@ -118,31 +132,53 @@ internal sealed class SponsorService : ISponsorService
                     sponsorDTO.Logo.ContentType,
                     sponsorDTO.Logo.Length),
                 cancellationToken);
-            sponsor.LogoUrl = logo.Url;
+            newLogoUrl = logo.Url;
         }
 
-        sponsor.InfoUrl = sponsorDTO.InfoUrl;
-        sponsor.SponsorTier = sponsorDTO.SponsorTier;
-        sponsor.Description = sponsorDTO.Description;
-        await _outboxWriter.SaveAndPublishAsync(
-            () => new SponsorUpdated(
-                new SponsorId(sponsor.Id),
-                sponsor.Name,
-                sponsor.SponsorTier,
-                sponsor.LogoUrl,
-                sponsor.InfoUrl,
-                sponsor.Description),
-            cancellationToken);
+        var committed = false;
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(sponsorDTO.Name))
+                sponsor.Name = sponsorDTO.Name;
+            if (newLogoUrl is not null)
+                sponsor.LogoUrl = newLogoUrl;
+
+            sponsor.InfoUrl = sponsorDTO.InfoUrl;
+            sponsor.SponsorTier = sponsorDTO.SponsorTier;
+            sponsor.Description = sponsorDTO.Description;
+            await _outboxWriter.SaveAndPublishAsync(
+                () => new SponsorUpdated(
+                    new SponsorId(sponsor.Id),
+                    sponsor.Name,
+                    sponsor.SponsorTier,
+                    sponsor.LogoUrl,
+                    sponsor.InfoUrl,
+                    sponsor.Description),
+                cancellationToken);
+            committed = true;
+        }
+        catch
+        {
+            if (!committed && !string.Equals(newLogoUrl, previousLogoUrl, StringComparison.Ordinal))
+                await DeleteImageBestEffortAsync(newLogoUrl, "compensate an uncommitted Sponsor logo replacement");
+            throw;
+        }
+
+        if (newLogoUrl is not null && !string.Equals(previousLogoUrl, newLogoUrl, StringComparison.Ordinal))
+            await DeleteImageBestEffortAsync(previousLogoUrl, "retire a replaced Sponsor logo");
+
         return GetSponsorDTO.From(sponsor);
     }
 
     public async Task DeleteSponsorAsync(int id, CancellationToken cancellationToken = default)
     {
         var sponsor = await GetSponsorForMutationAsync(id, cancellationToken);
+        var logoUrl = sponsor.LogoUrl;
         _dbContext.Sponsors.Remove(sponsor);
         await _outboxWriter.SaveAndPublishAsync(
             () => new SponsorDeleted(new SponsorId(id)),
             cancellationToken);
+        await DeleteImageBestEffortAsync(logoUrl, "retire a deleted Sponsor logo");
     }
 
     private async Task<Sponsor> GetSponsorForMutationAsync(int id, CancellationToken cancellationToken)
@@ -150,5 +186,20 @@ internal sealed class SponsorService : ISponsorService
         var sponsor = await _dbContext.Sponsors
             .SingleOrDefaultAsync(candidate => candidate.Id == id, cancellationToken);
         return sponsor ?? throw new NotFoundException($"Sponsor with ID {id} not found");
+    }
+
+    private async Task DeleteImageBestEffortAsync(string? imageUrl, string action)
+    {
+        if (string.IsNullOrWhiteSpace(imageUrl))
+            return;
+
+        try
+        {
+            await _mediaModule.DeleteImageAsync(imageUrl, CancellationToken.None);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(exception, "Failed to {MediaCleanupAction} at {MediaUrl}.", action, imageUrl);
+        }
     }
 }

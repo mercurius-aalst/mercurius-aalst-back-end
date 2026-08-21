@@ -81,11 +81,13 @@ public class MatchModeratorTests
     private static Team CreateTeam(int id)
     {
         var captain = CreateUser(id + 100);
-        return new Team($"Team{id}", captain)
+        var team = new Team($"Team{id}", captain.Id)
         {
             Id = Guid.NewGuid(),
             CaptainUserId = captain.Id
         };
+        team.AddMember(captain.Id);
+        return team;
     }
 
     private static void AddIndividualRegistration(Game game, User user)
@@ -114,7 +116,7 @@ public class MatchModeratorTests
             Kind = TournamentRegistrationKind.Team,
             Status = TournamentRegistrationStatus.Active,
             RegisteredByUserId = team.CaptainUserId!.Value,
-            RegisteredByUsernameAtRegistration = team.Captain!.Username ?? string.Empty,
+            RegisteredByUsernameAtRegistration = string.Empty,
             TeamId = team.Id,
             TeamNameAtRegistration = team.Name,
             TeamCaptainUserIdAtRegistration = team.CaptainUserId,

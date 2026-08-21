@@ -1,3 +1,4 @@
+using Mercurius.Modules.Identity.Contracts;
 using Mercurius.Modules.Teams.DTOs;
 using Mercurius.Modules.Teams.Contracts;
 using Mercurius.Modules.Teams.Domain;
@@ -7,6 +8,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Platform.Eventing;
+using Platform.Realtime;
 using System.Runtime.ExceptionServices;
 using TeamCaptainTransferredIntegrationEvent = Mercurius.Modules.Teams.Contracts.TeamCaptainTransferredIntegrationEvent;
 using TeamCreatedIntegrationEvent = Mercurius.Modules.Teams.Contracts.TeamCreatedIntegrationEvent;
@@ -21,20 +23,26 @@ internal sealed class TeamEventPublishingDecorator : ITeamManagementCommands, IT
 {
     private readonly TeamService _inner;
     private readonly ITeamsDbContext _dbContext;
+    private readonly IIdentityModule _identityModule;
     private readonly ITeamEventPublisher _teamEventPublisher;
     private readonly IModuleEventPublisher _moduleEventPublisher;
+    private readonly IRealtimeConnectionManager _realtimeConnectionManager;
     private DbSet<TeamInvite> TeamInvites => _dbContext.Set<TeamInvite>();
 
     public TeamEventPublishingDecorator(
         TeamService inner,
         ITeamsDbContext dbContext,
+        IIdentityModule identityModule,
         ITeamEventPublisher teamEventPublisher,
-        IModuleEventPublisher moduleEventPublisher)
+        IModuleEventPublisher moduleEventPublisher,
+        IRealtimeConnectionManager realtimeConnectionManager)
     {
         _inner = inner ?? throw new ArgumentNullException(nameof(inner));
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
+        _identityModule = identityModule ?? throw new ArgumentNullException(nameof(identityModule));
         _teamEventPublisher = teamEventPublisher ?? throw new ArgumentNullException(nameof(teamEventPublisher));
         _moduleEventPublisher = moduleEventPublisher ?? throw new ArgumentNullException(nameof(moduleEventPublisher));
+        _realtimeConnectionManager = realtimeConnectionManager ?? throw new ArgumentNullException(nameof(realtimeConnectionManager));
     }
 
     public async Task<GetTeamDTO> CreateTeamAsync(CreateTeamDTO teamDTO, CancellationToken cancellationToken = default)
@@ -55,40 +63,75 @@ internal sealed class TeamEventPublishingDecorator : ITeamManagementCommands, IT
 
     public async Task DeleteTeamAsync(Guid teamId, CancellationToken cancellationToken = default)
     {
-        await ExecuteWithDurableEventTransactionAsync(
+        var deletion = await ExecuteWithDurableEventTransactionAsync(
             async () =>
             {
-                var shouldPublishDeleted = await _dbContext.Teams
+                var previousState = await _dbContext.Teams
                     .AsNoTracking()
-                    .AnyAsync(team => team.Id == teamId && !team.IsDeleted, cancellationToken);
+                    .Where(team => team.Id == teamId && !team.IsDeleted)
+                    .Select(team => new TeamDeletionState(team.LogoUrl))
+                    .SingleOrDefaultAsync(cancellationToken);
 
                 await _inner.DeleteTeamAsync(teamId, cancellationToken);
-                return shouldPublishDeleted;
+                return new TeamDeletionResult(previousState is not null, previousState?.LogoUrl);
             },
-            shouldPublishDeleted => shouldPublishDeleted
+            result => result.TeamDeleted
                 ? PublishTeamDeletedAsync(teamId, cancellationToken)
                 : Task.CompletedTask,
             cancellationToken);
+
+        if (deletion.TeamDeleted)
+        {
+            try
+            {
+                await _realtimeConnectionManager.RevokeGroupAsync(
+                    TeamRealtimeGroups.GetTeamGroup(teamId),
+                    CancellationToken.None);
+            }
+            finally
+            {
+                await _inner.RetireLogoIfUnreferencedAsync(deletion.PreviousLogoUrl, null);
+            }
+        }
     }
 
     public async Task DeleteTeamAsync(string auth0UserId, Guid teamId, CancellationToken cancellationToken = default)
     {
-        await ExecuteWithDurableEventTransactionAsync(
-            () => _inner.DeleteTeamAsync(auth0UserId, teamId, cancellationToken),
-            () => PublishTeamDeletedAsync(teamId, cancellationToken),
+        var previousLogoUrl = await ExecuteWithDurableEventTransactionAsync(
+            async () =>
+            {
+                var logoUrl = await _dbContext.Teams
+                    .AsNoTracking()
+                    .Where(team => team.Id == teamId && !team.IsDeleted)
+                    .Select(team => team.LogoUrl)
+                    .SingleOrDefaultAsync(cancellationToken);
+
+                await _inner.DeleteTeamAsync(auth0UserId, teamId, cancellationToken);
+                return logoUrl;
+            },
+            _ => PublishTeamDeletedAsync(teamId, cancellationToken),
             cancellationToken);
+
+        try
+        {
+            await _realtimeConnectionManager.RevokeGroupAsync(
+                TeamRealtimeGroups.GetTeamGroup(teamId),
+                CancellationToken.None);
+        }
+        finally
+        {
+            await _inner.RetireLogoIfUnreferencedAsync(previousLogoUrl, null);
+        }
     }
 
-    public Task<IEnumerable<GetTeamDTO>> GetAllTeamsAsync(CancellationToken cancellationToken = default)
+    public Task<IReadOnlyList<GetTeamDTO>> GetAllTeamsAsync(int page, int pageSize, CancellationToken cancellationToken = default)
     {
-        return _inner.GetAllTeamsAsync(cancellationToken);
+        return _inner.GetAllTeamsAsync(page, pageSize, cancellationToken);
     }
 
-    public async Task<CurrentUserTeamSummaryDTO> GetCurrentUserTeamSummaryAsync(string auth0UserId, CancellationToken cancellationToken = default)
+    public Task<CurrentUserTeamSummaryDTO> GetCurrentUserTeamSummaryAsync(string auth0UserId, CancellationToken cancellationToken = default)
     {
-        return await PublishExpiredInviteEventsAroundAsync(
-            () => _inner.GetCurrentUserTeamSummaryAsync(auth0UserId, cancellationToken),
-            cancellationToken: cancellationToken);
+        return _inner.GetCurrentUserTeamSummaryAsync(auth0UserId, cancellationToken);
     }
 
     public Task<PublicTeamProfileDTO> GetPublicTeamProfileAsync(string teamName, CancellationToken cancellationToken = default)
@@ -101,18 +144,14 @@ internal sealed class TeamEventPublishingDecorator : ITeamManagementCommands, IT
         return _inner.GetUserInvitesAsync(userId, cancellationToken);
     }
 
-    public async Task<IEnumerable<TeamInviteSummaryDTO>> GetCurrentUserInvitesAsync(string auth0UserId, CancellationToken cancellationToken = default)
+    public Task<IEnumerable<TeamInviteSummaryDTO>> GetCurrentUserInvitesAsync(string auth0UserId, CancellationToken cancellationToken = default)
     {
-        return await PublishExpiredInviteEventsAroundAsync(
-            () => _inner.GetCurrentUserInvitesAsync(auth0UserId, cancellationToken),
-            cancellationToken: cancellationToken);
+        return _inner.GetCurrentUserInvitesAsync(auth0UserId, cancellationToken);
     }
 
-    public async Task<IEnumerable<TeamInviteSummaryDTO>> GetCurrentUserSentInvitesAsync(string auth0UserId, CancellationToken cancellationToken = default)
+    public Task<IEnumerable<TeamInviteSummaryDTO>> GetCurrentUserSentInvitesAsync(string auth0UserId, CancellationToken cancellationToken = default)
     {
-        return await PublishExpiredInviteEventsAroundAsync(
-            () => _inner.GetCurrentUserSentInvitesAsync(auth0UserId, cancellationToken),
-            cancellationToken: cancellationToken);
+        return _inner.GetCurrentUserSentInvitesAsync(auth0UserId, cancellationToken);
     }
 
     public Task<GetTeamDTO> GetTeamByIdAsync(Guid teamId, CancellationToken cancellationToken = default)
@@ -155,10 +194,16 @@ internal sealed class TeamEventPublishingDecorator : ITeamManagementCommands, IT
 
     public async Task<GetTeamDTO> RemoveMemberAsync(Guid id, Guid userId, CancellationToken cancellationToken = default)
     {
-        return await ExecuteWithDurableEventTransactionAsync(
+        var team = await ExecuteWithDurableEventTransactionAsync(
             () => _inner.RemoveMemberAsync(id, userId, cancellationToken),
             _ => PublishTeamMemberRemovedAsync(id, userId, cancellationToken),
             cancellationToken);
+
+        await _realtimeConnectionManager.RevokeUserFromGroupAsync(
+            userId,
+            TeamRealtimeGroups.GetTeamGroup(id),
+            CancellationToken.None);
+        return team;
     }
 
     public async Task<TeamManagementSummaryDTO> RemoveMemberAsync(string auth0UserId, Guid teamId, Guid userId, CancellationToken cancellationToken = default)
@@ -168,6 +213,10 @@ internal sealed class TeamEventPublishingDecorator : ITeamManagementCommands, IT
             _ => PublishTeamMemberRemovedAsync(teamId, userId, cancellationToken),
             cancellationToken);
 
+        await _realtimeConnectionManager.RevokeUserFromGroupAsync(
+            userId,
+            TeamRealtimeGroups.GetTeamGroup(teamId),
+            CancellationToken.None);
         await _teamEventPublisher.MembershipChangedAsync(teamId, userId, "Removed", cancellationToken);
         return team;
     }
@@ -185,6 +234,10 @@ internal sealed class TeamEventPublishingDecorator : ITeamManagementCommands, IT
             cancellationToken);
 
         var userId = result.UserId;
+        await _realtimeConnectionManager.RevokeUserFromGroupAsync(
+            userId,
+            TeamRealtimeGroups.GetTeamGroup(teamId),
+            CancellationToken.None);
         await _teamEventPublisher.MembershipChangedAsync(teamId, userId, "Left", cancellationToken);
         return result.Team;
     }
@@ -333,9 +386,9 @@ internal sealed class TeamEventPublishingDecorator : ITeamManagementCommands, IT
 
     private async Task<TResult> PublishExpiredInviteEventsAroundAsync<TResult>(
         Func<Task<TResult>> operation,
-        Guid? teamId = null,
-        Guid? userId = null,
-        CancellationToken cancellationToken = default)
+        Guid teamId,
+        Guid userId,
+        CancellationToken cancellationToken)
     {
         var candidates = await GetExpiredInviteEventCandidatesAsync(teamId, userId, cancellationToken);
 
@@ -363,7 +416,7 @@ internal sealed class TeamEventPublishingDecorator : ITeamManagementCommands, IT
         return result!;
     }
 
-    private async Task<List<ExpiredTeamInviteChangedCandidate>> GetExpiredInviteEventCandidatesAsync(Guid? teamId, Guid? userId, CancellationToken cancellationToken)
+    private async Task<List<ExpiredTeamInviteChangedCandidate>> GetExpiredInviteEventCandidatesAsync(Guid teamId, Guid userId, CancellationToken cancellationToken)
     {
         var now = DateTime.UtcNow;
         return await TeamInvites
@@ -371,8 +424,8 @@ internal sealed class TeamEventPublishingDecorator : ITeamManagementCommands, IT
             .Where(invite =>
                 invite.Status == TeamInviteStatus.Pending &&
                 invite.ExpiresAt <= now &&
-                (!teamId.HasValue || invite.TeamId == teamId.Value) &&
-                (!userId.HasValue || invite.UserId == userId.Value))
+                invite.TeamId == teamId &&
+                invite.UserId == userId)
             .Select(invite => new ExpiredTeamInviteChangedCandidate(
                 invite.TeamId,
                 invite.Id,
@@ -478,11 +531,11 @@ internal sealed class TeamEventPublishingDecorator : ITeamManagementCommands, IT
 
     private async Task<Guid> GetCurrentUserIdAsync(string auth0UserId, CancellationToken cancellationToken)
     {
-        var normalizedAuth0UserId = auth0UserId.Trim();
-        return await _dbContext.Users
-            .Where(user => user.Auth0UserId == normalizedAuth0UserId && !user.IsDeleted)
-            .Select(user => user.Id)
-            .FirstAsync(cancellationToken);
+        var user = await _identityModule.GetUserProfileByAuth0IdAsync(auth0UserId, cancellationToken);
+        if (user is null || user.IsDeleted)
+            throw new InvalidOperationException("Current user profile was not found after a successful team mutation.");
+
+        return user.Id.Value;
     }
 
     private static void IncrementTeamVersion(Team team)
@@ -496,6 +549,10 @@ internal sealed class TeamEventPublishingDecorator : ITeamManagementCommands, IT
         GetTeamDTO Team,
         bool NameChanged,
         Guid? TransferredCaptainUserId);
+
+    private sealed record TeamDeletionState(string? LogoUrl);
+
+    private sealed record TeamDeletionResult(bool TeamDeleted, string? PreviousLogoUrl);
 
     private sealed record ExpiredTeamInviteChangedCandidate(
         Guid TeamId,

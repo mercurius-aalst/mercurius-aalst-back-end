@@ -14,6 +14,7 @@ public static class ModuleEventingExtensions
         services.TryAddScoped<IModuleEventDbContext>(provider => provider.GetRequiredService<TDbContext>());
         services.TryAddScoped<IModuleEventPublisher, ModuleEventPublisher>();
         services.TryAddScoped<IModuleEventDispatcher, ModuleEventDispatcher>();
+        services.TryAddSingleton(TimeProvider.System);
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, ModuleEventDispatchWorker>());
 
         return services;

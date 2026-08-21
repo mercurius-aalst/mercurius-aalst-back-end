@@ -345,31 +345,123 @@ public class DiscoveryModuleTests
     }
 
     [Fact]
-    public async Task RunNextAsync_RequeuesAndCompletesAStaleRunningJob()
+    public async Task HostedWorker_RecoversARunningJobAtStartupRegardlessOfAge()
     {
         var sources = new DiscoverySources
         {
             Users = [new PublicUserSearchDocument(new UserId(Guid.NewGuid()), "recovered-user")]
         };
-        await using var provider = CreateProvider(sources);
+        var host = CreateHost(sources);
+        try
+        {
+            Guid jobId;
+            using (var scope = host.Services.CreateScope())
+            {
+                var dbContext = scope.ServiceProvider.GetRequiredService<MercuriusDBContext>();
+                var runningJob = new SearchIndexRebuildJob
+                {
+                    Status = SearchIndexRebuildJobStatus.Running,
+                    CreatedAtUtc = DateTime.UtcNow.AddHours(-1),
+                    StartedAtUtc = DateTime.UtcNow.AddMinutes(1)
+                };
+                dbContext.Add(runningJob);
+                dbContext.Add(new SearchIndexRebuildDocument
+                {
+                    JobId = runningJob.Id,
+                    EntityType = SearchDocumentTypes.User,
+                    EntityId = Guid.NewGuid().ToString(),
+                    TypeOrder = SearchDocumentTypes.GetTypeOrder(SearchDocumentTypes.User),
+                    Title = "stale-stage",
+                    Subtitle = "User",
+                    Route = "/users/stale-stage",
+                    NormalizedText = "stale-stage",
+                    SourceVersion = 1,
+                    UpdatedAtUtc = DateTime.UtcNow
+                });
+                await dbContext.SaveChangesAsync();
+                jobId = runningJob.Id;
+            }
+
+            await host.StartAsync();
+
+            Assert.True(await WaitForAsync(async () =>
+            {
+                using var scope = host.Services.CreateScope();
+                var dbContext = scope.ServiceProvider.GetRequiredService<MercuriusDBContext>();
+                var job = await dbContext.Set<SearchIndexRebuildJob>().AsNoTracking().SingleAsync();
+                return job.Id == jobId &&
+                       job.Status == SearchIndexRebuildJobStatus.Completed &&
+                       await dbContext.Set<SearchIndexRebuildDocument>().AnyAsync() is false;
+            }));
+
+            using var verificationScope = host.Services.CreateScope();
+            var verificationContext = verificationScope.ServiceProvider.GetRequiredService<MercuriusDBContext>();
+            Assert.Equal("recovered-user", (await verificationContext.Set<SearchDocument>().SingleAsync()).Title);
+        }
+        finally
+        {
+            await host.StopAsync();
+        }
+    }
+
+    [Fact]
+    public async Task CreateJobAsync_DoesNotRequeueAnOldRunningJob()
+    {
+        await using var provider = CreateProvider(new DiscoverySources());
         using var scope = provider.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<MercuriusDBContext>();
-        var rebuildService = scope.ServiceProvider.GetRequiredService<SearchIndexRebuildService>();
-        var staleJob = new SearchIndexRebuildJob
+        var module = scope.ServiceProvider.GetRequiredService<IDiscoveryModule>();
+        var startedAtUtc = DateTime.UtcNow.AddHours(-1);
+        var runningJob = new SearchIndexRebuildJob
         {
             Status = SearchIndexRebuildJobStatus.Running,
-            CreatedAtUtc = DateTime.UtcNow.AddHours(-1),
-            StartedAtUtc = DateTime.UtcNow.AddMinutes(-16)
+            CreatedAtUtc = startedAtUtc.AddMinutes(-1),
+            StartedAtUtc = startedAtUtc
         };
-        dbContext.Add(staleJob);
+        dbContext.Add(runningJob);
         await dbContext.SaveChangesAsync();
 
-        Assert.True(await rebuildService.RunNextAsync(default));
+        var job = await module.CreateSearchIndexRebuildJobAsync();
 
-        var completedJob = await dbContext.Set<SearchIndexRebuildJob>().SingleAsync();
-        Assert.Equal(staleJob.Id, completedJob.Id);
-        Assert.Equal(SearchIndexRebuildJobStatus.Completed, completedJob.Status);
-        Assert.Equal("recovered-user", (await dbContext.Set<SearchDocument>().SingleAsync()).Title);
+        Assert.Equal(runningJob.Id, job.Id);
+        Assert.Equal("running", job.Status);
+        Assert.Equal(startedAtUtc, job.StartedAtUtc);
+        var persistedJob = await dbContext.Set<SearchIndexRebuildJob>().AsNoTracking().SingleAsync();
+        Assert.Equal(SearchIndexRebuildJobStatus.Running, persistedJob.Status);
+        Assert.Equal(startedAtUtc, persistedJob.StartedAtUtc);
+    }
+
+    [Fact]
+    public async Task RunNextAsync_LeavesCanceledRunningJobRecoverable()
+    {
+        var sources = new DiscoverySources
+        {
+            WaitForRebuildCancellation = true
+        };
+        await using var provider = CreateProvider(sources);
+        using var scope = provider.CreateScope();
+        var module = scope.ServiceProvider.GetRequiredService<IDiscoveryModule>();
+        var rebuildService = scope.ServiceProvider.GetRequiredService<SearchIndexRebuildService>();
+        var job = await module.CreateSearchIndexRebuildJobAsync();
+        using var cancellationTokenSource = new CancellationTokenSource();
+
+        var runTask = rebuildService.RunNextAsync(cancellationTokenSource.Token);
+        await sources.RebuildStarted.Task;
+        await cancellationTokenSource.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => runTask);
+
+        var canceledJob = await module.GetSearchIndexRebuildJobAsync(job.Id);
+        Assert.Equal("running", canceledJob!.Status);
+        Assert.NotNull(canceledJob.StartedAtUtc);
+        Assert.Null(canceledJob.CompletedAtUtc);
+        Assert.Null(canceledJob.Error);
+
+        await rebuildService.RecoverInterruptedJobsAsync(default);
+
+        var recoveredJob = await module.GetSearchIndexRebuildJobAsync(job.Id);
+        Assert.Equal("pending", recoveredJob!.Status);
+        Assert.Null(recoveredJob.StartedAtUtc);
     }
 
     [Fact]
@@ -470,18 +562,32 @@ public class DiscoveryModuleTests
         public IReadOnlyList<GameSearchDocument> Games { get; set; } = [];
         public IReadOnlyList<SponsorSummary> Sponsors { get; set; } = [];
         public Exception? RebuildException { get; set; }
+        public bool WaitForRebuildCancellation { get; set; }
+        public TaskCompletionSource RebuildStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
 
     private sealed class StubIdentityModule(DiscoverySources sources) : IIdentityModule
     {
-        public Task<IReadOnlyList<PublicUserSearchDocument>> GetPublicUserSearchDocumentsPageAsync(UserId? afterId, int pageSize, CancellationToken cancellationToken = default) =>
-            sources.RebuildException is null
-                ? Task.FromResult<IReadOnlyList<PublicUserSearchDocument>>(sources.Users
-                    .Where(user => !afterId.HasValue || user.UserId.Value.CompareTo(afterId.Value.Value) > 0)
-                    .OrderBy(user => user.UserId.Value)
-                    .Take(pageSize)
-                    .ToList())
-                : Task.FromException<IReadOnlyList<PublicUserSearchDocument>>(sources.RebuildException);
+        public async Task<IReadOnlyList<PublicUserSearchDocument>> GetPublicUserSearchDocumentsPageAsync(
+            UserId? afterId,
+            int pageSize,
+            CancellationToken cancellationToken = default)
+        {
+            if (sources.RebuildException is not null)
+                throw sources.RebuildException;
+
+            if (sources.WaitForRebuildCancellation)
+            {
+                sources.RebuildStarted.TrySetResult();
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            }
+
+            return sources.Users
+                .Where(user => !afterId.HasValue || user.UserId.Value.CompareTo(afterId.Value.Value) > 0)
+                .OrderBy(user => user.UserId.Value)
+                .Take(pageSize)
+                .ToList();
+        }
         public Task<UserProfileSummary?> GetUserProfileAsync(UserId userId, CancellationToken cancellationToken = default) => Task.FromResult<UserProfileSummary?>(null);
         public Task<UserProfileSummary?> GetUserProfileByAuth0IdAsync(string auth0UserId, CancellationToken cancellationToken = default) => Task.FromResult<UserProfileSummary?>(null);
         public Task<PublicUserProfileSummary?> GetPublicProfileByUsernameAsync(string username, CancellationToken cancellationToken = default) => Task.FromResult<PublicUserProfileSummary?>(null);
@@ -497,6 +603,7 @@ public class DiscoveryModuleTests
                 .Take(pageSize)
                 .ToList());
         public Task<TeamSummary?> GetTeamSummaryAsync(TeamId teamId, CancellationToken cancellationToken = default) => Task.FromResult<TeamSummary?>(null);
+        public Task<IReadOnlyList<TeamId>> GetCaptainedTeamIdsAsync(UserId userId, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<TeamId>>([]);
         public Task<TeamRosterSnapshot?> GetTeamRosterSnapshotAsync(TeamId teamId, CancellationToken cancellationToken = default) => Task.FromResult<TeamRosterSnapshot?>(null);
         public Task<IReadOnlyDictionary<TeamId, TeamRosterSnapshot>> GetTeamRosterSnapshotsAsync(IReadOnlyCollection<TeamId> teamIds, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyDictionary<TeamId, TeamRosterSnapshot>>(new Dictionary<TeamId, TeamRosterSnapshot>());
         public Task<PublicTeamProfile?> GetPublicTeamProfileAsync(string teamName, CancellationToken cancellationToken = default) => Task.FromResult<PublicTeamProfile?>(null);

@@ -24,6 +24,7 @@ internal sealed class SearchIndexRebuildWorker : BackgroundService
         {
             using var initialScope = _scopeFactory.CreateScope();
             var rebuildService = initialScope.ServiceProvider.GetRequiredService<SearchIndexRebuildService>();
+            await rebuildService.RecoverInterruptedJobsAsync(stoppingToken);
             await rebuildService.EnsureInitialJobAsync(stoppingToken);
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)

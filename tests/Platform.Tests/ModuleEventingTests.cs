@@ -17,6 +17,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Platform.Eventing;
 using Platform.Eventing.Persistence;
 using Platform.Extensions;
+using Platform.Realtime;
 
 namespace Platform.Tests;
 
@@ -175,9 +176,12 @@ public class ModuleEventingTests
 
         await PublishTestEventAsync(scope.ServiceProvider);
         await scope.ServiceProvider.GetRequiredService<IModuleEventDispatcher>().DispatchPendingAsync();
+        var dbContext = scope.ServiceProvider.GetRequiredService<MercuriusDBContext>();
+        var failedMessage = await dbContext.OutboxMessages.SingleAsync();
+        failedMessage.NextAttemptAtUtc = DateTime.UtcNow.AddSeconds(-1);
+        await dbContext.SaveChangesAsync();
         await scope.ServiceProvider.GetRequiredService<IModuleEventDispatcher>().DispatchPendingAsync();
 
-        var dbContext = scope.ServiceProvider.GetRequiredService<MercuriusDBContext>();
         var outbox = await dbContext.OutboxMessages.SingleAsync();
         Assert.Equal(1, state.RecordingHandlerCalls);
         Assert.Equal(2, state.FlakyHandlerCalls);
@@ -199,6 +203,7 @@ public class ModuleEventingTests
     {
         var projection = new TeamProjectionState { Name = "Newer name", Version = 2 };
         var services = new ServiceCollection();
+        services.AddLogging();
         services.AddDbContext<MercuriusDBContext>(options => options.UseInMemoryDatabase(Guid.NewGuid().ToString()));
         services.AddSingleton(projection);
         services.AddModuleEventing<MercuriusDBContext>();
@@ -278,8 +283,9 @@ public class ModuleEventingTests
         await using var dbContext = CreateDbContext();
         var captain = CreateUser();
         var newCaptain = CreateUser();
-        var team = new Team("Alpha", captain) { Id = Guid.NewGuid() };
-        team.Members.Add(newCaptain);
+        var team = new Team("Alpha", captain.Id) { Id = Guid.NewGuid() };
+        team.AddMember(captain.Id);
+        team.AddMember(newCaptain.Id);
         dbContext.Users.AddRange(captain, newCaptain);
         dbContext.Teams.Add(team);
         await dbContext.SaveChangesAsync();
@@ -336,6 +342,79 @@ public class ModuleEventingTests
         Assert.Contains(typeof(UserProfileChangedIntegrationEvent).FullName!, eventTypes);
     }
 
+    [Fact]
+    public async Task AccountDeletionEntryPoints_RevokeUserGroupsOnlyForFirstDeletion()
+    {
+        await using var dbContext = CreateDbContext();
+        var currentUser = CreateUser();
+        var usernameDeletedUser = CreateUser();
+        var idDeletedUser = CreateUser();
+        usernameDeletedUser.NormalizedUsername = usernameDeletedUser.Username!.ToLowerInvariant();
+        dbContext.Users.AddRange(currentUser, usernameDeletedUser, idDeletedUser);
+        await dbContext.SaveChangesAsync();
+        var realtimeConnectionManager = new RecordingRealtimeConnectionManager();
+        var userService = CreateUserService(
+            dbContext,
+            realtimeConnectionManager: realtimeConnectionManager);
+
+        await userService.AnonymizeCurrentUserAsync(currentUser.Auth0UserId);
+        await userService.DeleteUserAsync(usernameDeletedUser.Username!);
+        await userService.DeleteUserByIdAsync(idDeletedUser.Id);
+        await userService.AnonymizeCurrentUserAsync(currentUser.Auth0UserId);
+
+        Assert.Equal(
+            [currentUser.Id, usernameDeletedUser.Id, idDeletedUser.Id],
+            realtimeConnectionManager.UserRevocations.Select(revocation => revocation.UserId));
+        Assert.All(
+            realtimeConnectionManager.UserRevocations,
+            revocation => Assert.Equal(CancellationToken.None, revocation.CancellationToken));
+    }
+
+    [Fact]
+    public async Task AccountDeletion_DoesNotRevokeWhenDurableEventPublicationFails()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = CreateUser();
+        dbContext.Users.Add(user);
+        await dbContext.SaveChangesAsync();
+        var realtimeConnectionManager = new RecordingRealtimeConnectionManager();
+        var userService = CreateUserService(
+            dbContext,
+            new ThrowingModuleEventPublisher(),
+            realtimeConnectionManager);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            userService.AnonymizeCurrentUserAsync(user.Auth0UserId));
+
+        Assert.Empty(realtimeConnectionManager.UserRevocations);
+    }
+
+    [Fact]
+    public async Task AccountDeletion_PostCommitRevocationFailureLeavesDeletionAndOutboxCommitted()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = CreateUser();
+        dbContext.Users.Add(user);
+        await dbContext.SaveChangesAsync();
+        var realtimeConnectionManager = new RecordingRealtimeConnectionManager
+        {
+            ThrowOnRevocation = true
+        };
+        var userService = CreateUserService(
+            dbContext,
+            realtimeConnectionManager: realtimeConnectionManager);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            userService.AnonymizeCurrentUserAsync(user.Auth0UserId));
+
+        Assert.Equal("planned post-commit revocation failure", exception.Message);
+        dbContext.ChangeTracker.Clear();
+        Assert.True((await dbContext.Users.SingleAsync(candidate => candidate.Id == user.Id)).IsDeleted);
+        Assert.Contains(
+            await dbContext.OutboxMessages.Select(message => message.EventType).ToListAsync(),
+            eventType => eventType == typeof(UserDeletedIntegrationEvent).FullName);
+    }
+
     private static async Task<Guid> PublishTestEventAsync(IServiceProvider serviceProvider)
     {
         var publisher = serviceProvider.GetRequiredService<IModuleEventPublisher>();
@@ -350,6 +429,7 @@ public class ModuleEventingTests
         Action<IServiceCollection> configureHandlers)
     {
         var services = new ServiceCollection();
+        services.AddLogging();
         services.AddDbContext<MercuriusDBContext>(options => options.UseInMemoryDatabase(Guid.NewGuid().ToString()));
         services.AddSingleton(state);
         services.AddModuleEventing<MercuriusDBContext>();
@@ -379,25 +459,34 @@ public class ModuleEventingTests
             })
             .Build();
         var moduleEventPublisher = new ModuleEventPublisher(dbContext);
+        var identityModule = new IdentityModuleFacade(dbContext);
+        var teamsDbContext = new TeamsDbContextAdapter<MercuriusDBContext>(dbContext);
 
         return new TeamEventPublishingDecorator(
             new TeamService(
-                new TeamsDbContextAdapter<MercuriusDBContext>(dbContext),
+                teamsDbContext,
                 configuration,
-                new IdentityModuleFacade(dbContext),
+                identityModule,
                 new NoopMediaModule(),
-                new NoopTeamCompetitionReadService()),
-            new TeamsDbContextAdapter<MercuriusDBContext>(dbContext),
+                new NoopTeamCompetitionReadService(),
+                Microsoft.Extensions.Logging.Abstractions.NullLogger<TeamService>.Instance),
+            teamsDbContext,
+            identityModule,
             new NoopTeamEventPublisher(),
-            moduleEventPublisher);
+            moduleEventPublisher,
+            new NoopRealtimeConnectionManager());
     }
 
-    private static IUserService CreateUserService(MercuriusDBContext dbContext)
+    private static IUserService CreateUserService(
+        MercuriusDBContext dbContext,
+        IModuleEventPublisher? moduleEventPublisher = null,
+        IRealtimeConnectionManager? realtimeConnectionManager = null)
     {
         return new UserIntegrationEventPublishingService(
             new UserService(dbContext, new NoopAuth0ManagementService()),
             dbContext,
-            new ModuleEventPublisher(dbContext));
+            moduleEventPublisher ?? new ModuleEventPublisher(dbContext),
+            realtimeConnectionManager ?? new NoopRealtimeConnectionManager());
     }
 
     private static User CreateUser()
@@ -456,6 +545,9 @@ public class ModuleEventingTests
 
         public Task<bool> IsTeamInDeleteBlockingTournamentAsync(Guid teamId, CancellationToken cancellationToken = default) =>
             Task.FromResult(false);
+
+        public Task<bool> IsTeamLogoReferencedAsync(string logoUrl, CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
     }
 
     private sealed class NoopTeamEventPublisher : ITeamEventPublisher
@@ -463,6 +555,12 @@ public class ModuleEventingTests
         public Task InviteChangedAsync(Guid teamId, Guid inviteId, Guid affectedUserId, string status, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task MembershipChangedAsync(Guid teamId, Guid affectedUserId, string action, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task CaptainTransferredAsync(Guid teamId, Guid newCaptainUserId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+
+    private sealed class ThrowingModuleEventPublisher : IModuleEventPublisher
+    {
+        public Guid Publish<TPayload>(TPayload payload, DateTime? occurredAtUtc = null)
+            where TPayload : notnull => throw new InvalidOperationException("planned durable event publication failure");
     }
 
     private sealed class HandlerState

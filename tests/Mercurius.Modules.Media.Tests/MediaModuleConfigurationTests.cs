@@ -81,6 +81,22 @@ public class MediaModuleConfigurationTests
     }
 
     [Fact]
+    public async Task SaveImageAsync_RetainsConfiguredFiveMegabyteValidationAfterBinding()
+    {
+        var storagePath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        var mediaModule = CreateMediaModule(storagePath, maxFileSizeInMegabytes: 5);
+        var oversizedUpload = new MediaUpload(
+            new MemoryStream([1]),
+            "large.png",
+            "image/png",
+            5L * 1024 * 1024 + 1);
+
+        var exception = await Assert.ThrowsAsync<ValidationException>(() => mediaModule.SaveImageAsync(oversizedUpload));
+
+        Assert.Equal("File too big, maximum file size is 5MB", exception.Message);
+    }
+
+    [Fact]
     public async Task DeleteImageAsync_IsIdempotentAndCannotEscapeStorage()
     {
         var storagePath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
@@ -135,23 +151,23 @@ public class MediaModuleConfigurationTests
         [new MediaUpload(new MemoryStream([1]), "not-image.txt", "text/plain", 1), "Unsupported image type."]
     ];
 
-    private static IMediaModule CreateMediaModule(string storagePath)
+    private static IMediaModule CreateMediaModule(string storagePath, int maxFileSizeInMegabytes = 1)
     {
         var services = new ServiceCollection();
-        var configuration = CreateConfiguration(storagePath);
+        var configuration = CreateConfiguration(storagePath, maxFileSizeInMegabytes);
         services.AddSingleton<IConfiguration>(configuration);
         services.AddMediaModule(configuration);
 
         return services.BuildServiceProvider().GetRequiredService<IMediaModule>();
     }
 
-    private static IConfiguration CreateConfiguration(string storagePath)
+    private static IConfiguration CreateConfiguration(string storagePath, int maxFileSizeInMegabytes = 1)
     {
         return new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["FileStorage:Location"] = storagePath,
-                ["FileStorage:MaxFileSizeInMB"] = "1"
+                ["FileStorage:MaxFileSizeInMB"] = maxFileSizeInMegabytes.ToString()
             })
             .Build();
     }

@@ -7,9 +7,20 @@ using Mercurius.Modules.Teams;
 using Mercurius.Modules.Teams.DTOs;
 using Mercurius.Modules.Teams.Services;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using System.Security.Claims;
+using System.Text.Encodings.Web;
+using Mercurius.LAN.API.Configuration;
 
 namespace Mercurius.Api.Tests;
 
@@ -62,6 +73,93 @@ public class PublicCollectionPagingEndpointTests
         Assert.Equal(0, teamService.CallCount);
     }
 
+    [Fact]
+    public async Task TeamLogoUpload_AcceptsExactFileBoundary_AndKestrelRejectsOverEnvelopeBeforeServiceInvocation()
+    {
+        var limits = MediaUploadRequestLimits.FromConfiguration(CreateFileStorageConfiguration(5));
+        var teamService = new RecordingTeamEndpointService();
+        await using var app = CreateKestrelUploadApp(teamService, limits);
+        await app.StartAsync();
+        using var client = CreateClient(app);
+
+        using var acceptedContent = CreateLogoUploadContent(limits.MaxFileSizeInBytes);
+        using var acceptedResponse = await client.PutAsync($"v1/lan/teams/{Guid.NewGuid()}/logo", acceptedContent);
+
+        Assert.Equal(StatusCodes.Status200OK, (int)acceptedResponse.StatusCode);
+        Assert.Equal(1, teamService.UploadLogoCallCount);
+        Assert.Equal(limits.MaxFileSizeInBytes, teamService.LastLogoLength);
+
+        using var rejectedRequest = new HttpRequestMessage(HttpMethod.Put, $"v1/lan/teams/{Guid.NewGuid()}/logo")
+        {
+            Content = CreateLogoUploadContent(limits.MaxRequestBodySize)
+        };
+        rejectedRequest.Headers.ExpectContinue = true;
+        using var rejectedResponse = await client.SendAsync(rejectedRequest);
+
+        Assert.Equal(StatusCodes.Status413PayloadTooLarge, (int)rejectedResponse.StatusCode);
+        Assert.Equal(1, teamService.UploadLogoCallCount);
+    }
+
+    [Fact]
+    public void MediaUploadRequestLimits_DeriveByteLimitsFromFileStorage()
+    {
+        var limits = MediaUploadRequestLimits.FromConfiguration(CreateFileStorageConfiguration(5));
+
+        Assert.Equal(5L * 1024 * 1024, limits.MaxFileSizeInBytes);
+        Assert.Equal(64L * 1024, MediaUploadRequestLimits.MultipartEnvelopeSizeInBytes);
+        Assert.Equal(5_308_416L, limits.MaxRequestBodySize);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void MediaUploadRequestLimits_RejectNonPositiveConfiguredFileSizes(int maxFileSizeInMegabytes)
+    {
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            MediaUploadRequestLimits.FromConfiguration(CreateFileStorageConfiguration(maxFileSizeInMegabytes)));
+
+        Assert.Equal("FileStorage:MaxFileSizeInMB must be a positive number of mebibytes.", exception.Message);
+    }
+
+    [Fact]
+    public void MediaUploadRequestLimits_ConvertsLargestSupportedConfiguredValueWithoutOverflow()
+    {
+        var limits = MediaUploadRequestLimits.FromConfiguration(CreateFileStorageConfiguration(int.MaxValue));
+
+        Assert.Equal((long)int.MaxValue * 1024 * 1024, limits.MaxFileSizeInBytes);
+        Assert.Equal(limits.MaxFileSizeInBytes + MediaUploadRequestLimits.MultipartEnvelopeSizeInBytes, limits.MaxRequestBodySize);
+    }
+
+    [Fact]
+    public async Task KestrelLimit_AppliesToNonMediaJsonRequestBodies()
+    {
+        var limits = MediaUploadRequestLimits.FromConfiguration(CreateFileStorageConfiguration(5));
+        await using var app = CreateKestrelUploadApp(new RecordingTeamEndpointService(), limits);
+        await app.StartAsync();
+        using var client = CreateClient(app);
+        var probe = app.Services.GetRequiredService<RequestSizeProbe>();
+
+        using var acceptedResponse = await client.PostAsync(
+            "request-size-probe",
+            new StringContent("{\"value\":\"current JSON body\"}", Encoding.UTF8, "application/json"));
+
+        Assert.Equal(StatusCodes.Status204NoContent, (int)acceptedResponse.StatusCode);
+        Assert.Equal(1, probe.CallCount);
+
+        using var rejectedRequest = new HttpRequestMessage(HttpMethod.Post, "request-size-probe")
+        {
+            Content = new StringContent(
+                new string('x', checked((int)limits.MaxRequestBodySize + 1)),
+                Encoding.UTF8,
+                "application/json")
+        };
+        rejectedRequest.Headers.ExpectContinue = true;
+        using var rejectedResponse = await client.SendAsync(rejectedRequest);
+
+        Assert.Equal(StatusCodes.Status413PayloadTooLarge, (int)rejectedResponse.StatusCode);
+        Assert.Equal(1, probe.CallCount);
+    }
+
     private static WebApplication CreateApp(
         IGameQueries gameQueries,
         ITeamEndpointService teamEndpointService)
@@ -80,6 +178,59 @@ public class PublicCollectionPagingEndpointTests
         app.MapCompetitionModule();
         app.MapTeamsModule();
         return app;
+    }
+
+    private static WebApplication CreateKestrelUploadApp(
+        RecordingTeamEndpointService teamEndpointService,
+        MediaUploadRequestLimits limits)
+    {
+        var builder = WebApplication.CreateBuilder();
+        builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = limits.MaxRequestBodySize);
+        builder.Services.Configure<FormOptions>(options => options.MultipartBodyLengthLimit = limits.MaxFileSizeInBytes);
+        builder.Services.AddAuthentication("Test")
+            .AddScheme<AuthenticationSchemeOptions, TestAuthenticationHandler>("Test", _ => { });
+        builder.Services.AddAuthorization();
+        builder.Services.AddApiVersioning();
+        builder.Services.AddSingleton<ITeamEndpointService>(teamEndpointService);
+        builder.Services.AddSingleton<RequestSizeProbe>();
+
+        var app = builder.Build();
+        app.Urls.Add("http://127.0.0.1:0");
+        app.UseAuthentication();
+        app.UseAuthorization();
+        app.MapTeamsModule();
+        app.MapPost("/request-size-probe", (JsonDocument _, RequestSizeProbe probe) =>
+        {
+            probe.CallCount++;
+            return Results.NoContent();
+        });
+        return app;
+    }
+
+    private static HttpClient CreateClient(WebApplication app)
+    {
+        var addresses = app.Services.GetRequiredService<IServer>()
+            .Features.Get<IServerAddressesFeature>()!;
+        return new HttpClient { BaseAddress = new Uri(Assert.Single(addresses.Addresses)) };
+    }
+
+    private static MultipartFormDataContent CreateLogoUploadContent(long fileLength)
+    {
+        var fileContent = new ByteArrayContent(new byte[checked((int)fileLength)]);
+        fileContent.Headers.ContentType = new("image/png");
+        var content = new MultipartFormDataContent();
+        content.Add(fileContent, "logo", "logo.png");
+        return content;
+    }
+
+    private static IConfiguration CreateFileStorageConfiguration(int maxFileSizeInMegabytes)
+    {
+        return new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["FileStorage:MaxFileSizeInMB"] = maxFileSizeInMegabytes.ToString()
+            })
+            .Build();
     }
 
     private static async Task<(int StatusCode, string Body)> InvokeGetAsync(
@@ -128,6 +279,8 @@ public class PublicCollectionPagingEndpointTests
     {
         public int CallCount { get; private set; }
         public (int Page, int PageSize) LastPaging { get; private set; }
+        public int UploadLogoCallCount { get; private set; }
+        public long? LastLogoLength { get; private set; }
 
         public Task<IReadOnlyList<TeamResponseDTO>> GetAllTeamsAsync(
             int page,
@@ -151,8 +304,38 @@ public class PublicCollectionPagingEndpointTests
         public Task<TeamInviteResponseDTO> CancelInviteAsync(string auth0UserId, Guid teamId, Guid inviteId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<TeamInviteResponseDTO> RespondToInviteAsync(string auth0UserId, Guid inviteId, bool accept, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<TeamManagementSummaryResponseDTO> TransferCaptainAsync(string auth0UserId, Guid teamId, Guid newCaptainUserId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<TeamLogoResponseDTO> UploadTeamLogoAsync(string auth0UserId, Guid teamId, IFormFile logo, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<TeamLogoResponseDTO> UploadTeamLogoAsync(string auth0UserId, Guid teamId, IFormFile logo, CancellationToken cancellationToken = default)
+        {
+            UploadLogoCallCount++;
+            LastLogoLength = logo.Length;
+            return Task.FromResult(new TeamLogoResponseDTO(teamId, "images/test.webp"));
+        }
         public Task<TeamLogoResponseDTO> RemoveTeamLogoAsync(string auth0UserId, Guid teamId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<PublicTeamProfileResponseDTO> GetPublicTeamProfileAsync(string teamName, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
+    private sealed class TestAuthenticationHandler : AuthenticationHandler<AuthenticationSchemeOptions>
+    {
+        public TestAuthenticationHandler(
+            IOptionsMonitor<AuthenticationSchemeOptions> options,
+            ILoggerFactory logger,
+            UrlEncoder encoder)
+            : base(options, logger, encoder)
+        {
+        }
+
+        protected override Task<AuthenticateResult> HandleAuthenticateAsync()
+        {
+            var principal = new ClaimsPrincipal(new ClaimsIdentity(
+            [
+                new Claim(ClaimTypes.NameIdentifier, "auth0|upload-test")
+            ], Scheme.Name));
+            return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(principal, Scheme.Name)));
+        }
+    }
+
+    private sealed class RequestSizeProbe
+    {
+        public int CallCount { get; set; }
     }
 }

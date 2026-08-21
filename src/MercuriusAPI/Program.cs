@@ -10,6 +10,7 @@ using Mercurius.Modules.Sponsorship;
 using Mercurius.Modules.Teams;
 using Platform;
 using Platform.Extensions;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 
@@ -24,6 +25,12 @@ public class Program
         var builder = WebApplication.CreateBuilder(args);
         builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
             .AddEnvironmentVariables("Mercurius.LAN.API_");
+        var mediaUploadRequestLimits = MediaUploadRequestLimits.FromConfiguration(builder.Configuration);
+
+        builder.WebHost.ConfigureKestrel(options =>
+            options.Limits.MaxRequestBodySize = mediaUploadRequestLimits.MaxRequestBodySize);
+        builder.Services.Configure<FormOptions>(options =>
+            options.MultipartBodyLengthLimit = mediaUploadRequestLimits.MaxFileSizeInBytes);
 
         builder.Services.AddDbContext<MercuriusDBContext>(options =>
             options.UseNpgsql(builder.Configuration.GetConnectionString("MercuriusDB")));

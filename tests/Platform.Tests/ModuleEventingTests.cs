@@ -17,6 +17,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Platform.Eventing;
 using Platform.Eventing.Persistence;
 using Platform.Extensions;
+using Platform.Realtime;
 
 namespace Platform.Tests;
 
@@ -341,6 +342,79 @@ public class ModuleEventingTests
         Assert.Contains(typeof(UserProfileChangedIntegrationEvent).FullName!, eventTypes);
     }
 
+    [Fact]
+    public async Task AccountDeletionEntryPoints_RevokeUserGroupsOnlyForFirstDeletion()
+    {
+        await using var dbContext = CreateDbContext();
+        var currentUser = CreateUser();
+        var usernameDeletedUser = CreateUser();
+        var idDeletedUser = CreateUser();
+        usernameDeletedUser.NormalizedUsername = usernameDeletedUser.Username!.ToLowerInvariant();
+        dbContext.Users.AddRange(currentUser, usernameDeletedUser, idDeletedUser);
+        await dbContext.SaveChangesAsync();
+        var realtimeConnectionManager = new RecordingRealtimeConnectionManager();
+        var userService = CreateUserService(
+            dbContext,
+            realtimeConnectionManager: realtimeConnectionManager);
+
+        await userService.AnonymizeCurrentUserAsync(currentUser.Auth0UserId);
+        await userService.DeleteUserAsync(usernameDeletedUser.Username!);
+        await userService.DeleteUserByIdAsync(idDeletedUser.Id);
+        await userService.AnonymizeCurrentUserAsync(currentUser.Auth0UserId);
+
+        Assert.Equal(
+            [currentUser.Id, usernameDeletedUser.Id, idDeletedUser.Id],
+            realtimeConnectionManager.UserRevocations.Select(revocation => revocation.UserId));
+        Assert.All(
+            realtimeConnectionManager.UserRevocations,
+            revocation => Assert.Equal(CancellationToken.None, revocation.CancellationToken));
+    }
+
+    [Fact]
+    public async Task AccountDeletion_DoesNotRevokeWhenDurableEventPublicationFails()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = CreateUser();
+        dbContext.Users.Add(user);
+        await dbContext.SaveChangesAsync();
+        var realtimeConnectionManager = new RecordingRealtimeConnectionManager();
+        var userService = CreateUserService(
+            dbContext,
+            new ThrowingModuleEventPublisher(),
+            realtimeConnectionManager);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            userService.AnonymizeCurrentUserAsync(user.Auth0UserId));
+
+        Assert.Empty(realtimeConnectionManager.UserRevocations);
+    }
+
+    [Fact]
+    public async Task AccountDeletion_PostCommitRevocationFailureLeavesDeletionAndOutboxCommitted()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = CreateUser();
+        dbContext.Users.Add(user);
+        await dbContext.SaveChangesAsync();
+        var realtimeConnectionManager = new RecordingRealtimeConnectionManager
+        {
+            ThrowOnRevocation = true
+        };
+        var userService = CreateUserService(
+            dbContext,
+            realtimeConnectionManager: realtimeConnectionManager);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            userService.AnonymizeCurrentUserAsync(user.Auth0UserId));
+
+        Assert.Equal("planned post-commit revocation failure", exception.Message);
+        dbContext.ChangeTracker.Clear();
+        Assert.True((await dbContext.Users.SingleAsync(candidate => candidate.Id == user.Id)).IsDeleted);
+        Assert.Contains(
+            await dbContext.OutboxMessages.Select(message => message.EventType).ToListAsync(),
+            eventType => eventType == typeof(UserDeletedIntegrationEvent).FullName);
+    }
+
     private static async Task<Guid> PublishTestEventAsync(IServiceProvider serviceProvider)
     {
         var publisher = serviceProvider.GetRequiredService<IModuleEventPublisher>();
@@ -398,15 +472,20 @@ public class ModuleEventingTests
             teamsDbContext,
             identityModule,
             new NoopTeamEventPublisher(),
-            moduleEventPublisher);
+            moduleEventPublisher,
+            new NoopRealtimeConnectionManager());
     }
 
-    private static IUserService CreateUserService(MercuriusDBContext dbContext)
+    private static IUserService CreateUserService(
+        MercuriusDBContext dbContext,
+        IModuleEventPublisher? moduleEventPublisher = null,
+        IRealtimeConnectionManager? realtimeConnectionManager = null)
     {
         return new UserIntegrationEventPublishingService(
             new UserService(dbContext, new NoopAuth0ManagementService()),
             dbContext,
-            new ModuleEventPublisher(dbContext));
+            moduleEventPublisher ?? new ModuleEventPublisher(dbContext),
+            realtimeConnectionManager ?? new NoopRealtimeConnectionManager());
     }
 
     private static User CreateUser()
@@ -472,6 +551,12 @@ public class ModuleEventingTests
         public Task InviteChangedAsync(Guid teamId, Guid inviteId, Guid affectedUserId, string status, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task MembershipChangedAsync(Guid teamId, Guid affectedUserId, string action, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task CaptainTransferredAsync(Guid teamId, Guid newCaptainUserId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+
+    private sealed class ThrowingModuleEventPublisher : IModuleEventPublisher
+    {
+        public Guid Publish<TPayload>(TPayload payload, DateTime? occurredAtUtc = null)
+            where TPayload : notnull => throw new InvalidOperationException("planned durable event publication failure");
     }
 
     private sealed class HandlerState

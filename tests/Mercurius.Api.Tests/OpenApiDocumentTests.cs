@@ -141,7 +141,10 @@ public class OpenApiDocumentTests
         app.MapSponsorshipModule();
         app.MapIdentityModule();
         app.MapDiscoveryModule();
-        app.MapHub<TeamManagementHub>("/v1/lan/team-events").RequireAuthorization();
+        app.MapHub<TeamManagementHub>(
+                TeamManagementHub.Route,
+                options => options.CloseOnAuthenticationExpiration = true)
+            .RequireAuthorization();
 
         return app;
     }

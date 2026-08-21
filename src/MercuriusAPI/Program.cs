@@ -43,7 +43,9 @@ public class Program
         builder.Services.AddDiscoveryModule<MercuriusDBContext>(builder.Configuration);
         builder.Services.AddApiProblemDetails<ApiExceptionHandler>();
         builder.Services.AddHttpConventions();
-        builder.Services.AddAuth0JwtAuthentication(builder.Configuration.GetSection("Auth0"));
+        builder.Services.AddAuth0JwtAuthentication(
+            builder.Configuration.GetSection("Auth0"),
+            TeamManagementHub.Route);
         builder.Services.AddRealtimeNotificationServices<TeamManagementHub>();
         var rateLimitingSection = builder.Configuration.GetSection("RateLimiting");
         builder.Services.AddFixedWindowRateLimiting(new FixedWindowRateLimitingOptions
@@ -81,7 +83,10 @@ public class Program
         app.MapTeamsModule();
         app.MapSponsorshipModule();
         app.MapDiscoveryModule();
-        app.MapHub<TeamManagementHub>("/v1/lan/team-events").RequireAuthorization();
+        app.MapHub<TeamManagementHub>(
+                TeamManagementHub.Route,
+                options => options.CloseOnAuthenticationExpiration = true)
+            .RequireAuthorization();
 
         app.Run();
     }

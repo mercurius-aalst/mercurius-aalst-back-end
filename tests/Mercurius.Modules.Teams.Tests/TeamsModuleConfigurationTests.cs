@@ -198,6 +198,7 @@ public class TeamsModuleConfigurationTests
         services.AddSingleton<ITeamCompetitionReadService, NoopTeamCompetitionReadService>();
         services.AddSingleton<IModuleEventPublisher, NoopModuleEventPublisher>();
         services.AddSingleton<IRealtimePublisher, RecordingRealtimePublisher>();
+        services.AddSingleton<IRealtimeConnectionManager, NoopRealtimeConnectionManager>();
         services.AddTeamsModule<MercuriusDBContext>(configuration);
 
         return services;

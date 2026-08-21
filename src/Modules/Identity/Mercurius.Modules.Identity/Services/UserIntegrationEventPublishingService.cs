@@ -5,6 +5,7 @@ using Mercurius.Modules.Shared;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Platform.Eventing;
+using Platform.Realtime;
 
 namespace Mercurius.Modules.Identity.Services;
 
@@ -13,15 +14,18 @@ internal sealed class UserIntegrationEventPublishingService : IUserService
     private readonly IUserService _inner;
     private readonly IIdentityDbContext _dbContext;
     private readonly IModuleEventPublisher _moduleEventPublisher;
+    private readonly IRealtimeConnectionManager _realtimeConnectionManager;
 
     public UserIntegrationEventPublishingService(
         IUserService inner,
         IIdentityDbContext dbContext,
-        IModuleEventPublisher moduleEventPublisher)
+        IModuleEventPublisher moduleEventPublisher,
+        IRealtimeConnectionManager realtimeConnectionManager)
     {
         _inner = inner;
         _dbContext = dbContext;
         _moduleEventPublisher = moduleEventPublisher;
+        _realtimeConnectionManager = realtimeConnectionManager;
     }
 
     public async Task<GetUserDTO> CreateUserAsync(CreateUserProfileRequest request)
@@ -109,9 +113,12 @@ internal sealed class UserIntegrationEventPublishingService : IUserService
         var before = await GetUserByAuth0IdAsync(auth0UserId);
         var response = await _inner.AnonymizeCurrentUserAsync(auth0UserId);
         var after = before is null ? null : await GetUserEventStateByIdAsync(before.Id);
+        var deletionEvents = BuildDeletionEvents(before, after);
 
-        await PublishEventsAsync(BuildDeletionEvents(before, after));
+        await PublishEventsAsync(deletionEvents);
         await CommitIfStartedAsync(transaction);
+        if (deletionEvents.Count > 0)
+            await _realtimeConnectionManager.RevokeUserAsync(after!.Id, CancellationToken.None);
         return response;
     }
 
@@ -121,9 +128,12 @@ internal sealed class UserIntegrationEventPublishingService : IUserService
         var before = await GetUserByNormalizedUsernameAsync(username);
         await _inner.DeleteUserAsync(username);
         var after = before is null ? null : await GetUserEventStateByIdAsync(before.Id);
+        var deletionEvents = BuildDeletionEvents(before, after);
 
-        await PublishEventsAsync(BuildDeletionEvents(before, after));
+        await PublishEventsAsync(deletionEvents);
         await CommitIfStartedAsync(transaction);
+        if (deletionEvents.Count > 0)
+            await _realtimeConnectionManager.RevokeUserAsync(after!.Id, CancellationToken.None);
     }
 
     public async Task DeleteUserByIdAsync(Guid id)
@@ -132,9 +142,12 @@ internal sealed class UserIntegrationEventPublishingService : IUserService
         var before = await GetUserEventStateByIdAsync(id);
         await _inner.DeleteUserByIdAsync(id);
         var after = before is null ? null : await GetUserEventStateByIdAsync(before.Id);
+        var deletionEvents = BuildDeletionEvents(before, after);
 
-        await PublishEventsAsync(BuildDeletionEvents(before, after));
+        await PublishEventsAsync(deletionEvents);
         await CommitIfStartedAsync(transaction);
+        if (deletionEvents.Count > 0)
+            await _realtimeConnectionManager.RevokeUserAsync(after!.Id, CancellationToken.None);
     }
 
     public Task<IEnumerable<GetUserDTO>> GetAllUsersAsync()

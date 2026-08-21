@@ -235,6 +235,17 @@ internal static class CompetitionTestSupport
                 : null);
         }
 
+        public Task<IReadOnlyList<TeamId>> GetCaptainedTeamIdsAsync(
+            UserId userId,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<TeamId>>(_teams.Values
+                .Where(team => !team.IsDeleted && team.CaptainUserId == userId.Value)
+                .OrderBy(team => team.Id)
+                .Select(team => new TeamId(team.Id))
+                .ToList());
+        }
+
         public async Task<TeamRosterSnapshot?> GetTeamRosterSnapshotAsync(TeamId teamId, CancellationToken cancellationToken = default)
         {
             var snapshots = await GetTeamRosterSnapshotsAsync([teamId], cancellationToken);

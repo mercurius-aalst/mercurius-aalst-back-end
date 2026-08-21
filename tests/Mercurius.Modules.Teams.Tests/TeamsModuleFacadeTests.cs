@@ -69,6 +69,52 @@ public class TeamsModuleFacadeTests
     }
 
     [Fact]
+    public async Task GetCaptainedTeamIdsAsync_ReturnsActiveTeamsInStableOrderWithoutHydratingMembers()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser("captain", "Captain", "Player");
+        var otherCaptain = CreateUser("other-captain", "Other", "Captain");
+        var laterTeam = new Team("Later Team", captain.Id)
+        {
+            Id = Guid.Parse("00000000-0000-0000-0000-000000000002")
+        };
+        laterTeam.AddMember(captain.Id);
+        var earlierTeam = new Team("Earlier Team", captain.Id)
+        {
+            Id = Guid.Parse("00000000-0000-0000-0000-000000000001")
+        };
+        earlierTeam.AddMember(captain.Id);
+        var unrelatedTeam = new Team("Unrelated Team", otherCaptain.Id)
+        {
+            Id = Guid.Parse("00000000-0000-0000-0000-000000000003")
+        };
+        unrelatedTeam.AddMember(otherCaptain.Id);
+        var deletedTeam = new Team("Deleted Team", captain.Id)
+        {
+            Id = Guid.Parse("00000000-0000-0000-0000-000000000004"),
+            IsDeleted = true
+        };
+        deletedTeam.AddMember(captain.Id);
+
+        dbContext.Users.AddRange(captain, otherCaptain);
+        dbContext.Teams.AddRange(laterTeam, earlierTeam, unrelatedTeam, deletedTeam);
+        await dbContext.SaveChangesAsync();
+
+        var identityModule = new DbContextIdentityModule(dbContext);
+        var module = new TeamsModuleFacade(
+            new TeamsDbContextAdapter<MercuriusDBContext>(dbContext),
+            identityModule,
+            new StubTeamCompetitionReadService([]));
+
+        var teamIds = await module.GetCaptainedTeamIdsAsync(new UserId(captain.Id));
+
+        Assert.Equal(
+            [earlierTeam.Id, laterTeam.Id],
+            teamIds.Select(teamId => teamId.Value).ToArray());
+        Assert.Equal(0, identityModule.BatchCallCount);
+    }
+
+    [Fact]
     public async Task GetTeamRosterSnapshotAsync_ReturnsOrderedMembersAndDisplayNames()
     {
         await using var dbContext = CreateDbContext();

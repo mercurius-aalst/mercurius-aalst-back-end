@@ -261,6 +261,69 @@ public class CompetitionPerformanceRegressionTests
     }
 
     [Fact]
+    public async Task GetCurrentUserStateAsync_OnlyHydratesRegistrationsForCurrentCaptainedTeams()
+    {
+        await using var dbContext = CreateDbContext();
+        var game = CreateGame("Bounded captain lookup");
+        var currentCaptainId = Guid.NewGuid();
+        var formerCaptainId = Guid.NewGuid();
+        var captainedTeamId = new TeamId(Guid.Parse("00000000-0000-0000-0000-000000000001"));
+        var captainedRegistration = CreateTeamRegistration(
+            game,
+            captainedTeamId.Value,
+            formerCaptainId,
+            formerCaptainId);
+        game.TournamentRegistrations.Add(captainedRegistration);
+
+        var unrelatedTeamIds = Enumerable.Range(2, 25)
+            .Select(value => Guid.Parse($"00000000-0000-0000-0000-{value:D12}"))
+            .ToArray();
+        foreach (var teamId in unrelatedTeamIds)
+        {
+            var unrelatedUserId = Guid.NewGuid();
+            game.TournamentRegistrations.Add(CreateTeamRegistration(
+                game,
+                teamId,
+                unrelatedUserId,
+                unrelatedUserId));
+        }
+
+        dbContext.Set<Game>().Add(game);
+        await dbContext.SaveChangesAsync();
+
+        var teamsModule = new TrackingCurrentCaptainTeamsModule(
+            new UserId(currentCaptainId),
+            new TeamRosterSnapshot(
+                captainedTeamId,
+                "Current Captain Team",
+                new UserId(currentCaptainId),
+                null,
+                false,
+                []));
+        var identityModule = CompetitionTestSupport.CreateIdentityModule();
+        var contextBuilder = new RegistrationMappingContextBuilder(identityModule, teamsModule);
+        var readModelService = new TournamentRegistrationReadModelService(
+            new CompetitionDbContextAdapter<MercuriusDBContext>(dbContext),
+            teamsModule,
+            contextBuilder,
+            new CompetitionDtoMapper(contextBuilder, new StaticSponsorshipModule(null)));
+
+        var state = await readModelService.GetCurrentUserStateAsync(
+            currentCaptainId,
+            game,
+            CancellationToken.None);
+
+        var captainManaged = Assert.Single(state.CaptainManagedRegistrations);
+        Assert.Equal(captainedRegistration.Id, captainManaged.Id);
+        Assert.Equal(currentCaptainId, captainManaged.Team?.CaptainUserId);
+        Assert.True(state.CanUnregister);
+        Assert.Equal(1, teamsModule.CaptainedTeamIdsCallCount);
+        var rosterBatch = Assert.Single(teamsModule.RosterBatchTeamIds);
+        Assert.Equal([captainedTeamId.Value], rosterBatch.Select(teamId => teamId.Value).ToArray());
+        Assert.DoesNotContain(rosterBatch, teamId => unrelatedTeamIds.Contains(teamId.Value));
+    }
+
+    [Fact]
     public void SearchGamesAsync_UsesLowerNamePredicate_ForFunctionalTrigramIndexAlignment()
     {
         using var dbContext = CreateTranslationDbContext();
@@ -343,6 +406,43 @@ public class CompetitionPerformanceRegressionTests
         UserId = user.Id,
         UsernameAtRegistration = user.Username
     };
+
+    private static TournamentRegistration CreateTeamRegistration(
+        Game game,
+        Guid teamId,
+        Guid captainUserIdAtRegistration,
+        Guid rosterUserId)
+    {
+        var registration = new TournamentRegistration
+        {
+            Id = Guid.NewGuid(),
+            Game = game,
+            GameId = game.Id,
+            Kind = TournamentRegistrationKind.Team,
+            Status = TournamentRegistrationStatus.Active,
+            RegisteredByUserId = captainUserIdAtRegistration,
+            RegisteredByUsernameAtRegistration = "snapshot-captain",
+            TeamId = teamId,
+            TeamNameAtRegistration = "Snapshot Team",
+            TeamCaptainUserIdAtRegistration = captainUserIdAtRegistration
+        };
+        registration.RosterMembers.Add(new TournamentRegistrationRosterMember
+        {
+            Id = Guid.NewGuid(),
+            TournamentRegistration = registration,
+            TournamentRegistrationId = registration.Id,
+            Game = game,
+            GameId = game.Id,
+            TeamId = teamId,
+            TeamNameAtRegistration = registration.TeamNameAtRegistration,
+            UserId = rosterUserId,
+            UsernameAtRegistration = "snapshot-player",
+            DisplayNameAtRegistration = "Snapshot Player",
+            IsCaptain = rosterUserId == captainUserIdAtRegistration,
+            ConfirmationStatus = RosterMemberConfirmationStatus.Confirmed
+        });
+        return registration;
+    }
 
     private static User CreateUser(string username)
     {
@@ -489,10 +589,80 @@ public class CompetitionPerformanceRegressionTests
         public Task<TeamSummary?> GetTeamSummaryAsync(TeamId teamId, CancellationToken cancellationToken = default) =>
             Task.FromResult<TeamSummary?>(null);
 
+        public Task<IReadOnlyList<TeamId>> GetCaptainedTeamIdsAsync(
+            UserId userId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<TeamId>>([]);
+
         public Task<TeamRosterSnapshot?> GetTeamRosterSnapshotAsync(TeamId teamId, CancellationToken cancellationToken = default) =>
             Task.FromResult<TeamRosterSnapshot?>(null);
 
         public Task<PublicTeamProfile?> GetPublicTeamProfileAsync(string teamName, CancellationToken cancellationToken = default) =>
+            Task.FromResult<PublicTeamProfile?>(null);
+
+        public Task<TeamRegistrationEligibility> GetRegistrationEligibilityAsync(
+            TeamId teamId,
+            UserId requestedBy,
+            GameId gameId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new TeamRegistrationEligibility(true, []));
+
+        public Task<MembershipMutationGuard> CanMutateMembershipAsync(
+            TeamId teamId,
+            UserId userId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new MembershipMutationGuard(true, []));
+
+        public Task<IReadOnlyList<PublicTeamSearchDocument>> GetPublicTeamSearchDocumentsPageAsync(
+            TeamId? afterId,
+            int pageSize,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<PublicTeamSearchDocument>>([]);
+    }
+
+    private sealed class TrackingCurrentCaptainTeamsModule(
+        UserId currentCaptainId,
+        TeamRosterSnapshot team) : ITeamsModule
+    {
+        public int CaptainedTeamIdsCallCount { get; private set; }
+        public List<IReadOnlyCollection<TeamId>> RosterBatchTeamIds { get; } = [];
+
+        public Task<IReadOnlyList<TeamId>> GetCaptainedTeamIdsAsync(
+            UserId userId,
+            CancellationToken cancellationToken = default)
+        {
+            CaptainedTeamIdsCallCount++;
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult<IReadOnlyList<TeamId>>(
+                userId == currentCaptainId ? [team.TeamId] : []);
+        }
+
+        public Task<IReadOnlyDictionary<TeamId, TeamRosterSnapshot>> GetTeamRosterSnapshotsAsync(
+            IReadOnlyCollection<TeamId> teamIds,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var requestedTeamIds = teamIds.ToArray();
+            RosterBatchTeamIds.Add(requestedTeamIds);
+            return Task.FromResult<IReadOnlyDictionary<TeamId, TeamRosterSnapshot>>(
+                requestedTeamIds.Contains(team.TeamId)
+                    ? new Dictionary<TeamId, TeamRosterSnapshot> { [team.TeamId] = team }
+                    : new Dictionary<TeamId, TeamRosterSnapshot>());
+        }
+
+        public Task<TeamSummary?> GetTeamSummaryAsync(
+            TeamId teamId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<TeamSummary?>(null);
+
+        public Task<TeamRosterSnapshot?> GetTeamRosterSnapshotAsync(
+            TeamId teamId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<TeamRosterSnapshot?>(teamId == team.TeamId ? team : null);
+
+        public Task<PublicTeamProfile?> GetPublicTeamProfileAsync(
+            string teamName,
+            CancellationToken cancellationToken = default) =>
             Task.FromResult<PublicTeamProfile?>(null);
 
         public Task<TeamRegistrationEligibility> GetRegistrationEligibilityAsync(

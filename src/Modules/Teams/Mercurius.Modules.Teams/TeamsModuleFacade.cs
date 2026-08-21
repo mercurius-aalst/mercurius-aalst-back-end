@@ -38,6 +38,18 @@ internal sealed class TeamsModuleFacade : ITeamsModule
             .SingleOrDefaultAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<TeamId>> GetCaptainedTeamIdsAsync(
+        UserId userId,
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.Teams
+            .AsNoTracking()
+            .Where(team => !team.IsDeleted && team.CaptainUserId == userId.Value)
+            .OrderBy(team => team.Id)
+            .Select(team => new TeamId(team.Id))
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<TeamRosterSnapshot?> GetTeamRosterSnapshotAsync(
         TeamId teamId,
         CancellationToken cancellationToken = default)

@@ -603,6 +603,7 @@ public class DiscoveryModuleTests
                 .Take(pageSize)
                 .ToList());
         public Task<TeamSummary?> GetTeamSummaryAsync(TeamId teamId, CancellationToken cancellationToken = default) => Task.FromResult<TeamSummary?>(null);
+        public Task<IReadOnlyList<TeamId>> GetCaptainedTeamIdsAsync(UserId userId, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<TeamId>>([]);
         public Task<TeamRosterSnapshot?> GetTeamRosterSnapshotAsync(TeamId teamId, CancellationToken cancellationToken = default) => Task.FromResult<TeamRosterSnapshot?>(null);
         public Task<IReadOnlyDictionary<TeamId, TeamRosterSnapshot>> GetTeamRosterSnapshotsAsync(IReadOnlyCollection<TeamId> teamIds, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyDictionary<TeamId, TeamRosterSnapshot>>(new Dictionary<TeamId, TeamRosterSnapshot>());
         public Task<PublicTeamProfile?> GetPublicTeamProfileAsync(string teamName, CancellationToken cancellationToken = default) => Task.FromResult<PublicTeamProfile?>(null);

@@ -25,17 +25,8 @@ internal sealed class TournamentRegistrationReadModelService(
                 registration.RosterMembers.Any(member => member.UserId == userId))
             .ToListAsync(cancellationToken);
 
-        var captainCandidateTeamIds = await dbContext.TournamentRegistrations
-            .AsNoTracking()
-            .Where(registration => registration.GameId == game.Id && registration.TeamId.HasValue)
-            .Select(registration => registration.TeamId!.Value)
-            .Distinct()
-            .Select(teamId => new TeamId(teamId))
-            .ToArrayAsync(cancellationToken);
-        var captainedTeamIds = (await teamsModule.GetTeamRosterSnapshotsAsync(captainCandidateTeamIds, cancellationToken))
-            .Values
-            .Where(team => team.CaptainUserId?.Value == userId)
-            .Select(team => team.TeamId.Value)
+        var captainedTeamIds = (await teamsModule.GetCaptainedTeamIdsAsync(new UserId(userId), cancellationToken))
+            .Select(teamId => teamId.Value)
             .ToHashSet();
 
         if (captainedTeamIds.Count != 0)

@@ -1,7 +1,8 @@
-global using Mercurius.Modules.Competition.Application;
-global using Mercurius.Modules.Competition.Application.Services;
-global using Mercurius.Modules.Competition.Application.Services.BracketTypes;
-global using Mercurius.Modules.Competition.Domain;
+global using Mercurius.Modules.Tournament.Application;
+global using Mercurius.Modules.Tournament.Application.Services;
+global using Mercurius.Modules.Tournament.Application.Services.BracketTypes;
+global using Mercurius.Modules.Tournament.Domain;
+global using TournamentAggregate = Mercurius.Modules.Tournament.Domain.Tournament;
 global using Mercurius.Modules.Identity.Domain;
 global using Mercurius.Modules.Teams.Domain;
 global using SponsorContext = Mercurius.Modules.Sponsorship.Contracts.SponsorContext;

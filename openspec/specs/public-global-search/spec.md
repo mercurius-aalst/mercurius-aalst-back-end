@@ -1,5 +1,5 @@
 ## Purpose
-Provide anonymous, privacy-safe global search across public users, teams, and games so clients can navigate to matching public pages without exposing private account data.
+Provide anonymous, privacy-safe global search across public users, teams, and tournaments so clients can navigate to matching public pages without exposing private account data.
 
 ## Requirements
 
@@ -8,7 +8,7 @@ The API MUST expose `GET /v1/lan/search?query={query}` for anonymous public sear
 
 #### Scenario: Search across supported entities
 - **WHEN** a client searches with a valid query of at least three trimmed characters
-- **THEN** the response includes matching users, teams, and games in a stable normalized result shape
+- **THEN** the response includes matching users, teams, and tournaments in a stable normalized result shape
 
 #### Scenario: Short query handling
 - **WHEN** a client searches with fewer than three trimmed characters
@@ -39,15 +39,15 @@ Each search result MUST identify its type, display label, supporting text, and e
 
 #### Scenario: User result shape
 - **WHEN** a user result is returned
-- **THEN** it includes `type`, `displayLabel`, `supportingText`, and `username`, and does not include team or game navigation fields
+- **THEN** it includes `type`, `displayLabel`, `supportingText`, and `username`, and does not include team or tournament navigation fields
 
 #### Scenario: Team result shape
 - **WHEN** a team result is returned
-- **THEN** it includes `type`, `displayLabel`, `supportingText`, and `teamName`, and does not include user or game navigation fields
+- **THEN** it includes `type`, `displayLabel`, `supportingText`, and `teamName`, and does not include user or tournament navigation fields
 
-#### Scenario: Game result shape
-- **WHEN** a game result is returned
-- **THEN** it includes `type`, `displayLabel`, `supportingText`, and `gameId`, and does not include user or team navigation fields
+#### Scenario: Tournament result shape
+- **WHEN** a tournament result is returned
+- **THEN** it includes `type`, `displayLabel`, `supportingText`, and `tournamentId`, and does not include user or team navigation fields
 
 ### Requirement: Search privacy and filtering
 Search MUST return only public-safe data.
@@ -61,5 +61,5 @@ Search MUST return only public-safe data.
 - **THEN** the response does not expose email, first name, last name, platform IDs, Auth0 IDs, deleted state, or timestamps
 
 #### Scenario: Case-insensitive matching
-- **WHEN** a client searches using different casing than stored usernames, team names, or game names
+- **WHEN** a client searches using different casing than stored usernames, team names, or tournament names
 - **THEN** matching is case-insensitive

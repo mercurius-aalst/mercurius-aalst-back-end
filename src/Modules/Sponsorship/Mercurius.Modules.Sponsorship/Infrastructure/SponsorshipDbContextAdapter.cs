@@ -15,7 +15,7 @@ internal sealed class SponsorshipDbContextAdapter<TDbContext> : ISponsorshipDbCo
     }
 
     public DbSet<Sponsor> Sponsors => _dbContext.Set<Sponsor>();
-    public DbSet<GameSponsorPlacement> GameSponsorPlacements => _dbContext.Set<GameSponsorPlacement>();
+    public DbSet<TournamentSponsorPlacement> TournamentSponsorPlacements => _dbContext.Set<TournamentSponsorPlacement>();
     public DatabaseFacade Database => _dbContext.Database;
 
     public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) =>

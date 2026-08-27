@@ -558,7 +558,7 @@ public class TeamTests
     }
 
     [Theory]
-    [InlineData((int)GameStatus.InProgress)]
+    [InlineData((int)TournamentStatus.InProgress)]
     public async Task LeaveTeamAsync_BlocksProtectedTournamentStatuses(int status)
     {
         await using var dbContext = CreateDbContext();
@@ -566,15 +566,15 @@ public class TeamTests
         var member = CreateUser();
         var team = CreateTeam("Alpha", captain);
         team.AddMember(member.Id);
-        var game = new Game("Game", BracketType.SingleElimination, GameFormat.BestOf1, GameFormat.BestOf1, ParticipationMode.Team, 2)
+        var tournament = new TournamentAggregate("Tournament", BracketType.SingleElimination, GameFormat.BestOf1, GameFormat.BestOf1, ParticipationMode.Team, 2)
         {
             Id = Guid.NewGuid(),
-            Status = (GameStatus)status
+            Status = (TournamentStatus)status
         };
         dbContext.Users.AddRange(captain, member);
         dbContext.Teams.Add(team);
-        dbContext.Set<Game>().Add(game);
-        AddTeamRegistration(dbContext, game, team, captain, [captain, member], TournamentRegistrationStatus.Active);
+        dbContext.Set<TournamentAggregate>().Add(tournament);
+        AddTeamRegistration(dbContext, tournament, team, captain, [captain, member], TournamentRegistrationStatus.Active);
         await dbContext.SaveChangesAsync();
 
         var teamService = CreateTeamService(dbContext);
@@ -649,15 +649,15 @@ public class TeamTests
         var member = CreateUser();
         var team = CreateTeam("Alpha", captain);
         team.AddMember(member.Id);
-        var game = new Game("Game", BracketType.SingleElimination, GameFormat.BestOf1, GameFormat.BestOf1, ParticipationMode.Team, 2)
+        var tournament = new TournamentAggregate("Tournament", BracketType.SingleElimination, GameFormat.BestOf1, GameFormat.BestOf1, ParticipationMode.Team, 2)
         {
             Id = Guid.NewGuid(),
-            Status = GameStatus.InProgress
+            Status = TournamentStatus.InProgress
         };
         dbContext.Users.AddRange(captain, member);
         dbContext.Teams.Add(team);
-        dbContext.Set<Game>().Add(game);
-        AddTeamRegistration(dbContext, game, team, captain, [captain, member], TournamentRegistrationStatus.Active);
+        dbContext.Set<TournamentAggregate>().Add(tournament);
+        AddTeamRegistration(dbContext, tournament, team, captain, [captain, member], TournamentRegistrationStatus.Active);
         await dbContext.SaveChangesAsync();
         var teamService = CreateTeamService(dbContext);
 
@@ -668,8 +668,8 @@ public class TeamTests
     }
 
     [Theory]
-    [InlineData((int)GameStatus.Completed)]
-    [InlineData((int)GameStatus.Canceled)]
+    [InlineData((int)TournamentStatus.Completed)]
+    [InlineData((int)TournamentStatus.Canceled)]
     public async Task RemoveMemberAsync_AllowsCompletedAndCanceledTournamentRosters(int status)
     {
         await using var dbContext = CreateDbContext();
@@ -677,15 +677,15 @@ public class TeamTests
         var member = CreateUser();
         var team = CreateTeam("Alpha", captain);
         team.AddMember(member.Id);
-        var game = new Game("Game", BracketType.SingleElimination, GameFormat.BestOf1, GameFormat.BestOf1, ParticipationMode.Team, 2)
+        var tournament = new TournamentAggregate("Tournament", BracketType.SingleElimination, GameFormat.BestOf1, GameFormat.BestOf1, ParticipationMode.Team, 2)
         {
             Id = Guid.NewGuid(),
-            Status = (GameStatus)status
+            Status = (TournamentStatus)status
         };
         dbContext.Users.AddRange(captain, member);
         dbContext.Teams.Add(team);
-        dbContext.Set<Game>().Add(game);
-        AddTeamRegistration(dbContext, game, team, captain, [captain, member], TournamentRegistrationStatus.Active);
+        dbContext.Set<TournamentAggregate>().Add(tournament);
+        AddTeamRegistration(dbContext, tournament, team, captain, [captain, member], TournamentRegistrationStatus.Active);
         await dbContext.SaveChangesAsync();
         var teamService = CreateTeamService(dbContext);
 
@@ -714,22 +714,22 @@ public class TeamTests
     }
 
     [Theory]
-    [InlineData((int)GameStatus.Scheduled)]
-    [InlineData((int)GameStatus.InProgress)]
+    [InlineData((int)TournamentStatus.Scheduled)]
+    [InlineData((int)TournamentStatus.InProgress)]
     public async Task DeleteTeamAsync_BlocksActiveTournamentStatuses(int status)
     {
         await using var dbContext = CreateDbContext();
         var captain = CreateUser();
         var team = CreateTeam("Alpha", captain);
-        var game = new Game("Game", BracketType.SingleElimination, GameFormat.BestOf1, GameFormat.BestOf1, ParticipationMode.Team, 1)
+        var tournament = new TournamentAggregate("Tournament", BracketType.SingleElimination, GameFormat.BestOf1, GameFormat.BestOf1, ParticipationMode.Team, 1)
         {
             Id = Guid.NewGuid(),
-            Status = (GameStatus)status
+            Status = (TournamentStatus)status
         };
         dbContext.Users.Add(captain);
         dbContext.Teams.Add(team);
-        dbContext.Set<Game>().Add(game);
-        AddTeamRegistration(dbContext, game, team, captain, [captain], TournamentRegistrationStatus.Active);
+        dbContext.Set<TournamentAggregate>().Add(tournament);
+        AddTeamRegistration(dbContext, tournament, team, captain, [captain], TournamentRegistrationStatus.Active);
         await dbContext.SaveChangesAsync();
 
         var teamService = CreateTeamService(dbContext);
@@ -749,21 +749,21 @@ public class TeamTests
         var team = CreateTeam("Alpha", captain);
         team.LogoUrl = "/images/alpha.webp";
         team.AddMember(member.Id);
-        var game = new Game("Completed Game", BracketType.SingleElimination, GameFormat.BestOf1, GameFormat.BestOf1, ParticipationMode.Team, 2)
+        var tournament = new TournamentAggregate("Completed Tournament", BracketType.SingleElimination, GameFormat.BestOf1, GameFormat.BestOf1, ParticipationMode.Team, 2)
         {
             Id = Guid.NewGuid(),
-            Status = GameStatus.Completed
+            Status = TournamentStatus.Completed
         };
-        var placement = new Placement { Id = Guid.NewGuid(), Game = game, GameId = game.Id, Place = 1 };
+        var placement = new Placement { Id = Guid.NewGuid(), Tournament = tournament, TournamentId = tournament.Id, Place = 1 };
         var match = new Match
         {
             Id = Guid.NewGuid(),
-            Game = game,
-            GameId = game.Id,
+            Tournament = tournament,
+            TournamentId = tournament.Id,
             ParticipationMode = ParticipationMode.Team,
             TeamParticipant1Id = team.Id
         };
-        AddTeamRegistration(dbContext, game, team, captain, [captain, member], TournamentRegistrationStatus.Active);
+        AddTeamRegistration(dbContext, tournament, team, captain, [captain, member], TournamentRegistrationStatus.Active);
         placement.Teams = [new PlacementTeam { TeamId = team.Id }];
         var invite = new TeamInvite
         {
@@ -778,7 +778,7 @@ public class TeamTests
         dbContext.Users.AddRange(captain, member);
         dbContext.Teams.Add(team);
         dbContext.Set<TeamInvite>().Add(invite);
-        dbContext.Set<Game>().Add(game);
+        dbContext.Set<TournamentAggregate>().Add(tournament);
         dbContext.Set<Placement>().Add(placement);
         dbContext.Set<Match>().Add(match);
         await dbContext.SaveChangesAsync();
@@ -798,7 +798,7 @@ public class TeamTests
         Assert.Null(deletedTeam.LogoUrl);
         Assert.Empty(team.Members);
         Assert.False(await dbContext.Set<TeamInvite>().AnyAsync(teamInvite => teamInvite.TeamId == team.Id));
-        Assert.True(await dbContext.Set<TournamentRegistration>().AnyAsync(registration => registration.GameId == game.Id && registration.TeamId == team.Id));
+        Assert.True(await dbContext.Set<TournamentRegistration>().AnyAsync(registration => registration.TournamentId == tournament.Id && registration.TeamId == team.Id));
         Assert.True(await dbContext.Set<Match>().AnyAsync(m => m.Id == match.Id && m.TeamParticipant1Id == team.Id));
         Assert.True(await dbContext.Set<Placement>().AnyAsync(p => p.Id == placement.Id && p.Teams.Any(t => t.TeamId == team.Id)));
         Assert.Empty(mediaModule.DeletedImages);
@@ -947,15 +947,15 @@ public class TeamTests
         var captain = CreateUser();
         var team = CreateTeam("Alpha", captain);
         team.LogoUrl = "/images/original.webp";
-        var game = new Game("Completed Game", BracketType.SingleElimination, GameFormat.BestOf1, GameFormat.BestOf1, ParticipationMode.Team, 1)
+        var tournament = new TournamentAggregate("Completed Tournament", BracketType.SingleElimination, GameFormat.BestOf1, GameFormat.BestOf1, ParticipationMode.Team, 1)
         {
             Id = Guid.NewGuid(),
-            Status = GameStatus.Completed
+            Status = TournamentStatus.Completed
         };
         dbContext.Users.Add(captain);
         dbContext.Teams.Add(team);
-        dbContext.Set<Game>().Add(game);
-        AddTeamRegistration(dbContext, game, team, captain, [captain], TournamentRegistrationStatus.Active);
+        dbContext.Set<TournamentAggregate>().Add(tournament);
+        AddTeamRegistration(dbContext, tournament, team, captain, [captain], TournamentRegistrationStatus.Active);
         await dbContext.SaveChangesAsync();
         var historicalMediaModule = new StubMediaModule("/images/new.webp");
         var teamService = CreateTeamService(dbContext, historicalMediaModule);
@@ -1022,15 +1022,15 @@ public class TeamTests
         var member = CreateUser();
         var team = CreateTeam("Tournament Team", captain);
         team.AddMember(member.Id);
-        var game = new Game("Team Cup", BracketType.SingleElimination, GameFormat.BestOf1, GameFormat.BestOf1, ParticipationMode.Team, 2)
+        var tournament = new TournamentAggregate("Team Cup", BracketType.SingleElimination, GameFormat.BestOf1, GameFormat.BestOf1, ParticipationMode.Team, 2)
         {
             Id = Guid.NewGuid()
         };
         var rosterMember = new TournamentRegistrationRosterMember
         {
             Id = Guid.NewGuid(),
-            Game = game,
-            GameId = game.Id,
+            Tournament = tournament,
+            TournamentId = tournament.Id,
             TeamId = team.Id,
             TeamNameAtRegistration = team.Name,
             UserId = member.Id,
@@ -1040,12 +1040,12 @@ public class TeamTests
         };
         dbContext.Users.AddRange(captain, member);
         dbContext.Teams.Add(team);
-        dbContext.Set<Game>().Add(game);
+        dbContext.Set<TournamentAggregate>().Add(tournament);
         dbContext.Set<TournamentRegistration>().Add(new TournamentRegistration
         {
             Id = Guid.NewGuid(),
-            Game = game,
-            GameId = game.Id,
+            Tournament = tournament,
+            TournamentId = tournament.Id,
             Kind = TournamentRegistrationKind.Team,
             Status = TournamentRegistrationStatus.PendingConfirmation,
             RegisteredByUserId = captain.Id,
@@ -1445,7 +1445,7 @@ public class TeamTests
         dbContext.Teams.Add(team);
         await dbContext.SaveChangesAsync();
         var mediaModule = new StubMediaModule("/images/unused.webp");
-        var competitionReadService = new StubTeamCompetitionReadService(dbContext)
+        var tournamentReadService = new StubTeamTournamentReadService(dbContext)
         {
             ThrowOnLogoReferenceQuery = true
         };
@@ -1453,7 +1453,7 @@ public class TeamTests
         var teamService = CreateTeamService(
             dbContext,
             mediaModule,
-            competitionReadService: competitionReadService,
+            tournamentReadService: tournamentReadService,
             logger: logger);
 
         await teamService.RemoveTeamLogoAsync(captain.Auth0UserId, team.Id);
@@ -1609,7 +1609,7 @@ public class TeamTests
 
     private static void AddTeamRegistration(
         MercuriusDBContext dbContext,
-        Game game,
+        TournamentAggregate tournament,
         Team team,
         User captain,
         IReadOnlyCollection<User> rosterMembers,
@@ -1618,8 +1618,8 @@ public class TeamTests
         dbContext.Set<TournamentRegistration>().Add(new TournamentRegistration
         {
             Id = Guid.NewGuid(),
-            Game = game,
-            GameId = game.Id,
+            Tournament = tournament,
+            TournamentId = tournament.Id,
             Kind = TournamentRegistrationKind.Team,
             Status = status,
             RegisteredByUserId = captain.Id,
@@ -1631,8 +1631,8 @@ public class TeamTests
             RosterMembers = rosterMembers.Select(member => new TournamentRegistrationRosterMember
             {
                 Id = Guid.NewGuid(),
-                Game = game,
-                GameId = game.Id,
+                Tournament = tournament,
+                TournamentId = tournament.Id,
                 TeamId = team.Id,
                 TeamNameAtRegistration = team.Name,
                 UserId = member.Id,
@@ -1662,7 +1662,7 @@ public class TeamTests
         ITeamEventPublisher? eventPublisher = null,
         IModuleEventPublisher? moduleEventPublisher = null,
         IRealtimeConnectionManager? realtimeConnectionManager = null,
-        ITeamCompetitionReadService? competitionReadService = null,
+        ITeamTournamentReadService? tournamentReadService = null,
         ILogger<TeamService>? logger = null)
     {
         var configuration = new ConfigurationBuilder()
@@ -1683,7 +1683,7 @@ public class TeamTests
                 configuration,
                 identityModule,
                 mediaModule ?? new StubMediaModule("https://example.test/default-team-logo.webp"),
-                competitionReadService ?? new StubTeamCompetitionReadService(dbContext),
+                tournamentReadService ?? new StubTeamTournamentReadService(dbContext),
                 logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<TeamService>.Instance),
             teamsDbContext,
             identityModule,
@@ -1711,7 +1711,7 @@ public class TeamTests
             configuration,
             identityModule,
             new StubMediaModule("https://example.test/default-team-logo.webp"),
-            new StubTeamCompetitionReadService(dbContext),
+            new StubTeamTournamentReadService(dbContext),
             Microsoft.Extensions.Logging.Abstractions.NullLogger<TeamService>.Instance);
     }
 
@@ -1762,7 +1762,7 @@ public class TeamTests
 
     private sealed record DeletedImage(string? ImageUrl, CancellationToken CancellationToken);
 
-    private sealed class StubTeamCompetitionReadService(MercuriusDBContext dbContext) : ITeamCompetitionReadService
+    private sealed class StubTeamTournamentReadService(MercuriusDBContext dbContext) : ITeamTournamentReadService
     {
         public bool ThrowOnLogoReferenceQuery { get; init; }
 
@@ -1771,9 +1771,9 @@ public class TeamTests
             return await dbContext.Set<TournamentRegistration>()
                 .AsNoTracking()
                 .Where(registration => registration.TeamId == teamId && registration.Status == TournamentRegistrationStatus.Active)
-                .Select(registration => new PublicTeamTournamentSummary(new GameId(registration.GameId), registration.Game.Name))
+                .Select(registration => new PublicTeamTournamentSummary(new TournamentId(registration.TournamentId), registration.Tournament.Name))
                 .OrderBy(tournament => tournament.Name)
-                .ThenBy(tournament => tournament.GameId.Value)
+                .ThenBy(tournament => tournament.TournamentId.Value)
                 .ToListAsync(cancellationToken);
         }
 
@@ -1783,7 +1783,7 @@ public class TeamTests
                 .AsNoTracking()
                 .Where(registration =>
                     registration.TeamId == teamId &&
-                    registration.Game.Status == GameStatus.InProgress &&
+                    registration.Tournament.Status == TournamentStatus.InProgress &&
                     registration.RosterMembers.Any(member => member.UserId == userId))
                 .AnyAsync(cancellationToken);
         }
@@ -1794,7 +1794,7 @@ public class TeamTests
                 .AsNoTracking()
                 .Where(registration =>
                     registration.TeamId == teamId &&
-                    (registration.Game.Status == GameStatus.Scheduled || registration.Game.Status == GameStatus.InProgress))
+                    (registration.Tournament.Status == TournamentStatus.Scheduled || registration.Tournament.Status == TournamentStatus.InProgress))
                 .AnyAsync(cancellationToken);
         }
 

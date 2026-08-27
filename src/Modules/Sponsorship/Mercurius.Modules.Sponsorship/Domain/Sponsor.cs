@@ -11,5 +11,5 @@ internal sealed class Sponsor
     public string InfoUrl { get; set; } = null!;
     public string? Description { get; set; }
 
-    public IList<GameSponsorPlacement> GameSponsorPlacements { get; set; } = [];
+    public IList<TournamentSponsorPlacement> TournamentSponsorPlacements { get; set; } = [];
 }

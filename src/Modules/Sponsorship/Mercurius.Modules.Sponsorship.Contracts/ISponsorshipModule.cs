@@ -13,16 +13,16 @@ public interface ISponsorshipModule
         int pageSize,
         CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyDictionary<GameId, SponsorPlacementSummary>> GetSponsorPlacementsAsync(
-        IReadOnlyCollection<GameId> gameIds,
+    Task<IReadOnlyDictionary<TournamentId, SponsorPlacementSummary>> GetSponsorPlacementsAsync(
+        IReadOnlyCollection<TournamentId> tournamentIds,
         CancellationToken cancellationToken = default);
 
     Task<SponsorPlacementSummary?> GetSponsorPlacementAsync(
-        GameId gameId,
+        TournamentId tournamentId,
         CancellationToken cancellationToken = default);
 
     Task ReplaceSponsorPlacementAsync(
-        GameId gameId,
+        TournamentId tournamentId,
         SponsorPlacementInput? placement,
         CancellationToken cancellationToken = default);
 }

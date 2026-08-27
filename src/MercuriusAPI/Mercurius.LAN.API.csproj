@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+<Project Sdk="Microsoft.NET.Sdk.Web">
 
 	<PropertyGroup>
 		<TargetFramework>net10.0</TargetFramework>
@@ -36,7 +36,7 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\Modules.Shared\Modules.Shared.csproj" />
-		<ProjectReference Include="..\Modules\Competition\Mercurius.Modules.Competition\Mercurius.Modules.Competition.csproj" />
+		<ProjectReference Include="..\Modules\Tournament\Mercurius.Modules.Tournament\Mercurius.Modules.Tournament.csproj" />
 		<ProjectReference Include="..\Modules\Discovery\Mercurius.Modules.Discovery\Mercurius.Modules.Discovery.csproj" />
 		<ProjectReference Include="..\Modules\Identity\Mercurius.Modules.Identity\Mercurius.Modules.Identity.csproj" />
 		<ProjectReference Include="..\Modules\Media\Mercurius.Modules.Media\Mercurius.Modules.Media.csproj" />

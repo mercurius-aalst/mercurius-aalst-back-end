@@ -39,7 +39,7 @@ The endpoint MUST include public tournament navigation data for tournaments wher
 
 #### Scenario: Registered tournaments returned
 - **WHEN** a team is registered for tournaments
-- **THEN** the response includes tournaments with only `gameId` and tournament name
+- **THEN** the response includes tournaments with only `tournamentId` and tournament name
 
 #### Scenario: Stable ordering
 - **WHEN** members or tournaments are returned

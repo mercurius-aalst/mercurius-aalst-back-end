@@ -27,8 +27,8 @@ public class TeamServicePublicProfileTests
         dbContext.Users.AddRange(captain, zetaMember, alphaMember);
         dbContext.Teams.Add(team);
 
-        var tournament = CreateGame(Guid.Parse("00000000-0000-0000-0000-000000000001"), "Alpha Cup");
-        dbContext.Set<Game>().Add(tournament);
+        var tournament = CreateTournament(Guid.Parse("00000000-0000-0000-0000-000000000001"), "Alpha Cup");
+        dbContext.Set<TournamentAggregate>().Add(tournament);
         AddActiveTeamRegistration(dbContext, tournament, team, captain);
         await dbContext.SaveChangesAsync();
 
@@ -102,18 +102,18 @@ public class TeamServicePublicProfileTests
         dbContext.Users.Add(captain);
         dbContext.Teams.Add(team);
 
-        var alphaOne = CreateGame(Guid.Parse("00000000-0000-0000-0000-000000000001"), "Alpha Cup");
-        var alphaTwo = CreateGame(Guid.Parse("00000000-0000-0000-0000-000000000002"), "Alpha Cup");
-        var zeta = CreateGame(Guid.Parse("00000000-0000-0000-0000-000000000003"), "Zeta Clash");
+        var alphaOne = CreateTournament(Guid.Parse("00000000-0000-0000-0000-000000000001"), "Alpha Cup");
+        var alphaTwo = CreateTournament(Guid.Parse("00000000-0000-0000-0000-000000000002"), "Alpha Cup");
+        var zeta = CreateTournament(Guid.Parse("00000000-0000-0000-0000-000000000003"), "Zeta Clash");
 
         var otherCaptain = CreateUser("CaptainOther");
         var otherTeam = new Team("Other Team", otherCaptain.Id) { Id = Guid.NewGuid() };
         otherTeam.AddMember(otherCaptain.Id);
         dbContext.Users.Add(otherCaptain);
-        var hiddenTournament = CreateGame(Guid.Parse("00000000-0000-0000-0000-000000000004"), "Aardvark Cup");
+        var hiddenTournament = CreateTournament(Guid.Parse("00000000-0000-0000-0000-000000000004"), "Aardvark Cup");
 
         dbContext.Teams.Add(otherTeam);
-        dbContext.Set<Game>().AddRange(alphaOne, alphaTwo, zeta, hiddenTournament);
+        dbContext.Set<TournamentAggregate>().AddRange(alphaOne, alphaTwo, zeta, hiddenTournament);
         AddActiveTeamRegistration(dbContext, alphaOne, team, captain);
         AddActiveTeamRegistration(dbContext, alphaTwo, team, captain);
         AddActiveTeamRegistration(dbContext, zeta, team, captain);
@@ -129,7 +129,7 @@ public class TeamServicePublicProfileTests
                 "00000000-0000-0000-0000-000000000002",
                 "00000000-0000-0000-0000-000000000003"
             ],
-            profile.Tournaments.Select(tournament => tournament.GameId.ToString()).ToList());
+            profile.Tournaments.Select(tournament => tournament.TournamentId.ToString()).ToList());
 
         Assert.Equal(["Alpha Cup", "Alpha Cup", "Zeta Clash"], profile.Tournaments.Select(tournament => tournament.Name).ToList());
     }
@@ -148,7 +148,7 @@ public class TeamServicePublicProfileTests
             configuration,
             new DbContextIdentityModule(dbContext),
             new NoopMediaModule(),
-            competitionReadService: new StubTeamCompetitionReadService(dbContext),
+            tournamentReadService: new StubTeamTournamentReadService(dbContext),
             logger: Microsoft.Extensions.Logging.Abstractions.NullLogger<TeamService>.Instance);
     }
 
@@ -177,9 +177,9 @@ public class TeamServicePublicProfileTests
         };
     }
 
-    private static Game CreateGame(Guid id, string name)
+    private static TournamentAggregate CreateTournament(Guid id, string name)
     {
-        return new Game(
+        return new TournamentAggregate(
             name,
             BracketType.SingleElimination,
             GameFormat.BestOf3,
@@ -191,13 +191,13 @@ public class TeamServicePublicProfileTests
         };
     }
 
-    private static void AddActiveTeamRegistration(MercuriusDBContext dbContext, Game game, Team team, User captain)
+    private static void AddActiveTeamRegistration(MercuriusDBContext dbContext, TournamentAggregate tournament, Team team, User captain)
     {
         dbContext.Set<TournamentRegistration>().Add(new TournamentRegistration
         {
             Id = Guid.NewGuid(),
-            Game = game,
-            GameId = game.Id,
+            Tournament = tournament,
+            TournamentId = tournament.Id,
             Kind = TournamentRegistrationKind.Team,
             Status = TournamentRegistrationStatus.Active,
             RegisteredByUserId = captain.Id,
@@ -210,8 +210,8 @@ public class TeamServicePublicProfileTests
                 new TournamentRegistrationRosterMember
                 {
                     Id = Guid.NewGuid(),
-                    Game = game,
-                    GameId = game.Id,
+                    Tournament = tournament,
+                    TournamentId = tournament.Id,
                     TeamId = team.Id,
                     TeamNameAtRegistration = team.Name,
                     UserId = captain.Id,
@@ -224,7 +224,7 @@ public class TeamServicePublicProfileTests
         });
     }
 
-    private sealed class StubTeamCompetitionReadService(MercuriusDBContext dbContext) : ITeamCompetitionReadService
+    private sealed class StubTeamTournamentReadService(MercuriusDBContext dbContext) : ITeamTournamentReadService
     {
         public async Task<IReadOnlyList<PublicTeamTournamentSummary>> GetPublicTeamTournamentsAsync(Guid teamId, CancellationToken cancellationToken = default)
         {
@@ -232,10 +232,10 @@ public class TeamServicePublicProfileTests
                 .AsNoTracking()
                 .Where(registration => registration.TeamId == teamId && registration.Status == TournamentRegistrationStatus.Active)
                 .Select(registration => new PublicTeamTournamentSummary(
-                    new GameId(registration.GameId),
-                    registration.Game.Name))
+                    new TournamentId(registration.TournamentId),
+                    registration.Tournament.Name))
                 .OrderBy(tournament => tournament.Name)
-                .ThenBy(tournament => tournament.GameId.Value)
+                .ThenBy(tournament => tournament.TournamentId.Value)
                 .ToListAsync(cancellationToken);
         }
 

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Mercurius.LAN.API.Data;
 using Mercurius.Modules.Teams.DTOs;
 using Mercurius.LAN.API.Migrations;
@@ -9,6 +10,7 @@ using Mercurius.Modules.Identity.DTOs;
 using Mercurius.Modules.Identity.Services;
 using Mercurius.Modules.Identity.Services.Auth0;
 using Mercurius.Modules.Media.Contracts;
+using Mercurius.Modules.Tournament.Contracts;
 using Mercurius.Modules.Teams.Contracts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
@@ -188,6 +190,38 @@ public class ModuleEventingTests
         Assert.Equal(1, outbox.RetryCount);
         Assert.NotNull(outbox.ProcessedAtUtc);
         Assert.Equal(2, await dbContext.InboxMessages.CountAsync());
+    }
+
+    [Fact]
+    public async Task Dispatcher_ResolvesLegacyTournamentTypeAndGameIdPayload()
+    {
+        var state = new LegacyTournamentEventState();
+        await using var provider = CreateEventingProvider(
+            state,
+            services => services.AddModuleEventHandler<TournamentCreatedIntegrationEvent, LegacyTournamentCreatedHandler>());
+        using var scope = provider.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<MercuriusDBContext>();
+        var tournamentId = Guid.NewGuid();
+        var serializerOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        dbContext.OutboxMessages.Add(new OutboxMessage
+        {
+            Id = Guid.NewGuid(),
+            EventType = "Mercurius.Modules.Competition.Contracts.GameCreatedIntegrationEvent, Mercurius.Modules.Competition.Contracts",
+            Payload = JsonSerializer.Serialize(
+                new { gameId = new Mercurius.Modules.Shared.TournamentId(tournamentId), name = "Legacy tournament" },
+                serializerOptions),
+            OccurredAtUtc = DateTime.UtcNow,
+            NextAttemptAtUtc = DateTime.UtcNow
+        });
+        await dbContext.SaveChangesAsync();
+
+        var processed = await scope.ServiceProvider
+            .GetRequiredService<IModuleEventDispatcher>()
+            .DispatchPendingAsync();
+
+        Assert.Equal(1, processed);
+        Assert.Equal(tournamentId, state.TournamentId);
+        Assert.Equal("Legacy tournament", state.Name);
     }
 
     [Fact]
@@ -424,9 +458,10 @@ public class ModuleEventingTests
         return messageId;
     }
 
-    private static ServiceProvider CreateEventingProvider(
-        HandlerState state,
+    private static ServiceProvider CreateEventingProvider<TState>(
+        TState state,
         Action<IServiceCollection> configureHandlers)
+        where TState : class
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -468,7 +503,7 @@ public class ModuleEventingTests
                 configuration,
                 identityModule,
                 new NoopMediaModule(),
-                new NoopTeamCompetitionReadService(),
+                new NoopTeamTournamentReadService(),
                 Microsoft.Extensions.Logging.Abstractions.NullLogger<TeamService>.Instance),
             teamsDbContext,
             identityModule,
@@ -535,7 +570,7 @@ public class ModuleEventingTests
         public Task DeleteImageAsync(string? mediaUrl, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 
-    private sealed class NoopTeamCompetitionReadService : ITeamCompetitionReadService
+    private sealed class NoopTeamTournamentReadService : ITeamTournamentReadService
     {
         public Task<IReadOnlyList<PublicTeamTournamentSummary>> GetPublicTeamTournamentsAsync(Guid teamId, CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<PublicTeamTournamentSummary>>([]);
@@ -577,6 +612,34 @@ public class ModuleEventingTests
     {
         public string Name { get; set; } = string.Empty;
         public long Version { get; set; }
+    }
+
+    private sealed class LegacyTournamentEventState
+    {
+        public Guid TournamentId { get; set; }
+        public string? Name { get; set; }
+    }
+
+    private sealed class LegacyTournamentCreatedHandler : IModuleEventHandler<TournamentCreatedIntegrationEvent>
+    {
+        private readonly LegacyTournamentEventState _state;
+
+        public LegacyTournamentCreatedHandler(LegacyTournamentEventState state)
+        {
+            _state = state;
+        }
+
+        public string ConsumerName => "legacy-tournament-created-consumer";
+
+        public Task HandleAsync(
+            TournamentCreatedIntegrationEvent payload,
+            ModuleEventContext context,
+            CancellationToken cancellationToken = default)
+        {
+            _state.TournamentId = payload.TournamentId.Value;
+            _state.Name = payload.Name;
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class RecordingHandler : IModuleEventHandler<TestModuleEvent>

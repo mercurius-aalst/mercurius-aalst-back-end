@@ -9,10 +9,10 @@ The system MUST define entity mapping configuration in the infrastructure area o
 
 #### Scenario: Building the runtime model
 - **WHEN** the API creates `MercuriusDBContext`
-- **THEN** the EF model contains the configurations supplied by Identity, Teams, Competition, Sponsorship, Discovery, and Platform composition
+- **THEN** the EF model contains the configurations supplied by Identity, Teams, Tournament, Sponsorship, Discovery, and Platform composition
 
 ### Requirement: Schema-aligned persistence ownership
-The system MUST map Identity, Teams, Competition, Sponsorship, Discovery, and Platform tables to their respective PostgreSQL schemas. The migration moving legacy module tables to those schemas MUST preserve existing data, columns, indexes, and foreign-key constraints.
+The system MUST map Identity, Teams, Tournament, Sponsorship, Discovery, and Platform tables to their respective PostgreSQL schemas. The migration moving legacy module tables to those schemas MUST preserve existing data, columns, indexes, and foreign-key constraints.
 
 #### Scenario: Applying the persistence-boundary migration
 - **WHEN** the migration is applied to a database containing legacy default-schema module tables

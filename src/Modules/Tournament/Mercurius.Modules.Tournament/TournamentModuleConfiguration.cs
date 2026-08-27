@@ -1,0 +1,66 @@
+using Mercurius.Modules.Tournament.Application;
+using Mercurius.Modules.Tournament.Application.Services;
+using Mercurius.Modules.Tournament.Application.Services.BracketTypes;
+using Mercurius.Modules.Tournament.Contracts;
+using Mercurius.Modules.Tournament.Endpoints;
+using Mercurius.Modules.Tournament.Infrastructure;
+using Mercurius.Modules.Teams.Contracts;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+
+namespace Mercurius.Modules.Tournament;
+
+public static class TournamentModuleConfiguration
+{
+    public static IServiceCollection AddTournamentModule<TDbContext>(
+        this IServiceCollection services,
+        IConfiguration _)
+        where TDbContext : DbContext
+    {
+        services.TryAddScoped<ITournamentDbContext, TournamentDbContextAdapter<TDbContext>>();
+        services.AddTransient<ITournamentModule, TournamentModuleFacade>();
+        services.AddTransient<TournamentEligibilityEvaluator>();
+        services.AddTransient<TournamentDtoMapper>();
+        services.AddTransient<RegistrationMappingContextBuilder>();
+        services.AddTransient<TournamentRegistrationPersistenceCoordinator>();
+        services.AddTransient<TournamentRegistrationReadModelService>();
+        services.AddTransient<ITournamentQueries, TournamentService>();
+        services.AddTransient<ITournamentManagementCommands, TournamentService>();
+        services.AddTransient<ITournamentLifecycleCommands, TournamentService>();
+        services.AddTransient<IMatchService, MatchService>();
+        services.AddTransient<ITournamentRegistrationService, TournamentRegistrationService>();
+        services.AddTransient<IMatchModeratorFactory, MatchModeratorFactory>();
+        services.AddTransient<SingleEliminationMatchModerator>();
+        services.AddTransient<DoubleEliminationMatchModerator>();
+        services.AddTransient<RoundRobinMatchModerator>();
+        services.AddTransient<ITournamentRealtimePublisher, TournamentRealtimePublisher>();
+        services.AddTransient<ITeamTournamentReadService, TournamentTeamReadService>();
+
+        return services;
+    }
+
+    public static ModelBuilder ApplyTournamentModelConfiguration(this ModelBuilder modelBuilder)
+    {
+        modelBuilder.ApplyConfiguration(new Infrastructure.TournamentConfiguration());
+        modelBuilder.ApplyConfiguration(new MatchConfiguration());
+        modelBuilder.ApplyConfiguration(new TournamentRegistrationConfiguration());
+        modelBuilder.ApplyConfiguration(new TournamentRegistrationRosterMemberConfiguration());
+        modelBuilder.ApplyConfiguration(new PlacementConfiguration());
+        modelBuilder.ApplyConfiguration(new PlacementUserConfiguration());
+        modelBuilder.ApplyConfiguration(new PlacementTeamConfiguration());
+
+        return modelBuilder;
+    }
+
+    public static IEndpointRouteBuilder MapTournamentModule(this IEndpointRouteBuilder endpoints)
+    {
+        endpoints.MapTournamentEndpoints();
+        endpoints.MapTournamentRegistrationEndpoints();
+        endpoints.MapMatchEndpoints();
+
+        return endpoints;
+    }
+}

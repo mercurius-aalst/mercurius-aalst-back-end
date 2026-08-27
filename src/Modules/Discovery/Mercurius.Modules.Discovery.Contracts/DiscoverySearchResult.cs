@@ -11,4 +11,4 @@ public sealed record DiscoverySearchResult(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     string? TeamName,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    Guid? GameId);
+    Guid? TournamentId);

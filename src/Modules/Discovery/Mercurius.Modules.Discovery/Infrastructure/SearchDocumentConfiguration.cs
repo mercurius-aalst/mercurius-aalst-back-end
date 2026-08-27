@@ -25,6 +25,6 @@ internal sealed class SearchDocumentConfiguration : IEntityTypeConfiguration<Sea
         entity.HasIndex(document => new { document.EntityType, document.EntityId }).IsUnique();
         entity.HasIndex(document => new { document.NormalizedText, document.TypeOrder, document.EntityId })
             .HasDatabaseName("IX_search_documents_active_exact_order")
-            .HasFilter("is_deleted = false AND entity_type IN ('user', 'team', 'game')");
+            .HasFilter("is_deleted = false AND entity_type IN ('user', 'team', 'tournament')");
     }
 }

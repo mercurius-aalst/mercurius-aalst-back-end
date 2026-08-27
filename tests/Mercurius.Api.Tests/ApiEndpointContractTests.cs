@@ -1,6 +1,6 @@
 using Mercurius.LAN.API.Hubs;
-using Mercurius.Modules.Competition;
-using Mercurius.Modules.Competition.Application.Services;
+using Mercurius.Modules.Tournament;
+using Mercurius.Modules.Tournament.Application.Services;
 using Mercurius.LAN.API.Data;
 using Mercurius.Modules.Discovery;
 using Mercurius.Modules.Discovery.Contracts;
@@ -23,8 +23,8 @@ namespace Mercurius.Api.Tests;
 public class ApiEndpointContractTests
 {
     [Theory]
-    [InlineData("GET", "v{version:apiVersion}/lan/games/", "Games")]
-    [InlineData("GET", "v{version:apiVersion}/lan/games/{id}", "Games")]
+    [InlineData("GET", "v{version:apiVersion}/lan/tournaments/", "Tournaments")]
+    [InlineData("GET", "v{version:apiVersion}/lan/tournaments/{tournamentId}", "Tournaments")]
     [InlineData("GET", "v{version:apiVersion}/lan/matches/{id}", "Matches")]
     [InlineData("GET", "v{version:apiVersion}/lan/sponsors/", "Sponsors")]
     [InlineData("GET", "v{version:apiVersion}/lan/sponsors/{id}", "Sponsors")]
@@ -63,15 +63,15 @@ public class ApiEndpointContractTests
     [InlineData("PUT", "v{version:apiVersion}/lan/teams/{id}/captain")]
     [InlineData("PUT", "v{version:apiVersion}/lan/teams/{id}/logo")]
     [InlineData("DELETE", "v{version:apiVersion}/lan/teams/{id}/logo")]
-    [InlineData("GET", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/me")]
-    [InlineData("GET", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/individual/eligibility")]
-    [InlineData("GET", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/teams/{teamId:guid}/eligibility")]
-    [InlineData("POST", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/teams/{teamId:guid}/roster/eligibility")]
-    [InlineData("PUT", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/individual/me")]
-    [InlineData("DELETE", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/individual/me")]
-    [InlineData("PUT", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/teams/{teamId:guid}/roster")]
-    [InlineData("DELETE", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/teams/{teamId:guid}")]
-    [InlineData("PATCH", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/roster-members/{rosterMemberId:guid}")]
+    [InlineData("GET", "v{version:apiVersion}/lan/tournaments/{tournamentId:guid}/registrations/me")]
+    [InlineData("GET", "v{version:apiVersion}/lan/tournaments/{tournamentId:guid}/registrations/individual/eligibility")]
+    [InlineData("GET", "v{version:apiVersion}/lan/tournaments/{tournamentId:guid}/registrations/teams/{teamId:guid}/eligibility")]
+    [InlineData("POST", "v{version:apiVersion}/lan/tournaments/{tournamentId:guid}/registrations/teams/{teamId:guid}/roster/eligibility")]
+    [InlineData("PUT", "v{version:apiVersion}/lan/tournaments/{tournamentId:guid}/registrations/individual/me")]
+    [InlineData("DELETE", "v{version:apiVersion}/lan/tournaments/{tournamentId:guid}/registrations/individual/me")]
+    [InlineData("PUT", "v{version:apiVersion}/lan/tournaments/{tournamentId:guid}/registrations/teams/{teamId:guid}/roster")]
+    [InlineData("DELETE", "v{version:apiVersion}/lan/tournaments/{tournamentId:guid}/registrations/teams/{teamId:guid}")]
+    [InlineData("PATCH", "v{version:apiVersion}/lan/tournaments/{tournamentId:guid}/registrations/roster-members/{rosterMemberId:guid}")]
     public void AuthenticatedUserRoutes_RequireAuthorization(string method, string routePattern)
     {
         var endpoint = GetEndpoint(method, routePattern);
@@ -80,11 +80,11 @@ public class ApiEndpointContractTests
     }
 
     [Theory]
-    [InlineData("POST", "v{version:apiVersion}/lan/games/")]
-    [InlineData("PATCH", "v{version:apiVersion}/lan/games/{id}")]
-    [InlineData("DELETE", "v{version:apiVersion}/lan/games/{id}")]
-    [InlineData("PUT", "v{version:apiVersion}/lan/games/{id}/sponsors")]
-    [InlineData("PUT", "v{version:apiVersion}/lan/games/{id}/lifecycle-state")]
+    [InlineData("POST", "v{version:apiVersion}/lan/tournaments/")]
+    [InlineData("PATCH", "v{version:apiVersion}/lan/tournaments/{tournamentId}")]
+    [InlineData("DELETE", "v{version:apiVersion}/lan/tournaments/{tournamentId}")]
+    [InlineData("PUT", "v{version:apiVersion}/lan/tournaments/{tournamentId}/sponsors")]
+    [InlineData("PUT", "v{version:apiVersion}/lan/tournaments/{tournamentId}/lifecycle-state")]
     [InlineData("PUT", "v{version:apiVersion}/lan/matches/{id}")]
     [InlineData("POST", "v{version:apiVersion}/lan/sponsors/")]
     [InlineData("PATCH", "v{version:apiVersion}/lan/sponsors/{id}")]
@@ -95,9 +95,9 @@ public class ApiEndpointContractTests
     [InlineData("DELETE", "v{version:apiVersion}/lan/users/{id:guid}")]
     [InlineData("DELETE", "v{version:apiVersion}/lan/users/{username:nonguid}")]
     [InlineData("DELETE", "v{version:apiVersion}/lan/users/{username}/account")]
-    [InlineData("GET", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/admin/")]
-    [InlineData("DELETE", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/admin/users/{userId:guid}")]
-    [InlineData("DELETE", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/admin/teams/{teamId:guid}")]
+    [InlineData("GET", "v{version:apiVersion}/lan/tournaments/{tournamentId:guid}/registrations/admin/")]
+    [InlineData("DELETE", "v{version:apiVersion}/lan/tournaments/{tournamentId:guid}/registrations/admin/users/{userId:guid}")]
+    [InlineData("DELETE", "v{version:apiVersion}/lan/tournaments/{tournamentId:guid}/registrations/admin/teams/{teamId:guid}")]
     public void AdminRoutes_RequireAdminAuthorization(string method, string routePattern)
     {
         var endpoint = GetEndpoint(method, routePattern);
@@ -118,10 +118,10 @@ public class ApiEndpointContractTests
     }
 
     [Theory]
-    [InlineData("POST", "v{version:apiVersion}/lan/games/{id}/users")]
-    [InlineData("DELETE", "v{version:apiVersion}/lan/games/{id}/users/{userId}")]
-    [InlineData("POST", "v{version:apiVersion}/lan/games/{id}/teams")]
-    [InlineData("DELETE", "v{version:apiVersion}/lan/games/{id}/teams/{teamId}")]
+    [InlineData("POST", "v{version:apiVersion}/lan/tournaments/{id}/users")]
+    [InlineData("DELETE", "v{version:apiVersion}/lan/tournaments/{id}/users/{userId}")]
+    [InlineData("POST", "v{version:apiVersion}/lan/tournaments/{id}/teams")]
+    [InlineData("DELETE", "v{version:apiVersion}/lan/tournaments/{id}/teams/{teamId}")]
     [InlineData("DELETE", "v{version:apiVersion}/lan/teams/{id}/users/{userId}")]
     [InlineData("PUT", "v{version:apiVersion}/lan/teams/{id}")]
     [InlineData("POST", "v{version:apiVersion}/lan/teams/{id}/users/invite/{userId}")]
@@ -131,15 +131,24 @@ public class ApiEndpointContractTests
     [InlineData("POST", "v{version:apiVersion}/lan/teams/{id}/invites/{userId}")]
     [InlineData("PUT", "v{version:apiVersion}/lan/teams/invites/{inviteId}")]
     [InlineData("POST", "v{version:apiVersion}/lan/teams/{id}/logo")]
-    [InlineData("POST", "v{version:apiVersion}/lan/games/{id}/start")]
-    [InlineData("POST", "v{version:apiVersion}/lan/games/{id}/reset")]
-    [InlineData("POST", "v{version:apiVersion}/lan/games/{id}/complete")]
-    [InlineData("POST", "v{version:apiVersion}/lan/games/{id}/cancel")]
-    [InlineData("GET", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/eligibility/individual")]
-    [InlineData("GET", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/eligibility/teams/{teamId:guid}")]
-    [InlineData("POST", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/eligibility/teams/{teamId:guid}/roster")]
-    [InlineData("POST", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/individual")]
-    [InlineData("POST", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/roster-confirmations/{rosterMemberId:guid}/confirm")]
+    [InlineData("POST", "v{version:apiVersion}/lan/tournaments/{id}/start")]
+    [InlineData("POST", "v{version:apiVersion}/lan/tournaments/{id}/reset")]
+    [InlineData("POST", "v{version:apiVersion}/lan/tournaments/{id}/complete")]
+    [InlineData("POST", "v{version:apiVersion}/lan/tournaments/{id}/cancel")]
+    [InlineData("GET", "v{version:apiVersion}/lan/tournaments/{tournamentId:guid}/registrations/eligibility/individual")]
+    [InlineData("GET", "v{version:apiVersion}/lan/tournaments/{tournamentId:guid}/registrations/eligibility/teams/{teamId:guid}")]
+    [InlineData("POST", "v{version:apiVersion}/lan/tournaments/{tournamentId:guid}/registrations/eligibility/teams/{teamId:guid}/roster")]
+    [InlineData("POST", "v{version:apiVersion}/lan/tournaments/{tournamentId:guid}/registrations/individual")]
+    [InlineData("POST", "v{version:apiVersion}/lan/tournaments/{tournamentId:guid}/registrations/roster-confirmations/{rosterMemberId:guid}/confirm")]
+    [InlineData("GET", "v{version:apiVersion}/lan/games/")]
+    [InlineData("GET", "v{version:apiVersion}/lan/games/{id}")]
+    [InlineData("PATCH", "v{version:apiVersion}/lan/games/{id}")]
+    [InlineData("DELETE", "v{version:apiVersion}/lan/games/{id}")]
+    [InlineData("PUT", "v{version:apiVersion}/lan/games/{id}/sponsors")]
+    [InlineData("PUT", "v{version:apiVersion}/lan/games/{id}/lifecycle-state")]
+    [InlineData("GET", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/me")]
+    [InlineData("GET", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/admin/")]
+    [InlineData("PATCH", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/roster-members/{rosterMemberId:guid}")]
     public void RemovedOrUnavailableRoutes_StayUnavailable(string method, string routePattern)
     {
         var endpoints = GetEndpoints(method);
@@ -203,7 +212,7 @@ public class ApiEndpointContractTests
         builder.Services.AddHttpConventions();
 
         var app = builder.Build();
-        app.MapCompetitionModule();
+        app.MapTournamentModule();
         app.MapTeamsModule();
         app.MapSponsorshipModule();
         app.MapIdentityModule();
@@ -221,9 +230,9 @@ public class ApiEndpointContractTests
 
     private static void RegisterEndpointServices(IServiceCollection services)
     {
-        services.AddScoped<IGameQueries>(_ => throw new NotSupportedException());
-        services.AddScoped<IGameManagementCommands>(_ => throw new NotSupportedException());
-        services.AddScoped<IGameLifecycleCommands>(_ => throw new NotSupportedException());
+        services.AddScoped<ITournamentQueries>(_ => throw new NotSupportedException());
+        services.AddScoped<ITournamentManagementCommands>(_ => throw new NotSupportedException());
+        services.AddScoped<ITournamentLifecycleCommands>(_ => throw new NotSupportedException());
         services.AddScoped<ITournamentRegistrationService>(_ => throw new NotSupportedException());
         services.AddScoped<IMatchService>(_ => throw new NotSupportedException());
         services.AddScoped<ITeamEndpointService>(_ => throw new NotSupportedException());

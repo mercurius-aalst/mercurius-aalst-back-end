@@ -175,7 +175,7 @@ internal sealed class TeamEndpointService : ITeamEndpointService
             }).ToList(),
             Tournaments = profile.Tournaments.Select(tournament => new PublicTeamTournamentResponseDTO
             {
-                GameId = tournament.GameId,
+                TournamentId = tournament.TournamentId,
                 Name = tournament.Name
             }).ToList()
         };

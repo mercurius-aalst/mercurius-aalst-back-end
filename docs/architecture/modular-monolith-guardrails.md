@@ -5,9 +5,9 @@ This note records the durable migration rules for moving the back-end toward a m
 ## Target Module Ownership
 
 - Identity owns user identity, profile data, Auth0 binding, username and email uniqueness, deletion/anonymization state, and user profile events.
-- Teams owns teams, memberships, invites, captain transfer, team logo references, and membership rules that are not tied to a competition lifecycle.
-- Competition owns games, tournament registrations, roster members, matches, placements, brackets, and tournament lifecycle rules.
-- Sponsorship owns sponsors, sponsor tiers and contexts, display metadata, and sponsor placement assignment when it is not part of competition lifecycle decisions.
+- Teams owns teams, memberships, invites, captain transfer, team logo references, and membership rules that are not tied to a tournament lifecycle.
+- Tournament owns tournaments, tournament registrations, roster members, matches, placements, brackets, and tournament lifecycle rules.
+- Sponsorship owns sponsors, sponsor tiers and contexts, display metadata, and sponsor placement assignment when it is not part of tournament lifecycle decisions.
 - Discovery owns search projections, searchable documents, search endpoint behavior, and projection rebuild jobs.
 - Media owns physical file/image storage, upload validation, storage key management, and generated media references.
 - Platform owns host-level infrastructure such as auth wiring, Swagger/OpenAPI, validation plumbing, rate limiting, exception handling, CORS, SignalR/realtime infrastructure, outbox/inbox infrastructure, migrations/startup plumbing, route constraints, and HTTP middleware.
@@ -21,8 +21,8 @@ Allowed dependencies:
 - Module implementations may reference Modules.Shared.
 - Module implementations may reference Platform only when infrastructure concerns require it.
 - Module contracts may reference Modules.Shared.
-- Competition may reference Teams.Contracts, Identity.Contracts, Sponsorship.Contracts, and Media.Contracts.
-- Discovery may reference Teams.Contracts, Competition.Contracts, Sponsorship.Contracts, and Identity.Contracts.
+- Tournament may reference Teams.Contracts, Identity.Contracts, Sponsorship.Contracts, and Media.Contracts.
+- Discovery may reference Teams.Contracts, Tournament.Contracts, Sponsorship.Contracts, and Identity.Contracts.
 
 Forbidden dependencies:
 

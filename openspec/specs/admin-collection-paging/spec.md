@@ -1,7 +1,7 @@
 # admin-collection-paging Specification
 
 ## Purpose
-TBD - created by archiving change bound-admin-collections. Update Purpose after archive.
+Define bounded and deterministic paging for administrative user and tournament-registration collections.
 ## Requirements
 ### Requirement: Bounded administrative user collection
 The API MUST support optional `page` and `pageSize` query parameters on the existing no-query administrative user collection. It MUST default omitted values to page 1 and page size 20, reject non-positive supplied values with a validation problem before user-service invocation, and cap a positive page size at 50. The response MUST remain the existing raw user JSON array and MUST preserve the existing route and authorization behavior.

@@ -1,7 +1,7 @@
 # team-realtime-invocation-throttling Specification
 
 ## Purpose
-TBD - created by archiving change limit-team-hub-invocations. Update Purpose after archive.
+Define process-local throttling for authenticated team-management hub subscription invocations.
 ## Requirements
 ### Requirement: Authenticated team subscription invocations are process-locally throttled
 The API MUST apply one process-local fixed window of twenty invocations per sixty seconds, with no queue, to the combined `JoinTeam` and `LeaveTeam` calls from each authenticated team-management-hub subject. The API MUST acquire a permit before executing either hub method body, and all connections for the same subject MUST share the same window.

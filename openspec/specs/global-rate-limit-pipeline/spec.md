@@ -1,7 +1,7 @@
 # global-rate-limit-pipeline Specification
 
 ## Purpose
-TBD - created by archiving change enforce-global-rate-limit-pipeline. Update Purpose after archive.
+Define global rate-limit ordering relative to authentication, authorization, and Imageflow processing.
 ## Requirements
 ### Requirement: Global rate limiting precedes authorization
 The API host MUST authenticate each request before selecting its existing global rate-limit partition and MUST enforce the global limiter before authorization. Valid authenticated callers MUST continue to use the existing subject-claim partition, and callers without a valid authenticated identity MUST continue to use the existing remote-IP partition.

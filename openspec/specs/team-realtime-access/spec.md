@@ -1,7 +1,7 @@
 # team-realtime-access Specification
 
 ## Purpose
-TBD - created by archiving change harden-team-realtime-access. Update Purpose after archive.
+Define authenticated team-management hub access, membership revocation, and process-local connection tracking.
 ## Requirements
 ### Requirement: Exact-path browser hub authentication
 The API MUST accept a browser SignalR JWT from the `access_token` query parameter only for the canonical authenticated team-management hub route and MUST preserve normal bearer-header and prior authentication-event behavior.

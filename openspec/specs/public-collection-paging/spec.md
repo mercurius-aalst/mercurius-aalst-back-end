@@ -1,13 +1,13 @@
 # public-collection-paging Specification
 
 ## Purpose
-TBD - created by archiving change bound-rosters-and-page-public-collections. Update Purpose after archive.
+Define bounded and deterministic paging for anonymous public tournament and team collections.
 ## Requirements
 ### Requirement: Public tournament and team collections are bounded and navigable
-The API MUST page the existing anonymous game and team collection routes using optional positive `page` and `pageSize` query parameters while preserving their routes and raw JSON array response shapes.
+The API MUST page the existing anonymous tournament and team collection routes using optional positive `page` and `pageSize` query parameters while preserving their routes and raw JSON array response shapes.
 
 #### Scenario: Default collection page
-- **WHEN** a client requests `GET /v1/lan/games` or `GET /v1/lan/teams` without paging parameters
+- **WHEN** a client requests `GET /v1/lan/tournaments` or `GET /v1/lan/teams` without paging parameters
 - **THEN** the API returns the first page with at most 20 existing item objects in a raw JSON array
 - **AND** the response does not add a total count or pagination envelope
 
@@ -32,18 +32,18 @@ The API MUST page the existing anonymous game and team collection routes using o
 - **THEN** the client can increment `page` using the same `pageSize` to request the next ordered raw-array page
 
 ### Requirement: Public collection page ordering is deterministic and efficient
-The API MUST apply stable ordering and database-level bounds before materializing public game and team pages, MUST pass request cancellation through the query and enrichment flow, and MUST retain batched cross-module enrichment.
+The API MUST apply stable ordering and database-level bounds before materializing public tournament and team pages, MUST pass request cancellation through the query and enrichment flow, and MUST retain batched cross-module enrichment.
 
 #### Scenario: Tournament page ordering
-- **WHEN** a public game page is queried
-- **THEN** games are ordered by planned start time, then name, then ID before paging
+- **WHEN** a public tournament page is queried
+- **THEN** tournaments are ordered by planned start time, then name, then ID before paging
 
 #### Scenario: Team page ordering
 - **WHEN** a public team page is queried
 - **THEN** active teams are ordered by name, then ID before paging
 
 #### Scenario: Page enrichment remains batched
-- **WHEN** a game or team page contains multiple items requiring cross-module display data
+- **WHEN** a tournament or team page contains multiple items requiring cross-module display data
 - **THEN** the API enriches the bounded page through batch calls rather than one call per item
 
 #### Scenario: Overflowing page offset is safe

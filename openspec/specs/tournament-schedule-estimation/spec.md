@@ -34,7 +34,9 @@ The system MUST assign estimated start and end times to generated matches using 
 - **THEN** the tournament response includes an estimated end time equal to the end of the final scheduled match
 
 ### Requirement: Schedule data in API responses
-The API MUST return schedule configuration and generated estimates in the tournament and match responses needed by the redesigned front-end.
+The API MUST return schedule configuration and generated estimates in tournament and match
+responses needed by the redesigned front-end. Single-game duration and match-format terminology
+MUST remain unchanged.
 
 #### Scenario: Read tournament schedule fields
 - **WHEN** a client reads a tournament list or tournament detail response

@@ -1,9 +1,7 @@
 ## Purpose
 
 Define authenticated self-service team ownership, membership, invites, captain transfer, team logo management, and related real-time update behavior.
-
 ## Requirements
-
 ### Requirement: Authenticated team creation
 The API MUST allow an authenticated user to create a team and MUST make that user the team's captain and a team member.
 
@@ -354,3 +352,67 @@ The API MUST expose authenticated resource-oriented routes for team leave, invit
 #### Scenario: Team action routes are absent
 - **WHEN** a client calls `POST /v1/lan/teams/{teamId}/leave`, `POST /v1/lan/teams/{teamId}/invites/{userId}`, `PUT /v1/lan/teams/invites/{inviteId}`, or `POST /v1/lan/teams/{teamId}/logo`
 - **THEN** the API MUST NOT expose those routes
+
+### Requirement: Bounded invite maintenance
+The API MUST keep current-user invite projections fresh without performing global invite maintenance on request threads, and MUST persist invite expiry and retention cleanup through deterministic, configurable, bounded maintenance batches.
+
+#### Scenario: Current-user read does not maintain unrelated invites
+- **WHEN** an authenticated user requests their team summary, received invites, or sent invites
+- **THEN** the API MUST query only team and invite data relevant to that user or teams they captain
+- **AND** MUST NOT expire, delete, scan for events, or publish expiry events for unrelated invites
+
+#### Scenario: Due invite is immediately absent from actionable reads
+- **WHEN** a pending invite's expiration timestamp has elapsed but scheduled maintenance has not yet persisted its Expired status
+- **THEN** current-user actionable invite projections MUST exclude that invite using its expiration timestamp
+- **AND** the read MUST NOT persist an invite status transition
+
+#### Scenario: Expiry maintenance is bounded and deterministic
+- **WHEN** one scheduled maintenance cycle finds more due pending invites than the configured batch size
+- **THEN** it MUST transition no more than the configured batch size ordered by expiration timestamp and stable invite identifier
+- **AND** remaining due invites MUST be left for later cycles
+
+#### Scenario: Retention maintenance is bounded and deterministic
+- **WHEN** one scheduled maintenance cycle finds more eligible terminal invites than the configured batch size
+- **THEN** it MUST delete no more than the configured batch size ordered by terminal timestamp and stable invite identifier
+- **AND** remaining eligible invites MUST be left for later cycles
+
+#### Scenario: Expiry event fan-out is bounded and idempotent
+- **WHEN** a maintenance cycle successfully persists pending invites as expired
+- **THEN** it MUST attempt one privacy-safe expiry event for each invite transitioned by that cycle
+- **AND** MUST NOT publish more expiry events than the configured batch size
+- **AND** a later maintenance cycle MUST NOT republish events for those already-expired invites
+
+#### Scenario: Concurrent maintenance instances do not duplicate work
+- **WHEN** multiple application instances attempt invite maintenance concurrently
+- **THEN** at most one instance MUST own the maintenance batch
+- **AND** the other instances MUST leave the owned invites and their expiry events unprocessed
+
+#### Scenario: Maintenance honors cancellation
+- **WHEN** application shutdown or caller cancellation is requested during maintenance
+- **THEN** database queries, writes, waits, and realtime publication MUST observe the cancellation token
+
+### Requirement: Team logo retirement preserves current and historical references
+The API MUST retire a replaced, removed, or soft-deleted Team logo only after the Team mutation and
+its durable business event commit, and MUST retain the file while any active Team or any tournament
+registration snapshot references the same logo URL. Reference-check failure MUST retain the file.
+
+#### Scenario: Unreferenced Team logo is replaced or removed
+- **WHEN** a Team logo replacement or removal commits and no active Team or registration snapshot references the previous different logo URL
+- **THEN** the API attempts to delete the previous logo after commit with a non-cancelled token
+
+#### Scenario: Historical tournament snapshot references Team logo
+- **WHEN** any tournament registration stores the candidate URL in `TeamLogoUrlAtRegistration`
+- **THEN** Team logo replacement, removal, or soft deletion retains the physical logo file
+
+#### Scenario: Current Team references candidate logo
+- **WHEN** an active Team still uses the candidate logo URL
+- **THEN** the API retains the physical logo file
+
+#### Scenario: Team logo reference check fails
+- **WHEN** a current or historical Team-logo reference query fails
+- **THEN** the API logs the failure and retains the physical logo file
+
+#### Scenario: Team soft deletion commits
+- **WHEN** a Team soft deletion and its durable TeamDeleted event commit
+- **THEN** the existing SignalR group access is revoked in its current post-commit order
+- **AND** only then does the API attempt eligible logo retirement without changing the deletion response

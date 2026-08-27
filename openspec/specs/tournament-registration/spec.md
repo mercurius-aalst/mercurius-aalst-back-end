@@ -3,9 +3,7 @@
 ## Purpose
 
 Define internal individual and team tournament registration, exact roster selection, member confirmation, eligibility checks, admin removal, transient cleanup, and legacy external registration URL retirement.
-
 ## Requirements
-
 ### Requirement: Internal individual registration
 The API MUST allow authenticated users to register and unregister themselves for individual tournaments through internal registration endpoints.
 
@@ -107,10 +105,10 @@ The API MUST allow only the captain to edit a team roster before tournament star
 - **AND** removes related pending roster confirmations and confirmation notifications for that team registration
 
 ### Requirement: Exact tournament team size configuration
-Admins MUST configure an exact roster size for team tournaments.
+Admins MUST configure an exact roster size from 1 through 50 for team tournaments.
 
 #### Scenario: Admin configures exact team size
-- **WHEN** an admin creates or updates a team tournament with a valid team size
+- **WHEN** an admin creates or updates a team tournament with a valid team size from 1 through 50
 - **THEN** the API stores the team size as the exact required roster size for that tournament
 
 #### Scenario: Individual tournament does not require team size
@@ -118,12 +116,39 @@ Admins MUST configure an exact roster size for team tournaments.
 - **THEN** the API does not require a team size for registration eligibility
 
 #### Scenario: Invalid team size rejected
-- **WHEN** an admin creates or updates a team tournament with a missing, zero, or negative team size
+- **WHEN** an admin creates or updates a team tournament with a missing, zero, negative, or greater-than-50 team size
 - **THEN** the API rejects the request with validation feedback
 
 #### Scenario: Team size locked after registration or match generation
 - **WHEN** a team tournament already has pending registrations, active registrations, or generated matches
 - **THEN** the API rejects team size changes
+
+### Requirement: Tournament roster request structure is bounded before downstream work
+The API MUST validate the `userIds` collection for team-roster eligibility and submission before invoking an application service, module contract, transaction, or database operation.
+
+#### Scenario: Missing roster collection rejected early
+- **WHEN** a roster eligibility or submission request has a null or missing `userIds` collection
+- **THEN** the API returns a validation-problem response keyed to `userIds`
+- **AND** no roster application service or downstream dependency is invoked
+
+#### Scenario: Oversized roster collection rejected early
+- **WHEN** a roster eligibility or submission request contains more than 50 user IDs
+- **THEN** the API returns a validation-problem response keyed to `userIds`
+- **AND** no roster application service or downstream dependency is invoked
+
+#### Scenario: Empty user ID rejected early
+- **WHEN** a roster eligibility or submission request contains `Guid.Empty`
+- **THEN** the API returns a validation-problem response keyed to `userIds`
+- **AND** no roster application service or downstream dependency is invoked
+
+#### Scenario: Duplicate roster user ID rejected early
+- **WHEN** a roster eligibility or submission request contains the same user ID more than once
+- **THEN** the API returns a validation-problem response keyed to `userIds` instead of silently deduplicating the roster
+- **AND** no roster application service or downstream dependency is invoked
+
+#### Scenario: Structurally valid roster reaches business validation
+- **WHEN** a roster eligibility or submission request contains at most 50 unique, non-empty user IDs
+- **THEN** the existing exact-size, captain, membership, lifecycle, and duplicate-participation rules remain authoritative
 
 ### Requirement: Duplicate participation prevention
 The API MUST prevent a user from pending or active participation more than once in the same tournament across individual registrations, captain participation, and team roster membership.
@@ -180,11 +205,19 @@ The API MUST expose REST endpoints that let the front-end quickly validate tourn
 - **THEN** the API revalidates all eligibility and authorization rules during the mutation
 
 ### Requirement: Admin registration management
-Admins MUST be able to inspect registrations and remove users or teams from tournaments, but MUST NOT add users, add teams, swap roster members, or force confirmations.
+Admins MUST be able to inspect registrations and remove users or teams from tournaments, but MUST NOT add users, add teams, swap roster members, or force confirmations. The existing admin registration list MUST support optional `page` and `pageSize` query parameters, default omitted values to page 1 and page size 20, reject non-positive values before service invocation, cap positive page size at 50, and preserve its raw-array JSON response, route, and authorization.
 
 #### Scenario: Admin lists registrations
 - **WHEN** an admin requests tournament registrations for a tournament
-- **THEN** the API returns current individual registrations, pending team registrations, active team registrations, roster confirmation state, and registration state
+- **THEN** the API returns the requested bounded page of current individual registrations, pending team registrations, active team registrations, roster confirmation state, and registration state
+
+#### Scenario: Admin lists default registration page
+- **WHEN** an admin requests tournament registrations without `page` or `pageSize`
+- **THEN** the API returns at most the first 20 registrations in the existing raw JSON array
+
+#### Scenario: Admin receives validation for invalid registration page
+- **WHEN** an admin requests tournament registrations with `page` or `pageSize` less than one
+- **THEN** the API returns a validation problem before invoking the registration service
 
 #### Scenario: Admin removes individual user from individual tournament
 - **WHEN** an admin removes a user from an individual tournament
@@ -302,11 +335,14 @@ team roster registration is created, while retaining the external user and team 
   unchanged
 
 ### Requirement: Resource-oriented tournament registration routes
-The API MUST expose authenticated resource-oriented routes for individual registration, registration eligibility, team roster submission, and roster-member confirmation while preserving the existing registration rules and response DTO JSON shapes.
+The API MUST expose authenticated resource-oriented routes under
+`/v1/lan/tournaments/{tournamentId}` for individual registration, registration eligibility, team
+roster submission, and roster-member confirmation while preserving the existing registration rules
+and response DTO JSON shapes. The former `/v1/lan/games/{gameId}` routes MUST NOT be exposed.
 
 #### Scenario: Current user creates an individual registration resource
 - **WHEN** an authenticated user sends `PUT /v1/lan/tournaments/{tournamentId}/registrations/individual/me`
-- **THEN** the API MUST apply the existing individual-registration rules and return the existing registration response JSON shape
+- **THEN** the API MUST apply the existing individual-registration rules and return the existing registration response JSON shape with `tournamentId`
 
 #### Scenario: Client reads individual or team registration eligibility
 - **WHEN** an authenticated client sends `GET /v1/lan/tournaments/{tournamentId}/registrations/individual/eligibility` or `GET /v1/lan/tournaments/{tournamentId}/registrations/teams/{teamId}/eligibility`
@@ -329,5 +365,5 @@ The API MUST expose authenticated resource-oriented routes for individual regist
 - **THEN** the API MUST reject the request without changing the roster member or registration state
 
 #### Scenario: Registration action routes are absent
-- **WHEN** a client calls `POST /v1/lan/tournaments/{tournamentId}/registrations/individual`, `GET /v1/lan/tournaments/{tournamentId}/registrations/eligibility/individual`, `GET /v1/lan/tournaments/{tournamentId}/registrations/eligibility/teams/{teamId}`, `POST /v1/lan/tournaments/{tournamentId}/registrations/eligibility/teams/{teamId}/roster`, or `POST /v1/lan/tournaments/{tournamentId}/registrations/roster-confirmations/{rosterMemberId}/confirm`
-- **THEN** the API MUST NOT expose those routes
+- **WHEN** a client calls the former `/v1/lan/games/{gameId}/registrations` action routes
+- **THEN** the API MUST NOT expose those routes or aliases

@@ -526,7 +526,7 @@ public class ModuleArchitectureTests
     }
 
     [Fact]
-    public void TournamentTournamentContracts_AreInternalAndSegregated()
+    public void TournamentContracts_AreInternalAndSegregated()
     {
         var tournamentAssembly = Assembly.Load("Mercurius.Modules.Tournament");
         var expectedMethodsByType = new Dictionary<string, string[]>

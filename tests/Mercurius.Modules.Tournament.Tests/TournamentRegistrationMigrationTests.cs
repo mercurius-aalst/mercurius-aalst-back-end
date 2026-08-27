@@ -53,11 +53,32 @@ public class TournamentRegistrationMigrationTests
         Assert.Contains("processed_at_utc IS NULL", sql, StringComparison.Ordinal);
         Assert.Contains("dead_lettered_at_utc IS NULL", sql, StringComparison.Ordinal);
         Assert.Contains("jsonb_build_object('tournamentId'", sql, StringComparison.Ordinal);
+        Assert.Contains("WHEN subtitle = 'Game' THEN 'Tournament'", sql, StringComparison.Ordinal);
+        Assert.Contains("WHEN route LIKE '/games/%' THEN regexp_replace(route, '^/games/', '/tournaments/')", sql, StringComparison.Ordinal);
         Assert.DoesNotContain("DROP TABLE", sql, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("ALTER SCHEMA tournament RENAME TO competition", reverseSql, StringComparison.Ordinal);
         Assert.Contains("RENAME COLUMN \"TournamentId\" TO \"GameId\"", reverseSql, StringComparison.Ordinal);
         Assert.Contains("SET entity_type = 'game'", reverseSql, StringComparison.Ordinal);
         Assert.Contains("jsonb_build_object('gameId'", reverseSql, StringComparison.Ordinal);
+        Assert.Contains("WHEN subtitle = 'Tournament' THEN 'Game'", reverseSql, StringComparison.Ordinal);
+        Assert.Contains("WHEN route LIKE '/tournaments/%' THEN regexp_replace(route, '^/tournaments/', '/games/')", reverseSql, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RenameCompetitionGameToTournament_RewritesDiscoveryMetadataWithoutFilteringDeletedOrBlankRows()
+    {
+        var (sql, reverseSql) = GetRenameMigrationSql();
+        var discoveryUp = GetFirstDiscoveryUpdate(sql);
+        var discoveryDown = GetFirstDiscoveryUpdate(reverseSql);
+
+        Assert.Contains("WHERE entity_type = 'game';", discoveryUp, StringComparison.Ordinal);
+        Assert.Contains("ELSE subtitle", discoveryUp, StringComparison.Ordinal);
+        Assert.Contains("ELSE route", discoveryUp, StringComparison.Ordinal);
+        Assert.DoesNotContain("is_deleted", discoveryUp, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("WHERE entity_type = 'tournament';", discoveryDown, StringComparison.Ordinal);
+        Assert.Contains("ELSE subtitle", discoveryDown, StringComparison.Ordinal);
+        Assert.Contains("ELSE route", discoveryDown, StringComparison.Ordinal);
+        Assert.DoesNotContain("is_deleted", discoveryDown, StringComparison.OrdinalIgnoreCase);
     }
 
     public static IEnumerable<object[]> LegacyOutboxEventTypeRenames =>
@@ -113,5 +134,15 @@ public class TournamentRegistrationMigrationTests
         return (
             string.Join(Environment.NewLine, migration.UpOperations.OfType<SqlOperation>().Select(operation => operation.Sql)),
             string.Join(Environment.NewLine, migration.DownOperations.OfType<SqlOperation>().Select(operation => operation.Sql)));
+    }
+
+    private static string GetFirstDiscoveryUpdate(string sql)
+    {
+        var start = sql.IndexOf("UPDATE discovery.search_documents", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The migration must update Discovery search documents.");
+
+        var end = sql.IndexOf(';', start);
+        Assert.True(end >= 0, "The Discovery update must be terminated.");
+        return sql[start..(end + 1)];
     }
 }

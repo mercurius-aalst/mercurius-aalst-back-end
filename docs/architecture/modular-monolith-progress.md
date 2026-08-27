@@ -156,9 +156,9 @@ Do not start the next phase from an unmerged previous phase branch.
     and durable-event dependencies explicitly. It also restores Phase 11 migration discovery and synchronizes
     EF snapshot/catalog metadata; routes, JSON, authorization, and runtime behavior remain unchanged.
 
-- [ ] Phase 20 - Tournament naming
+- [x] Phase 20 - Tournament naming
   - Branch: `refactor/phase-20-tournament-naming`
-  - PR: Coordinator must add the real PR URL when it is created; do not check this phase until then.
+  - PR: [#118 Rename Competition and Game concepts to Tournament](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/118)
   - Notes: Renames the aggregate-level Competition/Game surface to Tournament, including routes,
     persistence identifiers, Discovery, Sponsorship, and durable-event migration compatibility.
 

@@ -34,6 +34,20 @@ Discovery MUST consume the durable lifecycle events published by Identity, Teams
 - **WHEN** a tournament cancellation event is processed
 - **THEN** Discovery retains the tournament document for public search unless a separate deletion event removes it
 
+### Requirement: Discovery rename migration preserves document metadata
+The rename migration MUST update existing Discovery documents whose entity type is `game` to the
+canonical `tournament` type for both active and deleted documents. It MUST change an exact `Game`
+subtitle to `Tournament` and a route beginning with `/games/` to `/tournaments/` while preserving
+the route suffix. Other subtitle and route values, including intentionally blank metadata, MUST
+remain unchanged. The reversible migration operation MUST restore the prior values.
+
+#### Scenario: Legacy Discovery document is renamed without losing metadata
+- **WHEN** the rename migration processes an existing Discovery document with entity type `game`
+- **THEN** its entity type becomes `tournament`
+- **AND** its exact `Game` subtitle becomes `Tournament`
+- **AND** its `/games/` route prefix becomes `/tournaments/` with the identifier suffix preserved
+- **AND** active and deleted documents and non-matching or blank metadata remain eligible for the same update without being cleared
+
 ### Requirement: Projection-backed public search
 The existing public search endpoint MUST obtain its User, Team, and Tournament results only from active Discovery search documents at request time. Its route, authorization, rate-limit policy, JSON response shape, privacy filtering, case-insensitive matching, relevance ordering, and keyset cursor behavior MUST remain equivalent to the current documented public-search behavior.
 

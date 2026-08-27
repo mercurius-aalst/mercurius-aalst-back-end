@@ -106,7 +106,7 @@ internal sealed class TeamService : ITeamQueries, ITeamManagementCommands, ITeam
 
         EnsureCaptain(team, currentUser.Id.Value);
         if (await _tournamentReadService.IsTeamInDeleteBlockingTournamentAsync(teamId, cancellationToken))
-            throw new ValidationException("Cannot delete a team that is actively participating in a tournament or tournament.");
+            throw new ValidationException("Cannot delete a team that is actively participating in a tournament.");
 
         team.Delete(DateTime.UtcNow);
         await _dbContext.SaveChangesAsync(cancellationToken);

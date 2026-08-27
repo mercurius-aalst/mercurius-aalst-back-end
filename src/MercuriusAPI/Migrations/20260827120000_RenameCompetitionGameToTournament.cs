@@ -84,7 +84,15 @@ public partial class RenameCompetitionGameToTournament : Migration
               );
 
             UPDATE discovery.search_documents
-            SET entity_type = 'tournament'
+            SET entity_type = 'tournament',
+                subtitle = CASE
+                    WHEN subtitle = 'Game' THEN 'Tournament'
+                    ELSE subtitle
+                END,
+                route = CASE
+                    WHEN route LIKE '/games/%' THEN regexp_replace(route, '^/games/', '/tournaments/')
+                    ELSE route
+                END
             WHERE entity_type = 'game';
 
             DROP INDEX discovery."IX_search_documents_active_exact_order";
@@ -104,7 +112,15 @@ public partial class RenameCompetitionGameToTournament : Migration
                 WHERE is_deleted = false AND entity_type IN ('user', 'team', 'game');
 
             UPDATE discovery.search_documents
-            SET entity_type = 'game'
+            SET entity_type = 'game',
+                subtitle = CASE
+                    WHEN subtitle = 'Tournament' THEN 'Game'
+                    ELSE subtitle
+                END,
+                route = CASE
+                    WHEN route LIKE '/tournaments/%' THEN regexp_replace(route, '^/tournaments/', '/games/')
+                    ELSE route
+                END
             WHERE entity_type = 'tournament';
 
             UPDATE platform.outbox_messages

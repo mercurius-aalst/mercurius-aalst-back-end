@@ -21,7 +21,7 @@ data.
   validation, paging, lifecycle, and response semantics.
 - Add a reversible, data-preserving migration from the `competition` schema and `games` table to
   the `tournament` schema and `tournaments` table, including aggregate references, sponsorship,
-  and Discovery rows.
+  and Discovery rows with canonical tournament type, subtitle, and route metadata.
 - Rewrite pending, non-dead-lettered durable outbox messages to the new CLR type names and
   `tournamentId` payload key in the migration, reverse those rewrites in `Down`, and retain only
   narrow historical/dead-letter resolver safety where required.

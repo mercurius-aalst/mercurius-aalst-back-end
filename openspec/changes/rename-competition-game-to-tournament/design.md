@@ -67,9 +67,11 @@ in-place cleanup and would leave the ambiguity in the public contract, so it is 
 The hand-authored migration MUST rename the `competition` schema to `tournament`, rename the
 `games` resource table to `tournaments`, rename aggregate-level columns/constraints/indexes/FKs
 from `GameId` to `TournamentId`, rename sponsorship placement identifiers, and update existing
-Discovery rows from `game` to `tournament`. `Down` MUST reverse each operation in dependency-safe
-order. The current model snapshot MUST be updated to match the new model; historical migrations
-and designers MUST not be edited.
+Discovery rows from `game` to `tournament`. For those rows it MUST change only an exact `Game`
+subtitle to `Tournament` and only the `/games/` route prefix to `/tournaments/`, preserving blank
+or unrelated metadata and applying to both active and deleted documents. `Down` MUST reverse each
+operation in dependency-safe order. The current model snapshot MUST be updated to match the new
+model; historical migrations and designers MUST not be edited.
 
 **Alternative considered:** Drop/recreate tables or introduce a new table and copy data. Renaming
 preserves keys, data, indexes, and foreign keys more directly and makes rollback safer, so it is

@@ -7,4 +7,3 @@ internal interface IMatchModerator
     IEnumerable<Match> GenerateMatchesForTournament(TournamentAggregate tournament);
     void DeterminePlacements(TournamentAggregate tournament);
 }
-

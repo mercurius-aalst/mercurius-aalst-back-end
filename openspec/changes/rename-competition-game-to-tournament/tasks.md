@@ -19,9 +19,9 @@
 ## 4. Persistence and data migration
 
 - [x] 4.1 Update module EF configurations, DbContext registration, current model metadata, table/schema names, keys, indexes, columns, and foreign keys to `tournament`/`tournaments` and TournamentId.
-- [x] 4.2 Add a reversible hand-authored EF migration that renames competition to tournament, games to tournaments, all aggregate references and sponsorship placement identifiers, existing Discovery game rows, and pending outbox event type/payload representations without data loss.
+- [x] 4.2 Add a reversible hand-authored EF migration that renames competition to tournament, games to tournaments, all aggregate references and sponsorship placement identifiers, existing Discovery game rows and their canonical subtitle/route metadata for active and deleted documents, and pending outbox event type/payload representations without data loss.
 - [x] 4.3 Update only the current EF model snapshot and migration/catalog registration; do not modify historical migration or designer files.
-- [x] 4.4 Add migration regression coverage for data preservation, dependency-safe Up/Down behavior, schemas/tables, indexes/constraints/FKs, sponsorship, and Discovery rows.
+- [x] 4.4 Add migration regression coverage for data preservation, dependency-safe Up/Down behavior, schemas/tables, indexes/constraints/FKs, sponsorship, and Discovery rows including active/deleted and blank-metadata semantics.
 
 ## 5. Durable events and Discovery
 

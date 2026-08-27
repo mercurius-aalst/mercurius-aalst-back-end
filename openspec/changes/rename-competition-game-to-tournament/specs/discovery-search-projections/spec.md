@@ -50,3 +50,19 @@ navigation using `/tournaments/{id}`.
 - **WHEN** a client requests public global search after Discovery is enabled
 - **THEN** the response includes only the documented User, Team, and Tournament result types with the existing privacy-safe fields
 - **AND** Tournament results navigate to `/tournaments/{id}`
+
+## ADDED Requirements
+
+### Requirement: Discovery rename migration preserves document metadata
+The rename migration MUST update existing Discovery documents whose entity type is `game` to the
+canonical `tournament` type for both active and deleted documents. It MUST change an exact `Game`
+subtitle to `Tournament` and a route beginning with `/games/` to `/tournaments/` while preserving
+the route suffix. Other subtitle and route values, including intentionally blank metadata, MUST
+remain unchanged. The reversible migration operation MUST restore the prior values.
+
+#### Scenario: Legacy Discovery document is renamed without losing metadata
+- **WHEN** the rename migration processes an existing Discovery document with entity type `game`
+- **THEN** its entity type becomes `tournament`
+- **AND** its exact `Game` subtitle becomes `Tournament`
+- **AND** its `/games/` route prefix becomes `/tournaments/` with the identifier suffix preserved
+- **AND** active and deleted documents and non-matching or blank metadata remain eligible for the same update without being cleared

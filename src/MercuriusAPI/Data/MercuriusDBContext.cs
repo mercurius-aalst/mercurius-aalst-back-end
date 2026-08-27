@@ -1,4 +1,4 @@
-using Mercurius.Modules.Competition;
+using Mercurius.Modules.Tournament;
 using Mercurius.Modules.Discovery;
 using Mercurius.Modules.Identity;
 using Mercurius.Modules.Identity.Domain;
@@ -15,13 +15,13 @@ public class MercuriusDBContext : DbContext, IModuleEventDbContext, IIdentityDbC
 {
     private const string TeamInviteEntityType = "Mercurius.Modules.Teams.Domain.TeamInvite";
     private const string TeamMemberEntityType = "Mercurius.Modules.Teams.Domain.TeamMember";
-    private const string MatchEntityType = "Mercurius.Modules.Competition.Domain.Match";
-    private const string TournamentRegistrationEntityType = "Mercurius.Modules.Competition.Domain.TournamentRegistration";
-    private const string TournamentRegistrationRosterMemberEntityType = "Mercurius.Modules.Competition.Domain.TournamentRegistrationRosterMember";
-    private const string PlacementUserEntityType = "Mercurius.Modules.Competition.Domain.PlacementUser";
-    private const string PlacementTeamEntityType = "Mercurius.Modules.Competition.Domain.PlacementTeam";
-    private const string GameEntityType = "Mercurius.Modules.Competition.Domain.Game";
-    private const string GameSponsorPlacementEntityType = "Mercurius.Modules.Sponsorship.Domain.GameSponsorPlacement";
+    private const string MatchEntityType = "Mercurius.Modules.Tournament.Domain.Match";
+    private const string TournamentRegistrationEntityType = "Mercurius.Modules.Tournament.Domain.TournamentRegistration";
+    private const string TournamentRegistrationRosterMemberEntityType = "Mercurius.Modules.Tournament.Domain.TournamentRegistrationRosterMember";
+    private const string PlacementUserEntityType = "Mercurius.Modules.Tournament.Domain.PlacementUser";
+    private const string PlacementTeamEntityType = "Mercurius.Modules.Tournament.Domain.PlacementTeam";
+    private const string TournamentEntityType = "Mercurius.Modules.Tournament.Domain.Tournament";
+    private const string TournamentSponsorPlacementEntityType = "Mercurius.Modules.Sponsorship.Domain.TournamentSponsorPlacement";
 
     public MercuriusDBContext()
     {
@@ -40,7 +40,7 @@ public class MercuriusDBContext : DbContext, IModuleEventDbContext, IIdentityDbC
     {
         modelBuilder.ApplyIdentityModelConfiguration();
         modelBuilder.ApplyTeamsModelConfiguration();
-        modelBuilder.ApplyCompetitionModelConfiguration();
+        modelBuilder.ApplyTournamentModelConfiguration();
         modelBuilder.ApplySponsorshipModelConfiguration();
         modelBuilder.ApplyDiscoveryModelConfiguration();
         modelBuilder.ApplyEventingModelConfiguration();
@@ -88,10 +88,10 @@ public class MercuriusDBContext : DbContext, IModuleEventDbContext, IIdentityDbC
         ConfigureRequiredCrossModuleReference(modelBuilder, PlacementUserEntityType, "UserId", DeleteBehavior.Cascade);
         ConfigureRequiredCrossModuleReference(modelBuilder, PlacementTeamEntityType, "TeamId", DeleteBehavior.Cascade, typeof(Team).FullName!);
 
-        modelBuilder.Entity(GameEntityType)
-            .HasOne(GameSponsorPlacementEntityType, null)
+        modelBuilder.Entity(TournamentEntityType)
+            .HasOne(TournamentSponsorPlacementEntityType, null)
             .WithOne()
-            .HasForeignKey(GameSponsorPlacementEntityType, "GameId")
+            .HasForeignKey(TournamentSponsorPlacementEntityType, "TournamentId")
             .OnDelete(DeleteBehavior.Cascade);
     }
 

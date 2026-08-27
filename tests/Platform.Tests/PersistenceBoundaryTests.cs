@@ -64,12 +64,12 @@ public class PersistenceBoundaryTests
         AssertTable(dbContext, typeof(Team), "teams", "teams");
         AssertTable(dbContext, "Mercurius.Modules.Teams.Domain.TeamMember", "teams", "team_members");
         AssertTable(dbContext, "Mercurius.Modules.Teams.Domain.TeamInvite", "teams", "team_invites");
-        AssertTable(dbContext, "Mercurius.Modules.Competition.Domain.Game", "competition", "games");
-        AssertTable(dbContext, "Mercurius.Modules.Competition.Domain.Match", "competition", "matches");
-        AssertTable(dbContext, "Mercurius.Modules.Competition.Domain.TournamentRegistration", "competition", "tournament_registrations");
-        AssertTable(dbContext, "Mercurius.Modules.Competition.Domain.TournamentRegistrationRosterMember", "competition", "roster_members");
+        AssertTable(dbContext, "Mercurius.Modules.Tournament.Domain.Tournament", "tournament", "tournaments");
+        AssertTable(dbContext, "Mercurius.Modules.Tournament.Domain.Match", "tournament", "matches");
+        AssertTable(dbContext, "Mercurius.Modules.Tournament.Domain.TournamentRegistration", "tournament", "tournament_registrations");
+        AssertTable(dbContext, "Mercurius.Modules.Tournament.Domain.TournamentRegistrationRosterMember", "tournament", "roster_members");
         AssertTable(dbContext, "Mercurius.Modules.Sponsorship.Domain.Sponsor", "sponsorship", "sponsors");
-        AssertTable(dbContext, "Mercurius.Modules.Sponsorship.Domain.GameSponsorPlacement", "sponsorship", "game_sponsor_placements");
+        AssertTable(dbContext, "Mercurius.Modules.Sponsorship.Domain.TournamentSponsorPlacement", "sponsorship", "tournament_sponsor_placements");
         AssertTable(dbContext, "Mercurius.Modules.Discovery.Domain.SearchDocument", "discovery", "search_documents");
     }
 
@@ -80,8 +80,8 @@ public class PersistenceBoundaryTests
 
         var teamMember = GetEntityType(dbContext, "Mercurius.Modules.Teams.Domain.TeamMember");
         var teamInvite = GetEntityType(dbContext, "Mercurius.Modules.Teams.Domain.TeamInvite");
-        var registration = GetEntityType(dbContext, "Mercurius.Modules.Competition.Domain.TournamentRegistration");
-        var placementUser = GetEntityType(dbContext, "Mercurius.Modules.Competition.Domain.PlacementUser");
+        var registration = GetEntityType(dbContext, "Mercurius.Modules.Tournament.Domain.TournamentRegistration");
+        var placementUser = GetEntityType(dbContext, "Mercurius.Modules.Tournament.Domain.PlacementUser");
 
         AssertForeignKey(teamMember, typeof(User), "UserId", DeleteBehavior.Cascade);
         AssertForeignKey(teamMember, typeof(Team), "TeamId", DeleteBehavior.Cascade);
@@ -152,9 +152,9 @@ public class PersistenceBoundaryTests
             "Mercurius.Modules.Teams.Infrastructure.TeamMemberConfiguration",
             "Mercurius.Modules.Teams.Domain.TeamMember");
         AssertConfigurationEntity(
-            typeof(Mercurius.Modules.Competition.CompetitionModuleConfiguration).Assembly,
-            "Mercurius.Modules.Competition.Infrastructure.GameConfiguration",
-            "Mercurius.Modules.Competition.Domain.Game");
+            typeof(Mercurius.Modules.Tournament.TournamentModuleConfiguration).Assembly,
+            "Mercurius.Modules.Tournament.Infrastructure.TournamentConfiguration",
+            "Mercurius.Modules.Tournament.Domain.Tournament");
         AssertConfigurationEntity(
             typeof(Mercurius.Modules.Sponsorship.SponsorshipModuleConfiguration).Assembly,
             "Mercurius.Modules.Sponsorship.Infrastructure.SponsorConfiguration",

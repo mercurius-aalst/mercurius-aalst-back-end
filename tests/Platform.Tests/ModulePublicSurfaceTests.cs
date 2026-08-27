@@ -8,18 +8,18 @@ public sealed class ModulePublicSurfaceTests
     private static readonly IReadOnlyDictionary<string, string[]> ExpectedFriendAssemblies =
         new Dictionary<string, string[]>(StringComparer.Ordinal)
         {
-            ["Competition"] = ["Mercurius.Api.Tests", "Mercurius.Modules.Competition.Tests", "Mercurius.Modules.Sponsorship.Tests", "Mercurius.Modules.Teams.Tests"],
+            ["Tournament"] = ["Mercurius.Api.Tests", "Mercurius.Modules.Tournament.Tests", "Mercurius.Modules.Sponsorship.Tests", "Mercurius.Modules.Teams.Tests"],
             ["Discovery"] = ["Mercurius.Modules.Discovery.Tests"],
-            ["Identity"] = ["Mercurius.Api.Tests", "Mercurius.Modules.Competition.Tests", "Mercurius.Modules.Identity.Tests", "Mercurius.Modules.Teams.Tests", "Platform.Tests"],
+            ["Identity"] = ["Mercurius.Api.Tests", "Mercurius.Modules.Tournament.Tests", "Mercurius.Modules.Identity.Tests", "Mercurius.Modules.Teams.Tests", "Platform.Tests"],
             ["Media"] = [],
-            ["Sponsorship"] = ["Mercurius.Modules.Competition.Tests", "Mercurius.Modules.Sponsorship.Tests"],
-            ["Teams"] = ["Mercurius.Api.Tests", "Mercurius.Modules.Competition.Tests", "Mercurius.Modules.Teams.Tests", "Platform.Tests"]
+            ["Sponsorship"] = ["Mercurius.Modules.Tournament.Tests", "Mercurius.Modules.Sponsorship.Tests"],
+            ["Teams"] = ["Mercurius.Api.Tests", "Mercurius.Modules.Tournament.Tests", "Mercurius.Modules.Teams.Tests", "Platform.Tests"]
         };
 
     private static readonly IReadOnlyDictionary<string, string[]> ExpectedPublicTypes =
         new Dictionary<string, string[]>(StringComparer.Ordinal)
         {
-            ["Competition"] = ["Mercurius.Modules.Competition.CompetitionModuleConfiguration"],
+            ["Tournament"] = ["Mercurius.Modules.Tournament.TournamentModuleConfiguration"],
             ["Discovery"] = ["Mercurius.Modules.Discovery.DiscoveryModuleConfiguration"],
             ["Identity"] =
             [

@@ -110,7 +110,7 @@ internal sealed class DiscoveryModuleFacade : IDiscoveryModule
             .AsNoTracking()
             .Where(document =>
                 !document.IsDeleted &&
-                document.TypeOrder <= SearchDocumentTypes.GetTypeOrder(SearchDocumentTypes.Game));
+                document.TypeOrder <= SearchDocumentTypes.GetTypeOrder(SearchDocumentTypes.Tournament));
 
         documents = rank switch
         {
@@ -154,13 +154,13 @@ internal sealed class DiscoveryModuleFacade : IDiscoveryModule
                 null,
                 candidate.DisplayLabel,
                 null),
-            SearchDocumentTypes.Game when Guid.TryParse(candidate.StableId, out var gameId) => new DiscoverySearchResult(
+            SearchDocumentTypes.Tournament when Guid.TryParse(candidate.StableId, out var tournamentId) => new DiscoverySearchResult(
                 candidate.Type,
                 candidate.DisplayLabel,
-                "Game",
+                "Tournament",
                 null,
                 null,
-                gameId),
+                tournamentId),
             _ => throw new InvalidOperationException($"Unsupported search document type '{candidate.Type}'.")
         };
     }

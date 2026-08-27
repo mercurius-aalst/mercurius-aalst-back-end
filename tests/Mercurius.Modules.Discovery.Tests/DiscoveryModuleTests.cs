@@ -1,5 +1,5 @@
 using Mercurius.LAN.API.Data;
-using Mercurius.Modules.Competition.Contracts;
+using Mercurius.Modules.Tournament.Contracts;
 using Mercurius.Modules.Discovery;
 using Mercurius.Modules.Discovery.Application;
 using Mercurius.Modules.Discovery.Contracts;
@@ -41,8 +41,8 @@ public class DiscoveryModuleTests
         });
         await projector.UpsertAsync(SearchDocumentTypes.User, Guid.NewGuid().ToString(), "alpha", "User", null, "/users/alpha", 1, DateTime.UtcNow, default);
         await projector.UpsertAsync(SearchDocumentTypes.Team, Guid.NewGuid().ToString(), "alphateam", "Team", null, "/teams/alphateam", 1, DateTime.UtcNow, default);
-        var gameId = Guid.NewGuid();
-        await projector.UpsertAsync(SearchDocumentTypes.Game, gameId.ToString(), "Winter Alpha Cup", "Game", null, $"/games/{gameId}", 1, DateTime.UtcNow, default);
+        var tournamentId = Guid.NewGuid();
+        await projector.UpsertAsync(SearchDocumentTypes.Tournament, tournamentId.ToString(), "Winter Alpha Cup", "Tournament", null, $"/tournaments/{tournamentId}", 1, DateTime.UtcNow, default);
         await dbContext.SaveChangesAsync();
 
         var result = await module.SearchAsync(new DiscoverySearchRequest(" ALPHA ", null, 10));
@@ -53,21 +53,21 @@ public class DiscoveryModuleTests
                 Assert.Equal("user", user.Type);
                 Assert.Equal("alpha", user.Username);
                 Assert.Null(user.TeamName);
-                Assert.Null(user.GameId);
+                Assert.Null(user.TournamentId);
             },
             team =>
             {
                 Assert.Equal("team", team.Type);
                 Assert.Equal("alphateam", team.TeamName);
                 Assert.Null(team.Username);
-                Assert.Null(team.GameId);
+                Assert.Null(team.TournamentId);
             },
-            game =>
+            tournament =>
             {
-                Assert.Equal("game", game.Type);
-                Assert.Equal(gameId, game.GameId);
-                Assert.Null(game.Username);
-                Assert.Null(game.TeamName);
+                Assert.Equal("tournament", tournament.Type);
+                Assert.Equal(tournamentId, tournament.TournamentId);
+                Assert.Null(tournament.Username);
+                Assert.Null(tournament.TeamName);
             });
         Assert.DoesNotContain(result.Results, entry => entry.DisplayLabel == "alpha-live-only");
     }
@@ -83,7 +83,7 @@ public class DiscoveryModuleTests
 
         await projector.UpsertAsync(SearchDocumentTypes.User, Guid.NewGuid().ToString(), "alpha", "User", null, "/users/alpha", 1, DateTime.UtcNow, default);
         await projector.UpsertAsync(SearchDocumentTypes.Team, Guid.NewGuid().ToString(), "alpha-team", "Team", null, "/teams/alpha-team", 1, DateTime.UtcNow, default);
-        await projector.UpsertAsync(SearchDocumentTypes.Game, Guid.NewGuid().ToString(), "winter alpha cup", "Game", null, "/games/1", 1, DateTime.UtcNow, default);
+        await projector.UpsertAsync(SearchDocumentTypes.Tournament, Guid.NewGuid().ToString(), "winter alpha cup", "Tournament", null, "/tournaments/1", 1, DateTime.UtcNow, default);
         await dbContext.SaveChangesAsync();
 
         var first = await module.SearchAsync(new DiscoverySearchRequest("alpha", null, 1));
@@ -158,7 +158,7 @@ public class DiscoveryModuleTests
     }
 
     [Fact]
-    public async Task Dispatcher_ProjectsTeamGameAndSponsorUpdates_WithoutDuplicatingOrOverwritingNewerDocuments()
+    public async Task Dispatcher_ProjectsTeamTournamentAndSponsorUpdates_WithoutDuplicatingOrOverwritingNewerDocuments()
     {
         await using var provider = CreateProvider(new DiscoverySources());
         using var scope = provider.CreateScope();
@@ -166,12 +166,12 @@ public class DiscoveryModuleTests
         var publisher = scope.ServiceProvider.GetRequiredService<IModuleEventPublisher>();
         var dispatcher = scope.ServiceProvider.GetRequiredService<IModuleEventDispatcher>();
         var teamId = new TeamId(Guid.NewGuid());
-        var gameId = new GameId(Guid.NewGuid());
+        var tournamentId = new TournamentId(Guid.NewGuid());
         var sponsorId = new SponsorId(7);
         var currentTime = DateTime.UtcNow;
 
         publisher.Publish(new TeamRenamedIntegrationEvent(teamId, 2, "New Team Name"), currentTime);
-        publisher.Publish(new GameUpdatedIntegrationEvent(gameId, "Updated Game Name"), currentTime);
+        publisher.Publish(new TournamentUpdatedIntegrationEvent(tournamentId, "Updated Tournament Name"), currentTime);
         publisher.Publish(new SponsorUpdated(
             sponsorId,
             "Updated Sponsor Name",
@@ -194,12 +194,6 @@ public class DiscoveryModuleTests
             .ToListAsync();
 
         Assert.Collection(documents,
-            game =>
-            {
-                Assert.Equal(SearchDocumentTypes.Game, game.EntityType);
-                Assert.Equal("Updated Game Name", game.Title);
-                Assert.Equal($"/games/{gameId.Value}", game.Route);
-            },
             sponsor =>
             {
                 Assert.Equal(SearchDocumentTypes.Sponsor, sponsor.EntityType);
@@ -212,6 +206,12 @@ public class DiscoveryModuleTests
                 Assert.Equal("New Team Name", team.Title);
                 Assert.Equal($"/teams/New%20Team%20Name", team.Route);
                 Assert.Equal(currentTime.Ticks, team.SourceVersion);
+            },
+            tournament =>
+            {
+                Assert.Equal(SearchDocumentTypes.Tournament, tournament.EntityType);
+                Assert.Equal("Updated Tournament Name", tournament.Title);
+                Assert.Equal($"/tournaments/{tournamentId.Value}", tournament.Route);
             });
     }
 
@@ -267,12 +267,12 @@ public class DiscoveryModuleTests
     {
         var userId = new UserId(Guid.NewGuid());
         var teamId = new TeamId(Guid.NewGuid());
-        var gameId = new GameId(Guid.NewGuid());
+        var tournamentId = new TournamentId(Guid.NewGuid());
         var sources = new DiscoverySources
         {
             Users = [new PublicUserSearchDocument(userId, "alpha-user")],
             Teams = [new PublicTeamSearchDocument(teamId, "alpha-team")],
-            Games = [new GameSearchDocument(gameId, "Alpha Cup", "/images/alpha.webp")],
+            Tournaments = [new TournamentSearchDocument(tournamentId, "Alpha Cup", "/images/alpha.webp")],
             Sponsors = [new SponsorSummary(new SponsorId(7), "Alpha Sponsor", SponsorTier.Gold, "/images/sponsor.webp", "https://example.test", null)]
         };
         await using var provider = CreateProvider(sources);
@@ -290,11 +290,11 @@ public class DiscoveryModuleTests
         var completedJob = await module.GetSearchIndexRebuildJobAsync(firstJob.Id);
         Assert.Equal("completed", completedJob!.Status);
         var rebuiltResults = await module.SearchAsync(new DiscoverySearchRequest("alpha", null, 10));
-        Assert.Equal(["game", "team", "user"], rebuiltResults.Results.Select(result => result.Type));
+        Assert.Equal(["tournament", "team", "user"], rebuiltResults.Results.Select(result => result.Type));
 
         sources.Users = [];
         sources.Teams = [];
-        sources.Games = [];
+        sources.Tournaments = [];
         sources.Sponsors = [];
         _ = await module.CreateSearchIndexRebuildJobAsync();
         Assert.True(await rebuildService.RunNextAsync(default));
@@ -536,7 +536,7 @@ public class DiscoveryModuleTests
         services.AddModuleEventing<MercuriusDBContext>();
         services.AddSingleton<IIdentityModule>(new StubIdentityModule(sources));
         services.AddSingleton<ITeamsModule>(new StubTeamsModule(sources));
-        services.AddSingleton<ICompetitionModule>(new StubCompetitionModule(sources));
+        services.AddSingleton<ITournamentModule>(new StubTournamentModule(sources));
         services.AddSingleton<ISponsorshipModule>(new StubSponsorshipModule(sources));
         services.AddDiscoveryModule<MercuriusDBContext>(configuration);
     }
@@ -559,7 +559,7 @@ public class DiscoveryModuleTests
     {
         public IReadOnlyList<PublicUserSearchDocument> Users { get; set; } = [];
         public IReadOnlyList<PublicTeamSearchDocument> Teams { get; set; } = [];
-        public IReadOnlyList<GameSearchDocument> Games { get; set; } = [];
+        public IReadOnlyList<TournamentSearchDocument> Tournaments { get; set; } = [];
         public IReadOnlyList<SponsorSummary> Sponsors { get; set; } = [];
         public Exception? RebuildException { get; set; }
         public bool WaitForRebuildCancellation { get; set; }
@@ -607,24 +607,24 @@ public class DiscoveryModuleTests
         public Task<TeamRosterSnapshot?> GetTeamRosterSnapshotAsync(TeamId teamId, CancellationToken cancellationToken = default) => Task.FromResult<TeamRosterSnapshot?>(null);
         public Task<IReadOnlyDictionary<TeamId, TeamRosterSnapshot>> GetTeamRosterSnapshotsAsync(IReadOnlyCollection<TeamId> teamIds, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyDictionary<TeamId, TeamRosterSnapshot>>(new Dictionary<TeamId, TeamRosterSnapshot>());
         public Task<PublicTeamProfile?> GetPublicTeamProfileAsync(string teamName, CancellationToken cancellationToken = default) => Task.FromResult<PublicTeamProfile?>(null);
-        public Task<TeamRegistrationEligibility> GetRegistrationEligibilityAsync(TeamId teamId, UserId requestedBy, GameId gameId, CancellationToken cancellationToken = default) => Task.FromResult(new TeamRegistrationEligibility(true, []));
+        public Task<TeamRegistrationEligibility> GetRegistrationEligibilityAsync(TeamId teamId, UserId requestedBy, TournamentId tournamentId, CancellationToken cancellationToken = default) => Task.FromResult(new TeamRegistrationEligibility(true, []));
         public Task<MembershipMutationGuard> CanMutateMembershipAsync(TeamId teamId, UserId userId, CancellationToken cancellationToken = default) => Task.FromResult(new MembershipMutationGuard(true, []));
     }
 
-    private sealed class StubCompetitionModule(DiscoverySources sources) : ICompetitionModule
+    private sealed class StubTournamentModule(DiscoverySources sources) : ITournamentModule
     {
-        public Task<IReadOnlyList<GameSearchDocument>> GetGameSearchDocumentsPageAsync(GameId? afterId, int pageSize, CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<GameSearchDocument>>(sources.Games
-                .Where(game => !afterId.HasValue || game.GameId.Value.CompareTo(afterId.Value.Value) > 0)
-                .OrderBy(game => game.GameId.Value)
+        public Task<IReadOnlyList<TournamentSearchDocument>> GetTournamentSearchDocumentsPageAsync(TournamentId? afterId, int pageSize, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<TournamentSearchDocument>>(sources.Tournaments
+                .Where(tournament => !afterId.HasValue || tournament.TournamentId.Value.CompareTo(afterId.Value.Value) > 0)
+                .OrderBy(tournament => tournament.TournamentId.Value)
                 .Take(pageSize)
                 .ToList());
-        public Task<GameSummary?> GetGameSummaryAsync(GameId gameId, CancellationToken cancellationToken = default) => Task.FromResult<GameSummary?>(null);
-        public Task<TournamentConfiguration?> GetTournamentConfigurationAsync(GameId gameId, CancellationToken cancellationToken = default) => Task.FromResult<TournamentConfiguration?>(null);
-        public Task<bool> IsRegistrationOpenAsync(GameId gameId, CancellationToken cancellationToken = default) => Task.FromResult(false);
-        public Task<RegistrationEligibility> CheckIndividualRegistrationEligibilityAsync(GameId gameId, UserId userId, CancellationToken cancellationToken = default) => Task.FromResult(new RegistrationEligibility(true, []));
-        public Task<RegistrationEligibility> CheckTeamRegistrationEligibilityAsync(GameId gameId, TeamId teamId, UserId requestedBy, CancellationToken cancellationToken = default) => Task.FromResult(new RegistrationEligibility(true, []));
-        public Task<IReadOnlyList<GameSummary>> SearchGamesAsync(string normalizedQuery, CompetitionSearchCursor? cursor, int limit, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<GameSummary>>([]);
+        public Task<TournamentSummary?> GetTournamentSummaryAsync(TournamentId tournamentId, CancellationToken cancellationToken = default) => Task.FromResult<TournamentSummary?>(null);
+        public Task<TournamentConfiguration?> GetTournamentConfigurationAsync(TournamentId tournamentId, CancellationToken cancellationToken = default) => Task.FromResult<TournamentConfiguration?>(null);
+        public Task<bool> IsRegistrationOpenAsync(TournamentId tournamentId, CancellationToken cancellationToken = default) => Task.FromResult(false);
+        public Task<RegistrationEligibility> CheckIndividualRegistrationEligibilityAsync(TournamentId tournamentId, UserId userId, CancellationToken cancellationToken = default) => Task.FromResult(new RegistrationEligibility(true, []));
+        public Task<RegistrationEligibility> CheckTeamRegistrationEligibilityAsync(TournamentId tournamentId, TeamId teamId, UserId requestedBy, CancellationToken cancellationToken = default) => Task.FromResult(new RegistrationEligibility(true, []));
+        public Task<IReadOnlyList<TournamentSummary>> SearchTournamentsAsync(string normalizedQuery, TournamentSearchCursor? cursor, int limit, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<TournamentSummary>>([]);
     }
 
     private sealed class StubSponsorshipModule(DiscoverySources sources) : ISponsorshipModule
@@ -637,8 +637,8 @@ public class DiscoveryModuleTests
                 .Select(sponsor => new SponsorSearchDocument(sponsor.Id, sponsor.Name, sponsor.LogoUrl))
                 .ToList());
         public Task<SponsorSummary?> GetSponsorSummaryAsync(SponsorId sponsorId, CancellationToken cancellationToken = default) => Task.FromResult<SponsorSummary?>(null);
-        public Task<IReadOnlyDictionary<GameId, SponsorPlacementSummary>> GetSponsorPlacementsAsync(IReadOnlyCollection<GameId> gameIds, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyDictionary<GameId, SponsorPlacementSummary>>(new Dictionary<GameId, SponsorPlacementSummary>());
-        public Task<SponsorPlacementSummary?> GetSponsorPlacementAsync(GameId gameId, CancellationToken cancellationToken = default) => Task.FromResult<SponsorPlacementSummary?>(null);
-        public Task ReplaceSponsorPlacementAsync(GameId gameId, SponsorPlacementInput? placement, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<IReadOnlyDictionary<TournamentId, SponsorPlacementSummary>> GetSponsorPlacementsAsync(IReadOnlyCollection<TournamentId> tournamentIds, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyDictionary<TournamentId, SponsorPlacementSummary>>(new Dictionary<TournamentId, SponsorPlacementSummary>());
+        public Task<SponsorPlacementSummary?> GetSponsorPlacementAsync(TournamentId tournamentId, CancellationToken cancellationToken = default) => Task.FromResult<SponsorPlacementSummary?>(null);
+        public Task ReplaceSponsorPlacementAsync(TournamentId tournamentId, SponsorPlacementInput? placement, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 }

@@ -1,8 +1,8 @@
 using System.Text;
 using System.Text.Json;
-using Mercurius.Modules.Competition;
-using Mercurius.Modules.Competition.Application.DTOs.Games;
-using Mercurius.Modules.Competition.Application.Services;
+using Mercurius.Modules.Tournament;
+using Mercurius.Modules.Tournament.Application.DTOs.Tournaments;
+using Mercurius.Modules.Tournament.Application.Services;
 using Mercurius.Modules.Teams;
 using Mercurius.Modules.Teams.DTOs;
 using Mercurius.Modules.Teams.Services;
@@ -26,7 +26,7 @@ namespace Mercurius.Api.Tests;
 
 public class PublicCollectionPagingEndpointTests
 {
-    private const string GameCollectionRoute = "v{version:apiVersion}/lan/games/";
+    private const string TournamentCollectionRoute = "v{version:apiVersion}/lan/tournaments/";
     private const string TeamCollectionRoute = "v{version:apiVersion}/lan/teams/";
 
     [Theory]
@@ -38,18 +38,18 @@ public class PublicCollectionPagingEndpointTests
         int expectedPage,
         int expectedPageSize)
     {
-        var gameQueries = new RecordingGameQueries();
+        var tournamentQueries = new RecordingTournamentQueries();
         var teamService = new RecordingTeamEndpointService();
-        await using var app = CreateApp(gameQueries, teamService);
+        await using var app = CreateApp(tournamentQueries, teamService);
 
-        var gameResponse = await InvokeGetAsync(app, GameCollectionRoute, queryString);
+        var tournamentResponse = await InvokeGetAsync(app, TournamentCollectionRoute, queryString);
         var teamResponse = await InvokeGetAsync(app, TeamCollectionRoute, queryString);
 
-        Assert.Equal(StatusCodes.Status200OK, gameResponse.StatusCode);
+        Assert.Equal(StatusCodes.Status200OK, tournamentResponse.StatusCode);
         Assert.Equal(StatusCodes.Status200OK, teamResponse.StatusCode);
-        Assert.Equal((expectedPage, expectedPageSize), gameQueries.LastPaging);
+        Assert.Equal((expectedPage, expectedPageSize), tournamentQueries.LastPaging);
         Assert.Equal((expectedPage, expectedPageSize), teamService.LastPaging);
-        Assert.Equal(JsonValueKind.Array, JsonDocument.Parse(gameResponse.Body).RootElement.ValueKind);
+        Assert.Equal(JsonValueKind.Array, JsonDocument.Parse(tournamentResponse.Body).RootElement.ValueKind);
         Assert.Equal(JsonValueKind.Array, JsonDocument.Parse(teamResponse.Body).RootElement.ValueKind);
     }
 
@@ -60,17 +60,31 @@ public class PublicCollectionPagingEndpointTests
     [InlineData("?pageSize=-1")]
     public async Task CollectionEndpoints_RejectNonPositivePagingBeforeServiceInvocation(string queryString)
     {
-        var gameQueries = new RecordingGameQueries();
+        var tournamentQueries = new RecordingTournamentQueries();
         var teamService = new RecordingTeamEndpointService();
-        await using var app = CreateApp(gameQueries, teamService);
+        await using var app = CreateApp(tournamentQueries, teamService);
 
-        var gameResponse = await InvokeGetAsync(app, GameCollectionRoute, queryString);
+        var tournamentResponse = await InvokeGetAsync(app, TournamentCollectionRoute, queryString);
         var teamResponse = await InvokeGetAsync(app, TeamCollectionRoute, queryString);
 
-        Assert.Equal(StatusCodes.Status400BadRequest, gameResponse.StatusCode);
+        Assert.Equal(StatusCodes.Status400BadRequest, tournamentResponse.StatusCode);
         Assert.Equal(StatusCodes.Status400BadRequest, teamResponse.StatusCode);
-        Assert.Equal(0, gameQueries.CallCount);
+        Assert.Equal(0, tournamentQueries.CallCount);
         Assert.Equal(0, teamService.CallCount);
+    }
+
+    [Fact]
+    public async Task TournamentItem_WithMalformedId_ReachesGuidBindingAndReturnsBadRequest()
+    {
+        var tournamentQueries = new RecordingTournamentQueries();
+        await using var app = CreateApp(tournamentQueries, new RecordingTeamEndpointService());
+        await app.StartAsync();
+        using var client = CreateClient(app);
+
+        using var response = await client.GetAsync("v1/lan/tournaments/not-a-guid");
+
+        Assert.Equal(StatusCodes.Status400BadRequest, (int)response.StatusCode);
+        Assert.Equal(0, tournamentQueries.CallCount);
     }
 
     [Fact]
@@ -161,21 +175,22 @@ public class PublicCollectionPagingEndpointTests
     }
 
     private static WebApplication CreateApp(
-        IGameQueries gameQueries,
+        ITournamentQueries tournamentQueries,
         ITeamEndpointService teamEndpointService)
     {
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddAuthorization();
         builder.Services.AddApiVersioning();
-        builder.Services.AddSingleton(gameQueries);
-        builder.Services.AddScoped<IGameManagementCommands>(_ => throw new NotSupportedException());
-        builder.Services.AddScoped<IGameLifecycleCommands>(_ => throw new NotSupportedException());
+        builder.Services.AddSingleton(tournamentQueries);
+        builder.Services.AddScoped<ITournamentManagementCommands>(_ => throw new NotSupportedException());
+        builder.Services.AddScoped<ITournamentLifecycleCommands>(_ => throw new NotSupportedException());
         builder.Services.AddScoped<ITournamentRegistrationService>(_ => throw new NotSupportedException());
         builder.Services.AddScoped<IMatchService>(_ => throw new NotSupportedException());
         builder.Services.AddSingleton(teamEndpointService);
 
         var app = builder.Build();
-        app.MapCompetitionModule();
+        app.Urls.Add("http://127.0.0.1:0");
+        app.MapTournamentModule();
         app.MapTeamsModule();
         return app;
     }
@@ -256,22 +271,22 @@ public class PublicCollectionPagingEndpointTests
         return (context.Response.StatusCode, await reader.ReadToEndAsync());
     }
 
-    private sealed class RecordingGameQueries : IGameQueries
+    private sealed class RecordingTournamentQueries : ITournamentQueries
     {
         public int CallCount { get; private set; }
         public (int Page, int PageSize) LastPaging { get; private set; }
 
-        public Task<IReadOnlyList<GetGameDTO>> GetAllGamesAsync(
+        public Task<IReadOnlyList<GetTournamentDTO>> GetAllTournamentsAsync(
             int page,
             int pageSize,
             CancellationToken cancellationToken = default)
         {
             CallCount++;
             LastPaging = (page, pageSize);
-            return Task.FromResult<IReadOnlyList<GetGameDTO>>([new GetGameDTO { Id = Guid.NewGuid(), Name = "Paged game" }]);
+            return Task.FromResult<IReadOnlyList<GetTournamentDTO>>([new GetTournamentDTO { Id = Guid.NewGuid(), Name = "Paged tournament" }]);
         }
 
-        public Task<GetGameDTO> GetGameByIdAsync(Guid gameId, CancellationToken cancellationToken = default) =>
+        public Task<GetTournamentDTO> GetTournamentByIdAsync(Guid tournamentId, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
     }
 

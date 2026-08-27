@@ -20,7 +20,7 @@ internal sealed class TeamService : ITeamQueries, ITeamManagementCommands, ITeam
     private readonly ITeamsDbContext _dbContext;
     private readonly IMediaModule _mediaModule;
     private readonly IIdentityModule _identityModule;
-    private readonly ITeamCompetitionReadService _competitionReadService;
+    private readonly ITeamTournamentReadService _tournamentReadService;
     private readonly ILogger<TeamService> _logger;
     private readonly int _inviteResendCooldownDays;
     private readonly int _inviteExpirationDays;
@@ -32,13 +32,13 @@ internal sealed class TeamService : ITeamQueries, ITeamManagementCommands, ITeam
         IConfiguration configuration,
         IIdentityModule identityModule,
         IMediaModule mediaModule,
-        ITeamCompetitionReadService competitionReadService,
+        ITeamTournamentReadService tournamentReadService,
         ILogger<TeamService> logger)
     {
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
         _mediaModule = mediaModule ?? throw new ArgumentNullException(nameof(mediaModule));
         _identityModule = identityModule ?? throw new ArgumentNullException(nameof(identityModule));
-        _competitionReadService = competitionReadService ?? throw new ArgumentNullException(nameof(competitionReadService));
+        _tournamentReadService = tournamentReadService ?? throw new ArgumentNullException(nameof(tournamentReadService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _inviteResendCooldownDays = configuration.GetSection("TeamInvite:ResendCooldownDays").Get<int>();
         _inviteExpirationDays = configuration.GetSection("TeamInvite:ExpirationDays").Get<int?>() ?? 14;
@@ -105,8 +105,8 @@ internal sealed class TeamService : ITeamQueries, ITeamManagementCommands, ITeam
             throw new NotFoundException($"{nameof(Team)} not found");
 
         EnsureCaptain(team, currentUser.Id.Value);
-        if (await _competitionReadService.IsTeamInDeleteBlockingTournamentAsync(teamId, cancellationToken))
-            throw new ValidationException("Cannot delete a team that is actively participating in a game or tournament.");
+        if (await _tournamentReadService.IsTeamInDeleteBlockingTournamentAsync(teamId, cancellationToken))
+            throw new ValidationException("Cannot delete a team that is actively participating in a tournament or tournament.");
 
         team.Delete(DateTime.UtcNow);
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -172,7 +172,7 @@ internal sealed class TeamService : ITeamQueries, ITeamManagementCommands, ITeam
         var users = await GetUserProfilesAsync(
             team.MemberUserIds.Append(team.CaptainUserId ?? Guid.Empty).Where(userId => userId != Guid.Empty),
             cancellationToken);
-        var tournaments = await _competitionReadService.GetPublicTeamTournamentsAsync(team.Id, cancellationToken);
+        var tournaments = await _tournamentReadService.GetPublicTeamTournamentsAsync(team.Id, cancellationToken);
 
         var members = team.MemberUserIds
             .Select(userId => users.GetValueOrDefault(new UserId(userId))?.Username)
@@ -196,7 +196,7 @@ internal sealed class TeamService : ITeamQueries, ITeamManagementCommands, ITeam
             Tournaments = tournaments
                 .Select(tournament => new PublicTeamTournamentDTO
                 {
-                    GameId = tournament.GameId.Value,
+                    TournamentId = tournament.TournamentId.Value,
                     Name = tournament.Name
                 })
                 .ToList()
@@ -235,7 +235,7 @@ internal sealed class TeamService : ITeamQueries, ITeamManagementCommands, ITeam
             throw new NotFoundException($"{nameof(Team)} not found");
 
         EnsureCaptain(team, currentUser.Id.Value);
-        if (await _competitionReadService.IsUserInProtectedTournamentRosterAsync(teamId, userId, cancellationToken))
+        if (await _tournamentReadService.IsUserInProtectedTournamentRosterAsync(teamId, userId, cancellationToken))
             throw new ValidationException("Cannot remove a member from a team that is part of an in-progress tournament roster.");
 
         team.RemoveMember(userId);
@@ -466,7 +466,7 @@ internal sealed class TeamService : ITeamQueries, ITeamManagementCommands, ITeam
             throw new ValidationException("The captain cannot leave a team without transferring captainship.");
         if (!team.Members.Any(member => member.UserId == currentUser.Id.Value))
             throw new NotFoundException($"User not found in {team.Name}");
-        if (await _competitionReadService.IsUserInProtectedTournamentRosterAsync(teamId, currentUser.Id.Value, cancellationToken))
+        if (await _tournamentReadService.IsUserInProtectedTournamentRosterAsync(teamId, currentUser.Id.Value, cancellationToken))
             throw new ValidationException("Cannot leave a team that is part of a protected tournament roster.");
 
         team.RemoveMember(currentUser.Id.Value);
@@ -559,7 +559,7 @@ internal sealed class TeamService : ITeamQueries, ITeamManagementCommands, ITeam
                     team => !team.IsDeleted && team.LogoUrl == logoUrl,
                     CancellationToken.None);
             if (hasCurrentReference ||
-                await _competitionReadService.IsTeamLogoReferencedAsync(logoUrl, CancellationToken.None))
+                await _tournamentReadService.IsTeamLogoReferencedAsync(logoUrl, CancellationToken.None))
             {
                 return;
             }

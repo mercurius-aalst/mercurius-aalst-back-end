@@ -1,4 +1,4 @@
-using Mercurius.Modules.Competition.Contracts;
+using Mercurius.Modules.Tournament.Contracts;
 using Mercurius.Modules.Discovery.Contracts;
 using Mercurius.Modules.Discovery.Domain;
 using Mercurius.Modules.Discovery.Infrastructure;
@@ -18,7 +18,7 @@ internal sealed class SearchIndexRebuildService
     private readonly IDiscoveryDbContext _dbContext;
     private readonly IIdentityModule _identityModule;
     private readonly ITeamsModule _teamsModule;
-    private readonly ICompetitionModule _competitionModule;
+    private readonly ITournamentModule _tournamentModule;
     private readonly ISponsorshipModule _sponsorshipModule;
     private readonly ILogger<SearchIndexRebuildService> _logger;
 
@@ -26,14 +26,14 @@ internal sealed class SearchIndexRebuildService
         IDiscoveryDbContext dbContext,
         IIdentityModule identityModule,
         ITeamsModule teamsModule,
-        ICompetitionModule competitionModule,
+        ITournamentModule tournamentModule,
         ISponsorshipModule sponsorshipModule,
         ILogger<SearchIndexRebuildService> logger)
     {
         _dbContext = dbContext;
         _identityModule = identityModule;
         _teamsModule = teamsModule;
-        _competitionModule = competitionModule;
+        _tournamentModule = tournamentModule;
         _sponsorshipModule = sponsorshipModule;
         _logger = logger;
     }
@@ -176,7 +176,7 @@ internal sealed class SearchIndexRebuildService
     {
         await StageUserDocumentsAsync(job, sourceVersion, updatedAtUtc, cancellationToken);
         await StageTeamDocumentsAsync(job, sourceVersion, updatedAtUtc, cancellationToken);
-        await StageGameDocumentsAsync(job, sourceVersion, updatedAtUtc, cancellationToken);
+        await StageTournamentDocumentsAsync(job, sourceVersion, updatedAtUtc, cancellationToken);
         await StageSponsorDocumentsAsync(job, sourceVersion, updatedAtUtc, cancellationToken);
 
         if (_dbContext.IsRelational)
@@ -249,34 +249,34 @@ internal sealed class SearchIndexRebuildService
         }
     }
 
-    private async Task StageGameDocumentsAsync(
+    private async Task StageTournamentDocumentsAsync(
         SearchIndexRebuildJob job,
         long sourceVersion,
         DateTime updatedAtUtc,
         CancellationToken cancellationToken)
     {
-        GameId? afterId = null;
+        TournamentId? afterId = null;
         while (true)
         {
-            var games = await _competitionModule.GetGameSearchDocumentsPageAsync(afterId, RebuildPageSize, cancellationToken);
-            if (games.Count == 0)
+            var tournaments = await _tournamentModule.GetTournamentSearchDocumentsPageAsync(afterId, RebuildPageSize, cancellationToken);
+            if (tournaments.Count == 0)
                 return;
 
             await StageDocumentsAsync(
                 job,
-                SearchDocumentTypes.Game,
-                games.Select(game => new SearchDocumentProjection(
-                    game.GameId.Value.ToString(),
-                    game.Name,
-                    "Game",
-                    game.ImageUrl,
-                    $"/games/{game.GameId.Value}")).ToArray(),
+                SearchDocumentTypes.Tournament,
+                tournaments.Select(tournament => new SearchDocumentProjection(
+                    tournament.TournamentId.Value.ToString(),
+                    tournament.Name,
+                    "Tournament",
+                    tournament.ImageUrl,
+                    $"/tournaments/{tournament.TournamentId.Value}")).ToArray(),
                 sourceVersion,
                 updatedAtUtc,
                 cancellationToken);
 
-            afterId = games[^1].GameId;
-            if (games.Count < RebuildPageSize)
+            afterId = tournaments[^1].TournamentId;
+            if (tournaments.Count < RebuildPageSize)
                 return;
         }
     }

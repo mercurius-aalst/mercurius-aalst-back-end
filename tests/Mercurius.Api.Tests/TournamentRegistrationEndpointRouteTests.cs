@@ -2,9 +2,9 @@ using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
 using System.Text.Encodings.Web;
-using Mercurius.Modules.Competition;
-using Mercurius.Modules.Competition.Application.DTOs.Registrations;
-using Mercurius.Modules.Competition.Application.Services;
+using Mercurius.Modules.Tournament;
+using Mercurius.Modules.Tournament.Application.DTOs.Registrations;
+using Mercurius.Modules.Tournament.Application.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
@@ -20,17 +20,17 @@ namespace Mercurius.Api.Tests;
 
 public class TournamentRegistrationEndpointRouteTests
 {
-    private const string RosterEligibilityRoute = "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/teams/{teamId:guid}/roster/eligibility";
-    private const string RosterSubmissionRoute = "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/teams/{teamId:guid}/roster";
+    private const string RosterEligibilityRoute = "v{version:apiVersion}/lan/tournaments/{tournamentId:guid}/registrations/teams/{teamId:guid}/roster/eligibility";
+    private const string RosterSubmissionRoute = "v{version:apiVersion}/lan/tournaments/{tournamentId:guid}/registrations/teams/{teamId:guid}/roster";
 
     [Theory]
-    [InlineData("GET", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/me")]
-    [InlineData("GET", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/individual/eligibility")]
-    [InlineData("GET", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/teams/{teamId:guid}/eligibility")]
-    [InlineData("POST", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/teams/{teamId:guid}/roster/eligibility")]
-    [InlineData("PUT", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/individual/me")]
-    [InlineData("PUT", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/teams/{teamId:guid}/roster")]
-    [InlineData("PATCH", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/roster-members/{rosterMemberId:guid}")]
+    [InlineData("GET", "v{version:apiVersion}/lan/tournaments/{tournamentId:guid}/registrations/me")]
+    [InlineData("GET", "v{version:apiVersion}/lan/tournaments/{tournamentId:guid}/registrations/individual/eligibility")]
+    [InlineData("GET", "v{version:apiVersion}/lan/tournaments/{tournamentId:guid}/registrations/teams/{teamId:guid}/eligibility")]
+    [InlineData("POST", "v{version:apiVersion}/lan/tournaments/{tournamentId:guid}/registrations/teams/{teamId:guid}/roster/eligibility")]
+    [InlineData("PUT", "v{version:apiVersion}/lan/tournaments/{tournamentId:guid}/registrations/individual/me")]
+    [InlineData("PUT", "v{version:apiVersion}/lan/tournaments/{tournamentId:guid}/registrations/teams/{teamId:guid}/roster")]
+    [InlineData("PATCH", "v{version:apiVersion}/lan/tournaments/{tournamentId:guid}/registrations/roster-members/{rosterMemberId:guid}")]
     public void CurrentUserRegistrationRoutes_RequireAuthorization(string method, string routePattern)
     {
         var endpoint = GetRegistrationRouteEndpoint(method, routePattern);
@@ -40,9 +40,9 @@ public class TournamentRegistrationEndpointRouteTests
     }
 
     [Theory]
-    [InlineData("GET", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/admin/")]
-    [InlineData("DELETE", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/admin/users/{userId:guid}")]
-    [InlineData("DELETE", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/admin/teams/{teamId:guid}")]
+    [InlineData("GET", "v{version:apiVersion}/lan/tournaments/{tournamentId:guid}/registrations/admin/")]
+    [InlineData("DELETE", "v{version:apiVersion}/lan/tournaments/{tournamentId:guid}/registrations/admin/users/{userId:guid}")]
+    [InlineData("DELETE", "v{version:apiVersion}/lan/tournaments/{tournamentId:guid}/registrations/admin/teams/{teamId:guid}")]
     public void AdminRegistrationRoutes_RequireAdminAuthorization(string method, string routePattern)
     {
         var endpoint = GetRegistrationRouteEndpoint(method, routePattern);
@@ -53,23 +53,23 @@ public class TournamentRegistrationEndpointRouteTests
     }
 
     [Theory]
-    [InlineData("POST", "v{version:apiVersion}/lan/games/{id}/users")]
-    [InlineData("DELETE", "v{version:apiVersion}/lan/games/{id}/users/{userId}")]
-    [InlineData("POST", "v{version:apiVersion}/lan/games/{id}/teams")]
-    [InlineData("DELETE", "v{version:apiVersion}/lan/games/{id}/teams/{teamId}")]
-    public void LegacyGameParticipantMutationRoutes_AreRemoved(string method, string routePattern)
+    [InlineData("POST", "v{version:apiVersion}/lan/tournaments/{id}/users")]
+    [InlineData("DELETE", "v{version:apiVersion}/lan/tournaments/{id}/users/{userId}")]
+    [InlineData("POST", "v{version:apiVersion}/lan/tournaments/{id}/teams")]
+    [InlineData("DELETE", "v{version:apiVersion}/lan/tournaments/{id}/teams/{teamId}")]
+    public void LegacyTournamentParticipantMutationRoutes_AreRemoved(string method, string routePattern)
     {
-        var endpoints = GetGameRouteEndpoints(method);
+        var endpoints = GetTournamentRouteEndpoints(method);
 
         Assert.DoesNotContain(endpoints, endpoint => endpoint.RoutePattern.RawText == routePattern);
     }
 
     [Theory]
-    [InlineData("GET", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/eligibility/individual")]
-    [InlineData("GET", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/eligibility/teams/{teamId:guid}")]
-    [InlineData("POST", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/eligibility/teams/{teamId:guid}/roster")]
-    [InlineData("POST", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/individual")]
-    [InlineData("POST", "v{version:apiVersion}/lan/games/{gameId:guid}/registrations/roster-confirmations/{rosterMemberId:guid}/confirm")]
+    [InlineData("GET", "v{version:apiVersion}/lan/tournaments/{tournamentId:guid}/registrations/eligibility/individual")]
+    [InlineData("GET", "v{version:apiVersion}/lan/tournaments/{tournamentId:guid}/registrations/eligibility/teams/{teamId:guid}")]
+    [InlineData("POST", "v{version:apiVersion}/lan/tournaments/{tournamentId:guid}/registrations/eligibility/teams/{teamId:guid}/roster")]
+    [InlineData("POST", "v{version:apiVersion}/lan/tournaments/{tournamentId:guid}/registrations/individual")]
+    [InlineData("POST", "v{version:apiVersion}/lan/tournaments/{tournamentId:guid}/registrations/roster-confirmations/{rosterMemberId:guid}/confirm")]
     public void ReplacedRegistrationActionRoutes_AreRemoved(string method, string routePattern)
     {
         var endpoints = GetRegistrationRouteEndpoints(method);
@@ -135,8 +135,8 @@ public class TournamentRegistrationEndpointRouteTests
         await using var app = CreateRegistrationApp(service);
         await app.StartAsync();
         using var client = CreateClient(app);
-        var gameId = Guid.NewGuid();
-        var path = $"v1/lan/games/{gameId}/registrations/admin";
+        var tournamentId = Guid.NewGuid();
+        var path = $"v1/lan/tournaments/{tournamentId}/registrations/admin";
 
         using var invalidResponse = await client.GetAsync($"{path}?page=0");
         Assert.Equal(StatusCodes.Status400BadRequest, (int)invalidResponse.StatusCode);
@@ -146,7 +146,7 @@ public class TournamentRegistrationEndpointRouteTests
         using var cappedResponse = await client.GetAsync($"{path}?page=2&pageSize=51");
         Assert.Equal(StatusCodes.Status200OK, (int)defaultResponse.StatusCode);
         Assert.Equal(StatusCodes.Status200OK, (int)cappedResponse.StatusCode);
-        Assert.Equal((gameId, 2, 50), service.LastAdminRegistrationRequest);
+        Assert.Equal((tournamentId, 2, 50), service.LastAdminRegistrationRequest);
     }
 
     private static RouteEndpoint GetRegistrationRouteEndpoint(string method, string routePattern)
@@ -162,9 +162,9 @@ public class TournamentRegistrationEndpointRouteTests
             .AddScheme<AuthenticationSchemeOptions, TestAuthenticationHandler>("Test", _ => { });
         builder.Services.AddAuthorization();
         builder.Services.AddApiVersioning();
-        builder.Services.AddScoped<IGameQueries>(_ => throw new NotSupportedException());
-        builder.Services.AddScoped<IGameManagementCommands>(_ => throw new NotSupportedException());
-        builder.Services.AddScoped<IGameLifecycleCommands>(_ => throw new NotSupportedException());
+        builder.Services.AddScoped<ITournamentQueries>(_ => throw new NotSupportedException());
+        builder.Services.AddScoped<ITournamentManagementCommands>(_ => throw new NotSupportedException());
+        builder.Services.AddScoped<ITournamentLifecycleCommands>(_ => throw new NotSupportedException());
         builder.Services.AddSingleton(registrationService);
         builder.Services.AddScoped<IMatchService>(_ => throw new NotSupportedException());
 
@@ -179,7 +179,7 @@ public class TournamentRegistrationEndpointRouteTests
             ], "Test"));
             await next(context);
         });
-        app.MapCompetitionModule();
+        app.MapTournamentModule();
         return app;
     }
 
@@ -196,11 +196,11 @@ public class TournamentRegistrationEndpointRouteTests
         string routePattern,
         IReadOnlyList<Guid>? userIds)
     {
-        var gameId = Guid.NewGuid();
+        var tournamentId = Guid.NewGuid();
         var teamId = Guid.NewGuid();
         var path = routePattern
             .Replace("v{version:apiVersion}", "v1", StringComparison.Ordinal)
-            .Replace("{gameId:guid}", gameId.ToString(), StringComparison.Ordinal)
+            .Replace("{tournamentId:guid}", tournamentId.ToString(), StringComparison.Ordinal)
             .Replace("{teamId:guid}", teamId.ToString(), StringComparison.Ordinal);
         var body = JsonSerializer.Serialize(new { teamId = Guid.NewGuid(), userIds });
         using var request = new HttpRequestMessage(new HttpMethod(method), path)
@@ -216,14 +216,14 @@ public class TournamentRegistrationEndpointRouteTests
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddAuthorization();
         builder.Services.AddApiVersioning();
-        builder.Services.AddScoped<IGameQueries>(_ => throw new NotSupportedException());
-        builder.Services.AddScoped<IGameManagementCommands>(_ => throw new NotSupportedException());
-        builder.Services.AddScoped<IGameLifecycleCommands>(_ => throw new NotSupportedException());
+        builder.Services.AddScoped<ITournamentQueries>(_ => throw new NotSupportedException());
+        builder.Services.AddScoped<ITournamentManagementCommands>(_ => throw new NotSupportedException());
+        builder.Services.AddScoped<ITournamentLifecycleCommands>(_ => throw new NotSupportedException());
         builder.Services.AddScoped<ITournamentRegistrationService>(_ => throw new NotSupportedException());
         builder.Services.AddScoped<IMatchService>(_ => throw new NotSupportedException());
 
         var app = builder.Build();
-        app.MapCompetitionModule();
+        app.MapTournamentModule();
 
         return ((IEndpointRouteBuilder)app).DataSources
             .SelectMany(source => source.Endpoints)
@@ -233,19 +233,19 @@ public class TournamentRegistrationEndpointRouteTests
                 .Any(metadata => metadata.HttpMethods.Contains(method)));
     }
 
-    private static IEnumerable<RouteEndpoint> GetGameRouteEndpoints(string method)
+    private static IEnumerable<RouteEndpoint> GetTournamentRouteEndpoints(string method)
     {
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddAuthorization();
         builder.Services.AddApiVersioning();
-        builder.Services.AddScoped<IGameQueries>(_ => throw new NotSupportedException());
-        builder.Services.AddScoped<IGameManagementCommands>(_ => throw new NotSupportedException());
-        builder.Services.AddScoped<IGameLifecycleCommands>(_ => throw new NotSupportedException());
+        builder.Services.AddScoped<ITournamentQueries>(_ => throw new NotSupportedException());
+        builder.Services.AddScoped<ITournamentManagementCommands>(_ => throw new NotSupportedException());
+        builder.Services.AddScoped<ITournamentLifecycleCommands>(_ => throw new NotSupportedException());
         builder.Services.AddScoped<ITournamentRegistrationService>(_ => throw new NotSupportedException());
         builder.Services.AddScoped<IMatchService>(_ => throw new NotSupportedException());
 
         var app = builder.Build();
-        app.MapCompetitionModule();
+        app.MapTournamentModule();
 
         return ((IEndpointRouteBuilder)app).DataSources
             .SelectMany(source => source.Endpoints)
@@ -262,11 +262,11 @@ public class TournamentRegistrationEndpointRouteTests
         public int AdminRegistrationCallCount { get; private set; }
         public IReadOnlyList<Guid>? LastUserIds { get; private set; }
         public SubmitTeamRosterDTO? LastSubmission { get; private set; }
-        public (Guid GameId, int Page, int PageSize) LastAdminRegistrationRequest { get; private set; }
+        public (Guid TournamentId, int Page, int PageSize) LastAdminRegistrationRequest { get; private set; }
 
         public Task<RosterCandidateEligibilityResponseDTO> CheckRosterEligibilityAsync(
             string auth0UserId,
-            Guid gameId,
+            Guid tournamentId,
             Guid teamId,
             IReadOnlyList<Guid> userIds,
             CancellationToken cancellationToken = default)
@@ -278,7 +278,7 @@ public class TournamentRegistrationEndpointRouteTests
 
         public Task<TournamentRegistrationDTO> SubmitTeamRosterAsync(
             string auth0UserId,
-            Guid gameId,
+            Guid tournamentId,
             SubmitTeamRosterDTO request,
             CancellationToken cancellationToken = default)
         {
@@ -288,21 +288,21 @@ public class TournamentRegistrationEndpointRouteTests
             return Task.FromResult(new TournamentRegistrationDTO());
         }
 
-        public Task<EligibilityResponseDTO> CheckIndividualEligibilityAsync(string auth0UserId, Guid gameId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<EligibilityResponseDTO> CheckTeamEligibilityAsync(string auth0UserId, Guid gameId, Guid teamId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<TournamentRegistrationDTO> RegisterIndividualAsync(string auth0UserId, Guid gameId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task UnregisterIndividualAsync(string auth0UserId, Guid gameId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<TournamentRegistrationDTO> ConfirmRosterAsync(string auth0UserId, Guid gameId, Guid rosterMemberId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task UnregisterTeamAsync(string auth0UserId, Guid gameId, Guid teamId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<CurrentUserTournamentRegistrationStateDTO> GetCurrentUserStateAsync(string auth0UserId, Guid gameId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<IReadOnlyList<AdminTournamentRegistrationDTO>> GetAdminRegistrationsAsync(Guid gameId, int page, int pageSize, CancellationToken cancellationToken = default)
+        public Task<EligibilityResponseDTO> CheckIndividualEligibilityAsync(string auth0UserId, Guid tournamentId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<EligibilityResponseDTO> CheckTeamEligibilityAsync(string auth0UserId, Guid tournamentId, Guid teamId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<TournamentRegistrationDTO> RegisterIndividualAsync(string auth0UserId, Guid tournamentId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task UnregisterIndividualAsync(string auth0UserId, Guid tournamentId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<TournamentRegistrationDTO> ConfirmRosterAsync(string auth0UserId, Guid tournamentId, Guid rosterMemberId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task UnregisterTeamAsync(string auth0UserId, Guid tournamentId, Guid teamId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<CurrentUserTournamentRegistrationStateDTO> GetCurrentUserStateAsync(string auth0UserId, Guid tournamentId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<AdminTournamentRegistrationDTO>> GetAdminRegistrationsAsync(Guid tournamentId, int page, int pageSize, CancellationToken cancellationToken = default)
         {
             AdminRegistrationCallCount++;
-            LastAdminRegistrationRequest = (gameId, page, pageSize);
+            LastAdminRegistrationRequest = (tournamentId, page, pageSize);
             return Task.FromResult<IReadOnlyList<AdminTournamentRegistrationDTO>>([]);
         }
-        public Task RemoveIndividualAsAdminAsync(Guid gameId, Guid userId, string? reason, string? adminAuth0UserId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task RemoveTeamAsAdminAsync(Guid gameId, Guid teamId, string? reason, string? adminAuth0UserId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task RemoveIndividualAsAdminAsync(Guid tournamentId, Guid userId, string? reason, string? adminAuth0UserId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task RemoveTeamAsAdminAsync(Guid tournamentId, Guid teamId, string? reason, string? adminAuth0UserId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
     private sealed class TestAuthenticationHandler : AuthenticationHandler<AuthenticationSchemeOptions>

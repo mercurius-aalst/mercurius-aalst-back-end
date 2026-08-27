@@ -13,7 +13,7 @@ configured local storage, generated image references, and image deletion. Busine
 use `IMediaModule` from Media.Contracts rather than reference a Media implementation service.
 
 #### Scenario: Business module stores an image through the contract
-- **WHEN** Teams, Competition, or Sponsorship supplies an image stream and its metadata to
+- **WHEN** Teams, Tournament, or Sponsorship supplies an image stream and its metadata to
   `IMediaModule`
 - **THEN** Media validates and stores the image and returns the relative image reference for the
   owning module to persist

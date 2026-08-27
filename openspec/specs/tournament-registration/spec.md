@@ -270,24 +270,24 @@ The API MUST physically remove transient pending registration, roster confirmati
 The API MUST remove unused legacy admin participant mutation routes that bypass internal registration and confirmation rules.
 
 #### Scenario: Legacy user registration route removed
-- **WHEN** a client calls the previous admin route for directly adding or removing a user from a game's registered users
+- **WHEN** a client calls the previous admin route for directly adding or removing a user from a tournament's registered users
 - **THEN** the API no longer exposes that route
 
 #### Scenario: Legacy team registration route removed
-- **WHEN** a client calls the previous admin route for directly adding or removing a team from a game's registered teams
+- **WHEN** a client calls the previous admin route for directly adding or removing a team from a tournament's registered teams
 - **THEN** the API no longer exposes that route
 
 ### Requirement: Historical registration display snapshots
-Competition MUST persist the username and team-name display facts captured when an individual or
+Tournament MUST persist the username and team-name display facts captured when an individual or
 team roster registration is created, while retaining the external user and team IDs as references.
 
 #### Scenario: Individual registration captures user display data
 - **WHEN** an authenticated user registers for an individual tournament
-- **THEN** Competition stores the user's ID and username-at-registration snapshot
+- **THEN** Tournament stores the user's ID and username-at-registration snapshot
 
 #### Scenario: Team roster captures historical display data
 - **WHEN** a captain submits a valid team roster
-- **THEN** Competition stores the team ID and team-name-at-registration snapshot
+- **THEN** Tournament stores the team ID and team-name-at-registration snapshot
 - **AND** stores each selected user ID and username-at-registration snapshot
 
 #### Scenario: Existing registrations are migrated
@@ -305,23 +305,23 @@ team roster registration is created, while retaining the external user and team 
 The API MUST expose authenticated resource-oriented routes for individual registration, registration eligibility, team roster submission, and roster-member confirmation while preserving the existing registration rules and response DTO JSON shapes.
 
 #### Scenario: Current user creates an individual registration resource
-- **WHEN** an authenticated user sends `PUT /v1/lan/games/{gameId}/registrations/individual/me`
+- **WHEN** an authenticated user sends `PUT /v1/lan/tournaments/{tournamentId}/registrations/individual/me`
 - **THEN** the API MUST apply the existing individual-registration rules and return the existing registration response JSON shape
 
 #### Scenario: Client reads individual or team registration eligibility
-- **WHEN** an authenticated client sends `GET /v1/lan/games/{gameId}/registrations/individual/eligibility` or `GET /v1/lan/games/{gameId}/registrations/teams/{teamId}/eligibility`
+- **WHEN** an authenticated client sends `GET /v1/lan/tournaments/{tournamentId}/registrations/individual/eligibility` or `GET /v1/lan/tournaments/{tournamentId}/registrations/teams/{teamId}/eligibility`
 - **THEN** the API MUST return the existing eligibility result for the requested registration resource
 
 #### Scenario: Captain calculates proposed team roster eligibility
-- **WHEN** an authenticated team captain sends `POST /v1/lan/games/{gameId}/registrations/teams/{teamId}/roster/eligibility` with proposed roster user ids
+- **WHEN** an authenticated team captain sends `POST /v1/lan/tournaments/{tournamentId}/registrations/teams/{teamId}/roster/eligibility` with proposed roster user ids
 - **THEN** the API MUST return the existing proposed-roster eligibility result without changing registration or roster state
 
 #### Scenario: Captain replaces the team registration roster
-- **WHEN** an authenticated team captain sends `PUT /v1/lan/games/{gameId}/registrations/teams/{teamId}/roster`
+- **WHEN** an authenticated team captain sends `PUT /v1/lan/tournaments/{tournamentId}/registrations/teams/{teamId}/roster`
 - **THEN** the API MUST apply the existing roster submission, replacement, and validation rules and return the existing registration response JSON shape
 
 #### Scenario: Roster member confirms their roster-member resource
-- **WHEN** an authenticated selected roster member sends `PATCH /v1/lan/games/{gameId}/registrations/roster-members/{rosterMemberId}` with confirmation status `Confirmed`
+- **WHEN** an authenticated selected roster member sends `PATCH /v1/lan/tournaments/{tournamentId}/registrations/roster-members/{rosterMemberId}` with confirmation status `Confirmed`
 - **THEN** the API MUST apply the existing roster-confirmation rules and return the existing registration response JSON shape
 
 #### Scenario: Unsupported roster-member confirmation update is rejected
@@ -329,5 +329,5 @@ The API MUST expose authenticated resource-oriented routes for individual regist
 - **THEN** the API MUST reject the request without changing the roster member or registration state
 
 #### Scenario: Registration action routes are absent
-- **WHEN** a client calls `POST /v1/lan/games/{gameId}/registrations/individual`, `GET /v1/lan/games/{gameId}/registrations/eligibility/individual`, `GET /v1/lan/games/{gameId}/registrations/eligibility/teams/{teamId}`, `POST /v1/lan/games/{gameId}/registrations/eligibility/teams/{teamId}/roster`, or `POST /v1/lan/games/{gameId}/registrations/roster-confirmations/{rosterMemberId}/confirm`
+- **WHEN** a client calls `POST /v1/lan/tournaments/{tournamentId}/registrations/individual`, `GET /v1/lan/tournaments/{tournamentId}/registrations/eligibility/individual`, `GET /v1/lan/tournaments/{tournamentId}/registrations/eligibility/teams/{teamId}`, `POST /v1/lan/tournaments/{tournamentId}/registrations/eligibility/teams/{teamId}/roster`, or `POST /v1/lan/tournaments/{tournamentId}/registrations/roster-confirmations/{rosterMemberId}/confirm`
 - **THEN** the API MUST NOT expose those routes

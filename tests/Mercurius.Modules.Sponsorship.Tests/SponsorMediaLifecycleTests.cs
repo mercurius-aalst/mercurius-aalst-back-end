@@ -354,7 +354,7 @@ public class SponsorMediaLifecycleTests
 
         public DbSet<Sponsor> Sponsors => inner.Sponsors;
 
-        public DbSet<GameSponsorPlacement> GameSponsorPlacements => inner.GameSponsorPlacements;
+        public DbSet<TournamentSponsorPlacement> TournamentSponsorPlacements => inner.TournamentSponsorPlacements;
 
         public DatabaseFacade Database => inner.Database;
 

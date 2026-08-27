@@ -1,6 +1,6 @@
 # Modular Monolith Migration Progress
 
-Last updated: 2026-08-09
+Last updated: 2026-08-27
 
 This tracker is the repo-local handoff ledger for the modular monolith migration. It records which phase PRs have been created. GitHub remains the source of truth for whether those PRs are open, closed, or merged.
 
@@ -96,21 +96,21 @@ Do not start the next phase from an unmerged previous phase branch.
   - PR: [#107 Phase 7 follow-up: finalize Teams boundary, cancellation, and read projections](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/107)
   - Notes: Finalizes the transitional Teams DbContext adapter boundary, propagates cancellation through Teams async flows, replaces read-only Teams materialization with projections, and adds focused composition/internal-surface coverage. Explicitly defers Team public-surface cleanup to Phase 11, Identity EF-navigation cleanup to Phase 15, Media extraction to Phase 13, test-project reshaping to Phase 18, and transitional adapter/null-fallback cleanup to Phase 19.
 
-- [x] Phase 11 - Competition extraction
+- [x] Phase 11 - Tournament extraction
   - Branch: `refactor/phase-11`
-  - PR: [#108 Phase 11: extract Competition module](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/108)
-  - Notes: Moves games, matches, registrations, rosters, placements, Competition endpoints, and persistence mappings behind the Competition module boundary while preserving routes and JSON shapes. Adds registration snapshots through a hand-authored migration without updating the EF model snapshot.
+  - PR: [#108 Phase 11: extract Tournament module](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/108)
+  - Notes: Moves tournaments, matches, registrations, rosters, placements, Tournament endpoints, and persistence mappings behind the Tournament module boundary while preserving routes and JSON shapes. Adds registration snapshots through a hand-authored migration without updating the EF model snapshot.
 
 - [x] Phase 12 - Sponsorship extraction
   - Branch: `refactor/phase-12`
   - PR: [#109 Phase 12: extract Sponsorship module](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/109)
-  - Notes: Moves Sponsor and GameSponsorPlacement ownership, endpoints, validation, EF configuration, and V1 lifecycle events into Sponsorship. Competition continues through Sponsorship contracts; existing routes, JSON, authorization, and schema remain unchanged. Media storage remains behind the temporary host adapter until Phase 13.
+  - Notes: Moves Sponsor and TournamentSponsorPlacement ownership, endpoints, validation, EF configuration, and V1 lifecycle events into Sponsorship. Tournament continues through Sponsorship contracts; existing routes, JSON, authorization, and schema remain unchanged. Media storage remains behind the temporary host adapter until Phase 13.
 
 - [x] Phase 13 - Media extraction
   - Branch: `refactor/phase-13`
   - PR: [#110 Phase 13: extract Media module](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/110)
   - Notes: Moves image validation, WebP encoding, local file storage, safe deletion, and concrete
-    `IMediaModule` registration into Media. Teams now consumes Media.Contracts directly; Competition
+    `IMediaModule` registration into Media. Teams now consumes Media.Contracts directly; Tournament
     and Sponsorship retain their existing contract-only integration. Imageflow HTTP middleware
     remains host infrastructure. Routes, JSON, authorization, and database schema are unchanged.
 
@@ -135,12 +135,12 @@ Do not start the next phase from an unmerged previous phase branch.
 - [x] Phase 16 - Endpoint simplification in place
   - Branch: `refactor/phase-16`
   - PR: [#113 Phase 16: simplify v1 API endpoints](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/113)
-  - Notes: Replaces action-style v1 game lifecycle, team, and tournament-registration routes with resource-oriented endpoints, and removes the redundant current-user profile-completion route. Existing response JSON and authorization behavior are preserved; removed routes are asserted absent. Non-persisted Identity-provider commands retain their existing routes. No `/v2`, persistence, migration, or configuration changes.
+  - Notes: Replaces action-style v1 tournament lifecycle, team, and tournament-registration routes with resource-oriented endpoints, and removes the redundant current-user profile-completion route. Existing response JSON and authorization behavior are preserved; removed routes are asserted absent. Non-persisted Identity-provider commands retain their existing routes. No `/v2`, persistence, migration, or configuration changes.
 
 - [x] Phase 17 - Tighten internals and public surface
   - Branch: `refactor/phase-17`
   - PR: [#114 Phase 17: tighten module public surface](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/114)
-  - Notes: Makes Competition and Identity implementation types internal, restricts friend assemblies to tests,
+  - Notes: Makes Tournament and Identity implementation types internal, restricts friend assemblies to tests,
     adds reflection-based public-surface coverage, and archives the synced Phase 16 OpenSpec change.
 
 - [x] Phase 18 - Test suite reshaping
@@ -151,10 +151,16 @@ Do not start the next phase from an unmerged previous phase branch.
 - [x] Phase 19 - Remove transitional adapters and clean up
   - Branch: `refactor/phase-19`
   - PR: [#116 Phase 19: remove transitional module adapters](https://github.com/mercurius-aalst/mercurius-aalst-back-end/pull/116)
-  - Notes: Removes obsolete Teams and Competition service contracts, production no-op fallbacks,
-    and unused Scrutor wiring. Module composition now requires its Media, Competition, realtime,
+  - Notes: Removes obsolete Teams and Tournament service contracts, production no-op fallbacks,
+    and unused Scrutor wiring. Module composition now requires its Media, Tournament, realtime,
     and durable-event dependencies explicitly. It also restores Phase 11 migration discovery and synchronizes
     EF snapshot/catalog metadata; routes, JSON, authorization, and runtime behavior remain unchanged.
+
+- [ ] Phase 20 - Tournament naming
+  - Branch: `refactor/phase-20-tournament-naming`
+  - PR: Coordinator must add the real PR URL when it is created; do not check this phase until then.
+  - Notes: Renames the aggregate-level Competition/Game surface to Tournament, including routes,
+    persistence identifiers, Discovery, Sponsorship, and durable-event migration compatibility.
 
 ## Phase 1 Handoff Notes
 

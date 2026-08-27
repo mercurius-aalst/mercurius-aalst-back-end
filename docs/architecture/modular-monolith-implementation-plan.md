@@ -326,8 +326,8 @@ Mercurius.Modules.Identity.Contracts
 Mercurius.Modules.Teams
 Mercurius.Modules.Teams.Contracts
 
-Mercurius.Modules.Competition
-Mercurius.Modules.Competition.Contracts
+Mercurius.Modules.Tournament
+Mercurius.Modules.Tournament.Contracts
 
 Mercurius.Modules.Sponsorship
 Mercurius.Modules.Sponsorship.Contracts
@@ -346,14 +346,14 @@ builder.Services.AddPlatform(builder.Configuration);
 
 builder.Services.AddIdentityModule(builder.Configuration);
 builder.Services.AddTeamsModule(builder.Configuration);
-builder.Services.AddCompetitionModule(builder.Configuration);
+builder.Services.AddTournamentModule(builder.Configuration);
 builder.Services.AddSponsorshipModule(builder.Configuration);
 builder.Services.AddDiscoveryModule(builder.Configuration);
 builder.Services.AddMediaModule(builder.Configuration);
 
 app.MapIdentityModule();
 app.MapTeamsModule();
-app.MapCompetitionModule();
+app.MapTournamentModule();
 app.MapSponsorshipModule();
 app.MapDiscoveryModule();
 app.MapMediaModule();
@@ -363,7 +363,7 @@ The API host should not directly know about:
 
 ```text
 TeamService
-GameService
+TournamentService
 MercuriusDBContext internals
 EF entities
 module repositories
@@ -400,20 +400,20 @@ Owns:
 - Team invites;
 - captain transfer;
 - team logo reference;
-- membership rules not tied to a competition lifecycle.
+- membership rules not tied to a tournament lifecycle.
 ```
 
-### Competition
+### Tournament
 
 Owns:
 
 ```text
-- Game;
+- Tournament;
 - TournamentRegistration;
 - TournamentRegistrationRosterMember;
 - Match;
 - Placement;
-- bracket/game lifecycle;
+- bracket/tournament lifecycle;
 - tournament registration and roster confirmation rules.
 ```
 
@@ -425,10 +425,10 @@ Owns:
 - Sponsor;
 - sponsor tier/context;
 - sponsor display metadata;
-- sponsor placement assignment when not part of competition lifecycle decisions.
+- sponsor placement assignment when not part of tournament lifecycle decisions.
 ```
 
-If sponsor placement affects competition lifecycle behavior, document the ownership decision before moving it.
+If sponsor placement affects tournament lifecycle behavior, document the ownership decision before moving it.
 
 ### Discovery
 
@@ -479,12 +479,12 @@ Owns:
 Allowed:
 
 ```text
-Competition -> Teams.Contracts
-Competition -> Identity.Contracts
-Competition -> Sponsorship.Contracts
-Competition -> Media.Contracts
+Tournament -> Teams.Contracts
+Tournament -> Identity.Contracts
+Tournament -> Sponsorship.Contracts
+Tournament -> Media.Contracts
 Discovery -> Teams.Contracts
-Discovery -> Competition.Contracts
+Discovery -> Tournament.Contracts
 Discovery -> Sponsorship.Contracts
 Discovery -> Identity.Contracts
 API Host -> module implementation projects
@@ -497,8 +497,8 @@ Module contracts -> Modules.Shared only
 Not allowed:
 
 ```text
-Competition -> Teams implementation
-Competition -> Teams.Domain.Team
+Tournament -> Teams implementation
+Tournament -> Teams.Domain.Team
 Teams -> Identity implementation internals
 Discovery -> MercuriusDBContext directly
 Any module -> another module's DbContext
@@ -694,7 +694,7 @@ Focus first on DTOs around:
 ```text
 - teams;
 - team invites;
-- games;
+- tournaments;
 - tournament registrations;
 - roster members;
 - matches;
@@ -711,7 +711,7 @@ Add black-box tests for behavior that can easily regress during refactoring:
 - deleted/anonymized users;
 - public versus private user fields;
 - team membership visibility;
-- game visibility;
+- tournament visibility;
 - search visibility;
 - sponsor visibility.
 ```
@@ -754,14 +754,14 @@ This phase makes extraction safer by improving names, method boundaries, query s
 
 ### 3.1 Remove public EF entity leaks from service interfaces
 
-Find service interfaces that return domain/EF entities publicly, such as methods that return `Team`, `Game`, `User`, or other EF models.
+Find service interfaces that return domain/EF entities publicly, such as methods that return `Team`, `Tournament`, `User`, or other EF models.
 
 Replace public-facing use with narrower read models or DTOs:
 
 ```text
 TeamSummary
 TeamRosterSnapshot
-GameSummary
+TournamentSummary
 UserProfileSummary
 TournamentConfiguration
 RegistrationEligibility
@@ -789,7 +789,7 @@ For touched queries:
 ```text
 - add AsNoTracking for read-only flows;
 - use projection instead of Include when possible;
-- avoid loading members/games/users when only IDs or names are needed;
+- avoid loading members/tournaments/users when only IDs or names are needed;
 - keep ordering deterministic;
 - pass cancellation tokens.
 ```
@@ -960,8 +960,8 @@ src/Modules/Identity/Mercurius.Modules.Identity.Contracts
 src/Modules/Teams/Mercurius.Modules.Teams
 src/Modules/Teams/Mercurius.Modules.Teams.Contracts
 
-src/Modules/Competition/Mercurius.Modules.Competition
-src/Modules/Competition/Mercurius.Modules.Competition.Contracts
+src/Modules/Tournament/Mercurius.Modules.Tournament
+src/Modules/Tournament/Mercurius.Modules.Tournament.Contracts
 
 src/Modules/Sponsorship/Mercurius.Modules.Sponsorship
 src/Modules/Sponsorship/Mercurius.Modules.Sponsorship.Contracts
@@ -1073,7 +1073,7 @@ Examples:
 ```csharp
 public readonly record struct UserId(Guid Value);
 public readonly record struct TeamId(Guid Value);
-public readonly record struct GameId(Guid Value);
+public readonly record struct TournamentId(Guid Value);
 public readonly record struct SponsorId(Guid Value);
 public readonly record struct TournamentRegistrationId(Guid Value);
 ```
@@ -1096,7 +1096,7 @@ public interface ITeamsModule
     Task<TeamRegistrationEligibility> GetRegistrationEligibilityAsync(
         TeamId teamId,
         UserId requestedBy,
-        GameId gameId,
+        TournamentId tournamentId,
         CancellationToken ct);
 
     Task<MembershipMutationGuard> CanMutateMembershipAsync(
@@ -1118,11 +1118,11 @@ public interface IIdentityModule
         CancellationToken ct);
 }
 
-public interface ICompetitionModule
+public interface ITournamentModule
 {
-    Task<GameSummary?> GetGameSummaryAsync(GameId gameId, CancellationToken ct);
+    Task<TournamentSummary?> GetTournamentSummaryAsync(TournamentId tournamentId, CancellationToken ct);
 
-    Task<bool> IsRegistrationOpenAsync(GameId gameId, CancellationToken ct);
+    Task<bool> IsRegistrationOpenAsync(TournamentId tournamentId, CancellationToken ct);
 }
 ```
 
@@ -1134,7 +1134,7 @@ Examples:
 TeamRosterSnapshot
 TeamMemberSnapshot
 UserProfileSummary
-GameSummary
+TournamentSummary
 TournamentConfiguration
 RegistrationEligibility
 ```
@@ -1186,7 +1186,7 @@ refactor/phase-7
 
 Extract Teams as the first complete business module.
 
-Teams is the first extraction because it has clear ownership, visible endpoint behavior, and significant coupling that should be addressed before Competition moves.
+Teams is the first extraction because it has clear ownership, visible endpoint behavior, and significant coupling that should be addressed before Tournament moves.
 
 ## Tasks
 
@@ -1501,7 +1501,7 @@ refactor/phase-10
 
 ## Goal
 
-Extract user/profile ownership and reduce direct user-domain coupling from Teams and Competition.
+Extract user/profile ownership and reduce direct user-domain coupling from Teams and Tournament.
 
 ## Tasks
 
@@ -1588,7 +1588,7 @@ Teams and Discovery consume these where needed.
 
 ---
 
-# Phase 11 — Extract Competition Module
+# Phase 11 — Extract Tournament Module
 
 ## Branch
 
@@ -1598,32 +1598,32 @@ refactor/phase-11
 
 ## Goal
 
-Move Games, TournamentRegistration, Matches, Placements, and bracket logic together.
+Move Tournaments, TournamentRegistration, Matches, Placements, and bracket logic together.
 
 Do not split these too early. They form one coherent tournament lifecycle.
 
 ## Tasks
 
-### 11.1 Move competition code
+### 11.1 Move tournament code
 
-Move into `Mercurius.Modules.Competition`:
+Move into `Mercurius.Modules.Tournament`:
 
 ```text
-Game service/use cases
+Tournament service/use cases
 Match service/use cases
 TournamentRegistration service/use cases
 bracket moderators
-Game endpoints
+Tournament endpoints
 Match endpoints
 TournamentRegistration endpoints
-Game/Match/Placement/Registration models
+Tournament/Match/Placement/Registration models
 DTOs/contracts
 EF configurations
 ```
 
 ### 11.2 Replace Teams/User entity dependencies
 
-Competition should depend on:
+Tournament should depend on:
 
 ```text
 Teams.Contracts
@@ -1640,11 +1640,11 @@ Example registration flow:
 var eligibility = await teamsModule.GetRegistrationEligibilityAsync(
     teamId,
     requestedBy,
-    gameId,
+    tournamentId,
     ct);
 ```
 
-Then Competition stores:
+Then Tournament stores:
 
 ```text
 team_id
@@ -1659,7 +1659,7 @@ Target roster model:
 
 ```text
 registration_id
-game_id
+tournament_id
 user_id
 team_id
 username_at_registration
@@ -1669,17 +1669,17 @@ selection_status
 
 Historical display fields should not sync after registration unless an explicit product rule says they should.
 
-### 11.4 Publish competition events
+### 11.4 Publish tournament events
 
 Examples:
 
 ```text
-GameCreated
-GameUpdated
-GameStarted
-GameReset
-GameCompleted
-GameCanceled
+TournamentCreated
+TournamentUpdated
+TournamentStarted
+TournamentReset
+TournamentCompleted
+TournamentCanceled
 TournamentRegistrationCreated
 TournamentRegistrationCanceled
 RosterMemberConfirmed
@@ -1693,7 +1693,7 @@ Discovery and Realtime can consume these.
 
 Do not introduce `/v2`.
 
-Do not redesign competition routes in this phase.
+Do not redesign tournament routes in this phase.
 
 ### 11.6 Clean and optimize touched code
 
@@ -1709,10 +1709,10 @@ Do not redesign competition routes in this phase.
 ## Phase exit criteria
 
 ```text
-- Competition is a separate class library.
-- Game/match/registration endpoints map through MapCompetitionModule.
-- Competition no longer references Teams/Identity implementation projects.
-- Existing game/registration/match behavior passes tests.
+- Tournament is a separate class library.
+- Tournament/match/registration endpoints map through MapTournamentModule.
+- Tournament no longer references Teams/Identity implementation projects.
+- Existing tournament/registration/match behavior passes tests.
 - No endpoint route redesign occurred.
 - Full validation passes.
 ```
@@ -1729,7 +1729,7 @@ refactor/phase-12
 
 ## Goal
 
-Separate sponsor ownership from game/tournament lifecycle.
+Separate sponsor ownership from tournament lifecycle.
 
 ## Tasks
 
@@ -1746,7 +1746,7 @@ Sponsor EF configuration
 Sponsor validation behavior
 ```
 
-### 12.2 Decide ownership of game sponsor placement
+### 12.2 Decide ownership of tournament sponsor placement
 
 Before moving placement code, document whether ownership is:
 
@@ -1756,13 +1756,13 @@ Sponsorship owns:
 - sponsor placement assignment;
 - display order/context/tier for sponsor placement.
 
-Competition owns:
-- game;
-- game lifecycle;
+Tournament owns:
+- tournament;
+- tournament lifecycle;
 - tournament behavior affected by sponsorship, if any.
 ```
 
-Sponsorship may reference `game_id`, but it must not own the game.
+Sponsorship may reference `tournament_id`, but it must not own the tournament.
 
 ### 12.3 Publish placement events
 
@@ -1770,7 +1770,7 @@ Sponsorship may reference `game_id`, but it must not own the game.
 SponsorCreated
 SponsorUpdated
 SponsorDeleted
-GameSponsorPlacementChanged
+TournamentSponsorPlacementChanged
 ```
 
 Discovery may consume these for search/display.
@@ -1783,7 +1783,7 @@ Do not redesign sponsor endpoints in this phase.
 
 ```text
 - separate upload/media concerns from sponsor metadata;
-- avoid loading games when only game IDs are needed;
+- avoid loading tournaments when only tournament IDs are needed;
 - keep sponsor placement rules explicit;
 - use read models for sponsor listing/detail queries.
 ```
@@ -1793,8 +1793,8 @@ Do not redesign sponsor endpoints in this phase.
 ```text
 - Sponsorship is a separate class library.
 - Sponsor endpoints still work with current routes.
-- Game sponsor placement behavior still works.
-- Competition does not import Sponsorship implementation.
+- Tournament sponsor placement behavior still works.
+- Tournament does not import Sponsorship implementation.
 - Tests pass.
 ```
 
@@ -1840,7 +1840,7 @@ public interface IMediaModule
         string contentType,
         CancellationToken ct);
 
-    Task<StoredImage> StoreGameImageAsync(
+    Task<StoredImage> StoreTournamentImageAsync(
         Stream content,
         string fileName,
         string contentType,
@@ -1886,7 +1886,7 @@ Image serving remains host/platform infrastructure because it is HTTP middleware
 ```text
 - Media is a separate class library.
 - Team logo upload/remove behavior still works.
-- Game image behavior still works.
+- Tournament image behavior still works.
 - Sponsor image behavior still works.
 - File validation tests pass.
 - Image serving still works.
@@ -1947,9 +1947,9 @@ UserProfileChanged
 TeamCreated
 TeamRenamed
 TeamDeleted
-GameCreated
-GameUpdated
-GameCanceled
+TournamentCreated
+TournamentUpdated
+TournamentCanceled
 SponsorCreated
 SponsorUpdated
 SponsorDeleted
@@ -1979,7 +1979,7 @@ Before replacing live queries with projections, tests must cover:
 - pagination/cursor behavior;
 - deleted/private users;
 - teams;
-- games;
+- tournaments;
 - sponsors;
 - route values returned in search results;
 - stale projection handling.
@@ -2032,9 +2032,9 @@ Move mappings into module-owned infrastructure areas:
 Identity.Infrastructure.UserConfiguration
 Teams.Infrastructure.TeamConfiguration
 Teams.Infrastructure.TeamInviteConfiguration
-Competition.Infrastructure.GameConfiguration
-Competition.Infrastructure.MatchConfiguration
-Competition.Infrastructure.TournamentRegistrationConfiguration
+Tournament.Infrastructure.TournamentConfiguration
+Tournament.Infrastructure.MatchConfiguration
+Tournament.Infrastructure.TournamentRegistrationConfiguration
 Sponsorship.Infrastructure.SponsorConfiguration
 Discovery.Infrastructure.SearchDocumentConfiguration
 ```
@@ -2054,7 +2054,7 @@ Later target:
 ```text
 IdentityDbContext
 TeamsDbContext
-CompetitionDbContext
+TournamentDbContext
 SponsorshipDbContext
 DiscoveryDbContext
 ```
@@ -2070,13 +2070,13 @@ identity.users
 teams.teams
 teams.team_invites
 teams.team_members
-competition.games
-competition.matches
-competition.tournament_registrations
-competition.roster_members
-competition.placements
+tournament.tournaments
+tournament.matches
+tournament.tournament_registrations
+tournament.roster_members
+tournament.placements
 sponsorship.sponsors
-sponsorship.game_sponsor_placements
+sponsorship.tournament_sponsor_placements
 discovery.search_documents
 platform.outbox_messages
 platform.inbox_messages
@@ -2161,9 +2161,9 @@ Use resource-oriented route shapes in the existing route version/convention.
 Avoid action routes such as:
 
 ```text
-POST /games/{id}/start
-POST /games/{id}/complete
-POST /games/{id}/cancel
+POST /tournaments/{id}/start
+POST /tournaments/{id}/complete
+POST /tournaments/{id}/cancel
 POST /teams/{id}/leave
 ```
 
@@ -2172,13 +2172,13 @@ Prefer resource state updates where appropriate.
 Examples:
 
 ```text
-PUT/PATCH /games/{gameId}/lifecycle-state
+PUT/PATCH /tournaments/{tournamentId}/lifecycle-state
 DELETE    /teams/{teamId}/members/me
 PUT       /teams/{teamId}/captain
 PUT       /teams/{teamId}/logo
 DELETE    /teams/{teamId}/logo
 PATCH     /team-invites/{inviteId}
-PATCH     /games/{gameId}/registrations/{registrationId}/roster-members/{userId}
+PATCH     /tournaments/{tournamentId}/registrations/{registrationId}/roster-members/{userId}
 ```
 
 These are examples only. Codex must align the final shape with OpenSpec and the existing route conventions.
@@ -2254,7 +2254,7 @@ Add tests that fail when a module accidentally exposes:
 
 ```text
 Team
-Game
+Tournament
 User
 DbContext
 Repository
@@ -2321,7 +2321,7 @@ tests/Mercurius.Api.Tests
 tests/Platform.Tests
 tests/Mercurius.Modules.Identity.Tests
 tests/Mercurius.Modules.Teams.Tests
-tests/Mercurius.Modules.Competition.Tests
+tests/Mercurius.Modules.Tournament.Tests
 tests/Mercurius.Modules.Sponsorship.Tests
 tests/Mercurius.Modules.Discovery.Tests
 tests/Mercurius.Modules.Media.Tests
@@ -2380,7 +2380,7 @@ Examples:
 ```text
 TeamRenamed updates Discovery search document.
 UserProfileChanged updates Team member display projection.
-GameUpdated updates Discovery search document.
+TournamentUpdated updates Discovery search document.
 SponsorUpdated updates Discovery search document.
 Duplicate event is ignored.
 Older version event is ignored.
@@ -2416,7 +2416,7 @@ Finish the migration by deleting old paths, old services, and transitional adapt
 
 ### 19.1 Remove old service interfaces
 
-Delete transitional interfaces like old `ITeamService` and `IGameService` once no endpoint uses them.
+Delete transitional interfaces like old `ITeamService` and `ITournamentService` once no endpoint uses them.
 
 These should not remain as public module boundaries if they expose mixed DTO/domain contracts.
 
@@ -2487,6 +2487,51 @@ Within the touched migration scope:
 
 ---
 
+# Phase 20 — Rename Competition/Game Aggregate to Tournament
+
+## Branch
+
+```text
+refactor/phase-20-tournament-naming
+```
+
+## Goal
+
+Use `Tournament` as the canonical name for the tournament aggregate across module projects,
+contracts, namespaces, persistence, Discovery, Sponsorship, durable events, and the versioned
+HTTP resource while preserving genuine single-game concepts such as `GameFormat` and
+`AverageGameDurationMinutes`.
+
+## Required scope
+
+```text
+- rename the Competition module/project and aggregate-level Game types to Tournament;
+- expose /v1/lan/tournaments and tournamentId fields, and remove /v1/lan/games;
+- move the current EF model to tournament/tournaments/TournamentId naming;
+- add one reversible data-preserving migration for schema, table, references, sponsorship,
+  Discovery rows, and pending durable-event type/payload representations;
+- update only the current model snapshot and leave historical migrations/designers unchanged;
+- retain only focused durable-event resolver safety for historical/dead-lettered or rollback rows;
+- update current specs, docs, tests, and the ledger placeholder without inventing a PR URL.
+```
+
+This is an intentional naming cutover exception to the usual phase separation rule: the route,
+project, contract, and persistence identifiers must change together so the aggregate has one
+canonical public and storage name.
+
+## Phase exit criteria
+
+```text
+- OpenSpec proposal, design, delta specs, and tasks validate.
+- No aggregate-level Competition/Game project, namespace, route, or JSON identifier remains.
+- GameFormat and AverageGameDurationMinutes remain unchanged.
+- Migration Up/Down rewrites pending outbox rows and preserves historical/dead-letter safety.
+- API/OpenAPI, module, persistence, eventing, and search tests pass.
+- Full validation passes and the coordinator adds a real PR URL before checking the ledger.
+```
+
+---
+
 # Recommended phase order
 
 ```text
@@ -2500,7 +2545,7 @@ Within the touched migration scope:
 8. Realtime split
 9. Eventing/outbox/inbox
 10. Identity extraction
-11. Competition extraction
+11. Tournament extraction
 12. Sponsorship extraction
 13. Media extraction
 14. Discovery/Search extraction
@@ -2509,6 +2554,7 @@ Within the touched migration scope:
 17. Internals/public surface hardening
 18. Test suite reshaping
 19. Transitional cleanup
+20. Tournament naming cutover
 ```
 
 Endpoint simplification can move earlier only if it is the explicit product priority, but it must still avoid `/v2` and must not be combined with physical module extraction or persistence changes.

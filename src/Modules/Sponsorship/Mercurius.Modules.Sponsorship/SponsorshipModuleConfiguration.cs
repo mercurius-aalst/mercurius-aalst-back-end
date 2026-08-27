@@ -29,7 +29,7 @@ public static class SponsorshipModuleConfiguration
     public static ModelBuilder ApplySponsorshipModelConfiguration(this ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfiguration(new SponsorConfiguration());
-        modelBuilder.ApplyConfiguration(new GameSponsorPlacementConfiguration());
+        modelBuilder.ApplyConfiguration(new TournamentSponsorPlacementConfiguration());
 
         return modelBuilder;
     }

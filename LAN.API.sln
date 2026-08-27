@@ -1,4 +1,4 @@
-﻿
+
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 18
 VisualStudioVersion = 18.4.11605.240
@@ -25,11 +25,11 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mercurius.Modules.Teams", "
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mercurius.Modules.Teams.Contracts", "src\Modules\Teams\Mercurius.Modules.Teams.Contracts\Mercurius.Modules.Teams.Contracts.csproj", "{65E5D541-530C-4522-A92E-96431A5FE90F}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Competition", "Competition", "{48354D19-C052-659D-E48B-231D7A477F36}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tournament", "Tournament", "{48354D19-C052-659D-E48B-231D7A477F36}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mercurius.Modules.Competition", "src\Modules\Competition\Mercurius.Modules.Competition\Mercurius.Modules.Competition.csproj", "{AC76910A-30AE-4A3E-BC5E-D1552604E376}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mercurius.Modules.Tournament", "src\Modules\Tournament\Mercurius.Modules.Tournament\Mercurius.Modules.Tournament.csproj", "{AC76910A-30AE-4A3E-BC5E-D1552604E376}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mercurius.Modules.Competition.Contracts", "src\Modules\Competition\Mercurius.Modules.Competition.Contracts\Mercurius.Modules.Competition.Contracts.csproj", "{74E4A5FC-97D0-47EC-8399-9730E45C2FA7}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mercurius.Modules.Tournament.Contracts", "src\Modules\Tournament\Mercurius.Modules.Tournament.Contracts\Mercurius.Modules.Tournament.Contracts.csproj", "{74E4A5FC-97D0-47EC-8399-9730E45C2FA7}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Sponsorship", "Sponsorship", "{9F59A0F5-57DE-ED0B-06FC-5CE60D7A9DF6}"
 EndProject
@@ -61,7 +61,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mercurius.Modules.Identity.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mercurius.Modules.Teams.Tests", "tests\Mercurius.Modules.Teams.Tests\Mercurius.Modules.Teams.Tests.csproj", "{646085B5-2EAD-4703-B768-F9045B3DDA9D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mercurius.Modules.Competition.Tests", "tests\Mercurius.Modules.Competition.Tests\Mercurius.Modules.Competition.Tests.csproj", "{B155D43E-BE84-4646-A7C4-E580EAE3843D}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mercurius.Modules.Tournament.Tests", "tests\Mercurius.Modules.Tournament.Tests\Mercurius.Modules.Tournament.Tests.csproj", "{B155D43E-BE84-4646-A7C4-E580EAE3843D}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mercurius.Modules.Sponsorship.Tests", "tests\Mercurius.Modules.Sponsorship.Tests\Mercurius.Modules.Sponsorship.Tests.csproj", "{8D71BCB1-7274-4710-BE5D-E50E9CD3E908}"
 EndProject

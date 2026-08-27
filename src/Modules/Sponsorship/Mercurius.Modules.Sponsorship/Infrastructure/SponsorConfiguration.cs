@@ -21,7 +21,7 @@ internal sealed class SponsorConfiguration : IEntityTypeConfiguration<Sponsor>
         entity.Property(sponsor => sponsor.SponsorTier)
             .HasConversion(sponsorTierConverter)
             .IsRequired();
-        entity.HasMany(sponsor => sponsor.GameSponsorPlacements)
+        entity.HasMany(sponsor => sponsor.TournamentSponsorPlacements)
             .WithOne(placement => placement.Sponsor)
             .HasForeignKey(placement => placement.SponsorId)
             .OnDelete(DeleteBehavior.Cascade);

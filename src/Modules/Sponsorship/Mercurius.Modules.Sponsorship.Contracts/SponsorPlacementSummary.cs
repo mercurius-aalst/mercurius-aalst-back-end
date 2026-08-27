@@ -4,7 +4,7 @@ namespace Mercurius.Modules.Sponsorship.Contracts;
 
 public sealed record SponsorPlacementSummary(
     SponsorPlacementId Id,
-    GameId GameId,
+    TournamentId TournamentId,
     SponsorSummary Sponsor,
     SponsorContext Context,
     string? Headline,

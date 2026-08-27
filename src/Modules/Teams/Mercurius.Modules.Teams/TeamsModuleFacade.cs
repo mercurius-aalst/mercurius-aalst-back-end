@@ -10,16 +10,16 @@ internal sealed class TeamsModuleFacade : ITeamsModule
 {
     private readonly ITeamsDbContext _dbContext;
     private readonly IIdentityModule _identityModule;
-    private readonly ITeamCompetitionReadService _competitionReadService;
+    private readonly ITeamTournamentReadService _tournamentReadService;
 
     public TeamsModuleFacade(
         ITeamsDbContext dbContext,
         IIdentityModule identityModule,
-        ITeamCompetitionReadService competitionReadService)
+        ITeamTournamentReadService tournamentReadService)
     {
         _dbContext = dbContext;
         _identityModule = identityModule;
-        _competitionReadService = competitionReadService;
+        _tournamentReadService = tournamentReadService;
     }
 
     public Task<TeamSummary?> GetTeamSummaryAsync(
@@ -134,7 +134,7 @@ internal sealed class TeamsModuleFacade : ITeamsModule
             team.MemberUserIds.Concat(
                 team.CaptainUserId.HasValue ? [team.CaptainUserId.Value] : []),
             cancellationToken);
-        var tournaments = await _competitionReadService.GetPublicTeamTournamentsAsync(team.Id, cancellationToken);
+        var tournaments = await _tournamentReadService.GetPublicTeamTournamentsAsync(team.Id, cancellationToken);
 
         var members = team.MemberUserIds
             .Select(userId => users.GetValueOrDefault(new UserId(userId))?.Username)
@@ -160,7 +160,7 @@ internal sealed class TeamsModuleFacade : ITeamsModule
     public async Task<TeamRegistrationEligibility> GetRegistrationEligibilityAsync(
         TeamId teamId,
         UserId requestedBy,
-        GameId gameId,
+        TournamentId tournamentId,
         CancellationToken cancellationToken = default)
     {
         var team = await _dbContext.Teams

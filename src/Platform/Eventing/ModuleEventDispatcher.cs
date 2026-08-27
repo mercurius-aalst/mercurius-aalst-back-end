@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Reflection;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Platform.Eventing.Persistence;
@@ -69,7 +70,10 @@ internal sealed class ModuleEventDispatcher : IModuleEventDispatcher
         try
         {
             var payloadType = ModuleEventTypeNames.Resolve(message.EventType);
-            var payload = JsonSerializer.Deserialize(message.Payload, payloadType, SerializerOptions)
+            var payloadJson = ModuleEventTypeNames.IsLegacy(message.EventType)
+                ? NormalizeLegacyPayload(message.Payload)
+                : message.Payload;
+            var payload = JsonSerializer.Deserialize(payloadJson, payloadType, SerializerOptions)
                 ?? throw new InvalidOperationException($"Module event payload '{message.EventType}' deserialized to null.");
 
             var context = new ModuleEventContext(message.Id, message.EventType, message.OccurredAtUtc);
@@ -183,6 +187,17 @@ internal sealed class ModuleEventDispatcher : IModuleEventDispatcher
     }
 
     private DateTime GetUtcNow() => _timeProvider.GetUtcNow().UtcDateTime;
+
+    private static string NormalizeLegacyPayload(string payload)
+    {
+        var node = JsonNode.Parse(payload);
+        if (node is not JsonObject jsonObject || !jsonObject.ContainsKey("gameId") || jsonObject.ContainsKey("tournamentId"))
+            return payload;
+
+        jsonObject["tournamentId"] = jsonObject["gameId"]!.DeepClone();
+        jsonObject.Remove("gameId");
+        return jsonObject.ToJsonString(SerializerOptions);
+    }
 
     private static string TruncateError(string error) =>
         error.Length <= LastErrorMaxLength

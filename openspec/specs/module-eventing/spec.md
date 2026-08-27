@@ -26,7 +26,7 @@ The system SHALL save supported business mutations and their durable outbox mess
 - **THEN** the Teams state change MUST NOT be committed
 
 #### Scenario: Sponsorship change and event commit together
-- **WHEN** Sponsorship creates, updates, or deletes a sponsor or changes a game sponsor placement
+- **WHEN** Sponsorship creates, updates, or deletes a sponsor or changes a tournament sponsor placement
 - **THEN** the Sponsorship state change and its matching durable outbox message MUST both be
   committed
 
@@ -65,7 +65,7 @@ The system SHALL use versioned durable event payloads for Teams and Sponsorship 
 
 #### Scenario: Sponsorship publishes versioned lifecycle events
 - **WHEN** Sponsorship creates, updates, or deletes a sponsor or creates, replaces, or removes a
-  game sponsor placement
+  tournament sponsor placement
 - **THEN** it MUST publish the matching V1 event payload
-- **AND** the payload MUST include the SponsorId for sponsor facts and the GameId plus current
+- **AND** the payload MUST include the SponsorId for sponsor facts and the TournamentId plus current
   placement facts or removal state for placement facts

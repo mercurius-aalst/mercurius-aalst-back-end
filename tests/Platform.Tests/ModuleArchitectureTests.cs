@@ -1,6 +1,6 @@
 using System.Reflection;
 using System.Xml.Linq;
-using Mercurius.Modules.Competition.Application.Services;
+using Mercurius.Modules.Tournament.Application.Services;
 using Mercurius.Modules.Identity.Services;
 using Platform.Eventing;
 
@@ -10,7 +10,7 @@ public class ModuleArchitectureTests
 {
     private static readonly string[] ModuleNames =
     [
-        "Competition",
+        "Tournament",
         "Discovery",
         "Identity",
         "Media",
@@ -85,7 +85,7 @@ public class ModuleArchitectureTests
             requiredReferences.Add(identityContractsProject);
             allowedReferences.Add(identityContractsProject);
         }
-        else if (moduleName == "Competition")
+        else if (moduleName == "Tournament")
         {
             allowedReferences.Add(Path.Combine(
                 repositoryRoot,
@@ -128,7 +128,7 @@ public class ModuleArchitectureTests
         }
         else if (moduleName == "Discovery")
         {
-            foreach (var sourceModule in new[] { "Identity", "Teams", "Competition", "Sponsorship" })
+            foreach (var sourceModule in new[] { "Identity", "Teams", "Tournament", "Sponsorship" })
             {
                 allowedReferences.Add(Path.Combine(
                     repositoryRoot,
@@ -203,7 +203,7 @@ public class ModuleArchitectureTests
         var assembly = Assembly.Load("Modules.Shared");
         var expectedTypedIds = new Dictionary<string, Type>
         {
-            ["GameId"] = typeof(Guid),
+            ["TournamentId"] = typeof(Guid),
             ["MatchId"] = typeof(Guid),
             ["SponsorId"] = typeof(int),
             ["SponsorPlacementId"] = typeof(int),
@@ -270,7 +270,7 @@ public class ModuleArchitectureTests
         Assert.Null(assembly.GetType("Mercurius.Modules.Teams.Services.ITeamService", throwOnError: false));
         Assert.Null(assembly.GetType("Mercurius.Modules.Teams.Services.ITeamApplicationService", throwOnError: false));
         Assert.Null(assembly.GetType("Mercurius.Modules.Teams.Services.NullTeamEventPublisher", throwOnError: false));
-        Assert.Null(assembly.GetType("Mercurius.Modules.Teams.Services.NullTeamCompetitionReadService", throwOnError: false));
+        Assert.Null(assembly.GetType("Mercurius.Modules.Teams.Services.NullTeamTournamentReadService", throwOnError: false));
     }
 
     [Fact]
@@ -420,26 +420,26 @@ public class ModuleArchitectureTests
     }
 
     [Fact]
-    public void CompetitionEndpointTypes_AreInternalAndApiHostNoLongerOwnsThem()
+    public void TournamentEndpointTypes_AreInternalAndApiHostNoLongerOwnsThem()
     {
-        var competitionAssembly = Assembly.Load("Mercurius.Modules.Competition");
+        var tournamentAssembly = Assembly.Load("Mercurius.Modules.Tournament");
         var apiAssembly = Assembly.Load("Mercurius.LAN.API");
         var endpointTypeNames = new[]
         {
-            "Mercurius.Modules.Competition.Endpoints.GameEndpoints",
-            "Mercurius.Modules.Competition.Endpoints.MatchEndpoints",
-            "Mercurius.Modules.Competition.Endpoints.TournamentRegistrationEndpoints"
+            "Mercurius.Modules.Tournament.Endpoints.TournamentEndpoints",
+            "Mercurius.Modules.Tournament.Endpoints.MatchEndpoints",
+            "Mercurius.Modules.Tournament.Endpoints.TournamentRegistrationEndpoints"
         };
 
         foreach (var typeName in endpointTypeNames)
         {
-            var endpointType = competitionAssembly.GetType(typeName, throwOnError: false, ignoreCase: false);
+            var endpointType = tournamentAssembly.GetType(typeName, throwOnError: false, ignoreCase: false);
 
             Assert.NotNull(endpointType);
             Assert.False(endpointType!.IsPublic, $"{typeName} must remain an internal module implementation detail.");
         }
 
-        Assert.Null(apiAssembly.GetType("Mercurius.LAN.API.Endpoints.GameEndpoints", throwOnError: false));
+        Assert.Null(apiAssembly.GetType("Mercurius.LAN.API.Endpoints.TournamentEndpoints", throwOnError: false));
         Assert.Null(apiAssembly.GetType("Mercurius.LAN.API.Endpoints.MatchEndpoints", throwOnError: false));
         Assert.Null(apiAssembly.GetType("Mercurius.LAN.API.Endpoints.TournamentRegistrationEndpoints", throwOnError: false));
     }
@@ -452,7 +452,7 @@ public class ModuleArchitectureTests
         var implementationTypeNames = new[]
         {
             "Mercurius.Modules.Sponsorship.Domain.Sponsor",
-            "Mercurius.Modules.Sponsorship.Domain.GameSponsorPlacement",
+            "Mercurius.Modules.Sponsorship.Domain.TournamentSponsorPlacement",
             "Mercurius.Modules.Sponsorship.Application.Services.ISponsorService",
             "Mercurius.Modules.Sponsorship.Application.Services.SponsorService",
             "Mercurius.Modules.Sponsorship.Infrastructure.ISponsorshipDbContext",
@@ -470,7 +470,7 @@ public class ModuleArchitectureTests
 
         Assert.Null(apiAssembly.GetType("Mercurius.LAN.API.Endpoints.SponsorEndpoints", throwOnError: false));
         Assert.Null(apiAssembly.GetType("Mercurius.LAN.API.Models.Sponsor", throwOnError: false));
-        Assert.Null(apiAssembly.GetType("Mercurius.LAN.API.Models.GameSponsorPlacement", throwOnError: false));
+        Assert.Null(apiAssembly.GetType("Mercurius.LAN.API.Models.TournamentSponsorPlacement", throwOnError: false));
     }
 
     [Fact]
@@ -491,18 +491,18 @@ public class ModuleArchitectureTests
     }
 
     [Fact]
-    public void CompetitionApplicationServices_RequireTrailingCancellationToken()
+    public void TournamentApplicationServices_RequireTrailingCancellationToken()
     {
-        var competitionAssembly = Assembly.Load("Mercurius.Modules.Competition");
+        var tournamentAssembly = Assembly.Load("Mercurius.Modules.Tournament");
         var interfaces = new[]
         {
-            "Mercurius.Modules.Competition.Application.Services.IGameQueries",
-            "Mercurius.Modules.Competition.Application.Services.IGameManagementCommands",
-            "Mercurius.Modules.Competition.Application.Services.IGameLifecycleCommands",
-            "Mercurius.Modules.Competition.Application.Services.IMatchService",
-            "Mercurius.Modules.Competition.Application.Services.ITournamentRegistrationService"
+            "Mercurius.Modules.Tournament.Application.Services.ITournamentQueries",
+            "Mercurius.Modules.Tournament.Application.Services.ITournamentManagementCommands",
+            "Mercurius.Modules.Tournament.Application.Services.ITournamentLifecycleCommands",
+            "Mercurius.Modules.Tournament.Application.Services.IMatchService",
+            "Mercurius.Modules.Tournament.Application.Services.ITournamentRegistrationService"
         }
-            .Select(typeName => competitionAssembly.GetType(typeName, throwOnError: true)!)
+            .Select(typeName => tournamentAssembly.GetType(typeName, throwOnError: true)!)
             .ToArray();
 
         foreach (var interfaceType in interfaces)
@@ -522,39 +522,39 @@ public class ModuleArchitectureTests
             }
         }
 
-        Assert.Null(competitionAssembly.GetType("Mercurius.Modules.Competition.Application.Services.IGameService", throwOnError: false));
+        Assert.Null(tournamentAssembly.GetType("Mercurius.Modules.Tournament.Application.Services.ITournamentService", throwOnError: false));
     }
 
     [Fact]
-    public void CompetitionGameContracts_AreInternalAndSegregated()
+    public void TournamentTournamentContracts_AreInternalAndSegregated()
     {
-        var competitionAssembly = Assembly.Load("Mercurius.Modules.Competition");
+        var tournamentAssembly = Assembly.Load("Mercurius.Modules.Tournament");
         var expectedMethodsByType = new Dictionary<string, string[]>
         {
-            ["Mercurius.Modules.Competition.Application.Services.IGameQueries"] =
+            ["Mercurius.Modules.Tournament.Application.Services.ITournamentQueries"] =
             [
-                "GetAllGamesAsync",
-                "GetGameByIdAsync"
+                "GetAllTournamentsAsync",
+                "GetTournamentByIdAsync"
             ],
-            ["Mercurius.Modules.Competition.Application.Services.IGameManagementCommands"] =
+            ["Mercurius.Modules.Tournament.Application.Services.ITournamentManagementCommands"] =
             [
-                "CreateGameAsync",
-                "DeleteGameAsync",
+                "CreateTournamentAsync",
+                "DeleteTournamentAsync",
                 "ReplaceSponsorPlacementsAsync",
-                "UpdateGameAsync"
+                "UpdateTournamentAsync"
             ],
-            ["Mercurius.Modules.Competition.Application.Services.IGameLifecycleCommands"] =
+            ["Mercurius.Modules.Tournament.Application.Services.ITournamentLifecycleCommands"] =
             [
-                "CancelGameAsync",
-                "CompleteGameAsync",
-                "ResetGameAsync",
-                "StartGameAsync"
+                "CancelTournamentAsync",
+                "CompleteTournamentAsync",
+                "ResetTournamentAsync",
+                "StartTournamentAsync"
             ]
         };
 
         foreach (var (typeName, expectedMethods) in expectedMethodsByType)
         {
-            var type = competitionAssembly.GetType(typeName, throwOnError: true)!;
+            var type = tournamentAssembly.GetType(typeName, throwOnError: true)!;
 
             Assert.False(type.IsPublic, $"{typeName} must remain an internal application contract.");
             Assert.Equal(

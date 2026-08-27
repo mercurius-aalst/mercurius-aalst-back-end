@@ -27,7 +27,7 @@ public interface ITeamsModule
     Task<TeamRegistrationEligibility> GetRegistrationEligibilityAsync(
         TeamId teamId,
         UserId requestedBy,
-        GameId gameId,
+        TournamentId tournamentId,
         CancellationToken cancellationToken = default);
 
     Task<MembershipMutationGuard> CanMutateMembershipAsync(

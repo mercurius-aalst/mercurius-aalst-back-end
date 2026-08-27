@@ -1,7 +1,7 @@
 using System.Security.Claims;
 using Mercurius.LAN.API.Hubs;
-using Mercurius.Modules.Competition;
-using Mercurius.Modules.Competition.Application.Services;
+using Mercurius.Modules.Tournament;
+using Mercurius.Modules.Tournament.Application.Services;
 using Mercurius.LAN.API.Data;
 using Mercurius.Modules.Discovery;
 using Mercurius.Modules.Discovery.Contracts;
@@ -43,12 +43,12 @@ public class OpenApiDocumentTests
             Assert.True(endpointCount > 0, "The Swagger test host should have mapped endpoints.");
             Assert.True(apiDescriptionCount > 0, "ApiExplorer should discover the mapped endpoints.");
             Assert.Equal("Mercurius API", document.Info.Title);
-            AssertPathHasOperation(document, "/v1/lan/games", OperationType.Get);
-            AssertPathHasOperation(document, "/v1/lan/games/{id}", OperationType.Get);
-            AssertPathHasOperation(document, "/v1/lan/games/{id}", OperationType.Patch);
-            AssertPathHasOperation(document, "/v1/lan/games/{id}/lifecycle-state", OperationType.Put);
+            AssertPathHasOperation(document, "/v1/lan/tournaments", OperationType.Get);
+            AssertPathHasOperation(document, "/v1/lan/tournaments/{tournamentId}", OperationType.Get);
+            AssertPathHasOperation(document, "/v1/lan/tournaments/{tournamentId}", OperationType.Patch);
+            AssertPathHasOperation(document, "/v1/lan/tournaments/{tournamentId}/lifecycle-state", OperationType.Put);
             AssertPathHasOperation(document, "/v1/lan/teams", OperationType.Get);
-            AssertPagedRawArrayOperation(document, "/v1/lan/games");
+            AssertPagedRawArrayOperation(document, "/v1/lan/tournaments");
             AssertPagedRawArrayOperation(document, "/v1/lan/teams");
             AssertPathHasOperation(document, "/v1/lan/teams/{id}", OperationType.Delete);
             AssertPathHasOperation(document, "/v1/lan/teams/{id}/members/me", OperationType.Delete);
@@ -59,18 +59,22 @@ public class OpenApiDocumentTests
             AssertPathHasOperation(document, "/v1/lan/users/me", OperationType.Get);
             AssertPathHasOperation(document, "/v1/lan/public/users/{username}", OperationType.Get);
             AssertPagedRawArrayOperation(document, "/v1/lan/users");
-            AssertPathHasOperation(document, "/v1/lan/games/{gameId}/registrations/me", OperationType.Get);
-            AssertPathHasOperation(document, "/v1/lan/games/{gameId}/registrations/individual/eligibility", OperationType.Get);
-            AssertPathHasOperation(document, "/v1/lan/games/{gameId}/registrations/teams/{teamId}/eligibility", OperationType.Get);
-            AssertPathHasOperation(document, "/v1/lan/games/{gameId}/registrations/teams/{teamId}/roster/eligibility", OperationType.Post);
-            AssertPathHasOperation(document, "/v1/lan/games/{gameId}/registrations/individual/me", OperationType.Put);
-            AssertPathHasOperation(document, "/v1/lan/games/{gameId}/registrations/roster-members/{rosterMemberId}", OperationType.Patch);
-            AssertPathHasOperation(document, "/v1/lan/games/{gameId}/registrations/admin", OperationType.Get);
-            AssertPagedRawArrayOperation(document, "/v1/lan/games/{gameId}/registrations/admin");
+            AssertPathHasOperation(document, "/v1/lan/tournaments/{tournamentId}/registrations/me", OperationType.Get);
+            AssertPathHasOperation(document, "/v1/lan/tournaments/{tournamentId}/registrations/individual/eligibility", OperationType.Get);
+            AssertPathHasOperation(document, "/v1/lan/tournaments/{tournamentId}/registrations/teams/{teamId}/eligibility", OperationType.Get);
+            AssertPathHasOperation(document, "/v1/lan/tournaments/{tournamentId}/registrations/teams/{teamId}/roster/eligibility", OperationType.Post);
+            AssertPathHasOperation(document, "/v1/lan/tournaments/{tournamentId}/registrations/individual/me", OperationType.Put);
+            AssertPathHasOperation(document, "/v1/lan/tournaments/{tournamentId}/registrations/roster-members/{rosterMemberId}", OperationType.Patch);
+            AssertPathHasOperation(document, "/v1/lan/tournaments/{tournamentId}/registrations/admin", OperationType.Get);
+            AssertPagedRawArrayOperation(document, "/v1/lan/tournaments/{tournamentId}/registrations/admin");
             AssertPathHasOperation(document, "/v1/lan/search", OperationType.Get);
             AssertPathHasOperation(document, "/v1/lan/sponsors", OperationType.Post);
             AssertPathHasOperation(document, "/v1/lan/matches/{id}", OperationType.Put);
-            AssertPathIsAbsent(document, "/v1/lan/games/{id}/start");
+            AssertPathIsAbsent(document, "/v1/lan/games");
+            AssertPathIsAbsent(document, "/v1/lan/games/{id}");
+            AssertPathIsAbsent(document, "/v1/lan/games/{id}/sponsors");
+            AssertPathIsAbsent(document, "/v1/lan/games/{id}/lifecycle-state");
+            AssertPathIsAbsent(document, "/v1/lan/tournaments/{id}/start");
             AssertPathIsAbsent(document, "/v1/lan/teams/{id}/leave");
             AssertPathIsAbsent(document, "/v1/lan/users/me/complete-profile");
             Assert.DoesNotContain(document.Paths.Keys, path => path.StartsWith("/v2/", StringComparison.OrdinalIgnoreCase));
@@ -138,7 +142,7 @@ public class OpenApiDocumentTests
             ], "SwaggerTest"))
         };
 
-        app.MapCompetitionModule();
+        app.MapTournamentModule();
         app.MapTeamsModule();
         app.MapSponsorshipModule();
         app.MapIdentityModule();
@@ -153,9 +157,9 @@ public class OpenApiDocumentTests
 
     private static void RegisterEndpointServices(IServiceCollection services)
     {
-        services.AddScoped<IGameQueries>(_ => throw new NotSupportedException());
-        services.AddScoped<IGameManagementCommands>(_ => throw new NotSupportedException());
-        services.AddScoped<IGameLifecycleCommands>(_ => throw new NotSupportedException());
+        services.AddScoped<ITournamentQueries>(_ => throw new NotSupportedException());
+        services.AddScoped<ITournamentManagementCommands>(_ => throw new NotSupportedException());
+        services.AddScoped<ITournamentLifecycleCommands>(_ => throw new NotSupportedException());
         services.AddScoped<ITournamentRegistrationService>(_ => throw new NotSupportedException());
         services.AddScoped<IMatchService>(_ => throw new NotSupportedException());
         services.AddScoped<ITeamEndpointService>(_ => throw new NotSupportedException());

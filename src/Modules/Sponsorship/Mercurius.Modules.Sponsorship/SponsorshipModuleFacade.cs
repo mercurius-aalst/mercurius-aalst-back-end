@@ -58,50 +58,50 @@ internal sealed class SponsorshipModuleFacade : ISponsorshipModule
     }
 
     public Task<SponsorPlacementSummary?> GetSponsorPlacementAsync(
-        GameId gameId,
+        TournamentId tournamentId,
         CancellationToken cancellationToken = default)
     {
-        return _dbContext.GameSponsorPlacements
+        return _dbContext.TournamentSponsorPlacements
             .AsNoTracking()
-            .Where(placement => placement.GameId == gameId.Value)
+            .Where(placement => placement.TournamentId == tournamentId.Value)
             .Select(ToPlacementSummary())
             .SingleOrDefaultAsync(cancellationToken);
     }
 
-    public async Task<IReadOnlyDictionary<GameId, SponsorPlacementSummary>> GetSponsorPlacementsAsync(
-        IReadOnlyCollection<GameId> gameIds,
+    public async Task<IReadOnlyDictionary<TournamentId, SponsorPlacementSummary>> GetSponsorPlacementsAsync(
+        IReadOnlyCollection<TournamentId> tournamentIds,
         CancellationToken cancellationToken = default)
     {
-        var distinctGameIds = gameIds
-            .Select(gameId => gameId.Value)
+        var distinctTournamentIds = tournamentIds
+            .Select(tournamentId => tournamentId.Value)
             .Distinct()
             .ToArray();
-        if (distinctGameIds.Length == 0)
-            return new Dictionary<GameId, SponsorPlacementSummary>();
+        if (distinctTournamentIds.Length == 0)
+            return new Dictionary<TournamentId, SponsorPlacementSummary>();
 
-        var placements = await _dbContext.GameSponsorPlacements
+        var placements = await _dbContext.TournamentSponsorPlacements
             .AsNoTracking()
-            .Where(placement => distinctGameIds.Contains(placement.GameId))
+            .Where(placement => distinctTournamentIds.Contains(placement.TournamentId))
             .Select(ToPlacementSummary())
             .ToListAsync(cancellationToken);
-        return placements.ToDictionary(placement => placement.GameId);
+        return placements.ToDictionary(placement => placement.TournamentId);
     }
 
     public async Task ReplaceSponsorPlacementAsync(
-        GameId gameId,
+        TournamentId tournamentId,
         SponsorPlacementInput? placement,
         CancellationToken cancellationToken = default)
     {
-        var current = await _dbContext.GameSponsorPlacements
-            .SingleOrDefaultAsync(candidate => candidate.GameId == gameId.Value, cancellationToken);
+        var current = await _dbContext.TournamentSponsorPlacements
+            .SingleOrDefaultAsync(candidate => candidate.TournamentId == tournamentId.Value, cancellationToken);
         if (placement is null)
         {
             if (current is null)
                 return;
 
-            _dbContext.GameSponsorPlacements.Remove(current);
+            _dbContext.TournamentSponsorPlacements.Remove(current);
             await _outboxWriter.SaveAndPublishAsync(
-                () => new GameSponsorPlacementChanged(gameId, null, null, null, null, null, null),
+                () => new TournamentSponsorPlacementChanged(tournamentId, null, null, null, null, null, null),
                 cancellationToken);
             return;
         }
@@ -115,8 +115,8 @@ internal sealed class SponsorshipModuleFacade : ISponsorshipModule
 
         if (current is null)
         {
-            current = new GameSponsorPlacement { GameId = gameId.Value };
-            _dbContext.GameSponsorPlacements.Add(current);
+            current = new TournamentSponsorPlacement { TournamentId = tournamentId.Value };
+            _dbContext.TournamentSponsorPlacements.Add(current);
         }
 
         current.SponsorId = placement.SponsorId.Value;
@@ -126,8 +126,8 @@ internal sealed class SponsorshipModuleFacade : ISponsorshipModule
         current.DisplayOrder = placement.DisplayOrder;
         var changedPlacement = current;
         await _outboxWriter.SaveAndPublishAsync(
-            () => new GameSponsorPlacementChanged(
-                gameId,
+            () => new TournamentSponsorPlacementChanged(
+                tournamentId,
                 new SponsorPlacementId(changedPlacement.Id),
                 new SponsorId(changedPlacement.SponsorId),
                 changedPlacement.Context,
@@ -137,11 +137,11 @@ internal sealed class SponsorshipModuleFacade : ISponsorshipModule
             cancellationToken);
     }
 
-    private static System.Linq.Expressions.Expression<Func<GameSponsorPlacement, SponsorPlacementSummary>> ToPlacementSummary()
+    private static System.Linq.Expressions.Expression<Func<TournamentSponsorPlacement, SponsorPlacementSummary>> ToPlacementSummary()
     {
         return placement => new SponsorPlacementSummary(
             new SponsorPlacementId(placement.Id),
-            new GameId(placement.GameId),
+            new TournamentId(placement.TournamentId),
             new SponsorSummary(
                 new SponsorId(placement.Sponsor.Id),
                 placement.Sponsor.Name,

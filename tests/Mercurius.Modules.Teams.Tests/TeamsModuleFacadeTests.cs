@@ -29,8 +29,8 @@ public class TeamsModuleFacadeTests
             .Build();
 
         services.AddSingleton<IConfiguration>(configuration);
-        services.AddSingleton<ITeamCompetitionReadService>(
-            new StubTeamCompetitionReadService(Array.Empty<PublicTeamTournamentSummary>()));
+        services.AddSingleton<ITeamTournamentReadService>(
+            new StubTeamTournamentReadService(Array.Empty<PublicTeamTournamentSummary>()));
         services.AddScoped<IIdentityModule, DbContextIdentityModule>();
         services.AddTeamsModule<MercuriusDBContext>(configuration);
 
@@ -104,7 +104,7 @@ public class TeamsModuleFacadeTests
         var module = new TeamsModuleFacade(
             new TeamsDbContextAdapter<MercuriusDBContext>(dbContext),
             identityModule,
-            new StubTeamCompetitionReadService([]));
+            new StubTeamTournamentReadService([]));
 
         var teamIds = await module.GetCaptainedTeamIdsAsync(new UserId(captain.Id));
 
@@ -142,7 +142,7 @@ public class TeamsModuleFacadeTests
     }
 
     [Fact]
-    public async Task GetPublicTeamProfileAsync_UsesPublicProjectionAndCompetitionContract()
+    public async Task GetPublicTeamProfileAsync_UsesPublicProjectionAndTournamentContract()
     {
         await using var dbContext = CreateDbContext();
         var captain = CreateUser("CaptainMerc", "Captain", "Merc");
@@ -164,7 +164,7 @@ public class TeamsModuleFacadeTests
 
         var tournaments = new[]
         {
-            new PublicTeamTournamentSummary(new GameId(Guid.Parse("00000000-0000-0000-0000-000000000001")), "Alpha Cup")
+            new PublicTeamTournamentSummary(new TournamentId(Guid.Parse("00000000-0000-0000-0000-000000000001")), "Alpha Cup")
         };
         var module = CreateModule(dbContext, tournaments);
 
@@ -198,11 +198,11 @@ public class TeamsModuleFacadeTests
         var missing = await module.GetRegistrationEligibilityAsync(
             new TeamId(Guid.NewGuid()),
             new UserId(captain.Id),
-            new GameId(Guid.NewGuid()));
+            new TournamentId(Guid.NewGuid()));
         var nonCaptain = await module.GetRegistrationEligibilityAsync(
             new TeamId(team.Id),
             new UserId(outsider.Id),
-            new GameId(Guid.NewGuid()));
+            new TournamentId(Guid.NewGuid()));
         var deleted = await module.CanMutateMembershipAsync(new TeamId(deletedTeam.Id), new UserId(captain.Id));
 
         Assert.False(missing.Eligible);
@@ -234,7 +234,7 @@ public class TeamsModuleFacadeTests
         var module = new TeamsModuleFacade(
             new TeamsDbContextAdapter<MercuriusDBContext>(dbContext),
             identityModule,
-            new StubTeamCompetitionReadService([]));
+            new StubTeamTournamentReadService([]));
 
         var rosters = await module.GetTeamRosterSnapshotsAsync(
             [new TeamId(firstTeam.Id), new TeamId(secondTeam.Id)]);
@@ -253,7 +253,7 @@ public class TeamsModuleFacadeTests
         return new TeamsModuleFacade(
             new TeamsDbContextAdapter<MercuriusDBContext>(dbContext),
             new DbContextIdentityModule(dbContext),
-            new StubTeamCompetitionReadService(tournaments ?? Array.Empty<PublicTeamTournamentSummary>()));
+            new StubTeamTournamentReadService(tournaments ?? Array.Empty<PublicTeamTournamentSummary>()));
     }
 
     private static MercuriusDBContext CreateDbContext()
@@ -279,11 +279,11 @@ public class TeamsModuleFacadeTests
         };
     }
 
-    private sealed class StubTeamCompetitionReadService : ITeamCompetitionReadService
+    private sealed class StubTeamTournamentReadService : ITeamTournamentReadService
     {
         private readonly IReadOnlyList<PublicTeamTournamentSummary> _tournaments;
 
-        public StubTeamCompetitionReadService(IReadOnlyList<PublicTeamTournamentSummary> tournaments)
+        public StubTeamTournamentReadService(IReadOnlyList<PublicTeamTournamentSummary> tournaments)
         {
             _tournaments = tournaments;
         }

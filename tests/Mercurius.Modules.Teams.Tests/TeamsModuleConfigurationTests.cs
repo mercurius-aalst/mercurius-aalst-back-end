@@ -103,13 +103,13 @@ public class TeamsModuleConfigurationTests
     }
 
     [Fact]
-    public void AddTeamsModule_RequiresAnExplicitCompetitionReadContract()
+    public void AddTeamsModule_RequiresAnExplicitTournamentReadContract()
     {
         var services = new ServiceCollection();
         services.AddTeamsModule<MercuriusDBContext>(CreateConfiguration());
 
         Assert.Equal(1, services.Count(descriptor => descriptor.ServiceType == typeof(ITeamsDbContext)));
-        Assert.DoesNotContain(services, descriptor => descriptor.ServiceType == typeof(ITeamCompetitionReadService));
+        Assert.DoesNotContain(services, descriptor => descriptor.ServiceType == typeof(ITeamTournamentReadService));
     }
 
     [Fact]
@@ -138,7 +138,7 @@ public class TeamsModuleConfigurationTests
         var interfaces = new[]
         {
             typeof(ITeamsModule),
-            typeof(ITeamCompetitionReadService),
+            typeof(ITeamTournamentReadService),
             typeof(ITeamEventPublisher),
             typeof(Mercurius.Modules.Teams.Contracts.ITeamRealtimeAuthorizer),
             typeof(ITeamEndpointService)
@@ -195,7 +195,7 @@ public class TeamsModuleConfigurationTests
             options.UseInMemoryDatabase(Guid.NewGuid().ToString()));
         services.AddSingleton<IIdentityModule, StubIdentityModule>();
         services.AddSingleton<IMediaModule, NoopMediaModule>();
-        services.AddSingleton<ITeamCompetitionReadService, NoopTeamCompetitionReadService>();
+        services.AddSingleton<ITeamTournamentReadService, NoopTeamTournamentReadService>();
         services.AddSingleton<IModuleEventPublisher, NoopModuleEventPublisher>();
         services.AddSingleton<IRealtimePublisher, RecordingRealtimePublisher>();
         services.AddSingleton<IRealtimeConnectionManager, NoopRealtimeConnectionManager>();
@@ -282,7 +282,7 @@ public class TeamsModuleConfigurationTests
         public Task DeleteImageAsync(string? mediaUrl, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 
-    private sealed class NoopTeamCompetitionReadService : ITeamCompetitionReadService
+    private sealed class NoopTeamTournamentReadService : ITeamTournamentReadService
     {
         public Task<IReadOnlyList<PublicTeamTournamentSummary>> GetPublicTeamTournamentsAsync(Guid teamId, CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<PublicTeamTournamentSummary>>([]);

@@ -238,29 +238,83 @@ public sealed class ModuleEventingReliabilityTests
     public async Task ExpiredOwner_CannotWriteTerminalStateAfterMessageIsReclaimed()
     {
         var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
-        var timeProvider = new MutableTimeProvider(now);
+        var firstTimeProvider = new MutableTimeProvider(now);
+        var secondTimeProvider = new MutableTimeProvider(now.AddMinutes(5).AddMilliseconds(1));
         var state = new StaleOwnerState();
-        await using var provider = CreateStaleOwnerProvider(state, timeProvider);
-        var messageId = await PublishAsync(provider, "stale-owner", now.UtcDateTime);
+        var database = PostgresTestDatabase.Create();
+        await using var firstProvider = CreateStaleOwnerProvider(
+            state,
+            firstTimeProvider,
+            database,
+            "stale-owner-first");
+        await using var secondProvider = CreateStaleOwnerProvider(
+            state,
+            secondTimeProvider,
+            database,
+            "stale-owner-second",
+            initializeDatabase: false,
+            registerDatabaseLease: false);
+        var messageId = await PublishAsync(firstProvider, "stale-owner", now.UtcDateTime);
 
-        await using var firstScope = provider.CreateAsyncScope();
+        await using var firstScope = firstProvider.CreateAsyncScope();
         var firstDispatch = firstScope.ServiceProvider
             .GetRequiredService<IModuleEventDispatcher>()
             .DispatchPendingAsync(1);
         await state.FirstEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
-        var claimed = await LoadMessageAsync(provider, messageId);
-        timeProvider.Advance(
-            claimed.ClaimExpiresAtUtc!.Value - timeProvider.GetUtcNow().UtcDateTime + TimeSpan.FromMilliseconds(1));
-
-        await using var secondScope = provider.CreateAsyncScope();
+        await using var secondScope = secondProvider.CreateAsyncScope();
         var secondProcessed = await secondScope.ServiceProvider
             .GetRequiredService<IModuleEventDispatcher>()
             .DispatchPendingAsync(1);
 
         state.ReleaseFirst.TrySetResult();
         var firstProcessed = await firstDispatch;
-        var finalMessage = await LoadMessageAsync(provider, messageId);
+        var finalMessage = await LoadMessageAsync(firstProvider, messageId);
+
+        Assert.Equal(1, secondProcessed);
+        Assert.Equal(0, firstProcessed);
+        Assert.Equal(2, state.HandlerCalls);
+        Assert.NotNull(finalMessage.ProcessedAtUtc);
+        Assert.Equal(0, finalMessage.RetryCount);
+        Assert.Null(finalMessage.LastError);
+        Assert.Null(finalMessage.ClaimToken);
+        Assert.Null(finalMessage.ClaimExpiresAtUtc);
+    }
+
+    [Fact]
+    public async Task ExpiredOwner_CannotWriteFailureStateAfterMessageIsReclaimed()
+    {
+        var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
+        var state = new StaleOwnerState { FailFirst = true };
+        var database = PostgresTestDatabase.Create();
+        await using var firstProvider = CreateStaleOwnerProvider(
+            state,
+            new MutableTimeProvider(now),
+            database,
+            "stale-failure-first");
+        await using var secondProvider = CreateStaleOwnerProvider(
+            state,
+            new MutableTimeProvider(now.AddMinutes(5).AddMilliseconds(1)),
+            database,
+            "stale-failure-second",
+            initializeDatabase: false,
+            registerDatabaseLease: false);
+        var messageId = await PublishAsync(firstProvider, "stale-failure", now.UtcDateTime);
+
+        await using var firstScope = firstProvider.CreateAsyncScope();
+        var firstDispatch = firstScope.ServiceProvider
+            .GetRequiredService<IModuleEventDispatcher>()
+            .DispatchPendingAsync(1);
+        await state.FirstEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        await using var secondScope = secondProvider.CreateAsyncScope();
+        var secondProcessed = await secondScope.ServiceProvider
+            .GetRequiredService<IModuleEventDispatcher>()
+            .DispatchPendingAsync(1);
+
+        state.ReleaseFirst.TrySetResult();
+        var firstProcessed = await firstDispatch;
+        var finalMessage = await LoadMessageAsync(firstProvider, messageId);
 
         Assert.Equal(1, secondProcessed);
         Assert.Equal(0, firstProcessed);
@@ -354,57 +408,86 @@ public sealed class ModuleEventingReliabilityTests
     private static ServiceProvider CreateProvider(ReliabilityState state, TimeProvider timeProvider)
     {
         var services = new ServiceCollection();
-        var databaseName = Guid.NewGuid().ToString();
+        var database = PostgresTestDatabase.Create();
         services.AddLogging();
         services.AddDbContext<MercuriusDBContext>(options =>
-            options.UseInMemoryDatabase(databaseName));
+            options.UseNpgsql(database.ConnectionString));
+        services.AddSingleton<PostgresTestDatabaseLease>(_ => database);
         services.AddSingleton(state);
         services.AddSingleton(timeProvider);
         services.AddModuleEventing<MercuriusDBContext>();
         services.AddModuleEventHandler<ReliabilityEvent, ReliabilityHandler>();
-        return services.BuildServiceProvider();
+        return BuildProvider(services);
     }
 
     private static ServiceProvider CreateBlockingProvider(BlockingDispatchState state, TimeProvider timeProvider)
     {
         var services = new ServiceCollection();
-        var databaseName = Guid.NewGuid().ToString();
+        var database = PostgresTestDatabase.Create();
         services.AddLogging();
         services.AddDbContext<MercuriusDBContext>(options =>
-            options.UseInMemoryDatabase(databaseName));
+            options.UseNpgsql(database.ConnectionString));
+        services.AddSingleton<PostgresTestDatabaseLease>(_ => database);
         services.AddSingleton(state);
         services.AddSingleton(timeProvider);
         services.AddModuleEventing<MercuriusDBContext>();
         services.AddModuleEventHandler<ReliabilityEvent, BlockingDispatchHandler>();
-        return services.BuildServiceProvider();
+        return BuildProvider(services);
     }
 
     private static ServiceProvider CreateFreshLeaseProvider(FreshLeaseState state, TimeProvider timeProvider)
     {
         var services = new ServiceCollection();
-        var databaseName = Guid.NewGuid().ToString();
+        var database = PostgresTestDatabase.Create();
         services.AddLogging();
         services.AddDbContext<MercuriusDBContext>(options =>
-            options.UseInMemoryDatabase(databaseName));
+            options.UseNpgsql(database.ConnectionString));
+        services.AddSingleton<PostgresTestDatabaseLease>(_ => database);
         services.AddSingleton(state);
         services.AddSingleton(timeProvider);
         services.AddModuleEventing<MercuriusDBContext>();
         services.AddModuleEventHandler<ReliabilityEvent, FreshLeaseHandler>();
-        return services.BuildServiceProvider();
+        return BuildProvider(services);
     }
 
-    private static ServiceProvider CreateStaleOwnerProvider(StaleOwnerState state, TimeProvider timeProvider)
+    private static ServiceProvider CreateStaleOwnerProvider(
+        StaleOwnerState state,
+        TimeProvider timeProvider,
+        PostgresTestDatabaseLease database,
+        string consumerName,
+        bool initializeDatabase = true,
+        bool registerDatabaseLease = true)
     {
         var services = new ServiceCollection();
-        var databaseName = Guid.NewGuid().ToString();
         services.AddLogging();
         services.AddDbContext<MercuriusDBContext>(options =>
-            options.UseInMemoryDatabase(databaseName));
+            options.UseNpgsql(database.ConnectionString));
+        if (registerDatabaseLease)
+            services.AddSingleton<PostgresTestDatabaseLease>(_ => database);
         services.AddSingleton(state);
         services.AddSingleton(timeProvider);
         services.AddModuleEventing<MercuriusDBContext>();
-        services.AddModuleEventHandler<ReliabilityEvent, StaleOwnerHandler>();
-        return services.BuildServiceProvider();
+        services.AddSingleton(new StaleOwnerHandler(state, consumerName));
+        services.AddSingleton<IModuleEventHandler<ReliabilityEvent>>(provider =>
+            provider.GetRequiredService<StaleOwnerHandler>());
+        return BuildProvider(services, initializeDatabase, registerDatabaseLease);
+    }
+
+    private static ServiceProvider BuildProvider(
+        ServiceCollection services,
+        bool initializeDatabase = true,
+        bool resolveDatabaseLease = true)
+    {
+        var provider = services.BuildServiceProvider();
+        if (resolveDatabaseLease)
+            _ = provider.GetRequiredService<PostgresTestDatabaseLease>();
+
+        if (initializeDatabase)
+        {
+            using var scope = provider.CreateScope();
+            PostgresTestDatabase.Initialize(scope.ServiceProvider.GetRequiredService<MercuriusDBContext>());
+        }
+        return provider;
     }
 
     private sealed record ReliabilityEvent(string Name, bool IsPoison);
@@ -439,6 +522,7 @@ public sealed class ModuleEventingReliabilityTests
     private sealed class StaleOwnerState
     {
         public int HandlerCalls;
+        public bool FailFirst { get; init; }
         public TaskCompletionSource FirstEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource ReleaseFirst { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
@@ -524,13 +608,15 @@ public sealed class ModuleEventingReliabilityTests
     private sealed class StaleOwnerHandler : IModuleEventHandler<ReliabilityEvent>
     {
         private readonly StaleOwnerState _state;
+        private readonly string _consumerName;
 
-        public StaleOwnerHandler(StaleOwnerState state)
+        public StaleOwnerHandler(StaleOwnerState state, string consumerName)
         {
             _state = state;
+            _consumerName = consumerName;
         }
 
-        public string ConsumerName => "stale-owner-handler";
+        public string ConsumerName => _consumerName;
 
         public async Task HandleAsync(
             ReliabilityEvent payload,
@@ -542,6 +628,8 @@ public sealed class ModuleEventingReliabilityTests
             {
                 _state.FirstEntered.TrySetResult();
                 await _state.ReleaseFirst.Task.WaitAsync(cancellationToken);
+                if (_state.FailFirst)
+                    throw new InvalidOperationException("planned stale-owner failure");
             }
         }
     }

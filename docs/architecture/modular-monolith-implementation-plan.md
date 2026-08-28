@@ -356,7 +356,6 @@ app.MapTeamsModule();
 app.MapTournamentModule();
 app.MapSponsorshipModule();
 app.MapDiscoveryModule();
-app.MapMediaModule();
 ```
 
 The API host should not directly know about:

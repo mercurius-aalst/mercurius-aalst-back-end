@@ -238,11 +238,17 @@ public class ModuleEventingTests
         var projection = new TeamProjectionState { Name = "Newer name", Version = 2 };
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddDbContext<MercuriusDBContext>(options => options.UseInMemoryDatabase(Guid.NewGuid().ToString()));
+        var database = PostgresTestDatabase.Create();
+        services.AddDbContext<MercuriusDBContext>(options =>
+            options.UseNpgsql(database.ConnectionString));
+        services.AddSingleton<PostgresTestDatabaseLease>(_ => database);
         services.AddSingleton(projection);
         services.AddModuleEventing<MercuriusDBContext>();
         services.AddModuleEventHandler<TeamRenamedIntegrationEvent, TeamRenamedProjectionHandler>();
         await using var provider = services.BuildServiceProvider();
+        _ = provider.GetRequiredService<PostgresTestDatabaseLease>();
+        using (var initializationScope = provider.CreateScope())
+            PostgresTestDatabase.Initialize(initializationScope.ServiceProvider.GetRequiredService<MercuriusDBContext>());
         using var scope = provider.CreateScope();
         var publisher = scope.ServiceProvider.GetRequiredService<IModuleEventPublisher>();
         var dbContext = scope.ServiceProvider.GetRequiredService<MercuriusDBContext>();
@@ -465,12 +471,19 @@ public class ModuleEventingTests
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddDbContext<MercuriusDBContext>(options => options.UseInMemoryDatabase(Guid.NewGuid().ToString()));
+        var database = PostgresTestDatabase.Create();
+        services.AddDbContext<MercuriusDBContext>(options =>
+            options.UseNpgsql(database.ConnectionString));
+        services.AddSingleton<PostgresTestDatabaseLease>(_ => database);
         services.AddSingleton(state);
         services.AddModuleEventing<MercuriusDBContext>();
         configureHandlers(services);
 
-        return services.BuildServiceProvider();
+        var provider = services.BuildServiceProvider();
+        _ = provider.GetRequiredService<PostgresTestDatabaseLease>();
+        using var scope = provider.CreateScope();
+        PostgresTestDatabase.Initialize(scope.ServiceProvider.GetRequiredService<MercuriusDBContext>());
+        return provider;
     }
 
     private static MercuriusDBContext CreateDbContext()

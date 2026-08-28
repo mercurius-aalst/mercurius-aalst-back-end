@@ -13,6 +13,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Platform.Eventing;
 using Platform.Extensions;
 
@@ -169,6 +170,7 @@ public class DiscoveryModuleTests
         var tournamentId = new TournamentId(Guid.NewGuid());
         var sponsorId = new SponsorId(7);
         var currentTime = DateTime.UtcNow;
+        currentTime = currentTime.AddTicks(-(currentTime.Ticks % TimeSpan.TicksPerMicrosecond));
 
         publisher.Publish(new TeamRenamedIntegrationEvent(teamId, 2, "New Team Name"), currentTime);
         publisher.Publish(new TournamentUpdatedIntegrationEvent(tournamentId, "Updated Tournament Name"), currentTime);
@@ -184,7 +186,7 @@ public class DiscoveryModuleTests
         Assert.Equal(3, await dispatcher.DispatchPendingAsync());
 
         publisher.Publish(new TeamRenamedIntegrationEvent(teamId, 2, "New Team Name"), currentTime);
-        publisher.Publish(new TeamRenamedIntegrationEvent(teamId, 1, "Old Team Name"), currentTime.AddTicks(-1));
+        publisher.Publish(new TeamRenamedIntegrationEvent(teamId, 1, "Old Team Name"), currentTime.AddMilliseconds(-1));
         await dbContext.SaveChangesAsync();
         Assert.Equal(2, await dispatcher.DispatchPendingAsync());
 
@@ -425,10 +427,10 @@ public class DiscoveryModuleTests
 
         Assert.Equal(runningJob.Id, job.Id);
         Assert.Equal("running", job.Status);
-        Assert.Equal(startedAtUtc, job.StartedAtUtc);
+        Assert.True(Math.Abs((job.StartedAtUtc!.Value - startedAtUtc).Ticks) <= TimeSpan.TicksPerMicrosecond);
         var persistedJob = await dbContext.Set<SearchIndexRebuildJob>().AsNoTracking().SingleAsync();
         Assert.Equal(SearchIndexRebuildJobStatus.Running, persistedJob.Status);
-        Assert.Equal(startedAtUtc, persistedJob.StartedAtUtc);
+        Assert.True(Math.Abs((persistedJob.StartedAtUtc!.Value - startedAtUtc).Ticks) <= TimeSpan.TicksPerMicrosecond);
     }
 
     [Fact]
@@ -514,25 +516,43 @@ public class DiscoveryModuleTests
     private static ServiceProvider CreateProvider(DiscoverySources sources)
     {
         var services = new ServiceCollection();
-        ConfigureServices(services, sources);
+        var database = PostgresTestDatabase.Create();
+        ConfigureServices(services, sources, database.ConnectionString);
+        services.AddSingleton<PostgresTestDatabaseLease>(_ => database);
 
-        return services.BuildServiceProvider();
+        var provider = services.BuildServiceProvider();
+        _ = provider.GetRequiredService<PostgresTestDatabaseLease>();
+        using var scope = provider.CreateScope();
+        PostgresTestDatabase.Initialize(scope.ServiceProvider.GetRequiredService<MercuriusDBContext>());
+        return provider;
     }
 
     private static IHost CreateHost(DiscoverySources sources)
     {
-        return Host.CreateDefaultBuilder()
-            .ConfigureServices(services => ConfigureServices(services, sources))
+        var database = PostgresTestDatabase.Create();
+        var host = Host.CreateDefaultBuilder()
+            .ConfigureLogging(logging => logging.ClearProviders())
+            .ConfigureServices(services =>
+            {
+                ConfigureServices(services, sources, database.ConnectionString);
+                services.AddSingleton<PostgresTestDatabaseLease>(_ => database);
+            })
             .Build();
+        _ = host.Services.GetRequiredService<PostgresTestDatabaseLease>();
+        using var scope = host.Services.CreateScope();
+        PostgresTestDatabase.Initialize(scope.ServiceProvider.GetRequiredService<MercuriusDBContext>());
+        return host;
     }
 
-    private static void ConfigureServices(IServiceCollection services, DiscoverySources sources)
+    private static void ConfigureServices(
+        IServiceCollection services,
+        DiscoverySources sources,
+        string connectionString)
     {
         var configuration = new ConfigurationBuilder().Build();
-        var databaseName = Guid.NewGuid().ToString();
         services.AddSingleton<IConfiguration>(configuration);
         services.AddLogging();
-        services.AddDbContext<MercuriusDBContext>(options => options.UseInMemoryDatabase(databaseName));
+        services.AddDbContext<MercuriusDBContext>(options => options.UseNpgsql(connectionString));
         services.AddModuleEventing<MercuriusDBContext>();
         services.AddSingleton<IIdentityModule>(new StubIdentityModule(sources));
         services.AddSingleton<ITeamsModule>(new StubTeamsModule(sources));

@@ -27,7 +27,7 @@ public class RealtimeConnectionManagerTests
             manager.RegisterConnection(secondUserId, "other-connection", "user:other");
             manager.TrackGroup("other-connection", firstTeamGroup);
             return Task.CompletedTask;
-        });
+        }, userId: null, connectionId: "first-connection");
 
         await manager.RevokeUserFromGroupAsync(firstUserId, firstTeamGroup);
         Assert.Equal(
@@ -58,7 +58,7 @@ public class RealtimeConnectionManagerTests
             manager.TrackGroup("connection", teamGroup);
             manager.UntrackGroup("connection", teamGroup);
             return Task.CompletedTask;
-        });
+        }, userId: null, connectionId: "connection");
         await manager.RevokeGroupAsync(teamGroup);
         Assert.Empty(groups.Removals);
 
@@ -66,7 +66,7 @@ public class RealtimeConnectionManagerTests
         {
             manager.UnregisterConnection("connection");
             return Task.CompletedTask;
-        });
+        }, userId: null, connectionId: "connection");
         await manager.RevokeUserAsync(userId);
         Assert.Empty(groups.Removals);
     }
@@ -87,7 +87,7 @@ public class RealtimeConnectionManagerTests
             joinEntered.SetResult();
             await releaseJoin.Task.WaitAsync(cancellationToken);
             manager.TrackGroup("connection", teamGroup);
-        });
+        }, userId: userId, groupName: teamGroup);
 
         await joinEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
         var revokeTask = manager.RevokeUserFromGroupAsync(userId, teamGroup);
@@ -99,6 +99,80 @@ public class RealtimeConnectionManagerTests
         Assert.Equal([new GroupRemoval("connection", teamGroup)], groups.Removals);
         await manager.RevokeGroupAsync(teamGroup);
         Assert.Single(groups.Removals);
+    }
+
+    [Fact]
+    public async Task UnrelatedAccessSubjects_RunConcurrently()
+    {
+        var (provider, manager, _) = CreateManager();
+        await using var disposableProvider = provider;
+        var firstEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var secondEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var firstUserId = Guid.NewGuid();
+        var secondUserId = Guid.NewGuid();
+
+        var first = manager.ExecuteWithAccessGateAsync(
+            async cancellationToken =>
+            {
+                firstEntered.SetResult();
+                await release.Task.WaitAsync(cancellationToken);
+            },
+            userId: firstUserId,
+            groupName: "team:first");
+        var second = manager.ExecuteWithAccessGateAsync(
+            async cancellationToken =>
+            {
+                secondEntered.SetResult();
+                await release.Task.WaitAsync(cancellationToken);
+            },
+            userId: secondUserId,
+            groupName: "team:second");
+
+        await Task.WhenAll(firstEntered.Task, secondEntered.Task).WaitAsync(TimeSpan.FromSeconds(2));
+        release.SetResult();
+        await Task.WhenAll(first, second).WaitAsync(TimeSpan.FromSeconds(2));
+    }
+
+    [Fact]
+    public async Task AccessGate_CleansUpAfterCancellationAndException()
+    {
+        var (provider, manager, _) = CreateManager();
+        await using var disposableProvider = provider;
+        var userId = Guid.NewGuid();
+        using var cancellationTokenSource = new CancellationTokenSource();
+        cancellationTokenSource.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => manager.ExecuteWithAccessGateAsync(
+            _ => Task.CompletedTask,
+            userId: userId,
+            cancellationToken: cancellationTokenSource.Token));
+
+        var completedAfterCancellation = false;
+        await manager.ExecuteWithAccessGateAsync(
+            _ =>
+            {
+                completedAfterCancellation = true;
+                return Task.CompletedTask;
+            },
+            userId: userId);
+        Assert.True(completedAfterCancellation);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => manager.ExecuteWithAccessGateAsync(
+            _ => throw new InvalidOperationException("planned failure"),
+            userId: null,
+            groupName: "team:cleanup"));
+
+        var completedAfterException = false;
+        await manager.ExecuteWithAccessGateAsync(
+            _ =>
+            {
+                completedAfterException = true;
+                return Task.CompletedTask;
+            },
+            userId: null,
+            groupName: "team:cleanup");
+        Assert.True(completedAfterException);
     }
 
     private static (ServiceProvider Provider, IRealtimeConnectionManager Manager, RecordingGroupManager Groups) CreateManager()

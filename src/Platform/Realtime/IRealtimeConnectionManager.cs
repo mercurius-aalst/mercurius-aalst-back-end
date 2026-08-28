@@ -4,6 +4,9 @@ public interface IRealtimeConnectionManager
 {
     Task ExecuteWithAccessGateAsync(
         Func<CancellationToken, Task> action,
+        Guid? userId,
+        string? groupName = null,
+        string? connectionId = null,
         CancellationToken cancellationToken = default);
 
     void RegisterConnection(Guid userId, string connectionId, string personalGroup);

@@ -30,29 +30,44 @@ public class TeamManagementHub : Hub
 
     public override async Task OnConnectedAsync()
     {
+        var knownUserId = await GetCurrentUserIdAsync(Context.ConnectionAborted);
+        if (!knownUserId.HasValue)
+        {
+            await base.OnConnectedAsync();
+            return;
+        }
+
         await _connectionManager.ExecuteWithAccessGateAsync(
             async cancellationToken =>
             {
+                // Revalidate after acquiring the user gate so account revocation cannot race this registration.
                 var userId = await GetCurrentUserIdAsync(cancellationToken);
-                if (!userId.HasValue)
+                if (userId != knownUserId)
                     return;
 
                 var personalGroup = TeamRealtimeGroups.GetUserGroup(userId.Value);
                 await Groups.AddToGroupAsync(Context.ConnectionId, personalGroup, cancellationToken);
                 _connectionManager.RegisterConnection(userId.Value, Context.ConnectionId, personalGroup);
             },
-            Context.ConnectionAborted);
+            userId: knownUserId,
+            connectionId: Context.ConnectionId,
+            cancellationToken: Context.ConnectionAborted);
 
         await base.OnConnectedAsync();
     }
 
     public async Task JoinTeam(Guid teamId)
     {
+        var knownUserId = await GetCurrentUserIdAsync(Context.ConnectionAborted);
+        if (!knownUserId.HasValue)
+            throw new HubException("Current user profile was not found.");
+
         await _connectionManager.ExecuteWithAccessGateAsync(
             async cancellationToken =>
             {
+                // Revalidate after acquiring the user gate so account revocation cannot race this subscription.
                 var userId = await GetCurrentUserIdAsync(cancellationToken);
-                if (!userId.HasValue)
+                if (userId != knownUserId)
                     throw new HubException("Current user profile was not found.");
 
                 var canJoin = await _teamRealtimeAuthorizer.CanSubscribeToTeamAsync(
@@ -67,7 +82,10 @@ public class TeamManagementHub : Hub
                 await Groups.AddToGroupAsync(Context.ConnectionId, teamGroup, cancellationToken);
                 _connectionManager.TrackGroup(Context.ConnectionId, teamGroup);
             },
-            Context.ConnectionAborted);
+            userId: knownUserId,
+            groupName: TeamRealtimeGroups.GetTeamGroup(teamId),
+            connectionId: Context.ConnectionId,
+            cancellationToken: Context.ConnectionAborted);
     }
 
     public Task LeaveTeam(Guid teamId)
@@ -85,7 +103,10 @@ public class TeamManagementHub : Hub
                     _connectionManager.UntrackGroup(Context.ConnectionId, teamGroup);
                 }
             },
-            Context.ConnectionAborted);
+            userId: null,
+            groupName: TeamRealtimeGroups.GetTeamGroup(teamId),
+            connectionId: Context.ConnectionId,
+            cancellationToken: Context.ConnectionAborted);
     }
 
     public override async Task OnDisconnectedAsync(Exception? exception)
@@ -98,7 +119,9 @@ public class TeamManagementHub : Hub
                     _connectionManager.UnregisterConnection(Context.ConnectionId);
                     return Task.CompletedTask;
                 },
-                CancellationToken.None);
+                userId: null,
+                connectionId: Context.ConnectionId,
+                cancellationToken: CancellationToken.None);
         }
         finally
         {
@@ -113,6 +136,7 @@ public class TeamManagementHub : Hub
             return null;
 
         return await _dbContext.Users
+            .AsNoTracking()
             .Where(user => user.Auth0UserId == auth0UserId.Trim() && !user.IsDeleted)
             .Select(user => (Guid?)user.Id)
             .FirstOrDefaultAsync(cancellationToken);

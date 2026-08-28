@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Mercurius.Modules.Media.Contracts;
@@ -14,10 +13,5 @@ public static class MediaModuleConfiguration
     {
         services.AddTransient<IMediaModule, FileSystemMediaModule>();
         return services;
-    }
-
-    public static IEndpointRouteBuilder MapMediaModule(this IEndpointRouteBuilder endpoints)
-    {
-        return endpoints;
     }
 }

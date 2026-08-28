@@ -55,10 +55,8 @@ public class Program
             builder.Configuration.GetSection("Auth0"),
             TeamManagementHub.Route);
         builder.Services.AddSingleton<TeamManagementHubInvocationRateLimitFilter>();
-        builder.Services.AddSignalR()
-            .AddHubOptions<TeamManagementHub>(options =>
-                options.AddFilter<TeamManagementHubInvocationRateLimitFilter>());
-        builder.Services.AddRealtimeNotificationServices<TeamManagementHub>();
+        builder.Services.AddRealtimeNotificationServices<TeamManagementHub>(options =>
+            options.AddFilter<TeamManagementHubInvocationRateLimitFilter>());
         var rateLimitingSection = builder.Configuration.GetSection("RateLimiting");
         builder.Services.AddFixedWindowRateLimiting(new FixedWindowRateLimitingOptions
         {

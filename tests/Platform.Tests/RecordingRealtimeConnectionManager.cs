@@ -10,6 +10,9 @@ internal sealed class RecordingRealtimeConnectionManager : IRealtimeConnectionMa
 
     public Task ExecuteWithAccessGateAsync(
         Func<CancellationToken, Task> action,
+        Guid? userId,
+        string? groupName = null,
+        string? connectionId = null,
         CancellationToken cancellationToken = default) => action(cancellationToken);
 
     public void RegisterConnection(Guid userId, string connectionId, string personalGroup)

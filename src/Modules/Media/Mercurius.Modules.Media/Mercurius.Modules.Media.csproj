@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Imageflow.Net" Version="0.14.1" />
+    <ProjectReference Include="..\Mercurius.Modules.Media.Contracts\Mercurius.Modules.Media.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\Modules.Shared\Modules.Shared.csproj" />
+  </ItemGroup>
+
+</Project>

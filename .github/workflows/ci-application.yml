@@ -4,18 +4,31 @@ name: Continuous Integration - Application
 on:
   pull_request:
     branches:
-    - main
-    paths: 
-    - src/**
-    - Dockerfile
-    types: 
-    - opened
-    - synchronize
-    - reopened
-    - ready_for_review
+      - main
+      - refactor/modular-monolith
+    paths:
+      - src/**
+      - tests/**
+      - Dockerfile
+      - LAN.API.sln
+      - global.json
+      - .editorconfig
+      - Directory.Build.props
+      - Directory.Build.targets
+      - Directory.Packages.props
+      - NuGet.Config
+      - NuGet.config
+      - nuget.config
+      - packages.lock.json
+      - .github/workflows/ci-application.yml
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
 
 permissions:
-  pull-requests: write
+  contents: read
 
 env:
   IMAGE: backend
@@ -26,6 +39,22 @@ jobs:
   build-application:
     runs-on: ubuntu-24.04
     name: "Build Application"
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      TEST_POSTGRES_CONNECTION: Host=localhost;Port=5432;Username=postgres;Password=postgres;Database=postgres
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -42,11 +71,17 @@ jobs:
       run: dotnet build
 
     - name: Test
-      run: dotnet test
+      run: dotnet test --no-build
+
+    - name: Format
+      run: dotnet format --verify-no-changes
 
   build-image:
     runs-on: ubuntu-24.04
     name: "Build Docker Image"
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -63,31 +98,35 @@ jobs:
             --output ${{ env.IMAGE }}.tar
 
     - name: Vulnerability Scan
+      id: trivy
+      continue-on-error: true
       uses: aquasecurity/trivy-action@0.35.0
       with:
         input: ${{ env.IMAGE }}.tar
-        severity: 'CRITICAL,HIGH,MEDIUM'
-        limit-severities-for-sarif: 'CRITICAL,HIGH,MEDIUM'
+        severity: 'CRITICAL,HIGH'
         format: json
         output: trivy-results.json
+        exit-code: '1'
 
-    - name: Comment Sarif content on PR
+    - name: Comment Trivy results on PR
+      if: ${{ always() }}
+      continue-on-error: true
       uses: actions/github-script@v7.0.1
       env:
-        SARIF_FILE_PATH: trivy-results.json
+        TRIVY_RESULTS_PATH: trivy-results.json
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
           const fs = require('fs');
-          const path = process.env.SARIF_FILE_PATH;
+          const path = process.env.TRIVY_RESULTS_PATH;
           let markdown = '';
 
           if (fs.existsSync(path)) {
-            const sarifResults = JSON.parse(fs.readFileSync(path, 'utf8'));
+            const trivyResults = JSON.parse(fs.readFileSync(path, 'utf8'));
 
-            if (path.endsWith('.json') && sarifResults.Results) {
-              sarifResults.Results.forEach(result => {
+            if (trivyResults.Results?.length > 0) {
+              trivyResults.Results.forEach(result => {
                 markdown += `## ${result.Target}\n\n`;
 
                 if (result.Vulnerabilities && result.Vulnerabilities.length > 0) {
@@ -103,39 +142,20 @@ jobs:
 
                 markdown += '\n\n';
               });
-            } else if (path.endsWith('.sarif') && sarifResults.runs[0].results.length > 0) {
-                const results = sarifResults.runs[0].results;
-                const rules = sarifResults.runs[0].tool.driver.rules.reduce((arr, rule) => {
-                  arr[rule.id] = rule;
-                  return arr;
-                }, {});
-
-                // Sort results by security-severity in descending order
-                results.sort((a, b) => {
-                  const severityA = rules[a.ruleId]?.properties['security-severity'] || 0;
-                  const severityB = rules[b.ruleId]?.properties['security-severity'] || 0;
-                  return severityB - severityA;
-                });
-
-                markdown += '| Rule ID | Level | Score | Message | Locations |\n';
-                markdown += '|---------|-------|-------|---------|-----------|\n';
-
-                results.forEach(result => {
-                  const locations = result.locations.map(location => location.physicalLocation.artifactLocation.uri).join(', ');
-                  const rule = rules[result.ruleId];
-                  const securitySeverity = rule ? rule.properties['security-severity'] : 'N/A';
-                  markdown += `| [${result.ruleId}](${rule.helpUri}) | ${result.level} | ${securitySeverity} | ${result.message.text} | ${locations} |\n`;
-                });
-              } else {
-              markdown = 'No vulnerabilities found by Checkov.\n\n';
+            } else {
+              markdown = 'No vulnerabilities found by Trivy.\n\n';
             }
           } else {
-            markdown = 'SARIF file not found.\n\n';
+            markdown = 'Trivy results file not found.\n\n';
           }
 
-          github.rest.issues.createComment({
+          await github.rest.issues.createComment({
             issue_number: context.issue.number,
             owner: context.repo.owner,
             repo: context.repo.repo,
             body: markdown.substring(0, 65000)
           });
+
+    - name: Fail on HIGH or CRITICAL vulnerabilities
+      if: ${{ always() && steps.trivy.outcome == 'failure' }}
+      run: exit 1

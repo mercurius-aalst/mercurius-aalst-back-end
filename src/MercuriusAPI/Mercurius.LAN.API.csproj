@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+<Project Sdk="Microsoft.NET.Sdk.Web">
 
 	<PropertyGroup>
 		<TargetFramework>net10.0</TargetFramework>
@@ -22,10 +22,6 @@
 
 	<ItemGroup>
 		<PackageReference Include="Asp.Versioning.Mvc" Version="8.1.0" />
-		<PackageReference Include="Asp.Versioning.Mvc.ApiExplorer" Version="8.1.0" />
-		<PackageReference Include="Imageflow.Net" Version="0.14.1" />
-		<PackageReference Include="Imageflow.Server" Version="0.9.0" />
-		<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0" />
       <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.4">
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -36,6 +32,16 @@
 		</PackageReference>
 		<PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.1" />
 		<PackageReference Include="Scrutor" Version="6.1.0" />
-		<PackageReference Include="Swashbuckle.AspNetCore" Version="8.1.2" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\Modules.Shared\Modules.Shared.csproj" />
+		<ProjectReference Include="..\Modules\Tournament\Mercurius.Modules.Tournament\Mercurius.Modules.Tournament.csproj" />
+		<ProjectReference Include="..\Modules\Discovery\Mercurius.Modules.Discovery\Mercurius.Modules.Discovery.csproj" />
+		<ProjectReference Include="..\Modules\Identity\Mercurius.Modules.Identity\Mercurius.Modules.Identity.csproj" />
+		<ProjectReference Include="..\Modules\Media\Mercurius.Modules.Media\Mercurius.Modules.Media.csproj" />
+		<ProjectReference Include="..\Modules\Sponsorship\Mercurius.Modules.Sponsorship\Mercurius.Modules.Sponsorship.csproj" />
+		<ProjectReference Include="..\Modules\Teams\Mercurius.Modules.Teams\Mercurius.Modules.Teams.csproj" />
+		<ProjectReference Include="..\Platform\Platform.csproj" />
 	</ItemGroup>
 </Project>

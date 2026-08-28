@@ -1,0 +1,30 @@
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
+using Platform.Eventing;
+using Platform.Eventing.Persistence;
+
+namespace Platform.Extensions;
+
+public static class ModuleEventingExtensions
+{
+    public static IServiceCollection AddModuleEventing<TDbContext>(
+        this IServiceCollection services)
+        where TDbContext : class, IModuleEventDbContext
+    {
+        services.TryAddScoped<IModuleEventDbContext>(provider => provider.GetRequiredService<TDbContext>());
+        services.TryAddScoped<IModuleEventPublisher, ModuleEventPublisher>();
+        services.TryAddScoped<IModuleEventDispatcher, ModuleEventDispatcher>();
+        services.TryAddSingleton(TimeProvider.System);
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, ModuleEventDispatchWorker>());
+
+        return services;
+    }
+
+    public static IServiceCollection AddModuleEventHandler<TPayload, THandler>(this IServiceCollection services)
+        where TPayload : notnull
+        where THandler : class, IModuleEventHandler<TPayload>
+    {
+        services.AddTransient<IModuleEventHandler<TPayload>, THandler>();
+        return services;
+    }
+}

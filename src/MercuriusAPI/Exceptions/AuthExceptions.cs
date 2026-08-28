@@ -1,4 +1,4 @@
-namespace Mercurius.LAN.API.Exceptions;
+namespace Mercurius.Modules.Shared.Exceptions;
 
 public class InvalidCredentialsException : Exception
 {

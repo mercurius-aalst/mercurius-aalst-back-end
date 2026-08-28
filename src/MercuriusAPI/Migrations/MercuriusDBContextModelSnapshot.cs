@@ -838,6 +838,16 @@ namespace Mercurius.LAN.API.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<DateTime?>("ClaimExpiresAtUtc")
+                        .IsConcurrencyToken()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("claim_expires_at_utc");
+
+                    b.Property<Guid?>("ClaimToken")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid")
+                        .HasColumnName("claim_token");
+
                     b.Property<DateTime?>("DeadLetteredAtUtc")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("dead_lettered_at_utc");
@@ -880,7 +890,7 @@ namespace Mercurius.LAN.API.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("NextAttemptAtUtc", "OccurredAtUtc", "Id")
+                    b.HasIndex("NextAttemptAtUtc", "ClaimExpiresAtUtc", "OccurredAtUtc", "Id")
                         .HasDatabaseName("IX_outbox_messages_pending_dispatch")
                         .HasFilter("processed_at_utc IS NULL AND dead_lettered_at_utc IS NULL");
 

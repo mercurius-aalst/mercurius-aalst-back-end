@@ -18,10 +18,17 @@ internal sealed class OutboxMessageConfiguration : IEntityTypeConfiguration<Outb
         entity.Property(message => message.NextAttemptAtUtc).HasColumnName("next_attempt_at_utc");
         entity.Property(message => message.ProcessedAtUtc).HasColumnName("processed_at_utc");
         entity.Property(message => message.DeadLetteredAtUtc).HasColumnName("dead_lettered_at_utc");
+        entity.Property(message => message.ClaimToken)
+            .HasColumnName("claim_token")
+            .IsConcurrencyToken();
+        entity.Property(message => message.ClaimExpiresAtUtc)
+            .HasColumnName("claim_expires_at_utc")
+            .IsConcurrencyToken();
         entity.Property(message => message.LastError).HasColumnName("last_error").HasMaxLength(4000);
         entity.HasIndex(message => new
         {
             message.NextAttemptAtUtc,
+            message.ClaimExpiresAtUtc,
             message.OccurredAtUtc,
             message.Id
         })

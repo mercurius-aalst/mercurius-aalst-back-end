@@ -11,5 +11,7 @@ public sealed class OutboxMessage
     public DateTime? NextAttemptAtUtc { get; set; }
     public DateTime? ProcessedAtUtc { get; set; }
     public DateTime? DeadLetteredAtUtc { get; set; }
+    public Guid? ClaimToken { get; set; }
+    public DateTime? ClaimExpiresAtUtc { get; set; }
     public string? LastError { get; set; }
 }

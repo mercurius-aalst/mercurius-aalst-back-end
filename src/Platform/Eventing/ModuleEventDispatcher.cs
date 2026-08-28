@@ -12,6 +12,7 @@ internal sealed class ModuleEventDispatcher : IModuleEventDispatcher
 {
     private const int LastErrorMaxLength = 4000;
     private const int MaxAttempts = 5;
+    private static readonly TimeSpan ClaimLeaseDuration = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan RetryBaseDelay = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan RetryMaxDelay = TimeSpan.FromMinutes(5);
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
@@ -40,7 +41,8 @@ internal sealed class ModuleEventDispatcher : IModuleEventDispatcher
             .Where(message =>
                 message.ProcessedAtUtc == null &&
                 message.DeadLetteredAtUtc == null &&
-                (message.NextAttemptAtUtc == null || message.NextAttemptAtUtc <= now))
+                (message.NextAttemptAtUtc == null || message.NextAttemptAtUtc <= now) &&
+                (message.ClaimExpiresAtUtc == null || message.ClaimExpiresAtUtc <= now))
             .OrderBy(message => message.OccurredAtUtc)
             .ThenBy(message => message.Id)
             .Take(batchSize)
@@ -52,20 +54,28 @@ internal sealed class ModuleEventDispatcher : IModuleEventDispatcher
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var message = await _dbContext.OutboxMessages.SingleOrDefaultAsync(
-                candidate =>
-                    candidate.Id == messageId &&
-                    candidate.ProcessedAtUtc == null &&
-                    candidate.DeadLetteredAtUtc == null,
-                cancellationToken);
-            if (message is not null && await DispatchMessageAsync(message, cancellationToken))
+            var claimToken = Guid.NewGuid();
+            var claimNow = GetUtcNow();
+            var claimExpiresAtUtc = claimNow + ClaimLeaseDuration;
+            if (!await TryClaimMessageAsync(messageId, claimNow, claimToken, claimExpiresAtUtc, cancellationToken))
+                continue;
+
+            var message = await _dbContext.OutboxMessages
+                .AsNoTracking()
+                .SingleAsync(
+                    candidate => candidate.Id == messageId && candidate.ClaimToken == claimToken,
+                    cancellationToken);
+            if (await DispatchMessageAsync(message, claimToken, cancellationToken))
                 processedCount++;
         }
 
         return processedCount;
     }
 
-    private async Task<bool> DispatchMessageAsync(OutboxMessage message, CancellationToken cancellationToken)
+    private async Task<bool> DispatchMessageAsync(
+        OutboxMessage message,
+        Guid claimToken,
+        CancellationToken cancellationToken)
     {
         try
         {
@@ -82,12 +92,31 @@ internal sealed class ModuleEventDispatcher : IModuleEventDispatcher
                 await DispatchToHandlerAsync(handler, payloadType, payload, context, cancellationToken);
 
             var processedAtUtc = GetUtcNow();
-            message.ProcessedAtUtc = processedAtUtc;
-            message.LastAttemptAtUtc = processedAtUtc;
-            message.NextAttemptAtUtc = null;
-            message.LastError = null;
-            await _dbContext.SaveChangesAsync(cancellationToken);
-            return true;
+            if (message.ClaimExpiresAtUtc <= processedAtUtc)
+            {
+                ClearTrackedState();
+                return false;
+            }
+
+            if (!IsRelationalProvider())
+                return await CompleteWithConcurrencyCheckAsync(message, processedAtUtc, cancellationToken);
+
+            var updated = await _dbContext.OutboxMessages
+                .Where(outbox =>
+                    outbox.Id == message.Id &&
+                    outbox.ClaimToken == claimToken &&
+                    outbox.ClaimExpiresAtUtc > processedAtUtc)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(outbox => outbox.ProcessedAtUtc, processedAtUtc)
+                    .SetProperty(outbox => outbox.LastAttemptAtUtc, processedAtUtc)
+                    .SetProperty(outbox => outbox.NextAttemptAtUtc, (DateTime?)null)
+                    .SetProperty(outbox => outbox.LastError, (string?)null)
+                    .SetProperty(outbox => outbox.ClaimToken, (Guid?)null)
+                    .SetProperty(outbox => outbox.ClaimExpiresAtUtc, (DateTime?)null),
+                    cancellationToken);
+
+            ClearTrackedState();
+            return updated == 1;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -97,7 +126,8 @@ internal sealed class ModuleEventDispatcher : IModuleEventDispatcher
         catch (Exception exception)
         {
             await SaveFailedDispatchStateAsync(
-                message.Id,
+                message,
+                claimToken,
                 TruncateError(exception.ToString()),
                 cancellationToken);
             return false;
@@ -105,30 +135,168 @@ internal sealed class ModuleEventDispatcher : IModuleEventDispatcher
     }
 
     private async Task SaveFailedDispatchStateAsync(
-        Guid messageId,
+        OutboxMessage message,
+        Guid claimToken,
         string lastError,
         CancellationToken cancellationToken)
     {
         ClearTrackedState();
 
-        var message = await _dbContext.OutboxMessages
-            .SingleAsync(outbox => outbox.Id == messageId, cancellationToken);
         var attemptedAtUtc = GetUtcNow();
+        var retryCount = message.RetryCount + 1;
+        DateTime? deadLetteredAtUtc = retryCount >= MaxAttempts ? attemptedAtUtc : null;
+        DateTime? nextAttemptAtUtc = deadLetteredAtUtc is null
+            ? attemptedAtUtc + CalculateRetryDelay(retryCount)
+            : null;
 
-        message.RetryCount++;
-        message.LastAttemptAtUtc = attemptedAtUtc;
-        message.LastError = lastError;
-        if (message.RetryCount >= MaxAttempts)
+        if (!IsRelationalProvider())
         {
-            message.NextAttemptAtUtc = null;
-            message.DeadLetteredAtUtc = attemptedAtUtc;
-        }
-        else
-        {
-            message.NextAttemptAtUtc = attemptedAtUtc + CalculateRetryDelay(message.RetryCount);
+            if (message.ClaimExpiresAtUtc <= attemptedAtUtc)
+                return;
+
+            try
+            {
+                _dbContext.OutboxMessages.Attach(message);
+                message.RetryCount = retryCount;
+                message.LastAttemptAtUtc = attemptedAtUtc;
+                message.LastError = lastError;
+                message.NextAttemptAtUtc = nextAttemptAtUtc;
+                message.DeadLetteredAtUtc = deadLetteredAtUtc;
+                message.ClaimToken = null;
+                message.ClaimExpiresAtUtc = null;
+                await _dbContext.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                // A later owner has already changed the claim; its state wins.
+            }
+
+            ClearTrackedState();
+            return;
         }
 
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        await _dbContext.OutboxMessages
+            .Where(outbox =>
+                outbox.Id == message.Id &&
+                outbox.ClaimToken == claimToken &&
+                outbox.ClaimExpiresAtUtc > attemptedAtUtc)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(outbox => outbox.RetryCount, retryCount)
+                .SetProperty(outbox => outbox.LastAttemptAtUtc, attemptedAtUtc)
+                .SetProperty(outbox => outbox.LastError, lastError)
+                .SetProperty(outbox => outbox.NextAttemptAtUtc, nextAttemptAtUtc)
+                .SetProperty(outbox => outbox.DeadLetteredAtUtc, deadLetteredAtUtc)
+                .SetProperty(outbox => outbox.ClaimToken, (Guid?)null)
+                .SetProperty(outbox => outbox.ClaimExpiresAtUtc, (DateTime?)null),
+                cancellationToken);
+
+        ClearTrackedState();
+    }
+
+    private async Task<bool> TryClaimMessageAsync(
+        Guid messageId,
+        DateTime now,
+        Guid claimToken,
+        DateTime claimExpiresAtUtc,
+        CancellationToken cancellationToken)
+    {
+        if (!IsRelationalProvider())
+        {
+            var candidate = await _dbContext.OutboxMessages
+                .Where(
+                    message =>
+                        message.Id == messageId &&
+                        message.ProcessedAtUtc == null &&
+                        message.DeadLetteredAtUtc == null &&
+                        (message.NextAttemptAtUtc == null || message.NextAttemptAtUtc <= now) &&
+                        (message.ClaimExpiresAtUtc == null || message.ClaimExpiresAtUtc <= now))
+                .Select(message => new
+                {
+                    message.Id,
+                    message.ClaimToken,
+                    message.ClaimExpiresAtUtc
+                })
+                .SingleOrDefaultAsync(cancellationToken);
+            if (candidate is null)
+                return false;
+
+            var candidateClaim = new OutboxMessage
+            {
+                Id = candidate.Id,
+                ClaimToken = candidate.ClaimToken,
+                ClaimExpiresAtUtc = candidate.ClaimExpiresAtUtc
+            };
+            DetachTrackedOutboxMessage(candidate.Id);
+            _dbContext.OutboxMessages.Attach(candidateClaim);
+            candidateClaim.ClaimToken = claimToken;
+            candidateClaim.ClaimExpiresAtUtc = claimExpiresAtUtc;
+            try
+            {
+                await _dbContext.SaveChangesAsync(cancellationToken);
+                return true;
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                ClearTrackedState();
+                return false;
+            }
+        }
+
+        var updated = await _dbContext.OutboxMessages
+            .Where(message =>
+                message.Id == messageId &&
+                message.ProcessedAtUtc == null &&
+                message.DeadLetteredAtUtc == null &&
+                (message.NextAttemptAtUtc == null || message.NextAttemptAtUtc <= now) &&
+                (message.ClaimExpiresAtUtc == null || message.ClaimExpiresAtUtc <= now))
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(message => message.ClaimToken, claimToken)
+                .SetProperty(message => message.ClaimExpiresAtUtc, claimExpiresAtUtc),
+                cancellationToken);
+
+        return updated == 1;
+    }
+
+    private async Task<bool> CompleteWithConcurrencyCheckAsync(
+        OutboxMessage message,
+        DateTime processedAtUtc,
+        CancellationToken cancellationToken)
+    {
+        ClearTrackedState();
+        _dbContext.OutboxMessages.Attach(message);
+        message.ProcessedAtUtc = processedAtUtc;
+        message.LastAttemptAtUtc = processedAtUtc;
+        message.NextAttemptAtUtc = null;
+        message.LastError = null;
+        message.ClaimToken = null;
+        message.ClaimExpiresAtUtc = null;
+
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // A later owner has already changed the claim; its state wins.
+            ClearTrackedState();
+            return false;
+        }
+    }
+
+    private bool IsRelationalProvider() =>
+        _dbContext is DbContext dbContext && dbContext.Database.IsRelational();
+
+    private void DetachTrackedOutboxMessage(Guid messageId)
+    {
+        if (_dbContext is not DbContext dbContext)
+            return;
+
+        var trackedMessage = dbContext.ChangeTracker
+            .Entries<OutboxMessage>()
+            .SingleOrDefault(entry => entry.Entity.Id == messageId);
+        if (trackedMessage is not null)
+            trackedMessage.State = EntityState.Detached;
     }
 
     private IReadOnlyCollection<object> ResolveHandlers(Type payloadType)

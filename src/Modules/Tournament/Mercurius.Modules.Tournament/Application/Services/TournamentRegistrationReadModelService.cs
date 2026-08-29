@@ -50,6 +50,14 @@ internal sealed class TournamentRegistrationReadModelService(
             registration.Kind == TournamentRegistrationKind.Team &&
             registration.Status == TournamentRegistrationStatus.Active &&
             registration.RosterMembers.Any(member => member.UserId == userId));
+        var currentTeam = registrations
+            .Where(registration =>
+                registration.Kind == TournamentRegistrationKind.Team &&
+                registration.RosterMembers.Any(member => member.UserId == userId))
+            .OrderByDescending(registration => registration.Status == TournamentRegistrationStatus.Active)
+            .ThenByDescending(registration => registration.UpdatedAtUtc)
+            .ThenBy(registration => registration.Id)
+            .FirstOrDefault();
         var context = await contextBuilder.BuildAsync(registrations, [], cancellationToken);
         var captained = registrations
             .Where(registration => registration.TeamId.HasValue && captainedTeamIds.Contains(registration.TeamId.Value))
@@ -62,6 +70,7 @@ internal sealed class TournamentRegistrationReadModelService(
             PendingRosterConfirmation = pendingRoster is null
                 ? null
                 : mapper.ToRosterMemberDto(pendingRoster, context),
+            CurrentTeamRegistration = currentTeam is null ? null : mapper.ToRegistrationDto(currentTeam, context),
             ActiveTeamRegistration = activeTeam is null ? null : mapper.ToRegistrationDto(activeTeam, context),
             CaptainManagedRegistrations = captained
                 .Select(registration => mapper.ToRegistrationDto(registration, context))
@@ -69,7 +78,7 @@ internal sealed class TournamentRegistrationReadModelService(
             CanRegisterIndividual = tournament.ParticipationMode == ParticipationMode.Individual &&
                                     tournament.Status == TournamentStatus.Scheduled &&
                                     individual is null &&
-                                    activeTeam is null &&
+                                    currentTeam is null &&
                                     pendingRoster is null,
             CanConfirmRoster = pendingRoster is not null,
             CanUnregister = individual is not null || activeTeam is not null || captained.Any()

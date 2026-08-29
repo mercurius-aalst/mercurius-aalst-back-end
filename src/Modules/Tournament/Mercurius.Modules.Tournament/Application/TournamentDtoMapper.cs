@@ -100,7 +100,7 @@ internal sealed class TournamentDtoMapper
             Matches = tournament.Matches
                 .OrderBy(match => match.RoundNumber)
                 .ThenBy(match => match.MatchNumber)
-                .Select(ToGetMatchDto)
+                .Select(match => ToGetMatchDto(match))
                 .ToList(),
             Registrations = tournament.TournamentRegistrations
                 .Where(registration => registration.Status == TournamentRegistrationStatus.Active)
@@ -233,7 +233,7 @@ internal sealed class TournamentDtoMapper
         };
     }
 
-    internal static GetMatchDTO ToGetMatchDto(Match match)
+    internal static GetMatchDTO ToGetMatchDto(Match match, bool canViewPrivateReports = false)
     {
         return new GetMatchDTO
         {
@@ -266,10 +266,10 @@ internal sealed class TournamentDtoMapper
             LifecycleState = (Contracts.MatchLifecycleState)match.LifecycleState,
             Participant1Ended = match.Participant1Ended,
             Participant2Ended = match.Participant2Ended,
-            Participant1ReportedScore1 = match.Participant1ReportedScore1,
-            Participant1ReportedScore2 = match.Participant1ReportedScore2,
-            Participant2ReportedScore1 = match.Participant2ReportedScore1,
-            Participant2ReportedScore2 = match.Participant2ReportedScore2,
+            Participant1ReportedScore1 = canViewPrivateReports ? match.Participant1ReportedScore1 : null,
+            Participant1ReportedScore2 = canViewPrivateReports ? match.Participant1ReportedScore2 : null,
+            Participant2ReportedScore1 = canViewPrivateReports ? match.Participant2ReportedScore1 : null,
+            Participant2ReportedScore2 = canViewPrivateReports ? match.Participant2ReportedScore2 : null,
             ScoreConfirmationDeadlineUtc = match.ScoreConfirmationDeadlineUtc,
             CorrectionDeadlineUtc = match.CorrectionDeadlineUtc,
             Participant1CorrectionCount = match.Participant1CorrectionCount,
@@ -284,7 +284,13 @@ internal sealed class TournamentDtoMapper
         Match match,
         Contracts.MatchParticipantSide? authorizedParticipant,
         bool tournamentInProgress = true,
-        bool canViewPrivateReports = false)
+        bool canViewPrivateReports = false,
+        bool canResolve = false,
+        string? resolveBlockedReason = null,
+        bool canForceForfeit = false,
+        string? forceForfeitBlockedReason = null,
+        bool canReverse = false,
+        string? reverseBlockedReason = null)
     {
         return new GetMatchActionStateDTO
         {
@@ -303,11 +309,26 @@ internal sealed class TournamentDtoMapper
                  (match.LifecycleState == Domain.MatchLifecycleState.Disputed &&
                   ((authorizedParticipant == Contracts.MatchParticipantSide.Participant1 && match.Participant1CorrectionCount < 1) ||
                    (authorizedParticipant == Contracts.MatchParticipantSide.Participant2 && match.Participant2CorrectionCount < 1)))),
-            CanForfeit = tournamentInProgress && authorizedParticipant.HasValue && !match.HasResult,
-            Participant1ReportedScore1 = canViewPrivateReports ? match.Participant1ReportedScore1 : null,
-            Participant1ReportedScore2 = canViewPrivateReports ? match.Participant1ReportedScore2 : null,
-            Participant2ReportedScore1 = canViewPrivateReports ? match.Participant2ReportedScore1 : null,
-            Participant2ReportedScore2 = canViewPrivateReports ? match.Participant2ReportedScore2 : null
+            CanForfeit = tournamentInProgress && authorizedParticipant.HasValue && !match.HasResult &&
+                match.LifecycleState != Domain.MatchLifecycleState.AdminResolutionRequired,
+            CanResolve = canResolve,
+            ResolveBlockedReason = resolveBlockedReason,
+            CanForceForfeit = canForceForfeit,
+            ForceForfeitBlockedReason = forceForfeitBlockedReason,
+            CanReverse = canReverse,
+            ReverseBlockedReason = reverseBlockedReason,
+            Participant1ReportedScore1 = canViewPrivateReports || authorizedParticipant.HasValue
+                ? match.Participant1ReportedScore1
+                : null,
+            Participant1ReportedScore2 = canViewPrivateReports || authorizedParticipant.HasValue
+                ? match.Participant1ReportedScore2
+                : null,
+            Participant2ReportedScore1 = canViewPrivateReports || authorizedParticipant.HasValue
+                ? match.Participant2ReportedScore1
+                : null,
+            Participant2ReportedScore2 = canViewPrivateReports || authorizedParticipant.HasValue
+                ? match.Participant2ReportedScore2
+                : null
         };
     }
 

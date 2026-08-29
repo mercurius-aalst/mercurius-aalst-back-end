@@ -9,6 +9,7 @@ public sealed class ApiExceptionHandler : IExceptionHandler
     {
         var statusCode = exception switch
         {
+            ForbiddenException => StatusCodes.Status403Forbidden,
             ConflictException => StatusCodes.Status409Conflict,
             NotFoundException => StatusCodes.Status404NotFound,
             ValidationException => StatusCodes.Status400BadRequest,
@@ -25,6 +26,8 @@ public sealed class ApiExceptionHandler : IExceptionHandler
         httpContext.Response.StatusCode = statusCode.Value;
         if (exception is ConflictException conflict)
             await httpContext.Response.WriteAsJsonAsync(new { code = conflict.Code, message = conflict.Message }, cancellationToken);
+        else if (exception is ForbiddenException forbidden)
+            await httpContext.Response.WriteAsJsonAsync(new { code = forbidden.Code, message = forbidden.Message }, cancellationToken);
         else
             await httpContext.Response.WriteAsJsonAsync(exception.Message, cancellationToken);
         return true;

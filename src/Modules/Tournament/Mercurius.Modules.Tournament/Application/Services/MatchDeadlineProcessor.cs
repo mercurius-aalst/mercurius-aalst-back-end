@@ -29,17 +29,17 @@ internal sealed class MatchDeadlineProcessor : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        while(!stoppingToken.IsCancellationRequested)
+        while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
                 await ProcessExpiredMatchesAsync(stoppingToken);
             }
-            catch(OperationCanceledException) when(stoppingToken.IsCancellationRequested)
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
                 break;
             }
-            catch(Exception exception)
+            catch (Exception exception)
             {
                 _logger.LogError(exception, "Unable to process expired tournament match result windows.");
             }
@@ -48,7 +48,7 @@ internal sealed class MatchDeadlineProcessor : BackgroundService
             {
                 await Task.Delay(PollInterval, _timeProvider, stoppingToken);
             }
-            catch(OperationCanceledException) when(stoppingToken.IsCancellationRequested)
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
                 break;
             }
@@ -67,24 +67,24 @@ internal sealed class MatchDeadlineProcessor : BackgroundService
             .ToListAsync(cancellationToken);
 
         var changed = false;
-        foreach(var tournament in tournaments)
+        foreach (var tournament in tournaments)
         {
             var matchesById = tournament.Matches.ToDictionary(match => match.Id);
-            foreach(var match in tournament.Matches)
+            foreach (var match in tournament.Matches)
             {
-                if(match.WinnerNextMatchId.HasValue)
+                if (match.WinnerNextMatchId.HasValue)
                     match.WinnerNextMatch = matchesById.GetValueOrDefault(match.WinnerNextMatchId.Value);
-                if(match.LoserNextMatchId.HasValue)
+                if (match.LoserNextMatchId.HasValue)
                     match.LoserNextMatch = matchesById.GetValueOrDefault(match.LoserNextMatchId.Value);
 
                 var beforeState = match.LifecycleState;
                 var beforeResult = match.HasResult;
                 match.ApplyDeadline(nowUtc);
-                if(beforeState == match.LifecycleState && beforeResult == match.HasResult)
+                if (beforeState == match.LifecycleState && beforeResult == match.HasResult)
                     continue;
 
                 changed = true;
-                if(!beforeResult && match.HasResult && match.GetWinnerId() is Guid winnerId)
+                if (!beforeResult && match.HasResult && match.GetWinnerId() is Guid winnerId)
                 {
                     eventPublisher.Publish(new MatchCompletedIntegrationEvent(
                         new Mercurius.Modules.Shared.MatchId(match.Id),
@@ -92,7 +92,7 @@ internal sealed class MatchDeadlineProcessor : BackgroundService
                         winnerId),
                         nowUtc);
                 }
-                else if(beforeState != MatchLifecycleState.AdminResolutionRequired &&
+                else if (beforeState != MatchLifecycleState.AdminResolutionRequired &&
                         match.LifecycleState == MatchLifecycleState.AdminResolutionRequired)
                 {
                     eventPublisher.Publish(new MatchResolutionRequiredIntegrationEvent(
@@ -104,14 +104,14 @@ internal sealed class MatchDeadlineProcessor : BackgroundService
             }
         }
 
-        if(!changed)
+        if (!changed)
             return;
 
         await using var transaction = dbContext.Database.ProviderName == "Microsoft.EntityFrameworkCore.InMemory"
             ? null
             : await dbContext.Database.BeginTransactionAsync(cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
-        if(transaction is not null)
+        if (transaction is not null)
             await transaction.CommitAsync(cancellationToken);
     }
 }

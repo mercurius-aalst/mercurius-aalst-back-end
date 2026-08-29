@@ -8,7 +8,15 @@ public class ExceptionFilter : IActionFilter
 {
     public void OnActionExecuted(ActionExecutedContext context)
     {
-        if (context.Exception is NotFoundException entityNotFoundException)
+        if (context.Exception is ForbiddenException forbiddenException)
+        {
+            context.Result = new ObjectResult(new { code = forbiddenException.Code, message = forbiddenException.Message })
+            {
+                StatusCode = (int)HttpStatusCode.Forbidden
+            };
+            context.ExceptionHandled = true;
+        }
+        else if (context.Exception is NotFoundException entityNotFoundException)
         {
             context.Result = new ObjectResult(entityNotFoundException.Message)
             {

@@ -206,6 +206,8 @@ public class DtoSerializationShapeTests
         match.Participant1ReportedScore2 = 1;
         var publicMatchJson = Serialize(match.ToGetMatchDTO());
         Assert.DoesNotContain("reportedScore", publicMatchJson, StringComparison.OrdinalIgnoreCase);
+        Assert.Null(match.ToGetMatchDTO().Participant1ReportedScore1);
+        Assert.Equal(2, TournamentDtoMapper.ToGetMatchDto(match, canViewPrivateReports: true).Participant1ReportedScore1);
     }
 
     [Fact]
@@ -230,8 +232,32 @@ public class DtoSerializationShapeTests
 
         Assert.Null(publicState.Participant1ReportedScore1);
         Assert.Null(publicState.Participant2ReportedScore1);
+        Assert.Null(publicState.Match.Participant1ReportedScore1);
         Assert.Equal(2, adminState.Participant1ReportedScore1);
         Assert.Equal(1, adminState.Participant2ReportedScore1);
+        Assert.Null(adminState.Match.Participant1ReportedScore1);
+
+        var participantOneState = TournamentDtoMapper.ToGetMatchActionStateDto(
+            match,
+            Mercurius.Modules.Tournament.Contracts.MatchParticipantSide.Participant1,
+            canViewPrivateReports: false);
+        var participantTwoState = TournamentDtoMapper.ToGetMatchActionStateDto(
+            match,
+            Mercurius.Modules.Tournament.Contracts.MatchParticipantSide.Participant2,
+            canViewPrivateReports: false);
+
+        Assert.Equal(2, participantOneState.Participant1ReportedScore1);
+        Assert.Equal(1, participantOneState.Participant2ReportedScore1);
+        Assert.Null(participantOneState.Match.Participant1ReportedScore1);
+        Assert.Equal(1, participantTwoState.Participant2ReportedScore1);
+        Assert.Equal(2, participantTwoState.Participant1ReportedScore1);
+
+        match.LifecycleState = Mercurius.Modules.Tournament.Domain.MatchLifecycleState.AdminResolutionRequired;
+        var unresolvedState = TournamentDtoMapper.ToGetMatchActionStateDto(
+            match,
+            Mercurius.Modules.Tournament.Contracts.MatchParticipantSide.Participant1,
+            canViewPrivateReports: false);
+        Assert.False(unresolvedState.CanForfeit);
     }
 
     private static string Serialize<T>(T value)

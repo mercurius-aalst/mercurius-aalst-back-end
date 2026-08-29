@@ -41,8 +41,13 @@ internal sealed class MatchService : IMatchService
         Guid id,
         CancellationToken cancellationToken = default)
     {
-        var (tournament, match) = await GetMatchGraphAsync(id, cancellationToken);
-        await ApplyDeadlineAndPersistAsync(tournament, match, cancellationToken);
+        var (tournament, match) = await GetMatchReadAsync(id, cancellationToken);
+        if (HasExpiredDeadline(match, UtcNow()))
+        {
+            (tournament, match) = await GetMatchMutationGraphAsync(id, cancellationToken);
+            await ApplyDeadlineAndPersistAsync(tournament, match, cancellationToken);
+        }
+
         return TournamentDtoMapper.ToGetMatchDto(match);
     }
 
@@ -53,14 +58,61 @@ internal sealed class MatchService : IMatchService
         CancellationToken cancellationToken = default)
     {
         var userId = await GetCurrentUserIdAsync(auth0UserId, cancellationToken);
-        var (tournament, match) = await GetMatchGraphAsync(id, cancellationToken);
-        await ApplyDeadlineAndPersistAsync(tournament, match, cancellationToken);
+        var (tournament, match) = await GetMatchReadAsync(id, cancellationToken);
+        if (HasExpiredDeadline(match, UtcNow()))
+        {
+            (tournament, match) = await GetMatchMutationGraphAsync(id, cancellationToken);
+            await ApplyDeadlineAndPersistAsync(tournament, match, cancellationToken);
+        }
+
         var side = await FindParticipantSideAsync(match, userId, cancellationToken);
+        var canViewPrivateReports = isAdmin &&
+            (!tournament.AssignedAdminUserId.HasValue || tournament.AssignedAdminUserId.Value == userId);
+        var canResolve = isAdmin &&
+            tournament.Status == TournamentStatus.InProgress &&
+            canViewPrivateReports &&
+            match.LifecycleState is MatchLifecycleState.Disputed or MatchLifecycleState.AdminResolutionRequired;
+        var resolveBlockedReason = !isAdmin
+            ? "admin_required"
+            : tournament.Status != TournamentStatus.InProgress
+                ? "tournament_not_in_progress"
+                : !canViewPrivateReports
+                    ? "admin_not_assigned"
+                    : "match_not_disputed";
+        var hasBothParticipants = match.GetParticipant1Id().HasValue && match.GetParticipant2Id().HasValue;
+        var canForceForfeit = isAdmin &&
+            tournament.Status == TournamentStatus.InProgress &&
+            hasBothParticipants &&
+            !match.HasResult &&
+            match.LifecycleState != MatchLifecycleState.AdminResolutionRequired;
+        var forceForfeitBlockedReason = !isAdmin
+            ? "admin_required"
+            : tournament.Status != TournamentStatus.InProgress
+                ? "tournament_not_in_progress"
+                : match.HasResult
+                    ? "match_already_completed"
+                    : !hasBothParticipants
+                        ? "match_not_ready"
+                    : "match_requires_admin_resolution";
+        var canReverse = isAdmin && tournament.Status == TournamentStatus.InProgress && match.HasResult;
+        var reverseBlockedReason = !isAdmin
+            ? "admin_required"
+            : tournament.Status != TournamentStatus.InProgress
+                ? "tournament_not_in_progress"
+                : !match.HasResult
+                    ? "match_not_completed"
+                    : null;
         return TournamentDtoMapper.ToGetMatchActionStateDto(
             match,
             side,
             tournament.Status == TournamentStatus.InProgress,
-            isAdmin);
+            canViewPrivateReports,
+            canResolve,
+            canResolve ? null : resolveBlockedReason,
+            canForceForfeit,
+            canForceForfeit ? null : forceForfeitBlockedReason,
+            canReverse,
+            canReverse ? null : reverseBlockedReason);
     }
 
     public async Task<GetMatchDTO> ConfirmEndedAsync(
@@ -70,7 +122,7 @@ internal sealed class MatchService : IMatchService
     {
         var userId = await GetCurrentUserIdAsync(auth0UserId, cancellationToken);
         await using var transaction = await BeginTransactionIfSupportedAsync(cancellationToken);
-        var (tournament, match) = await GetMatchGraphAsync(id, cancellationToken);
+        var (tournament, match) = await GetMatchMutationGraphAsync(id, cancellationToken);
         EnsureInProgress(tournament);
         var side = await RequireParticipantSideAsync(match, userId, cancellationToken);
         var now = UtcNow();
@@ -88,7 +140,7 @@ internal sealed class MatchService : IMatchService
     {
         var userId = await GetCurrentUserIdAsync(auth0UserId, cancellationToken);
         await using var transaction = await BeginTransactionIfSupportedAsync(cancellationToken);
-        var (tournament, match) = await GetMatchGraphAsync(id, cancellationToken);
+        var (tournament, match) = await GetMatchMutationGraphAsync(id, cancellationToken);
         EnsureInProgress(tournament);
         var side = await RequireParticipantSideAsync(match, userId, cancellationToken);
         var wasResult = match.HasResult;
@@ -114,7 +166,7 @@ internal sealed class MatchService : IMatchService
     {
         var userId = await GetCurrentUserIdAsync(auth0UserId, cancellationToken);
         await using var transaction = await BeginTransactionIfSupportedAsync(cancellationToken);
-        var (tournament, match) = await GetMatchGraphAsync(id, cancellationToken);
+        var (tournament, match) = await GetMatchMutationGraphAsync(id, cancellationToken);
         EnsureInProgress(tournament);
 
         var actorSide = await FindParticipantSideAsync(match, userId, cancellationToken);
@@ -156,7 +208,7 @@ internal sealed class MatchService : IMatchService
     {
         var userId = await GetCurrentUserIdAsync(auth0UserId, cancellationToken);
         await using var transaction = await BeginTransactionIfSupportedAsync(cancellationToken);
-        var (tournament, match) = await GetMatchGraphAsync(id, cancellationToken);
+        var (tournament, match) = await GetMatchMutationGraphAsync(id, cancellationToken);
         EnsureInProgress(tournament);
         EnsureAssignedAdmin(tournament, userId);
         var wasResult = match.HasResult;
@@ -177,7 +229,8 @@ internal sealed class MatchService : IMatchService
     {
         var userId = await GetCurrentUserIdAsync(auth0UserId, cancellationToken);
         await using var transaction = await BeginTransactionIfSupportedAsync(cancellationToken);
-        var (tournament, match) = await GetMatchGraphAsync(id, cancellationToken);
+        var (tournament, match) = await GetMatchMutationGraphAsync(id, cancellationToken);
+        await LoadDownstreamMatchesAsync(match, cancellationToken);
         EnsureInProgress(tournament);
         var downstream = GetDownstreamMatches(match);
         var blockingMatch = downstream.FirstOrDefault(HasPlayedResult);
@@ -211,7 +264,7 @@ internal sealed class MatchService : IMatchService
         CancellationToken cancellationToken = default)
     {
         await using var transaction = await BeginTransactionIfSupportedAsync(cancellationToken);
-        var (tournament, match) = await GetMatchGraphAsync(id, cancellationToken);
+        var (tournament, match) = await GetMatchMutationGraphAsync(id, cancellationToken);
         var wasResult = match.HasResult;
         var now = UtcNow();
         match.ForceCompleteScore(updateMatchDTO.Participant1Score, updateMatchDTO.Participant2Score, now);
@@ -221,29 +274,92 @@ internal sealed class MatchService : IMatchService
         return TournamentDtoMapper.ToGetMatchDto(match);
     }
 
-    private async Task<(TournamentAggregate Tournament, Match Match)> GetMatchGraphAsync(
+    private async Task<(TournamentAggregate Tournament, Match Match)> GetMatchReadAsync(
         Guid id,
         CancellationToken cancellationToken)
     {
-        var tournament = await _dbContext.Tournaments
-            .Include(candidate => candidate.Matches)
-            .FirstOrDefaultAsync(candidate => candidate.Matches.Any(match => match.Id == id), cancellationToken);
-        if (tournament is null)
-            throw new NotFoundException("Match not found.");
-
-        var match = tournament.Matches.FirstOrDefault(candidate => candidate.Id == id);
+        var match = await CreateMatchReadQuery(id)
+            .SingleOrDefaultAsync(candidate => candidate.Id == id, cancellationToken);
         if (match is null)
             throw new NotFoundException("Match not found.");
-        var matchesById = tournament.Matches.ToDictionary(candidate => candidate.Id);
-        foreach (var candidate in tournament.Matches)
-        {
-            if (candidate.WinnerNextMatchId.HasValue)
-                candidate.WinnerNextMatch = matchesById.GetValueOrDefault(candidate.WinnerNextMatchId.Value);
-            if (candidate.LoserNextMatchId.HasValue)
-                candidate.LoserNextMatch = matchesById.GetValueOrDefault(candidate.LoserNextMatchId.Value);
-        }
-        return (tournament, match);
+
+        return (match.Tournament, match);
     }
+
+    private async Task<(TournamentAggregate Tournament, Match Match)> GetMatchMutationGraphAsync(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        var match = await CreateMatchMutationQuery(id)
+            .SingleOrDefaultAsync(candidate => candidate.Id == id, cancellationToken);
+        if (match is null)
+            throw new NotFoundException("Match not found.");
+
+        return (match.Tournament, match);
+    }
+
+    private IQueryable<Match> CreateMatchReadQuery(Guid id) =>
+        _dbContext.Matches
+            .AsNoTracking()
+            .Include(candidate => candidate.Tournament)
+            .Where(candidate => candidate.Id == id);
+
+    private IQueryable<Match> CreateMatchMutationQuery(Guid id) =>
+        _dbContext.Matches
+            .Include(candidate => candidate.Tournament)
+            .Include(candidate => candidate.WinnerNextMatch)
+            .Include(candidate => candidate.LoserNextMatch)
+            .Where(candidate => candidate.Id == id);
+
+    private async Task LoadDownstreamMatchesAsync(
+        Match source,
+        CancellationToken cancellationToken)
+    {
+        var seen = new HashSet<Guid> { source.Id };
+        var pending = new Queue<(Match Parent, Guid ChildId, bool IsWinnerLink)>();
+        EnqueueDownstreamLinks(source, pending);
+
+        while (pending.Count != 0)
+        {
+            var batch = new List<(Match Parent, Guid ChildId, bool IsWinnerLink)>();
+            while (pending.Count != 0)
+                batch.Add(pending.Dequeue());
+
+            var children = await _dbContext.Matches
+                .Where(candidate => batch.Select(link => link.ChildId).Contains(candidate.Id))
+                .ToListAsync(cancellationToken);
+            var childrenById = children.ToDictionary(candidate => candidate.Id);
+            foreach (var link in batch)
+            {
+                if (!childrenById.TryGetValue(link.ChildId, out var child))
+                    continue;
+
+                if (link.IsWinnerLink)
+                    link.Parent.WinnerNextMatch = child;
+                else
+                    link.Parent.LoserNextMatch = child;
+
+                if (seen.Add(child.Id))
+                    EnqueueDownstreamLinks(child, pending);
+            }
+        }
+    }
+
+    private static void EnqueueDownstreamLinks(
+        Match match,
+        Queue<(Match Parent, Guid ChildId, bool IsWinnerLink)> pending)
+    {
+        if (match.WinnerNextMatchId.HasValue)
+            pending.Enqueue((match, match.WinnerNextMatchId.Value, true));
+        if (match.LoserNextMatchId.HasValue)
+            pending.Enqueue((match, match.LoserNextMatchId.Value, false));
+    }
+
+    private static bool HasExpiredDeadline(Match match, DateTime nowUtc) =>
+        (match.LifecycleState == MatchLifecycleState.ScoreConfirmation &&
+         match.ScoreConfirmationDeadlineUtc is { } scoreDeadline && nowUtc >= scoreDeadline) ||
+        (match.LifecycleState == MatchLifecycleState.Disputed &&
+         match.CorrectionDeadlineUtc is { } correctionDeadline && nowUtc >= correctionDeadline);
 
     private async Task ApplyDeadlineAndPersistAsync(
         TournamentAggregate tournament,
@@ -348,7 +464,9 @@ internal sealed class MatchService : IMatchService
     private static void EnsureAssignedAdmin(TournamentAggregate tournament, Guid userId)
     {
         if (tournament.AssignedAdminUserId.HasValue && tournament.AssignedAdminUserId.Value != userId)
-            throw new UnauthorizedAccessException("admin_not_assigned");
+            throw new ForbiddenException(
+                "admin_not_assigned",
+                "Only the assigned tournament administrator can resolve this match.");
     }
 
     private static bool HasPlayedResult(Match match) =>

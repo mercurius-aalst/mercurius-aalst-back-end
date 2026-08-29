@@ -4,7 +4,7 @@
 
 ### Requirement: Match lifecycle projection
 
-The API MUST expose a privacy-safe lifecycle state, ended-confirmation flags, score reports, and server-provided deadlines in the match projection. The projection MUST retain participant and bracket fields already returned by the match endpoint and MUST NOT expose moderation subjects or private notes.
+The API MUST expose a privacy-safe lifecycle state, ended-confirmation flags, server-provided deadlines, and only the score reports permitted by the caller's relationship to the match. The projection MUST retain participant and bracket fields already returned by the match endpoint and MUST NOT expose moderation subjects or private notes. The anonymous projection MUST redact score report values. The authenticated action projection MAY expose the requesting participant's own report and MUST expose both reports to an eligible participant or team captain, the assigned tournament admin, or the global admin fallback when no assignment exists.
 
 #### Scenario: Public match is awaiting confirmations
 
@@ -23,6 +23,37 @@ The API MUST expose a privacy-safe lifecycle state, ended-confirmation flags, sc
 - **WHEN** an authenticated user who owns neither side requests the match action projection
 - **THEN** the API MUST omit both private score reports
 - **AND** it MUST still return the public lifecycle state and available bracket fields
+
+#### Scenario: Authorized participant sees both reports
+
+- **WHEN** an authenticated participant or team captain requests the match action projection
+- **THEN** the API MUST include both private score reports when present so the participant can compare and correct a dispute
+
+#### Scenario: Assigned admin sees both reports
+
+- **WHEN** the assigned tournament admin requests the match action projection
+- **THEN** the API MUST include both private score reports when present
+
+#### Scenario: Unassigned admin cannot inspect an assigned match
+
+- **WHEN** an authenticated global admin who is not the assigned tournament admin requests an assigned match action projection
+- **THEN** the API MUST omit both private score reports
+
+#### Scenario: Protected action capabilities are authoritative
+
+- **WHEN** an authenticated caller requests the match action projection
+- **THEN** the API MUST return capability flags for resolve, administrative forfeit, and reversal
+- **AND** each unavailable administrative capability MUST include a stable blocked reason
+- **AND** an unassigned admin's resolve capability MUST be false with reason admin_not_assigned
+
+### Requirement: Targeted match access
+
+Ordinary public and authenticated action reads MUST query only the requested match and its tournament metadata. They MUST NOT materialize sibling matches in the tournament. A lifecycle read that crosses an expired deadline MAY load the directly linked next matches needed for authoritative bracket advancement. Reversal MAY traverse only the bounded downstream match graph required to validate and clear provenance.
+
+#### Scenario: Public read of a large bracket
+
+- **WHEN** an anonymous caller requests one match from a tournament with many other matches
+- **THEN** the API MUST return the requested match without loading sibling matches
 
 ### Requirement: Participant end confirmation
 

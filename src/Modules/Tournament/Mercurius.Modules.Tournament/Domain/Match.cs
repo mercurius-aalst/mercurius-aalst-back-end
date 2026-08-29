@@ -30,9 +30,245 @@ internal sealed class Match
     public Guid? LoserNextMatchId { get; set; }
     public bool Participant1IsBYE { get; set; }
     public bool Participant2IsBYE { get; set; }
+    public MatchLifecycleState LifecycleState { get; set; } = MatchLifecycleState.AwaitingEndedConfirmation;
+    public DateTime? Participant1EndedConfirmedAtUtc { get; set; }
+    public DateTime? Participant2EndedConfirmedAtUtc { get; set; }
+    public int? Participant1ReportedScore1 { get; set; }
+    public int? Participant1ReportedScore2 { get; set; }
+    public int? Participant2ReportedScore1 { get; set; }
+    public int? Participant2ReportedScore2 { get; set; }
+    public DateTime? ScoreConfirmationDeadlineUtc { get; set; }
+    public DateTime? CorrectionDeadlineUtc { get; set; }
+    public int Participant1CorrectionCount { get; set; }
+    public int Participant2CorrectionCount { get; set; }
+    public int? ForfeitedParticipantNumber { get; set; }
+    public MatchResultKind? ResultKind { get; set; }
+    public Guid? ResultRecordedByUserId { get; set; }
+    public DateTime? ResultRecordedAtUtc { get; set; }
+    public int ResultVersion { get; set; }
     public TournamentAggregate Tournament { get; set; } = null!;
     public Match? WinnerNextMatch { get; set; }
     public Match? LoserNextMatch { get; set; }
+
+    public bool Participant1Ended => Participant1EndedConfirmedAtUtc.HasValue;
+    public bool Participant2Ended => Participant2EndedConfirmedAtUtc.HasValue;
+    public bool HasResult => LifecycleState is MatchLifecycleState.Completed or MatchLifecycleState.Forfeited;
+
+    public bool ConfirmEnded(int participantNumber, DateTime nowUtc)
+    {
+        EnsureParticipantNumber(participantNumber);
+        EnsureOpenForParticipantAction();
+
+        if (participantNumber == 1)
+        {
+            if (Participant1Ended)
+                throw new ValidationException("Participant 1 has already confirmed that the match ended.");
+            if (!HasParticipant1())
+                throw new ValidationException("Participant 1 is not assigned to this match.");
+            Participant1EndedConfirmedAtUtc = nowUtc;
+        }
+        else
+        {
+            if (Participant2Ended)
+                throw new ValidationException("Participant 2 has already confirmed that the match ended.");
+            if (!HasParticipant2())
+                throw new ValidationException("Participant 2 is not assigned to this match.");
+            Participant2EndedConfirmedAtUtc = nowUtc;
+        }
+
+        if (Participant1Ended && Participant2Ended)
+            LifecycleState = MatchLifecycleState.AwaitingScore;
+
+        ResultVersion++;
+        return Participant1Ended && Participant2Ended;
+    }
+
+    public bool SubmitScore(
+        int participantNumber,
+        int participant1Score,
+        int participant2Score,
+        DateTime nowUtc)
+    {
+        EnsureParticipantNumber(participantNumber);
+        ValidateDecisiveScore(participant1Score, participant2Score);
+        ApplyDeadline(nowUtc);
+
+        if (!Participant1Ended || !Participant2Ended)
+            throw new ValidationException("Both participants must confirm the match ended before submitting a score.");
+        if (LifecycleState is MatchLifecycleState.Completed or MatchLifecycleState.Forfeited)
+            throw new ValidationException("The match already has a final result.");
+        if (LifecycleState == MatchLifecycleState.AdminResolutionRequired)
+            throw new ValidationException("This match requires an administrator to resolve the result.");
+        if (LifecycleState == MatchLifecycleState.ScoreConfirmation &&
+            ((participantNumber == 1 && Participant1ReportedScore1.HasValue) ||
+             (participantNumber == 2 && Participant2ReportedScore1.HasValue)))
+            throw new ValidationException("Your initial score report has already been submitted.");
+        if (LifecycleState == MatchLifecycleState.Disputed &&
+            CorrectionDeadlineUtc.HasValue &&
+            nowUtc >= CorrectionDeadlineUtc.Value)
+        {
+            ApplyDeadline(nowUtc);
+            throw new ValidationException("The correction window has expired; an administrator must resolve this match.");
+        }
+
+        var isCorrection = LifecycleState == MatchLifecycleState.Disputed;
+        if (participantNumber == 1)
+        {
+            if (isCorrection && Participant1CorrectionCount >= 1)
+                throw new ValidationException("Participant 1 has already used their correction.");
+            Participant1ReportedScore1 = participant1Score;
+            Participant1ReportedScore2 = participant2Score;
+            if (isCorrection)
+                Participant1CorrectionCount++;
+        }
+        else
+        {
+            if (isCorrection && Participant2CorrectionCount >= 1)
+                throw new ValidationException("Participant 2 has already used their correction.");
+            Participant2ReportedScore1 = participant1Score;
+            Participant2ReportedScore2 = participant2Score;
+            if (isCorrection)
+                Participant2CorrectionCount++;
+        }
+
+        ResultVersion++;
+
+        if (LifecycleState == MatchLifecycleState.AwaitingScore)
+        {
+            ScoreConfirmationDeadlineUtc = nowUtc.AddMinutes(5);
+            LifecycleState = MatchLifecycleState.ScoreConfirmation;
+        }
+        else if (Participant1ReportedScore1.HasValue && Participant2ReportedScore1.HasValue)
+        {
+            if (ReportedScoresMatch())
+                CompleteScore(participant1Score, participant2Score, nowUtc, MatchResultKind.Score);
+            else
+            {
+                CorrectionDeadlineUtc = nowUtc.AddMinutes(5);
+                LifecycleState = MatchLifecycleState.Disputed;
+            }
+        }
+
+        return HasResult;
+    }
+
+    public bool ResolveScore(int participant1Score, int participant2Score, DateTime nowUtc)
+    {
+        ValidateDecisiveScore(participant1Score, participant2Score);
+        ApplyDeadline(nowUtc);
+        if (LifecycleState is not (MatchLifecycleState.Disputed or MatchLifecycleState.AdminResolutionRequired))
+            throw new ValidationException("Only a disputed match can be resolved by an administrator.");
+
+        CompleteScore(participant1Score, participant2Score, nowUtc, MatchResultKind.AdminResolution);
+        return true;
+    }
+
+    public bool Forfeit(int participantNumber, DateTime nowUtc)
+    {
+        EnsureParticipantNumber(participantNumber);
+        if (LifecycleState is MatchLifecycleState.Completed or MatchLifecycleState.Forfeited)
+            throw new ValidationException("The match already has a final result.");
+        if (LifecycleState == MatchLifecycleState.AdminResolutionRequired)
+            throw new ValidationException("This match requires an administrator to resolve the result.");
+        if (participantNumber == 1 && !HasParticipant1())
+            throw new ValidationException("Participant 1 is not assigned to this match.");
+        if (participantNumber == 2 && !HasParticipant2())
+            throw new ValidationException("Participant 2 is not assigned to this match.");
+
+        ForfeitedParticipantNumber = participantNumber;
+        if (participantNumber == 1)
+        {
+            Participant1Score = 0;
+            Participant2Score = 1;
+            SetWinnerAndLoser(GetParticipant2Id(), GetParticipant1Id());
+        }
+        else
+        {
+            Participant1Score = 1;
+            Participant2Score = 0;
+            SetWinnerAndLoser(GetParticipant1Id(), GetParticipant2Id());
+        }
+
+        ScoreConfirmationDeadlineUtc = null;
+        CorrectionDeadlineUtc = null;
+        LifecycleState = MatchLifecycleState.Forfeited;
+        ResultKind = MatchResultKind.Forfeit;
+        ResultRecordedAtUtc = nowUtc;
+        ResultVersion++;
+        EndTime = nowUtc;
+        UpdateParticipantsNextMatch();
+        return true;
+    }
+
+    public void ApplyDeadline(DateTime nowUtc)
+    {
+        if (LifecycleState == MatchLifecycleState.ScoreConfirmation &&
+            ScoreConfirmationDeadlineUtc is { } scoreDeadline &&
+            nowUtc >= scoreDeadline)
+        {
+            if (Participant1ReportedScore1.HasValue && Participant2ReportedScore1.HasValue)
+            {
+                if (ReportedScoresMatch())
+                    CompleteScore(Participant1ReportedScore1.Value, Participant1ReportedScore2!.Value, nowUtc, MatchResultKind.Score);
+                else
+                {
+                    CorrectionDeadlineUtc = nowUtc.AddMinutes(5);
+                    LifecycleState = MatchLifecycleState.Disputed;
+                }
+            }
+            else if (Participant1ReportedScore1.HasValue || Participant2ReportedScore1.HasValue)
+            {
+                var score1 = Participant1ReportedScore1 ?? Participant2ReportedScore1!.Value;
+                var score2 = Participant1ReportedScore2 ?? Participant2ReportedScore2!.Value;
+                CompleteScore(score1, score2, nowUtc, MatchResultKind.Score);
+            }
+        }
+
+        if (LifecycleState == MatchLifecycleState.Disputed &&
+            CorrectionDeadlineUtc is { } correctionDeadline &&
+            nowUtc >= correctionDeadline)
+        {
+            LifecycleState = MatchLifecycleState.AdminResolutionRequired;
+            CorrectionDeadlineUtc = null;
+            ResultVersion++;
+        }
+    }
+
+    public void ReverseResult(DateTime nowUtc)
+    {
+        if (LifecycleState is not (MatchLifecycleState.Completed or MatchLifecycleState.Forfeited))
+            throw new ValidationException("Only a completed or forfeited match can be reversed.");
+
+        Participant1Score = null;
+        Participant2Score = null;
+        UserWinnerId = null;
+        UserLoserId = null;
+        TeamWinnerId = null;
+        TeamLoserId = null;
+        EndTime = default;
+        Participant1EndedConfirmedAtUtc = null;
+        Participant2EndedConfirmedAtUtc = null;
+        Participant1ReportedScore1 = null;
+        Participant1ReportedScore2 = null;
+        Participant2ReportedScore1 = null;
+        Participant2ReportedScore2 = null;
+        ScoreConfirmationDeadlineUtc = null;
+        CorrectionDeadlineUtc = null;
+        Participant1CorrectionCount = 0;
+        Participant2CorrectionCount = 0;
+        ForfeitedParticipantNumber = null;
+        ResultKind = null;
+        ResultRecordedByUserId = null;
+        ResultRecordedAtUtc = nowUtc;
+        LifecycleState = MatchLifecycleState.Reversed;
+        ResultVersion++;
+    }
+
+    public void ForceCompleteScore(int participant1Score, int participant2Score, DateTime nowUtc)
+    {
+        ValidateDecisiveScore(participant1Score, participant2Score);
+        CompleteScore(participant1Score, participant2Score, nowUtc, MatchResultKind.AdminResolution);
+    }
 
     public void SetIndividualParticipants(Guid? participant1Id, Guid? participant2Id)
     {
@@ -75,6 +311,10 @@ internal sealed class Match
     public void Finish()
     {
         EndTime = DateTime.UtcNow;
+        LifecycleState = MatchLifecycleState.Completed;
+        ResultKind = MatchResultKind.Score;
+        ResultRecordedAtUtc = EndTime;
+        ResultVersion++;
         UpdateParticipantsNextMatch();
     }
 
@@ -117,6 +357,11 @@ internal sealed class Match
         {
             SetWinnerAndLoser(GetParticipant2Id(), GetParticipant1Id());
             Finish();
+        }
+        else
+        {
+            LifecycleState = MatchLifecycleState.AwaitingScore;
+            ResultVersion++;
         }
     }
 
@@ -230,6 +475,101 @@ internal sealed class Match
         }
 
         UpdateParticipantsNextMatch();
+    }
+
+    public Guid? GetLoserForMutation() => GetLoserId();
+
+    public void ClearParticipant(Guid participantId)
+    {
+        if (ParticipationMode == ParticipationMode.Individual)
+        {
+            if (UserParticipant1Id == participantId)
+            {
+                UserParticipant1Id = null;
+                Participant1IsBYE = false;
+            }
+            if (UserParticipant2Id == participantId)
+            {
+                UserParticipant2Id = null;
+                Participant2IsBYE = false;
+            }
+        }
+        else
+        {
+            if (TeamParticipant1Id == participantId)
+            {
+                TeamParticipant1Id = null;
+                Participant1IsBYE = false;
+            }
+            if (TeamParticipant2Id == participantId)
+            {
+                TeamParticipant2Id = null;
+                Participant2IsBYE = false;
+            }
+        }
+    }
+
+    private void CompleteScore(
+        int participant1Score,
+        int participant2Score,
+        DateTime nowUtc,
+        MatchResultKind resultKind)
+    {
+        Participant1Score = participant1Score;
+        Participant2Score = participant2Score;
+        if (participant1Score > participant2Score)
+            SetWinnerAndLoser(GetParticipant1Id(), GetParticipant2Id());
+        else
+            SetWinnerAndLoser(GetParticipant2Id(), GetParticipant1Id());
+
+        ScoreConfirmationDeadlineUtc = null;
+        CorrectionDeadlineUtc = null;
+        LifecycleState = MatchLifecycleState.Completed;
+        ResultKind = resultKind;
+        ResultRecordedAtUtc = nowUtc;
+        ResultVersion++;
+        EndTime = nowUtc;
+        UpdateParticipantsNextMatch();
+    }
+
+    private void ValidateDecisiveScore(int participant1Score, int participant2Score)
+    {
+        if (participant1Score < 0 || participant2Score < 0)
+            throw new ValidationException("Scores cannot be negative.");
+
+        var winsNeeded = GetWinsNeeded();
+        if (participant1Score > winsNeeded || participant2Score > winsNeeded)
+            throw new ValidationException("Scores cannot exceed the required number of wins for the match format.");
+        if (participant1Score == participant2Score ||
+            (participant1Score != winsNeeded && participant2Score != winsNeeded))
+            throw new ValidationException("A final score must have one participant reach the required number of wins.");
+    }
+
+    private int GetWinsNeeded() =>
+        Format switch
+        {
+            GameFormat.BestOf1 => 1,
+            GameFormat.BestOf3 => 2,
+            GameFormat.BestOf5 => 3,
+            _ => 1
+        };
+
+    private bool ReportedScoresMatch() =>
+        Participant1ReportedScore1 == Participant2ReportedScore1 &&
+        Participant1ReportedScore2 == Participant2ReportedScore2;
+
+    private void EnsureOpenForParticipantAction()
+    {
+        if (LifecycleState is MatchLifecycleState.Completed or
+            MatchLifecycleState.Forfeited or
+            MatchLifecycleState.AdminResolutionRequired)
+            throw new ValidationException("This match is not accepting participant actions.");
+    }
+
+    private static void EnsureParticipantNumber(int participantNumber)
+    {
+        if (participantNumber is not (1 or 2))
+            throw new ValidationException("Participant number must be 1 or 2.");
     }
 
     private void SetWinnerAndLoser(Guid? winnerId, Guid? loserId)

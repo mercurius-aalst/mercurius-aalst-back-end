@@ -175,7 +175,17 @@ public class DtoSerializationShapeTests
             "participant1Score",
             "participant2Score",
             "winnerNextMatchId",
-            "loserNextMatchId");
+            "loserNextMatchId",
+            "lifecycleState",
+            "participant1Ended",
+            "participant2Ended",
+            "scoreConfirmationDeadlineUtc",
+            "correctionDeadlineUtc",
+            "participant1CorrectionCount",
+            "participant2CorrectionCount",
+            "forfeitedParticipantNumber",
+            "resultKind",
+            "resultVersion");
         AssertJsonProperties(GetSponsorDTO.From(sponsor), "id", "name", "sponsorTier", "logoUrl", "infoUrl", "description");
         AssertJsonProperties(searchResult, "type", "displayLabel", "supportingText", "username");
         AssertJsonProperties(new GetUserDTO(user), "id", "username", "firstname", "lastname", "email", "emailVerified", "discordId", "steamId", "riotId", "displayName", "isDeleted", "createdAtUtc", "updatedAtUtc");
@@ -191,6 +201,37 @@ public class DtoSerializationShapeTests
 
         var json = Serialize(GetSponsorDTO.From(sponsor));
         Assert.Contains("\"sponsorTier\":\"Gold\"", json, StringComparison.Ordinal);
+
+        match.Participant1ReportedScore1 = 2;
+        match.Participant1ReportedScore2 = 1;
+        var publicMatchJson = Serialize(match.ToGetMatchDTO());
+        Assert.DoesNotContain("reportedScore", publicMatchJson, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void MatchActionState_HidesPrivateReportsFromNonParticipants()
+    {
+        var match = new Match
+        {
+            Participant1ReportedScore1 = 2,
+            Participant1ReportedScore2 = 0,
+            Participant2ReportedScore1 = 1,
+            Participant2ReportedScore2 = 2
+        };
+
+        var publicState = TournamentDtoMapper.ToGetMatchActionStateDto(
+            match,
+            authorizedParticipant: null,
+            canViewPrivateReports: false);
+        var adminState = TournamentDtoMapper.ToGetMatchActionStateDto(
+            match,
+            authorizedParticipant: null,
+            canViewPrivateReports: true);
+
+        Assert.Null(publicState.Participant1ReportedScore1);
+        Assert.Null(publicState.Participant2ReportedScore1);
+        Assert.Equal(2, adminState.Participant1ReportedScore1);
+        Assert.Equal(1, adminState.Participant2ReportedScore1);
     }
 
     private static string Serialize<T>(T value)

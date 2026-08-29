@@ -64,6 +64,7 @@ public class ApiEndpointContractTests
     [InlineData("PUT", "v{version:apiVersion}/lan/teams/{id}/logo")]
     [InlineData("DELETE", "v{version:apiVersion}/lan/teams/{id}/logo")]
     [InlineData("GET", "v{version:apiVersion}/lan/tournaments/{tournamentId:guid}/registrations/me")]
+    [InlineData("GET", "v{version:apiVersion}/lan/matches/{id}/me")]
     [InlineData("GET", "v{version:apiVersion}/lan/tournaments/{tournamentId:guid}/registrations/individual/eligibility")]
     [InlineData("GET", "v{version:apiVersion}/lan/tournaments/{tournamentId:guid}/registrations/teams/{teamId:guid}/eligibility")]
     [InlineData("POST", "v{version:apiVersion}/lan/tournaments/{tournamentId:guid}/registrations/teams/{teamId:guid}/roster/eligibility")]
@@ -72,6 +73,9 @@ public class ApiEndpointContractTests
     [InlineData("PUT", "v{version:apiVersion}/lan/tournaments/{tournamentId:guid}/registrations/teams/{teamId:guid}/roster")]
     [InlineData("DELETE", "v{version:apiVersion}/lan/tournaments/{tournamentId:guid}/registrations/teams/{teamId:guid}")]
     [InlineData("PATCH", "v{version:apiVersion}/lan/tournaments/{tournamentId:guid}/registrations/roster-members/{rosterMemberId:guid}")]
+    [InlineData("POST", "v{version:apiVersion}/lan/matches/{id}/confirm-ended")]
+    [InlineData("POST", "v{version:apiVersion}/lan/matches/{id}/forfeit")]
+    [InlineData("PUT", "v{version:apiVersion}/lan/matches/{id}/score")]
     public void AuthenticatedUserRoutes_RequireAuthorization(string method, string routePattern)
     {
         var endpoint = GetEndpoint(method, routePattern);
@@ -86,6 +90,9 @@ public class ApiEndpointContractTests
     [InlineData("PUT", "v{version:apiVersion}/lan/tournaments/{tournamentId}/sponsors")]
     [InlineData("PUT", "v{version:apiVersion}/lan/tournaments/{tournamentId}/lifecycle-state")]
     [InlineData("PUT", "v{version:apiVersion}/lan/matches/{id}")]
+    [InlineData("POST", "v{version:apiVersion}/lan/matches/{id}/resolve")]
+    [InlineData("POST", "v{version:apiVersion}/lan/matches/{id}/reverse")]
+    [InlineData("POST", "v{version:apiVersion}/lan/matches/{id}/admin/forfeit")]
     [InlineData("POST", "v{version:apiVersion}/lan/sponsors/")]
     [InlineData("PATCH", "v{version:apiVersion}/lan/sponsors/{id}")]
     [InlineData("DELETE", "v{version:apiVersion}/lan/sponsors/{id}")]

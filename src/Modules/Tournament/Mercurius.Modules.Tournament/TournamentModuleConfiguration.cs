@@ -31,6 +31,8 @@ public static class TournamentModuleConfiguration
         services.AddTransient<ITournamentManagementCommands, TournamentService>();
         services.AddTransient<ITournamentLifecycleCommands, TournamentService>();
         services.AddTransient<IMatchService, MatchService>();
+        services.AddHostedService<MatchDeadlineProcessor>();
+        services.TryAddSingleton(TimeProvider.System);
         services.AddTransient<ITournamentRegistrationService, TournamentRegistrationService>();
         services.AddTransient<IMatchModeratorFactory, MatchModeratorFactory>();
         services.AddTransient<SingleEliminationMatchModerator>();

@@ -80,6 +80,21 @@ public class DtoSerializationShapeTests
             "registrations");
         AssertJsonProperties(registration.ToTournamentRegistrationDTO([captain, member], [team]), "id", "tournamentId", "kind", "status", "user", "team", "rosterMembers", "createdAtUtc", "updatedAtUtc");
         AssertJsonProperties(registration.ToPublicTournamentRegistrationDTO([captain, member], [team]), "id", "tournamentId", "kind", "status", "user", "team", "rosterMembers");
+        AssertJsonProperties(new CurrentUserTournamentRegistrationStateDTO
+        {
+            TournamentId = tournament.Id,
+            CurrentTeamRegistration = registration.ToTournamentRegistrationDTO([captain, member], [team]),
+            ActiveTeamRegistration = registration.ToTournamentRegistrationDTO([captain, member], [team])
+        },
+            "tournamentId",
+            "individualRegistration",
+            "pendingRosterConfirmation",
+            "currentTeamRegistration",
+            "activeTeamRegistration",
+            "captainManagedRegistrations",
+            "canRegisterIndividual",
+            "canConfirmRoster",
+            "canUnregister");
         AssertJsonProperties(new TournamentRosterMemberDTO
         {
             Id = Guid.NewGuid(),

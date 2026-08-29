@@ -181,6 +181,44 @@ public class TournamentRegistrationServiceTests
     }
 
     [Fact]
+    public async Task GetCurrentUserStateAsync_PreservesConfirmedMemberContextWhileAnotherMemberIsPending()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser("captain");
+        var confirmedMember = CreateUser("confirmed");
+        var pendingMember = CreateUser("pending");
+        var team = CreateTeam(captain, confirmedMember, pendingMember);
+        var tournament = CreateTeamTournament(teamSize: 3);
+        dbContext.Users.AddRange(captain, confirmedMember, pendingMember);
+        dbContext.Teams.Add(team);
+        dbContext.Set<TournamentAggregate>().Add(tournament);
+        await dbContext.SaveChangesAsync();
+        var service = CreateService(dbContext);
+        var pending = await service.SubmitTeamRosterAsync(
+            captain.Auth0UserId,
+            tournament.Id,
+            new SubmitTeamRosterDTO(team.Id, [captain.Id, confirmedMember.Id, pendingMember.Id]));
+        var confirmedRosterMember = Assert.Single(pending.RosterMembers.Where(roster => roster.User.Id == confirmedMember.Id));
+
+        await service.ConfirmRosterAsync(confirmedMember.Auth0UserId, tournament.Id, confirmedRosterMember.Id);
+
+        var state = await service.GetCurrentUserStateAsync(confirmedMember.Auth0UserId, tournament.Id);
+
+        var currentTeam = state.CurrentTeamRegistration;
+        Assert.NotNull(currentTeam);
+        Assert.Equal(pending.Id, currentTeam.Id);
+        Assert.Equal(TournamentRegistrationStatus.PendingConfirmation, currentTeam.Status);
+        Assert.Equal(team.Id, currentTeam.Team!.Id);
+        Assert.Contains(currentTeam.RosterMembers, roster =>
+            roster.User.Id == confirmedMember.Id && roster.ConfirmationStatus == TournamentRosterStatus.Confirmed);
+        Assert.Contains(currentTeam.RosterMembers, roster =>
+            roster.User.Id == pendingMember.Id && roster.ConfirmationStatus == TournamentRosterStatus.Pending);
+        Assert.Null(state.ActiveTeamRegistration);
+        Assert.False(state.CanConfirmRoster);
+        Assert.False(state.CanUnregister);
+    }
+
+    [Fact]
     public async Task SubmitTeamRosterAsync_PublishesPendingRosterEventsAndConfirmingActivatesTeam()
     {
         await using var dbContext = CreateDbContext();

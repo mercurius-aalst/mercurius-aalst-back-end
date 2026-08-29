@@ -18,6 +18,12 @@ The API MUST expose a privacy-safe lifecycle state, ended-confirmation flags, sc
 - **THEN** the API MUST return the effective authoritative state
 - **AND** any client countdown MUST be advisory only
 
+#### Scenario: Unassigned authenticated viewer cannot inspect reports
+
+- **WHEN** an authenticated user who owns neither side requests the match action projection
+- **THEN** the API MUST omit both private score reports
+- **AND** it MUST still return the public lifecycle state and available bracket fields
+
 ### Requirement: Participant end confirmation
 
 An authenticated individual participant or team captain MUST be able to confirm that their side has ended the match. The API MUST reject users who are not a participant or captain, reject repeated/expired confirmations, and MUST allow score submission only after both sides have confirmed.

@@ -341,6 +341,8 @@ public sealed class TournamentMediaLifecycleTests
         public DbSet<TournamentAggregate> Tournaments => _inner.Set<TournamentAggregate>();
         public DbSet<Match> Matches => _inner.Set<Match>();
         public DbSet<Placement> Placements => _inner.Set<Placement>();
+        public DbSet<MatchResolutionNotification> MatchResolutionNotifications =>
+            _inner.Set<MatchResolutionNotification>();
         public DbSet<TournamentRegistration> TournamentRegistrations => _inner.Set<TournamentRegistration>();
         public DbSet<TournamentRegistrationRosterMember> TournamentRegistrationRosterMembers =>
             _inner.Set<TournamentRegistrationRosterMember>();

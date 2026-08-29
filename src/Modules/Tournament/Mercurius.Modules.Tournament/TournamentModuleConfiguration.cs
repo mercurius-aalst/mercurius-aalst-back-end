@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Platform.Extensions;
 
 namespace Mercurius.Modules.Tournament;
 
@@ -31,6 +32,7 @@ public static class TournamentModuleConfiguration
         services.AddTransient<ITournamentManagementCommands, TournamentService>();
         services.AddTransient<ITournamentLifecycleCommands, TournamentService>();
         services.AddTransient<IMatchService, MatchService>();
+        services.AddModuleEventHandler<MatchResolutionRequiredIntegrationEvent, MatchResolutionNotificationHandler>();
         services.AddHostedService<MatchDeadlineProcessor>();
         services.TryAddSingleton(TimeProvider.System);
         services.AddTransient<ITournamentRegistrationService, TournamentRegistrationService>();
@@ -48,6 +50,7 @@ public static class TournamentModuleConfiguration
     {
         modelBuilder.ApplyConfiguration(new Infrastructure.TournamentConfiguration());
         modelBuilder.ApplyConfiguration(new MatchConfiguration());
+        modelBuilder.ApplyConfiguration(new MatchResolutionNotificationConfiguration());
         modelBuilder.ApplyConfiguration(new TournamentRegistrationConfiguration());
         modelBuilder.ApplyConfiguration(new TournamentRegistrationRosterMemberConfiguration());
         modelBuilder.ApplyConfiguration(new PlacementConfiguration());

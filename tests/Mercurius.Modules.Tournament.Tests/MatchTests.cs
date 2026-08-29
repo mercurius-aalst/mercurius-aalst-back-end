@@ -232,6 +232,24 @@ public class MatchTests
     }
 
     [Fact]
+    public void SubmitScore_DifferingReports_ClearInitialDeadlineAndIncrementVersion()
+    {
+        var now = new DateTime(2026, 8, 29, 12, 0, 0, DateTimeKind.Utc);
+        var match = CreateIndividualMatch(GameFormat.BestOf3);
+        match.ConfirmEnded(1, now);
+        match.ConfirmEnded(2, now);
+        match.SubmitScore(1, 2, 0, now);
+        var versionBeforeMismatch = match.ResultVersion;
+
+        match.SubmitScore(2, 0, 2, now.AddMinutes(1));
+
+        Assert.Equal(MatchLifecycleState.Disputed, match.LifecycleState);
+        Assert.Null(match.ScoreConfirmationDeadlineUtc);
+        Assert.Equal(now.AddMinutes(6), match.CorrectionDeadlineUtc);
+        Assert.True(match.ResultVersion > versionBeforeMismatch);
+    }
+
+    [Fact]
     public void ApplyDeadline_TransitionsUnresolvedCorrectionToAdminResolutionRequiredIdempotently()
     {
         var now = new DateTime(2026, 8, 29, 12, 0, 0, DateTimeKind.Utc);
@@ -261,6 +279,54 @@ public class MatchTests
         Assert.Equal(match.UserParticipant2Id, match.UserWinnerId);
         Assert.Equal(match.UserParticipant1Id, match.UserLoserId);
         Assert.Equal(MatchResultKind.Forfeit, match.ResultKind);
+    }
+
+    [Fact]
+    public void Forfeit_RejectsIncompleteAndByeMatches()
+    {
+        var incompleteMatch = new Match
+        {
+            ParticipationMode = ParticipationMode.Individual,
+            Format = GameFormat.BestOf1
+        };
+        incompleteMatch.SetIndividualParticipants(CreateUser(1).Id, null);
+
+        var incompleteException = Assert.Throws<ValidationException>(() => incompleteMatch.Forfeit(1, DateTime.UtcNow));
+
+        var byeMatch = CreateIndividualMatch();
+        byeMatch.SetParticipantBYEs(true, false);
+        var byeException = Assert.Throws<ValidationException>(() => byeMatch.Forfeit(1, DateTime.UtcNow));
+
+        Assert.Contains("two assigned", incompleteException.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("non-BYE", byeException.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ClearParticipantFromSource_PreservesUnrelatedDownstreamAssignment()
+    {
+        var winner = CreateTeam(1);
+        var unrelated = CreateTeam(2);
+        var target = new Match
+        {
+            ParticipationMode = ParticipationMode.Team,
+            MatchNumber = 1
+        };
+        target.SetTeamParticipant2(unrelated.Id);
+        var source = new Match
+        {
+            Id = Guid.NewGuid(),
+            ParticipationMode = ParticipationMode.Team,
+            MatchNumber = 1,
+            TeamWinnerId = winner.Id,
+            WinnerNextMatch = target
+        };
+
+        source.UpdateParticipantsNextMatch();
+        target.ClearParticipantFromSource(source.Id);
+
+        Assert.Null(target.TeamParticipant1Id);
+        Assert.Equal(unrelated.Id, target.TeamParticipant2Id);
+        Assert.Null(target.Participant1SourceMatchId);
     }
 
     [Fact]

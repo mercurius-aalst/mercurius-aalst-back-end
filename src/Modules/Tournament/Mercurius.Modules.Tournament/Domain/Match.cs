@@ -28,6 +28,10 @@ internal sealed class Match
     public int? Participant2Score { get; set; }
     public Guid? WinnerNextMatchId { get; set; }
     public Guid? LoserNextMatchId { get; set; }
+    // A populated downstream slot is reversible only when its source edge is known.
+    // Null means that the slot was part of the original bracket assignment.
+    public Guid? Participant1SourceMatchId { get; set; }
+    public Guid? Participant2SourceMatchId { get; set; }
     public bool Participant1IsBYE { get; set; }
     public bool Participant2IsBYE { get; set; }
     public MatchLifecycleState LifecycleState { get; set; } = MatchLifecycleState.AwaitingEndedConfirmation;
@@ -52,12 +56,16 @@ internal sealed class Match
 
     public bool Participant1Ended => Participant1EndedConfirmedAtUtc.HasValue;
     public bool Participant2Ended => Participant2EndedConfirmedAtUtc.HasValue;
+    public bool HasBothParticipants => HasParticipant1() && HasParticipant2();
     public bool HasResult => LifecycleState is MatchLifecycleState.Completed or MatchLifecycleState.Forfeited;
 
     public bool ConfirmEnded(int participantNumber, DateTime nowUtc)
     {
         EnsureParticipantNumber(participantNumber);
         EnsureOpenForParticipantAction();
+
+        if (Participant1IsBYE || Participant2IsBYE)
+            throw new ValidationException("A BYE match cannot accept participant actions.");
 
         if (participantNumber == 1)
         {
@@ -93,6 +101,8 @@ internal sealed class Match
         ValidateDecisiveScore(participant1Score, participant2Score);
         ApplyDeadline(nowUtc);
 
+        if (!HasBothParticipants || Participant1IsBYE || Participant2IsBYE)
+            throw new ValidationException("Both non-BYE participants must be assigned before submitting a score.");
         if (!Participant1Ended || !Participant2Ended)
             throw new ValidationException("Both participants must confirm the match ended before submitting a score.");
         if (LifecycleState is MatchLifecycleState.Completed or MatchLifecycleState.Forfeited)
@@ -144,6 +154,7 @@ internal sealed class Match
                 CompleteScore(participant1Score, participant2Score, nowUtc, MatchResultKind.Score);
             else
             {
+                ScoreConfirmationDeadlineUtc = null;
                 CorrectionDeadlineUtc = nowUtc.AddMinutes(5);
                 LifecycleState = MatchLifecycleState.Disputed;
             }
@@ -158,6 +169,8 @@ internal sealed class Match
         ApplyDeadline(nowUtc);
         if (LifecycleState is not (MatchLifecycleState.Disputed or MatchLifecycleState.AdminResolutionRequired))
             throw new ValidationException("Only a disputed match can be resolved by an administrator.");
+        if (!HasBothParticipants || Participant1IsBYE || Participant2IsBYE)
+            throw new ValidationException("Both non-BYE participants must be assigned before resolving this match.");
 
         CompleteScore(participant1Score, participant2Score, nowUtc, MatchResultKind.AdminResolution);
         return true;
@@ -170,10 +183,8 @@ internal sealed class Match
             throw new ValidationException("The match already has a final result.");
         if (LifecycleState == MatchLifecycleState.AdminResolutionRequired)
             throw new ValidationException("This match requires an administrator to resolve the result.");
-        if (participantNumber == 1 && !HasParticipant1())
-            throw new ValidationException("Participant 1 is not assigned to this match.");
-        if (participantNumber == 2 && !HasParticipant2())
-            throw new ValidationException("Participant 2 is not assigned to this match.");
+        if (!HasBothParticipants || Participant1IsBYE || Participant2IsBYE)
+            throw new ValidationException("A match must have two assigned non-BYE participants before it can be forfeited.");
 
         ForfeitedParticipantNumber = participantNumber;
         if (participantNumber == 1)
@@ -212,8 +223,10 @@ internal sealed class Match
                     CompleteScore(Participant1ReportedScore1.Value, Participant1ReportedScore2!.Value, nowUtc, MatchResultKind.Score);
                 else
                 {
+                    ScoreConfirmationDeadlineUtc = null;
                     CorrectionDeadlineUtc = nowUtc.AddMinutes(5);
                     LifecycleState = MatchLifecycleState.Disputed;
+                    ResultVersion++;
                 }
             }
             else if (Participant1ReportedScore1.HasValue || Participant2ReportedScore1.HasValue)
@@ -273,17 +286,31 @@ internal sealed class Match
     public void SetIndividualParticipants(Guid? participant1Id, Guid? participant2Id)
     {
         EnsureParticipationMode(ParticipationMode.Individual);
+        var changed = UserParticipant1Id != participant1Id || UserParticipant2Id != participant2Id ||
+            TeamParticipant1Id.HasValue || TeamParticipant2Id.HasValue ||
+            Participant1SourceMatchId.HasValue || Participant2SourceMatchId.HasValue;
         ClearTeamAssignments();
         UserParticipant1Id = participant1Id;
         UserParticipant2Id = participant2Id;
+        Participant1SourceMatchId = null;
+        Participant2SourceMatchId = null;
+        if (changed)
+            ResultVersion++;
     }
 
     public void SetTeamParticipants(Guid? participant1Id, Guid? participant2Id)
     {
         EnsureParticipationMode(ParticipationMode.Team);
+        var changed = TeamParticipant1Id != participant1Id || TeamParticipant2Id != participant2Id ||
+            UserParticipant1Id.HasValue || UserParticipant2Id.HasValue ||
+            Participant1SourceMatchId.HasValue || Participant2SourceMatchId.HasValue;
         ClearUserAssignments();
         TeamParticipant1Id = participant1Id;
         TeamParticipant2Id = participant2Id;
+        Participant1SourceMatchId = null;
+        Participant2SourceMatchId = null;
+        if (changed)
+            ResultVersion++;
     }
 
     public void TryAssignByeWin()
@@ -302,8 +329,12 @@ internal sealed class Match
         if (RoundNumber != 1 && participant1BYE && participant2BYE)
             return;
 
+        var previousParticipant1IsBYE = Participant1IsBYE;
+        var previousParticipant2IsBYE = Participant2IsBYE;
         Participant1IsBYE |= participant1BYE;
         Participant2IsBYE |= participant2BYE;
+        if (previousParticipant1IsBYE != Participant1IsBYE || previousParticipant2IsBYE != Participant2IsBYE)
+            ResultVersion++;
     }
 
     public void Start() => StartTime = DateTime.UtcNow;
@@ -407,29 +438,25 @@ internal sealed class Match
     public void SetIndividualParticipant1(Guid? participantId)
     {
         EnsureParticipationMode(ParticipationMode.Individual);
-        ClearTeamAssignments();
-        UserParticipant1Id = participantId;
+        SetParticipant1(participantId, null);
     }
 
     public void SetIndividualParticipant2(Guid? participantId)
     {
         EnsureParticipationMode(ParticipationMode.Individual);
-        ClearTeamAssignments();
-        UserParticipant2Id = participantId;
+        SetParticipant2(participantId, null);
     }
 
     public void SetTeamParticipant1(Guid? participantId)
     {
         EnsureParticipationMode(ParticipationMode.Team);
-        ClearUserAssignments();
-        TeamParticipant1Id = participantId;
+        SetParticipant1(participantId, null);
     }
 
     public void SetTeamParticipant2(Guid? participantId)
     {
         EnsureParticipationMode(ParticipationMode.Team);
-        ClearUserAssignments();
-        TeamParticipant2Id = participantId;
+        SetParticipant2(participantId, null);
     }
 
     public bool HasParticipant1() => GetParticipant1Id().HasValue;
@@ -481,17 +508,22 @@ internal sealed class Match
 
     public void ClearParticipant(Guid participantId)
     {
+        var changed = false;
         if (ParticipationMode == ParticipationMode.Individual)
         {
             if (UserParticipant1Id == participantId)
             {
                 UserParticipant1Id = null;
                 Participant1IsBYE = false;
+                Participant1SourceMatchId = null;
+                changed = true;
             }
             if (UserParticipant2Id == participantId)
             {
                 UserParticipant2Id = null;
                 Participant2IsBYE = false;
+                Participant2SourceMatchId = null;
+                changed = true;
             }
         }
         else
@@ -500,13 +532,46 @@ internal sealed class Match
             {
                 TeamParticipant1Id = null;
                 Participant1IsBYE = false;
+                Participant1SourceMatchId = null;
+                changed = true;
             }
             if (TeamParticipant2Id == participantId)
             {
                 TeamParticipant2Id = null;
                 Participant2IsBYE = false;
+                Participant2SourceMatchId = null;
+                changed = true;
             }
         }
+
+        if (changed)
+            ResultVersion++;
+    }
+
+    public void ClearParticipantFromSource(Guid sourceMatchId)
+    {
+        var participant1Changed = Participant1SourceMatchId == sourceMatchId;
+        var participant2Changed = Participant2SourceMatchId == sourceMatchId;
+        if (!participant1Changed && !participant2Changed)
+            return;
+
+        var participant1WasBYE = Participant1IsBYE;
+        var participant2WasBYE = Participant2IsBYE;
+
+        if (participant1Changed)
+        {
+            SetParticipant1(null, null);
+            Participant1IsBYE = false;
+        }
+
+        if (participant2Changed)
+        {
+            SetParticipant2(null, null);
+            Participant2IsBYE = false;
+        }
+
+        if ((participant1Changed && participant1WasBYE) || (participant2Changed && participant2WasBYE))
+            ResultVersion++;
     }
 
     private void CompleteScore(
@@ -589,31 +654,63 @@ internal sealed class Match
     }
 
     private void AssignWinnerToParticipant1(Match targetMatch) =>
-        targetMatch.SetParticipant1(GetWinnerId());
+        targetMatch.SetParticipant1(GetWinnerId(), Id);
 
     private void AssignWinnerToParticipant2(Match targetMatch) =>
-        targetMatch.SetParticipant2(GetWinnerId());
+        targetMatch.SetParticipant2(GetWinnerId(), Id);
 
     private void AssignLoserToParticipant1(Match targetMatch) =>
-        targetMatch.SetParticipant1(GetLoserId());
+        targetMatch.SetParticipant1(GetLoserId(), Id);
 
     private void AssignLoserToParticipant2(Match targetMatch) =>
-        targetMatch.SetParticipant2(GetLoserId());
+        targetMatch.SetParticipant2(GetLoserId(), Id);
 
-    private void SetParticipant1(Guid? participantId)
+    private void SetParticipant1(Guid? participantId, Guid? sourceMatchId)
     {
         if (ParticipationMode == ParticipationMode.Individual)
-            SetIndividualParticipant1(participantId);
+        {
+            ClearTeamAssignments();
+            if (UserParticipant1Id == participantId && Participant1SourceMatchId == sourceMatchId)
+                return;
+
+            UserParticipant1Id = participantId;
+            Participant1SourceMatchId = sourceMatchId;
+        }
         else
-            SetTeamParticipant1(participantId);
+        {
+            ClearUserAssignments();
+            if (TeamParticipant1Id == participantId && Participant1SourceMatchId == sourceMatchId)
+                return;
+
+            TeamParticipant1Id = participantId;
+            Participant1SourceMatchId = sourceMatchId;
+        }
+
+        ResultVersion++;
     }
 
-    private void SetParticipant2(Guid? participantId)
+    private void SetParticipant2(Guid? participantId, Guid? sourceMatchId)
     {
         if (ParticipationMode == ParticipationMode.Individual)
-            SetIndividualParticipant2(participantId);
+        {
+            ClearTeamAssignments();
+            if (UserParticipant2Id == participantId && Participant2SourceMatchId == sourceMatchId)
+                return;
+
+            UserParticipant2Id = participantId;
+            Participant2SourceMatchId = sourceMatchId;
+        }
         else
-            SetTeamParticipant2(participantId);
+        {
+            ClearUserAssignments();
+            if (TeamParticipant2Id == participantId && Participant2SourceMatchId == sourceMatchId)
+                return;
+
+            TeamParticipant2Id = participantId;
+            Participant2SourceMatchId = sourceMatchId;
+        }
+
+        ResultVersion++;
     }
 
     private Guid? GetLoserId()

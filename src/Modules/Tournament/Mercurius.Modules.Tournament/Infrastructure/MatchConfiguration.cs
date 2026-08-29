@@ -14,6 +14,8 @@ internal sealed class MatchConfiguration : IEntityTypeConfiguration<Match>
         entity.Property(match => match.EstimatedEndTime).IsRequired(false);
         entity.Property(match => match.LifecycleState).IsRequired();
         entity.Property(match => match.ResultKind).IsRequired(false);
+        entity.Property(match => match.Participant1SourceMatchId).IsRequired(false);
+        entity.Property(match => match.Participant2SourceMatchId).IsRequired(false);
         entity.Property(match => match.ResultVersion).IsConcurrencyToken();
         entity.HasOne(match => match.Tournament)
             .WithMany(tournament => tournament.Matches)

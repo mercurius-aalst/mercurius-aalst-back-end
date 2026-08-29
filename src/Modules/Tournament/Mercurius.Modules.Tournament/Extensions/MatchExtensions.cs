@@ -15,9 +15,9 @@ internal static class MatchExtensions
             if (!match.HasWinner() && match.Participant1IsBYE && match.Participant2IsBYE)
             {
                 if (match.MatchNumber % 2 != 0)
-                    targetMatch.Participant1IsBYE = true;
+                    targetMatch.SetParticipantBYEs(true, false);
                 else
-                    targetMatch.Participant2IsBYE = true;
+                    targetMatch.SetParticipantBYEs(false, true);
             }
 
             if (!match.HasWinner())
@@ -26,17 +26,25 @@ internal static class MatchExtensions
             if (match.ParticipationMode == ParticipationMode.Individual)
             {
                 if (match.MatchNumber % 2 != 0)
+                {
                     targetMatch.SetIndividualParticipant1(match.UserWinnerId);
+                    targetMatch.Participant1SourceMatchId = match.Id;
+                }
                 else
+                {
                     targetMatch.SetIndividualParticipant2(match.UserWinnerId);
+                    targetMatch.Participant2SourceMatchId = match.Id;
+                }
             }
             else if (match.MatchNumber % 2 != 0)
             {
                 targetMatch.SetTeamParticipant1(match.TeamWinnerId);
+                targetMatch.Participant1SourceMatchId = match.Id;
             }
             else
             {
                 targetMatch.SetTeamParticipant2(match.TeamWinnerId);
+                targetMatch.Participant2SourceMatchId = match.Id;
             }
         }
 

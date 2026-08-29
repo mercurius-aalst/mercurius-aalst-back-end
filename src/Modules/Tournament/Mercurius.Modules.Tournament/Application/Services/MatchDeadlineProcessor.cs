@@ -67,6 +67,7 @@ internal sealed class MatchDeadlineProcessor : BackgroundService
             .ToListAsync(cancellationToken);
 
         var changed = false;
+        var changedTournaments = new List<TournamentAggregate>();
         foreach (var tournament in tournaments)
         {
             var matchesById = tournament.Matches.ToDictionary(match => match.Id);
@@ -84,6 +85,8 @@ internal sealed class MatchDeadlineProcessor : BackgroundService
                     continue;
 
                 changed = true;
+                if (!changedTournaments.Contains(tournament))
+                    changedTournaments.Add(tournament);
                 if (!beforeResult && match.HasResult && match.GetWinnerId() is Guid winnerId)
                 {
                     eventPublisher.Publish(new MatchCompletedIntegrationEvent(
@@ -106,6 +109,22 @@ internal sealed class MatchDeadlineProcessor : BackgroundService
 
         if (!changed)
             return;
+
+        var changedTournamentIds = changedTournaments
+            .Select(tournament => tournament.Id)
+            .ToArray();
+        var inProgressTournamentIds = await dbContext.Tournaments
+            .AsNoTracking()
+            .Where(tournament =>
+                changedTournamentIds.Contains(tournament.Id) &&
+                tournament.Status == TournamentStatus.InProgress)
+            .Select(tournament => tournament.Id)
+            .ToListAsync(cancellationToken);
+        if (inProgressTournamentIds.Count != changedTournaments.Count)
+            return;
+
+        foreach (var tournament in changedTournaments)
+            dbContext.Tournaments.Entry(tournament).Property(candidate => candidate.Status).IsModified = true;
 
         await using var transaction = dbContext.Database.ProviderName == "Microsoft.EntityFrameworkCore.InMemory"
             ? null

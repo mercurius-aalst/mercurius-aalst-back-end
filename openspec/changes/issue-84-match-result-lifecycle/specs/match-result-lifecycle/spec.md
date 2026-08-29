@@ -4,7 +4,7 @@
 
 ### Requirement: Match lifecycle projection
 
-The API MUST expose a privacy-safe lifecycle state, ended-confirmation flags, server-provided deadlines, and only the score reports permitted by the caller's relationship to the match. The projection MUST retain participant and bracket fields already returned by the match endpoint and MUST NOT expose moderation subjects or private notes. The anonymous projection MUST redact score report values. The authenticated action projection MAY expose the requesting participant's own report and MUST expose both reports to an eligible participant or team captain, the assigned tournament admin, or the global admin fallback when no assignment exists.
+The API MUST expose a privacy-safe lifecycle state, ended-confirmation flags, server-provided deadlines, and only the score reports permitted by the caller's relationship to the match. The projection MUST retain participant and bracket fields already returned by the match endpoint and MUST NOT expose moderation subjects or private notes. The anonymous projection MUST redact score report values. The authenticated action projection MAY expose the requesting participant's own report and MUST expose both reports to an eligible participant or team captain, the assigned tournament admin, or the global admin fallback when no assignment exists. Assignment MUST NOT be required for an authenticated global admin to perform an otherwise eligible administrative action.
 
 #### Scenario: Public match is awaiting confirmations
 
@@ -38,13 +38,20 @@ The API MUST expose a privacy-safe lifecycle state, ended-confirmation flags, se
 
 - **WHEN** an authenticated global admin who is not the assigned tournament admin requests an assigned match action projection
 - **THEN** the API MUST omit both private score reports
+- **AND** it MUST preserve eligible administrative capabilities for that global admin
 
 #### Scenario: Protected action capabilities are authoritative
 
 - **WHEN** an authenticated caller requests the match action projection
 - **THEN** the API MUST return capability flags for resolve, administrative forfeit, and reversal
 - **AND** each unavailable administrative capability MUST include a stable blocked reason
-- **AND** an unassigned admin's resolve capability MUST be false with reason admin_not_assigned
+
+#### Scenario: Unassigned global admin can resolve
+
+- **WHEN** an authenticated global admin who is not assigned to the tournament requests the action projection for a disputed or admin-resolution-required match
+- **THEN** the API MUST report resolve as available when the tournament is in progress and the match lifecycle allows resolution
+- **AND** the global admin MUST be able to resolve without reassignment
+- **AND** the persisted result MUST record that resolver's identity and server UTC time
 
 ### Requirement: Targeted match access
 
@@ -99,6 +106,10 @@ The API MUST accept non-negative, match-format-valid score reports only after bo
 - **THEN** the lifecycle MUST be AdminResolutionRequired
 - **AND** player score commands MUST be rejected
 - **AND** the assigned admin MUST receive a durable resolution-required notification
+- **AND** when an assigned admin exists, that admin MUST remain the primary notification recipient even though any eligible global admin may resolve
+- **AND** when no assigned admin exists, the notification MUST use the global-admin fallback recipient
+
+The `MatchResolutionRequiredIntegrationEvent` MUST expose an explicit assigned-admin or global-admin recipient contract. The tournament event consumer MUST persist the notification with the originating platform message id as an idempotency key, and MUST NOT create a second notification when the same event is delivered again.
 
 #### Scenario: Each side has one correction
 
@@ -118,7 +129,7 @@ An eligible participant MAY forfeit their own side through an explicit command. 
 
 ### Requirement: Administrative resolution and reversal
 
-An authenticated admin MUST be able to resolve a disputed or admin-resolution-required match with a final score. An authenticated admin MUST be able to reverse a completed or forfeited result only when linked next matches have no result. The API MUST reject a reversal with an actionable reason when downstream play has started or completed.
+An authenticated admin MUST be able to resolve a disputed or admin-resolution-required match with a final score. An authenticated admin MUST be able to reverse a completed or forfeited result only when linked next matches have no result. The API MUST reject a reversal with an actionable reason when downstream play has started or completed. Assignment of a primary tournament administrator MUST NOT be a prerequisite for an otherwise authorized global administrator to resolve, force-forfeit, or reverse a match. Each mutation MUST record the actual authenticated resolver and server UTC timestamp.
 
 #### Scenario: Admin resolves dispute
 

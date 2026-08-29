@@ -116,10 +116,11 @@ internal static class MatchEndpoints
         adminGroup.MapPut("/{id}", async (
             Guid id,
             UpdateMatchDTO updateMatchDTO,
+            ClaimsPrincipal user,
             IMatchService matchService,
             CancellationToken cancellationToken) =>
         {
-            return await matchService.UpdateMatchAsync(id, updateMatchDTO, cancellationToken);
+            return await matchService.UpdateMatchAsync(id, GetAuth0UserId(user), updateMatchDTO, cancellationToken);
         });
 
         return group;

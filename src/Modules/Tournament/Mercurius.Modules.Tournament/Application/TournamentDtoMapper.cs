@@ -297,11 +297,13 @@ internal sealed class TournamentDtoMapper
             Match = ToGetMatchDto(match),
             AuthorizedParticipant = authorizedParticipant,
             CanConfirmEnded = tournamentInProgress && authorizedParticipant.HasValue &&
+                match.HasBothParticipants && !match.Participant1IsBYE && !match.Participant2IsBYE &&
                 !match.HasResult &&
                 match.LifecycleState is not Domain.MatchLifecycleState.AdminResolutionRequired &&
                 ((authorizedParticipant == Contracts.MatchParticipantSide.Participant1 && !match.Participant1Ended) ||
                  (authorizedParticipant == Contracts.MatchParticipantSide.Participant2 && !match.Participant2Ended)),
             CanSubmitScore = tournamentInProgress && authorizedParticipant.HasValue &&
+                match.HasBothParticipants && !match.Participant1IsBYE && !match.Participant2IsBYE &&
                 (match.LifecycleState == Domain.MatchLifecycleState.AwaitingScore ||
                  (match.LifecycleState == Domain.MatchLifecycleState.ScoreConfirmation &&
                   ((authorizedParticipant == Contracts.MatchParticipantSide.Participant1 && !match.Participant1ReportedScore1.HasValue) ||
@@ -309,7 +311,9 @@ internal sealed class TournamentDtoMapper
                  (match.LifecycleState == Domain.MatchLifecycleState.Disputed &&
                   ((authorizedParticipant == Contracts.MatchParticipantSide.Participant1 && match.Participant1CorrectionCount < 1) ||
                    (authorizedParticipant == Contracts.MatchParticipantSide.Participant2 && match.Participant2CorrectionCount < 1)))),
-            CanForfeit = tournamentInProgress && authorizedParticipant.HasValue && !match.HasResult &&
+            CanForfeit = tournamentInProgress && authorizedParticipant.HasValue &&
+                match.HasBothParticipants && !match.Participant1IsBYE && !match.Participant2IsBYE &&
+                !match.HasResult &&
                 match.LifecycleState != Domain.MatchLifecycleState.AdminResolutionRequired,
             CanResolve = canResolve,
             ResolveBlockedReason = resolveBlockedReason,

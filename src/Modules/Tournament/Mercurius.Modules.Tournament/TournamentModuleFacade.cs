@@ -1,4 +1,5 @@
 using Mercurius.Modules.Tournament.Application;
+using Mercurius.Modules.Tournament.Application.Services;
 using Mercurius.Modules.Tournament.Contracts;
 using Mercurius.Modules.Tournament.Domain;
 using Mercurius.Modules.Tournament.Infrastructure;
@@ -15,16 +16,43 @@ internal sealed class TournamentModuleFacade : ITournamentModule
     private readonly ITournamentDbContext _dbContext;
     private readonly ITeamsModule _teamsModule;
     private readonly TournamentEligibilityEvaluator _eligibilityEvaluator;
+    private readonly PublicProfileMatchSummaryReadService _publicProfileMatchSummaryReadService;
 
     public TournamentModuleFacade(
         ITournamentDbContext dbContext,
         ITeamsModule teamsModule,
-        TournamentEligibilityEvaluator eligibilityEvaluator)
+        TournamentEligibilityEvaluator eligibilityEvaluator,
+        PublicProfileMatchSummaryReadService publicProfileMatchSummaryReadService)
     {
         _dbContext = dbContext;
         _teamsModule = teamsModule;
         _eligibilityEvaluator = eligibilityEvaluator;
+        _publicProfileMatchSummaryReadService = publicProfileMatchSummaryReadService;
     }
+
+    // Kept for focused module tests that construct the facade directly rather
+    // than through the application service provider.
+    public TournamentModuleFacade(
+        ITournamentDbContext dbContext,
+        ITeamsModule teamsModule,
+        TournamentEligibilityEvaluator eligibilityEvaluator)
+        : this(
+            dbContext,
+            teamsModule,
+            eligibilityEvaluator,
+            new PublicProfileMatchSummaryReadService(dbContext, TimeProvider.System))
+    {
+    }
+
+    public Task<PublicProfileMatchSummarySet> GetPublicUserMatchSummariesAsync(
+        UserId userId,
+        CancellationToken cancellationToken = default) =>
+        _publicProfileMatchSummaryReadService.GetPublicUserMatchSummariesAsync(userId, cancellationToken);
+
+    public Task<PublicProfileMatchSummarySet> GetPublicTeamMatchSummariesAsync(
+        TeamId teamId,
+        CancellationToken cancellationToken = default) =>
+        _publicProfileMatchSummaryReadService.GetPublicTeamMatchSummariesAsync(teamId, cancellationToken);
 
     public Task<TournamentSummary?> GetTournamentSummaryAsync(
         TournamentId tournamentId,

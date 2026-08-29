@@ -627,12 +627,15 @@ public class DiscoveryModuleTests
         public Task<TeamRosterSnapshot?> GetTeamRosterSnapshotAsync(TeamId teamId, CancellationToken cancellationToken = default) => Task.FromResult<TeamRosterSnapshot?>(null);
         public Task<IReadOnlyDictionary<TeamId, TeamRosterSnapshot>> GetTeamRosterSnapshotsAsync(IReadOnlyCollection<TeamId> teamIds, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyDictionary<TeamId, TeamRosterSnapshot>>(new Dictionary<TeamId, TeamRosterSnapshot>());
         public Task<PublicTeamProfile?> GetPublicTeamProfileAsync(string teamName, CancellationToken cancellationToken = default) => Task.FromResult<PublicTeamProfile?>(null);
+        public Task<TeamId?> GetPublicTeamIdByNameAsync(string teamName, CancellationToken cancellationToken = default) => Task.FromResult<TeamId?>(null);
         public Task<TeamRegistrationEligibility> GetRegistrationEligibilityAsync(TeamId teamId, UserId requestedBy, TournamentId tournamentId, CancellationToken cancellationToken = default) => Task.FromResult(new TeamRegistrationEligibility(true, []));
         public Task<MembershipMutationGuard> CanMutateMembershipAsync(TeamId teamId, UserId userId, CancellationToken cancellationToken = default) => Task.FromResult(new MembershipMutationGuard(true, []));
     }
 
     private sealed class StubTournamentModule(DiscoverySources sources) : ITournamentModule
     {
+        public Task<PublicProfileMatchSummarySet> GetPublicUserMatchSummariesAsync(UserId userId, CancellationToken cancellationToken = default) => Task.FromResult(new PublicProfileMatchSummarySet([], []));
+        public Task<PublicProfileMatchSummarySet> GetPublicTeamMatchSummariesAsync(TeamId teamId, CancellationToken cancellationToken = default) => Task.FromResult(new PublicProfileMatchSummarySet([], []));
         public Task<IReadOnlyList<TournamentSearchDocument>> GetTournamentSearchDocumentsPageAsync(TournamentId? afterId, int pageSize, CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<TournamentSearchDocument>>(sources.Tournaments
                 .Where(tournament => !afterId.HasValue || tournament.TournamentId.Value.CompareTo(afterId.Value.Value) > 0)

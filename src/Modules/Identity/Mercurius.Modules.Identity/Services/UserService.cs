@@ -118,14 +118,10 @@ internal class UserService : IUserService
             .Where(u =>
                 u.NormalizedUsername == normalizedUsername &&
                 !u.IsDeleted &&
-                u.Username != null &&
-                u.NormalizedUsername != null &&
-                u.Firstname != null &&
-                u.Lastname != null &&
-                u.Username != string.Empty &&
-                u.NormalizedUsername != string.Empty &&
-                u.Firstname != string.Empty &&
-                u.Lastname != string.Empty)
+                !string.IsNullOrWhiteSpace(u.Username) &&
+                !string.IsNullOrWhiteSpace(u.NormalizedUsername) &&
+                !string.IsNullOrWhiteSpace(u.Firstname) &&
+                !string.IsNullOrWhiteSpace(u.Lastname))
             .Select(u => new PublicUserProfileDTO
             {
                 Username = u.Username!,

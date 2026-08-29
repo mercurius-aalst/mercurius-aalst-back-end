@@ -1,0 +1,4 @@
+schema: spec-driven
+
+change-id: issue-87-profile-match-summaries
+summary: Expose privacy-safe previous and upcoming match summaries for public profiles.

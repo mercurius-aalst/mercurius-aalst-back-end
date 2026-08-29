@@ -692,6 +692,9 @@ public class TournamentPerformanceRegressionTests
         public Task<PublicTeamProfile?> GetPublicTeamProfileAsync(string teamName, CancellationToken cancellationToken = default) =>
             Task.FromResult<PublicTeamProfile?>(null);
 
+        public Task<TeamId?> GetPublicTeamIdByNameAsync(string teamName, CancellationToken cancellationToken = default) =>
+            Task.FromResult<TeamId?>(null);
+
         public Task<TeamRegistrationEligibility> GetRegistrationEligibilityAsync(
             TeamId teamId,
             UserId requestedBy,
@@ -756,6 +759,11 @@ public class TournamentPerformanceRegressionTests
             string teamName,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<PublicTeamProfile?>(null);
+
+        public Task<TeamId?> GetPublicTeamIdByNameAsync(
+            string teamName,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<TeamId?>(null);
 
         public Task<TeamRegistrationEligibility> GetRegistrationEligibilityAsync(
             TeamId teamId,

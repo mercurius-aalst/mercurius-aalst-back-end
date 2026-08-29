@@ -24,6 +24,10 @@ public interface ITeamsModule
         string teamName,
         CancellationToken cancellationToken = default);
 
+    Task<TeamId?> GetPublicTeamIdByNameAsync(
+        string teamName,
+        CancellationToken cancellationToken = default);
+
     Task<TeamRegistrationEligibility> GetRegistrationEligibilityAsync(
         TeamId teamId,
         UserId requestedBy,

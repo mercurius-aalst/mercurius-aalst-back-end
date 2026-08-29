@@ -157,6 +157,23 @@ internal sealed class TeamsModuleFacade : ITeamsModule
             tournaments);
     }
 
+    public async Task<TeamId?> GetPublicTeamIdByNameAsync(
+        string teamName,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(teamName))
+            return null;
+
+        var normalizedName = Domain.Team.NormalizeName(teamName);
+        var teamId = await _dbContext.Teams
+            .AsNoTracking()
+            .Where(team => team.NormalizedName == normalizedName && !team.IsDeleted)
+            .Select(team => (Guid?)team.Id)
+            .SingleOrDefaultAsync(cancellationToken);
+
+        return teamId.HasValue ? new TeamId(teamId.Value) : null;
+    }
+
     public async Task<TeamRegistrationEligibility> GetRegistrationEligibilityAsync(
         TeamId teamId,
         UserId requestedBy,

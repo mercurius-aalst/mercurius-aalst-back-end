@@ -51,12 +51,9 @@ internal sealed class IdentityModuleFacade : IIdentityModule
             .Where(user =>
                 user.NormalizedUsername == normalizedUsername &&
                 !user.IsDeleted &&
-                user.Username != null &&
-                user.Firstname != null &&
-                user.Lastname != null &&
-                user.Username != string.Empty &&
-                user.Firstname != string.Empty &&
-                user.Lastname != string.Empty)
+                !string.IsNullOrWhiteSpace(user.Username) &&
+                !string.IsNullOrWhiteSpace(user.Firstname) &&
+                !string.IsNullOrWhiteSpace(user.Lastname))
             .Select(user => new PublicUserProfileSummary(
                 new UserId(user.Id),
                 user.Username!,

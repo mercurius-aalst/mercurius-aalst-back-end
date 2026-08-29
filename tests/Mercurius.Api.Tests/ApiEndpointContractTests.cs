@@ -1,6 +1,8 @@
 using Mercurius.LAN.API.Hubs;
 using Mercurius.Modules.Tournament;
+using Mercurius.Modules.Tournament.Application.DTOs.PublicProfiles;
 using Mercurius.Modules.Tournament.Application.Services;
+using Mercurius.Modules.Tournament.Contracts;
 using Mercurius.LAN.API.Data;
 using Mercurius.Modules.Discovery;
 using Mercurius.Modules.Discovery.Contracts;
@@ -32,6 +34,8 @@ public class ApiEndpointContractTests
     [InlineData("GET", "v{version:apiVersion}/lan/teams/{id:guid}", "Teams")]
     [InlineData("GET", "v{version:apiVersion}/lan/public/teams/{teamName}", "Public Teams")]
     [InlineData("GET", "v{version:apiVersion}/lan/public/users/{username}", "Users")]
+    [InlineData("GET", "v{version:apiVersion}/lan/public/teams/{teamName}/match-summaries", "Public Teams")]
+    [InlineData("GET", "v{version:apiVersion}/lan/public/users/{username}/match-summaries", "Users")]
     [InlineData("GET", "v{version:apiVersion}/lan/search/", "Search")]
     public void PublicReadRoutes_AllowAnonymousAndKeepTags(string method, string routePattern, string expectedTag)
     {
@@ -39,6 +43,44 @@ public class ApiEndpointContractTests
 
         Assert.Contains(endpoint.Metadata, metadata => metadata is IAllowAnonymous);
         Assert.Contains(expectedTag, endpoint.Metadata.GetMetadata<ITagsMetadata>()?.Tags ?? []);
+    }
+
+    [Fact]
+    public void PublicProfileMatchSummaryResponse_UsesStableGuidJsonProperties()
+    {
+        var matchId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+        var tournamentId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+        var scheduledStart = new DateTime(2026, 9, 1, 10, 0, 0, DateTimeKind.Utc);
+        var response = new PublicProfileMatchSummariesResponseDTO
+        {
+            PreviousMatches =
+            [
+                new PublicProfileMatchSummaryResponseDTO
+                {
+                    MatchId = matchId,
+                    TournamentId = tournamentId,
+                    TournamentName = "Public Cup",
+                    OpponentDisplayName = "Opponent",
+                    ScheduledStartTime = scheduledStart,
+                    LifecycleState = MatchLifecycleState.Completed,
+                    ResultKind = MatchResultKind.Score,
+                    ParticipantScore = 1,
+                    OpponentScore = 0,
+                    RoundNumber = 1,
+                    MatchNumber = 1
+                }
+            ]
+        };
+
+        var json = System.Text.Json.JsonSerializer.Serialize(
+            response,
+            new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+
+        Assert.Contains($"\"matchId\":\"{matchId:D}\"", json, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"\"tournamentId\":\"{tournamentId:D}\"", json, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"\"scheduledStartTime\":{System.Text.Json.JsonSerializer.Serialize(scheduledStart)}", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("\"value\"", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("reportedScore", json, StringComparison.OrdinalIgnoreCase);
     }
 
     [Theory]
@@ -242,6 +284,7 @@ public class ApiEndpointContractTests
         services.AddScoped<ITournamentLifecycleCommands>(_ => throw new NotSupportedException());
         services.AddScoped<ITournamentRegistrationService>(_ => throw new NotSupportedException());
         services.AddScoped<IMatchService>(_ => throw new NotSupportedException());
+        services.AddScoped<PublicProfileMatchSummaryReadService>(_ => throw new NotSupportedException());
         services.AddScoped<ITeamEndpointService>(_ => throw new NotSupportedException());
         services.AddScoped<IUserService>(_ => throw new NotSupportedException());
         services.AddScoped<IDiscoveryModule>(_ => throw new NotSupportedException());

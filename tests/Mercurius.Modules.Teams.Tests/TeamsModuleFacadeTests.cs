@@ -179,6 +179,28 @@ public class TeamsModuleFacadeTests
     }
 
     [Fact]
+    public async Task GetPublicTeamIdByNameAsync_ReturnsOnlyActiveNormalizedTeam()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser("captain", "Captain", "Player");
+        var activeTeam = new Team("Mercury Wolves", captain.Id) { Id = Guid.NewGuid() };
+        var deletedTeam = new Team("Deleted Wolves", captain.Id) { Id = Guid.NewGuid(), IsDeleted = true };
+        dbContext.Users.Add(captain);
+        dbContext.Teams.AddRange(activeTeam, deletedTeam);
+        await dbContext.SaveChangesAsync();
+
+        var module = CreateModule(dbContext);
+
+        var activeId = await module.GetPublicTeamIdByNameAsync("  mErCuRy WoLvEs  ");
+        var deletedId = await module.GetPublicTeamIdByNameAsync("deleted wolves");
+        var missingId = await module.GetPublicTeamIdByNameAsync("missing wolves");
+
+        Assert.Equal(activeTeam.Id, activeId!.Value.Value);
+        Assert.Null(deletedId);
+        Assert.Null(missingId);
+    }
+
+    [Fact]
     public async Task Guards_ReturnReasonCodes_ForMissingDeletedAndNonCaptainTeams()
     {
         await using var dbContext = CreateDbContext();

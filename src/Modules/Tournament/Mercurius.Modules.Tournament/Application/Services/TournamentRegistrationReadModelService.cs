@@ -78,7 +78,7 @@ internal sealed class TournamentRegistrationReadModelService(
             CanRegisterIndividual = tournament.ParticipationMode == ParticipationMode.Individual &&
                                     tournament.Status == TournamentStatus.Scheduled &&
                                     individual is null &&
-                                    activeTeam is null &&
+                                    currentTeam is null &&
                                     pendingRoster is null,
             CanConfirmRoster = pendingRoster is not null,
             CanUnregister = individual is not null || activeTeam is not null || captained.Any()

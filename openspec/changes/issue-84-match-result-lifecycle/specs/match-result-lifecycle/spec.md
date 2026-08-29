@@ -129,7 +129,7 @@ An eligible participant MAY forfeit their own side through an explicit command. 
 
 ### Requirement: Administrative resolution and reversal
 
-An authenticated admin MUST be able to resolve a disputed or admin-resolution-required match with a final score. An authenticated admin MUST be able to reverse a completed or forfeited result only when linked next matches have no result. The API MUST reject a reversal with an actionable reason when downstream play has started or completed. Assignment of a primary tournament administrator MUST NOT be a prerequisite for an otherwise authorized global administrator to resolve, force-forfeit, or reverse a match. Each mutation MUST record the actual authenticated resolver and server UTC timestamp.
+An authenticated admin MUST be able to resolve a disputed or admin-resolution-required match with a final score. An authenticated admin MUST be able to reverse a completed or forfeited result only when linked next matches have no result and every populated downstream assignment affected by the source has proven provenance. The API MUST reject a reversal with an actionable reason when downstream play has started or completed, or when participant provenance cannot be established. Assignment of a primary tournament administrator MUST NOT be a prerequisite for an otherwise authorized global administrator to resolve, force-forfeit, or reverse a match. Each mutation MUST record the actual authenticated resolver and server UTC timestamp.
 
 #### Scenario: Admin resolves dispute
 
@@ -141,6 +141,12 @@ An authenticated admin MUST be able to resolve a disputed or admin-resolution-re
 
 - **WHEN** an admin requests reversal and a linked next match has a score, winner, loser, or forfeit result
 - **THEN** the API MUST reject the request with a clear reason
+- **AND** no match or bracket state MUST change
+
+#### Scenario: Reversal fails closed when legacy provenance is unavailable
+
+- **WHEN** an otherwise reversible result has a populated linked downstream assignment without a source edge that can be proven to belong to it
+- **THEN** the API MUST reject the reversal with a stable blocked reason
 - **AND** no match or bracket state MUST change
 
 ### Requirement: Transactional and authorized transitions

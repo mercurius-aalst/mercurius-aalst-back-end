@@ -7,6 +7,7 @@
 - [x] Return authoritative resolve, administrative-forfeit, and reversal capabilities with stable blocked reasons.
 - [x] Preserve and harden the administrative compatibility score route.
 - [x] Process expired windows through the hosted outbox-backed deadline processor and backfill legacy completed results.
+- [x] Backfill deterministic legacy downstream participant provenance, version affected rows, and fail closed when a source cannot be established.
 - [x] Persist resolution-required notifications for the typed assigned-admin/global-admin recipient contract with stable event-consumer idempotency.
 
 ## Tests and validation

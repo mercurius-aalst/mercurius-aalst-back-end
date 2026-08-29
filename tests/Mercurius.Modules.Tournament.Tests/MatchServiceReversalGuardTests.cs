@@ -3,6 +3,7 @@ using Mercurius.Modules.Tournament.Application.DTOs.Matches;
 using Mercurius.Modules.Tournament.Application.Services;
 using Mercurius.Modules.Tournament.Domain;
 using Mercurius.Modules.Tournament.Infrastructure;
+using Mercurius.Modules.Shared.Exceptions;
 using Microsoft.EntityFrameworkCore;
 using ContractLifecycleState = Mercurius.Modules.Tournament.Contracts.MatchLifecycleState;
 
@@ -233,6 +234,171 @@ public class MatchServiceReversalGuardTests
         Assert.Equal("match_reversal_blocked", actionState.ReverseBlockedReason);
     }
 
+    [Fact]
+    public async Task ReverseAsync_FailsClosedWhenLegacyDownstreamAssignmentHasNoProvenance()
+    {
+        var admin = CreateUser("legacy-admin");
+        var tournament = CreateTournament("Legacy provenance tournament", BracketType.SingleElimination, admin);
+        var winner = Guid.NewGuid();
+        var loser = Guid.NewGuid();
+        var source = CreateCompletedMatch(tournament, winner, loser);
+        var downstream = new Match
+        {
+            Id = Guid.NewGuid(),
+            TournamentId = tournament.Id,
+            Tournament = tournament,
+            Format = GameFormat.BestOf1,
+            ParticipationMode = ParticipationMode.Individual,
+            UserParticipant1Id = winner,
+            UserParticipant2Id = Guid.NewGuid()
+        };
+        source.WinnerNextMatchId = downstream.Id;
+        source.WinnerNextMatch = downstream;
+        tournament.Matches.Add(source);
+        tournament.Matches.Add(downstream);
+
+        await using var dbContext = CreateDbContext();
+        dbContext.Set<TournamentAggregate>().Add(tournament);
+        await dbContext.SaveChangesAsync();
+        dbContext.ChangeTracker.Clear();
+
+        var service = CreateMatchService(dbContext, admin);
+        var actionState = await service.GetMatchActionStateAsync(source.Id, admin.Auth0UserId, true);
+
+        Assert.False(actionState.CanReverse);
+        Assert.Equal("match_reversal_blocked", actionState.ReverseBlockedReason);
+
+        var exception = await Assert.ThrowsAsync<ConflictException>(() =>
+            service.ReverseAsync(source.Id, admin.Auth0UserId));
+
+        Assert.Equal("match_reversal_blocked", exception.Code);
+        var persistedSource = await dbContext.Set<Match>().AsNoTracking().SingleAsync(match => match.Id == source.Id);
+        var persistedDownstream = await dbContext.Set<Match>().AsNoTracking().SingleAsync(match => match.Id == downstream.Id);
+        Assert.Equal(MatchLifecycleState.Completed, persistedSource.LifecycleState);
+        Assert.Equal(winner, persistedDownstream.UserParticipant1Id);
+        Assert.Null(persistedDownstream.Participant1SourceMatchId);
+    }
+
+    [Fact]
+    public async Task ReverseAsync_ClearsOnlyBackfilledSingleEliminationSourceSlot()
+    {
+        var admin = CreateUser("single-backfill-admin");
+        var tournament = CreateTournament("Single elimination provenance tournament", BracketType.SingleElimination, admin);
+        var winner = Guid.NewGuid();
+        var loser = Guid.NewGuid();
+        var unrelated = Guid.NewGuid();
+        var source = CreateCompletedMatch(tournament, winner, loser);
+        var downstream = new Match
+        {
+            Id = Guid.NewGuid(),
+            TournamentId = tournament.Id,
+            Tournament = tournament,
+            Format = GameFormat.BestOf1,
+            ParticipationMode = ParticipationMode.Individual,
+            UserParticipant1Id = winner,
+            Participant1SourceMatchId = source.Id,
+            UserParticipant2Id = unrelated
+        };
+        source.WinnerNextMatchId = downstream.Id;
+        source.WinnerNextMatch = downstream;
+        tournament.Matches.Add(source);
+        tournament.Matches.Add(downstream);
+
+        await using var dbContext = CreateDbContext();
+        dbContext.Set<TournamentAggregate>().Add(tournament);
+        await dbContext.SaveChangesAsync();
+        dbContext.ChangeTracker.Clear();
+
+        var service = CreateMatchService(dbContext, admin);
+        await service.ReverseAsync(source.Id, admin.Auth0UserId);
+
+        var persistedSource = await dbContext.Set<Match>().AsNoTracking().SingleAsync(match => match.Id == source.Id);
+        var persistedDownstream = await dbContext.Set<Match>().AsNoTracking().SingleAsync(match => match.Id == downstream.Id);
+        Assert.Equal(MatchLifecycleState.Reversed, persistedSource.LifecycleState);
+        Assert.Null(persistedDownstream.UserParticipant1Id);
+        Assert.Null(persistedDownstream.Participant1SourceMatchId);
+        Assert.Equal(unrelated, persistedDownstream.UserParticipant2Id);
+    }
+
+    [Fact]
+    public async Task ReverseAsync_ClearsBackfilledDoubleEliminationEdgesThroughNestedGraph()
+    {
+        var admin = CreateUser("double-backfill-admin");
+        var tournament = CreateTournament("Double elimination provenance tournament", BracketType.DoubleElimination, admin);
+        var winner = Guid.NewGuid();
+        var loser = Guid.NewGuid();
+        var unrelatedWinnerSlot = Guid.NewGuid();
+        var unrelatedLoserSlot = Guid.NewGuid();
+        var unrelatedNestedSlot = Guid.NewGuid();
+        var source = CreateCompletedMatch(tournament, winner, loser);
+        var winnerTarget = new Match
+        {
+            Id = Guid.NewGuid(),
+            TournamentId = tournament.Id,
+            Tournament = tournament,
+            BracketType = BracketType.DoubleElimination,
+            Format = GameFormat.BestOf1,
+            ParticipationMode = ParticipationMode.Individual,
+            UserParticipant1Id = winner,
+            Participant1SourceMatchId = source.Id,
+            UserParticipant2Id = unrelatedWinnerSlot
+        };
+        var loserTarget = new Match
+        {
+            Id = Guid.NewGuid(),
+            TournamentId = tournament.Id,
+            Tournament = tournament,
+            BracketType = BracketType.DoubleElimination,
+            Format = GameFormat.BestOf1,
+            ParticipationMode = ParticipationMode.Individual,
+            UserParticipant1Id = unrelatedLoserSlot,
+            UserParticipant2Id = loser,
+            Participant2SourceMatchId = source.Id,
+            IsLowerBracketMatch = true
+        };
+        var nestedTarget = new Match
+        {
+            Id = Guid.NewGuid(),
+            TournamentId = tournament.Id,
+            Tournament = tournament,
+            BracketType = BracketType.DoubleElimination,
+            Format = GameFormat.BestOf1,
+            ParticipationMode = ParticipationMode.Individual,
+            UserParticipant1Id = unrelatedNestedSlot
+        };
+        source.WinnerNextMatchId = winnerTarget.Id;
+        source.WinnerNextMatch = winnerTarget;
+        source.LoserNextMatchId = loserTarget.Id;
+        source.LoserNextMatch = loserTarget;
+        winnerTarget.WinnerNextMatchId = nestedTarget.Id;
+        winnerTarget.WinnerNextMatch = nestedTarget;
+        tournament.Matches.Add(source);
+        tournament.Matches.Add(winnerTarget);
+        tournament.Matches.Add(loserTarget);
+        tournament.Matches.Add(nestedTarget);
+
+        await using var dbContext = CreateDbContext();
+        dbContext.Set<TournamentAggregate>().Add(tournament);
+        await dbContext.SaveChangesAsync();
+        dbContext.ChangeTracker.Clear();
+
+        var service = CreateMatchService(dbContext, admin);
+        await service.ReverseAsync(source.Id, admin.Auth0UserId);
+
+        var persistedSource = await dbContext.Set<Match>().AsNoTracking().SingleAsync(match => match.Id == source.Id);
+        var persistedWinnerTarget = await dbContext.Set<Match>().AsNoTracking().SingleAsync(match => match.Id == winnerTarget.Id);
+        var persistedLoserTarget = await dbContext.Set<Match>().AsNoTracking().SingleAsync(match => match.Id == loserTarget.Id);
+        var persistedNestedTarget = await dbContext.Set<Match>().AsNoTracking().SingleAsync(match => match.Id == nestedTarget.Id);
+        Assert.Equal(MatchLifecycleState.Reversed, persistedSource.LifecycleState);
+        Assert.Null(persistedWinnerTarget.UserParticipant1Id);
+        Assert.Null(persistedWinnerTarget.Participant1SourceMatchId);
+        Assert.Equal(unrelatedWinnerSlot, persistedWinnerTarget.UserParticipant2Id);
+        Assert.Equal(unrelatedLoserSlot, persistedLoserTarget.UserParticipant1Id);
+        Assert.Null(persistedLoserTarget.UserParticipant2Id);
+        Assert.Null(persistedLoserTarget.Participant2SourceMatchId);
+        Assert.Equal(unrelatedNestedSlot, persistedNestedTarget.UserParticipant1Id);
+    }
+
     private static MercuriusDBContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<MercuriusDBContext>()
@@ -241,6 +407,43 @@ public class MatchServiceReversalGuardTests
 
         return new MercuriusDBContext(options);
     }
+
+    private static MatchService CreateMatchService(MercuriusDBContext dbContext, User admin) =>
+        new(
+            new TournamentDbContextAdapter<MercuriusDBContext>(dbContext),
+            TournamentTestSupport.CreateIdentityModule([admin]),
+            TournamentTestSupport.CreateTeamsModule(),
+            TournamentTestSupport.CreateModuleEventPublisher(),
+            new FixedTimeProvider(new DateTime(2026, 8, 29, 12, 0, 0, DateTimeKind.Utc)));
+
+    private static TournamentAggregate CreateTournament(string name, BracketType bracketType, User admin) => new(
+        name,
+        bracketType,
+        GameFormat.BestOf1,
+        GameFormat.BestOf1,
+        ParticipationMode.Individual)
+    {
+        Id = Guid.NewGuid(),
+        Status = TournamentStatus.InProgress,
+        AssignedAdminUserId = admin.Id
+    };
+
+    private static Match CreateCompletedMatch(TournamentAggregate tournament, Guid winner, Guid loser) => new()
+    {
+        Id = Guid.NewGuid(),
+        TournamentId = tournament.Id,
+        Tournament = tournament,
+        BracketType = tournament.BracketType,
+        Format = GameFormat.BestOf1,
+        ParticipationMode = ParticipationMode.Individual,
+        LifecycleState = MatchLifecycleState.Completed,
+        UserParticipant1Id = winner,
+        UserParticipant2Id = loser,
+        UserWinnerId = winner,
+        UserLoserId = loser,
+        Participant1Score = 1,
+        Participant2Score = 0
+    };
 
     private static Match CreateDisputedMatch(TournamentAggregate tournament) => new()
     {

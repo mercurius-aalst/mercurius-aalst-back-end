@@ -117,7 +117,9 @@ internal sealed class MatchService : IMatchService
             }
             else
             {
-                canReverse = GetDownstreamMatches(match).All(downstreamMatch => !HasPlayedResult(downstreamMatch));
+                var downstream = GetDownstreamMatches(match);
+                canReverse = !HasUnprovenancedDownstreamAssignment(match, downstream) &&
+                    downstream.All(downstreamMatch => !HasPlayedResult(downstreamMatch));
                 reverseBlockedReason = canReverse ? null : ReversalBlockedReason;
             }
         }
@@ -259,6 +261,10 @@ internal sealed class MatchService : IMatchService
             throw new ConflictException(
                 ReversalBlockedReason,
                 $"This result cannot be reversed because linked match {blockingMatch.Id} already has a result.");
+        if (HasUnprovenancedDownstreamAssignment(match, downstream))
+            throw new ConflictException(
+                ReversalBlockedReason,
+                "This result cannot be reversed because a linked participant assignment cannot be proven to originate from it.");
 
         foreach (var nextMatch in downstream)
             nextMatch.ClearParticipantFromSource(match.Id);
@@ -354,7 +360,9 @@ internal sealed class MatchService : IMatchService
             foreach (var link in batch)
             {
                 if (!childrenById.TryGetValue(link.ChildId, out var child))
-                    continue;
+                    return false;
+                if (child.TournamentId != source.TournamentId)
+                    return false;
 
                 if (link.IsWinnerLink)
                     link.Parent.WinnerNextMatch = child;
@@ -548,6 +556,29 @@ internal sealed class MatchService : IMatchService
                 queue.Enqueue(current.LoserNextMatch);
         }
         return result;
+    }
+
+    private static bool HasUnprovenancedDownstreamAssignment(
+        Match source,
+        IReadOnlyList<Match> downstream)
+    {
+        var sourceParticipants = new[]
+        {
+            source.GetWinnerId(),
+            source.GetLoserForMutation()
+        };
+
+        if (sourceParticipants.Any(participantId => !participantId.HasValue))
+        {
+            return downstream.Any(match =>
+                (match.GetParticipant1Id().HasValue && match.Participant1SourceMatchId != source.Id) ||
+                (match.GetParticipant2Id().HasValue && match.Participant2SourceMatchId != source.Id));
+        }
+
+        return downstream.Any(match => sourceParticipants.Any(participantId =>
+            participantId.HasValue &&
+            ((match.GetParticipant1Id() == participantId && match.Participant1SourceMatchId != source.Id) ||
+             (match.GetParticipant2Id() == participantId && match.Participant2SourceMatchId != source.Id))));
     }
 
     private DateTime UtcNow() => _timeProvider.GetUtcNow().UtcDateTime;

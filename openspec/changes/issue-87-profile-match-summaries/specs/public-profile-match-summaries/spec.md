@@ -26,6 +26,13 @@ The API MUST expose anonymous reads at
 - **WHEN** the requested player is missing/incomplete/deleted or the team is missing/deleted
 - **THEN** the endpoint MUST return 404 without revealing match data
 
+#### Scenario: Historical opponent registration
+- **WHEN** a selected previous match's opponent registration is no longer active but its
+  public registration snapshot is retained
+- **THEN** the service MUST use that snapshot for the opponent label without requiring the
+  opponent to remain an active participant; active status MUST remain required only for the
+  profile subject's participation
+
 ### Requirement: Lifecycle-aware summary selection
 
 The service MUST select summaries from the authoritative match lifecycle and MUST use deterministic
@@ -40,6 +47,12 @@ ordering.
 - **WHEN** multiple unplayed matches for one participant and tournament exist
 - **THEN** the API MUST return only the earliest non-BYE match ordered by estimated/scheduled start,
   then round, match number, and match ID
+
+#### Scenario: Delayed or unscheduled match
+- **WHEN** an unplayed match has no actual `StartTime`, even if its estimate is overdue or absent
+- **THEN** it MUST remain eligible as the upcoming match and be ordered by its non-sentinel
+  estimated start when present, with missing estimates ordered after timed matches; an actual
+  `StartTime` MUST exclude the match from upcoming results
 
 #### Scenario: Reversed/canceled/unresolved matches
 - **WHEN** a match is `Reversed`, belongs to a canceled tournament, is already in progress, or is
@@ -57,7 +70,9 @@ ordering.
 Each summary MUST include only public tournament/match IDs and names, match ID, opponent display
 label or TBD indication, public lifecycle/result state, participant-relative scores when present,
 estimated and scheduled times when present, and safe round/bracket metadata. `EstimatedStartTime`
-MUST take precedence over `ScheduledStartTime` for upcoming ordering. Missing or
+MUST take precedence over `ScheduledStartTime` for upcoming ordering. `StartTime` and `EndTime`
+are actual lifecycle timestamps and MUST NOT be presented as a scheduled start; an upcoming match
+with no actual start has no scheduled time unless a separate scheduled value exists. Missing or
 `DateTime.MinValue` times MUST be represented as absent rather than serialized as a sentinel. It
 MUST NOT include email, Auth0 IDs, private reports, admin assignment, deletion state, or private
 account metadata.

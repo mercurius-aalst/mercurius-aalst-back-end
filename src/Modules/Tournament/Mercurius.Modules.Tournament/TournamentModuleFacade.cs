@@ -40,7 +40,7 @@ internal sealed class TournamentModuleFacade : ITournamentModule
             dbContext,
             teamsModule,
             eligibilityEvaluator,
-            new PublicProfileMatchSummaryReadService(dbContext, TimeProvider.System))
+            new PublicProfileMatchSummaryReadService(dbContext))
     {
     }
 

@@ -167,6 +167,104 @@ public sealed class PublicProfileMatchSummaryReadServiceTests
     }
 
     [Fact]
+    public async Task GetPublicProfileMatchSummariesAsync_UsesRetainedOpponentSnapshotsAfterDeactivation()
+    {
+        await using var dbContext = CreateDbContext();
+        var userId = Guid.NewGuid();
+        var opponentUserId = Guid.NewGuid();
+        var individualTournament = CreateTournament("Historical Player Cup", ParticipationMode.Individual);
+        AddIndividualRegistration(individualTournament, userId, "profile-player");
+        var removedPlayer = AddIndividualRegistration(individualTournament, opponentUserId, "removed-opponent");
+        removedPlayer.Status = TournamentRegistrationStatus.PendingConfirmation;
+        individualTournament.Matches.Add(CreateCompletedMatch(
+            individualTournament,
+            userId,
+            opponentUserId,
+            new DateTime(2026, 8, 7, 10, 0, 0, DateTimeKind.Utc)));
+
+        var teamId = Guid.NewGuid();
+        var opponentTeamId = Guid.NewGuid();
+        var teamTournament = CreateTournament("Historical Team Cup", ParticipationMode.Team);
+        AddTeamRegistration(teamTournament, teamId, "Profile Team", Guid.NewGuid());
+        var removedTeam = AddTeamRegistration(teamTournament, opponentTeamId, "Removed Team", Guid.NewGuid());
+        removedTeam.Status = TournamentRegistrationStatus.PendingConfirmation;
+        teamTournament.Matches.Add(CreateCompletedTeamMatch(
+            teamTournament,
+            teamId,
+            opponentTeamId,
+            new DateTime(2026, 8, 8, 10, 0, 0, DateTimeKind.Utc)));
+
+        dbContext.Set<TournamentAggregate>().AddRange(individualTournament, teamTournament);
+        await dbContext.SaveChangesAsync();
+        dbContext.ChangeTracker.Clear();
+
+        var service = CreateService(dbContext);
+        var userSummaries = await service.GetPublicUserMatchSummariesAsync(new UserId(userId));
+        var teamSummaries = await service.GetPublicTeamMatchSummariesAsync(new TeamId(teamId));
+
+        Assert.Equal("removed-opponent", Assert.Single(userSummaries.PreviousMatches).OpponentDisplayName);
+        Assert.Equal("Removed Team", Assert.Single(teamSummaries.PreviousMatches).OpponentDisplayName);
+    }
+
+    [Fact]
+    public async Task GetPublicUserMatchSummariesAsync_ExcludesStartedMatchesButKeepsDelayedAndUnscheduledMatches()
+    {
+        await using var dbContext = CreateDbContext();
+        var userId = Guid.NewGuid();
+        var opponentId = Guid.NewGuid();
+        var tournament = CreateTournament("Delayed Cup", ParticipationMode.Individual);
+        AddIndividualRegistration(tournament, userId, "profile-player");
+        AddIndividualRegistration(tournament, opponentId, "opponent");
+
+        var started = CreateUpcomingMatch(
+            tournament,
+            userId,
+            opponentId,
+            new DateTime(2099, 8, 10, 10, 0, 0, DateTimeKind.Utc),
+            roundNumber: 1,
+            matchNumber: 1);
+        started.StartTime = new DateTime(2026, 8, 10, 9, 0, 0, DateTimeKind.Utc);
+
+        var delayed = CreateUpcomingMatch(
+            tournament,
+            userId,
+            opponentId,
+            new DateTime(2026, 8, 10, 8, 0, 0, DateTimeKind.Utc),
+            roundNumber: 1,
+            matchNumber: 2);
+        var unscheduledTournament = CreateTournament("Unscheduled Cup", ParticipationMode.Individual);
+        AddIndividualRegistration(unscheduledTournament, userId, "profile-player");
+        AddIndividualRegistration(unscheduledTournament, opponentId, "opponent");
+        var unscheduled = CreateUpcomingMatch(
+            unscheduledTournament,
+            userId,
+            opponentId,
+            new DateTime(2099, 8, 11, 8, 0, 0, DateTimeKind.Utc));
+        unscheduled.EstimatedStartTime = null;
+        unscheduled.EstimatedEndTime = null;
+
+        tournament.Matches.Add(started);
+        tournament.Matches.Add(delayed);
+        unscheduledTournament.Matches.Add(unscheduled);
+        dbContext.Set<TournamentAggregate>().AddRange(tournament, unscheduledTournament);
+        await dbContext.SaveChangesAsync();
+        dbContext.ChangeTracker.Clear();
+
+        var summaries = await CreateService(dbContext)
+            .GetPublicUserMatchSummariesAsync(new UserId(userId));
+
+        var delayedSummary = Assert.Single(summaries.UpcomingMatches, summary => summary.TournamentName == "Delayed Cup");
+        Assert.Equal(delayed.Id, delayedSummary.MatchId.Value);
+        Assert.Equal(delayed.EstimatedStartTime, delayedSummary.EstimatedStartTime);
+        Assert.Null(delayedSummary.ScheduledStartTime);
+
+        var unscheduledSummary = Assert.Single(summaries.UpcomingMatches, summary => summary.TournamentName == "Unscheduled Cup");
+        Assert.Equal(unscheduled.Id, unscheduledSummary.MatchId.Value);
+        Assert.Null(unscheduledSummary.EstimatedStartTime);
+        Assert.Null(unscheduledSummary.ScheduledStartTime);
+    }
+
+    [Fact]
     public async Task GetPublicUserMatchSummariesAsync_ExcludesByeReversedAndUnresolvedMatches()
     {
         await using var dbContext = CreateDbContext();
@@ -290,7 +388,7 @@ public sealed class PublicProfileMatchSummaryReadServiceTests
     }
 
     private static PublicProfileMatchSummaryReadService CreateService(MercuriusDBContext dbContext) =>
-        new(new TournamentDbContextAdapter<MercuriusDBContext>(dbContext), TimeProvider.System);
+        new(new TournamentDbContextAdapter<MercuriusDBContext>(dbContext));
 
     private static MercuriusDBContext CreateDbContext()
     {

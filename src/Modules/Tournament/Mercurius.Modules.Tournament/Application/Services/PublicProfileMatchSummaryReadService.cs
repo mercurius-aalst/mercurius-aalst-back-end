@@ -14,14 +14,10 @@ namespace Mercurius.Modules.Tournament.Application.Services;
 internal sealed class PublicProfileMatchSummaryReadService
 {
     private readonly ITournamentDbContext _dbContext;
-    private readonly TimeProvider _timeProvider;
 
-    public PublicProfileMatchSummaryReadService(
-        ITournamentDbContext dbContext,
-        TimeProvider timeProvider)
+    public PublicProfileMatchSummaryReadService(ITournamentDbContext dbContext)
     {
         _dbContext = dbContext;
-        _timeProvider = timeProvider;
     }
 
     public async Task<TournamentContracts.PublicProfileMatchSummarySet> GetPublicUserMatchSummariesAsync(
@@ -143,7 +139,6 @@ internal sealed class PublicProfileMatchSummaryReadService
         IReadOnlySet<Guid> subjectTeamIds,
         CancellationToken cancellationToken)
     {
-        var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
         var previousEntities = await candidateRows
             .Where(match =>
                 (match.LifecycleState == MatchLifecycleState.Completed ||
@@ -174,14 +169,12 @@ internal sealed class PublicProfileMatchSummaryReadService
                 .First())
             .ToListAsync(cancellationToken);
 
+        // StartTime is an actual lifecycle timestamp. An unstarted match
+        // remains eligible even when its estimate is overdue or absent.
         var upcomingEntities = await candidateRows
             .Where(match =>
                 match.LifecycleState == MatchLifecycleState.AwaitingEndedConfirmation &&
-                ((match.EstimatedStartTime.HasValue &&
-                  match.EstimatedStartTime != DateTime.MinValue &&
-                  match.EstimatedStartTime > nowUtc) ||
-                 ((!match.EstimatedStartTime.HasValue || match.EstimatedStartTime == DateTime.MinValue) &&
-                  (match.StartTime == DateTime.MinValue || match.StartTime > nowUtc))) &&
+                match.StartTime == DateTime.MinValue &&
                 !match.Participant1IsBYE &&
                 !match.Participant2IsBYE &&
                 ((match.ParticipationMode == ParticipationMode.Individual &&
@@ -192,10 +185,10 @@ internal sealed class PublicProfileMatchSummaryReadService
             .Select(group => group
                 .OrderBy(match => match.EstimatedStartTime.HasValue && match.EstimatedStartTime != DateTime.MinValue
                     ? 0
-                    : match.StartTime != DateTime.MinValue ? 0 : 1)
+                    : 1)
                 .ThenBy(match => match.EstimatedStartTime.HasValue && match.EstimatedStartTime != DateTime.MinValue
                     ? match.EstimatedStartTime.Value
-                    : match.StartTime)
+                    : DateTime.MaxValue)
                 .ThenBy(match => match.RoundNumber)
                 .ThenBy(match => match.MatchNumber)
                 .ThenBy(match => match.MatchId)
@@ -254,7 +247,6 @@ internal sealed class PublicProfileMatchSummaryReadService
             .AsNoTracking()
             .Where(registration =>
                 tournamentIds.Contains(registration.TournamentId) &&
-                registration.Status == TournamentRegistrationStatus.Active &&
                 ((registration.Kind == TournamentRegistrationKind.Individual &&
                   registration.UserId.HasValue && individualParticipantIds.Contains(registration.UserId.Value)) ||
                  (registration.Kind == TournamentRegistrationKind.Team &&
@@ -380,7 +372,7 @@ internal sealed class PublicProfileMatchSummaryReadService
             !hasOpponent,
             Normalize(candidate.EstimatedStartTime),
             Normalize(candidate.EstimatedEndTime),
-            Normalize(candidate.StartTime),
+            null,
             candidate.LifecycleState is MatchLifecycleState.Completed or MatchLifecycleState.Forfeited
                 ? Normalize(candidate.StartTime)
                 : null,

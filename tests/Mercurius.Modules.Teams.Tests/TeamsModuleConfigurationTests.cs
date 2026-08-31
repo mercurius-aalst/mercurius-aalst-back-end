@@ -267,6 +267,14 @@ public class TeamsModuleConfigurationTests
             return Task.FromResult(users);
         }
 
+        public Task<IReadOnlyDictionary<UserId, string>> GetPublicUsernamesByIdsAsync(
+            IReadOnlyCollection<UserId> userIds,
+            CancellationToken cancellationToken = default)
+        {
+            IReadOnlyDictionary<UserId, string> users = new Dictionary<UserId, string>();
+            return Task.FromResult(users);
+        }
+
         public Task<IReadOnlyList<PublicUserSearchDocument>> GetPublicUserSearchDocumentsPageAsync(
             UserId? afterId,
             int pageSize,

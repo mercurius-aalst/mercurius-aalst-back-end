@@ -1,4 +1,6 @@
 using Mercurius.Modules.Shared;
+using Mercurius.Modules.Identity.Contracts;
+using Mercurius.Modules.Teams.Contracts;
 using Mercurius.Modules.Tournament.Domain;
 using Mercurius.Modules.Tournament.Infrastructure;
 using Microsoft.EntityFrameworkCore;
@@ -14,10 +16,17 @@ namespace Mercurius.Modules.Tournament.Application.Services;
 internal sealed class PublicProfileMatchSummaryReadService
 {
     private readonly ITournamentDbContext _dbContext;
+    private readonly IIdentityModule _identityModule;
+    private readonly ITeamsModule _teamsModule;
 
-    public PublicProfileMatchSummaryReadService(ITournamentDbContext dbContext)
+    public PublicProfileMatchSummaryReadService(
+        ITournamentDbContext dbContext,
+        IIdentityModule identityModule,
+        ITeamsModule teamsModule)
     {
         _dbContext = dbContext;
+        _identityModule = identityModule;
+        _teamsModule = teamsModule;
     }
 
     public async Task<TournamentContracts.PublicProfileMatchSummarySet> GetPublicUserMatchSummariesAsync(
@@ -271,13 +280,30 @@ internal sealed class PublicProfileMatchSummaryReadService
                 snapshot.ParticipantId!.Value))
             .ToDictionary(group => group.Key, group => group.First());
 
+        var currentUsernames = await _identityModule.GetPublicUsernamesByIdsAsync(
+            individualParticipantIds.Select(id => new UserId(id)).ToArray(),
+            cancellationToken);
+        var currentTeamNames = await _teamsModule.GetPublicTeamNamesByIdsAsync(
+            teamParticipantIds.Select(id => new TeamId(id)).ToArray(),
+            cancellationToken);
+
         var previous = previousMatches
-            .Select(candidate => ToPublicSummary(candidate, snapshotByParticipant, requireOpponentLabel: true))
+            .Select(candidate => ToPublicSummary(
+                candidate,
+                snapshotByParticipant,
+                currentUsernames,
+                currentTeamNames,
+                requireOpponentLabel: true))
             .Where(summary => summary is not null)
             .Select(summary => summary!)
             .ToArray();
         var upcoming = upcomingMatches
-            .Select(candidate => ToPublicSummary(candidate, snapshotByParticipant, requireOpponentLabel: false))
+            .Select(candidate => ToPublicSummary(
+                candidate,
+                snapshotByParticipant,
+                currentUsernames,
+                currentTeamNames,
+                requireOpponentLabel: false))
             .Where(summary => summary is not null)
             .Select(summary => summary!)
             .ToArray();
@@ -335,6 +361,8 @@ internal sealed class PublicProfileMatchSummaryReadService
     private static TournamentContracts.PublicProfileMatchSummary? ToPublicSummary(
         MatchCandidateProjection candidate,
         IReadOnlyDictionary<ParticipantKey, RegistrationSnapshot> snapshotByParticipant,
+        IReadOnlyDictionary<UserId, string> currentUsernames,
+        IReadOnlyDictionary<TeamId, string> currentTeamNames,
         bool requireOpponentLabel)
     {
         if (candidate.OpponentIsSubject)
@@ -344,12 +372,22 @@ internal sealed class PublicProfileMatchSummaryReadService
             ? candidate.Participant2Id
             : candidate.Participant1Id;
         var hasOpponent = opponentId.HasValue && opponentId.Value != Guid.Empty;
-        var opponentDisplayName = opponentId.HasValue &&
+        var currentDisplayName = candidate.ParticipationMode == ParticipationMode.Individual
+            ? opponentId is { } userId
+                ? currentUsernames.GetValueOrDefault(new UserId(userId))
+                : null
+            : opponentId is { } teamId
+                ? currentTeamNames.GetValueOrDefault(new TeamId(teamId))
+                : null;
+        var snapshotDisplayName = opponentId.HasValue &&
             snapshotByParticipant.TryGetValue(
                 new ParticipantKey(candidate.TournamentId, ToRegistrationKind(candidate.ParticipationMode), opponentId.Value),
                 out var snapshot)
             ? snapshot.DisplayName
             : null;
+        var opponentDisplayName = string.IsNullOrWhiteSpace(currentDisplayName)
+            ? snapshotDisplayName
+            : currentDisplayName;
 
         // A previous result needs a public snapshot. For an upcoming match,
         // only an unassigned opposing slot is represented as TBD; an assigned

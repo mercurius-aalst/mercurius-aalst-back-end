@@ -29,9 +29,9 @@ The API MUST expose anonymous reads at
 #### Scenario: Historical opponent registration
 - **WHEN** a selected previous match's opponent registration is no longer active but its
   public registration snapshot is retained
-- **THEN** the service MUST use that snapshot for the opponent label without requiring the
-  opponent to remain an active participant; active status MUST remain required only for the
-  profile subject's participation
+- **THEN** the service MUST use the opponent's current public label when the source user/team is
+  still publicly resolvable, and MUST use the retained snapshot only when that source is
+  unavailable; active status MUST remain required only for the profile subject's participation
 
 ### Requirement: Lifecycle-aware summary selection
 
@@ -95,3 +95,8 @@ MUST NOT issue N+1 queries per tournament, match, or opponent.
 - **WHEN** a participant has many registrations and matches
 - **THEN** previous and upcoming selection MUST remain set-based, bounded, and deterministically
   ordered
+
+#### Scenario: Batched current-label enrichment
+- **WHEN** selected summaries reference multiple users or teams
+- **THEN** the service MUST resolve current public labels through bounded batch module contracts,
+  with no per-summary or per-opponent persistence calls

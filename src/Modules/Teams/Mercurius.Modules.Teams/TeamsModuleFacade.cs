@@ -106,6 +106,26 @@ internal sealed class TeamsModuleFacade : ITeamsModule
                     .ToList()));
     }
 
+    public async Task<IReadOnlyDictionary<TeamId, string>> GetPublicTeamNamesByIdsAsync(
+        IReadOnlyCollection<TeamId> teamIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (teamIds.Count == 0)
+            return new Dictionary<TeamId, string>();
+
+        var ids = teamIds.Select(teamId => teamId.Value).Distinct().ToArray();
+        var teams = await _dbContext.Teams
+            .AsNoTracking()
+            .Where(team =>
+                ids.Contains(team.Id) &&
+                !team.IsDeleted &&
+                !string.IsNullOrWhiteSpace(team.Name))
+            .Select(team => new { team.Id, team.Name })
+            .ToListAsync(cancellationToken);
+
+        return teams.ToDictionary(team => new TeamId(team.Id), team => team.Name);
+    }
+
     public async Task<PublicTeamProfile?> GetPublicTeamProfileAsync(
         string teamName,
         CancellationToken cancellationToken = default)

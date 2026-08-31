@@ -612,6 +612,7 @@ public class DiscoveryModuleTests
         public Task<UserProfileSummary?> GetUserProfileByAuth0IdAsync(string auth0UserId, CancellationToken cancellationToken = default) => Task.FromResult<UserProfileSummary?>(null);
         public Task<PublicUserProfileSummary?> GetPublicProfileByUsernameAsync(string username, CancellationToken cancellationToken = default) => Task.FromResult<PublicUserProfileSummary?>(null);
         public Task<IReadOnlyDictionary<UserId, UserProfileSummary>> GetUsersByIdsAsync(IReadOnlyCollection<UserId> userIds, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyDictionary<UserId, UserProfileSummary>>(new Dictionary<UserId, UserProfileSummary>());
+        public Task<IReadOnlyDictionary<UserId, string>> GetPublicUsernamesByIdsAsync(IReadOnlyCollection<UserId> userIds, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyDictionary<UserId, string>>(new Dictionary<UserId, string>());
     }
 
     private sealed class StubTeamsModule(DiscoverySources sources) : ITeamsModule
@@ -626,6 +627,7 @@ public class DiscoveryModuleTests
         public Task<IReadOnlyList<TeamId>> GetCaptainedTeamIdsAsync(UserId userId, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<TeamId>>([]);
         public Task<TeamRosterSnapshot?> GetTeamRosterSnapshotAsync(TeamId teamId, CancellationToken cancellationToken = default) => Task.FromResult<TeamRosterSnapshot?>(null);
         public Task<IReadOnlyDictionary<TeamId, TeamRosterSnapshot>> GetTeamRosterSnapshotsAsync(IReadOnlyCollection<TeamId> teamIds, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyDictionary<TeamId, TeamRosterSnapshot>>(new Dictionary<TeamId, TeamRosterSnapshot>());
+        public Task<IReadOnlyDictionary<TeamId, string>> GetPublicTeamNamesByIdsAsync(IReadOnlyCollection<TeamId> teamIds, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyDictionary<TeamId, string>>(new Dictionary<TeamId, string>());
         public Task<PublicTeamProfile?> GetPublicTeamProfileAsync(string teamName, CancellationToken cancellationToken = default) => Task.FromResult<PublicTeamProfile?>(null);
         public Task<TeamId?> GetPublicTeamIdByNameAsync(string teamName, CancellationToken cancellationToken = default) => Task.FromResult<TeamId?>(null);
         public Task<TeamRegistrationEligibility> GetRegistrationEligibilityAsync(TeamId teamId, UserId requestedBy, TournamentId tournamentId, CancellationToken cancellationToken = default) => Task.FromResult(new TeamRegistrationEligibility(true, []));

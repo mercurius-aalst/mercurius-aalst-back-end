@@ -1,5 +1,7 @@
 using Mercurius.Modules.Identity.DTOs;
+using Mercurius.Modules.Identity;
 using Mercurius.LAN.API.Data;
+using Mercurius.Modules.Shared;
 using Mercurius.Modules.Shared.Exceptions;
 using Mercurius.LAN.API.Migrations;
 using Mercurius.Modules.Shared.Search;
@@ -49,6 +51,28 @@ public class UserTests
             createIndex.Name == "IX_Users_Email" &&
             createIndex.IsUnique &&
             createIndex.Filter == "\"Email\" IS NOT NULL AND \"IsDeleted\" = false");
+    }
+
+    [Fact]
+    public async Task GetPublicUsernamesByIdsAsync_ReturnsOnlyCompleteActiveUsers()
+    {
+        await using var dbContext = CreateDbContext();
+        var publicUser = CreateStoredUser("auth0|public", "public@example.com", "public-user");
+        var deletedUser = CreateStoredUser("auth0|deleted", "deleted@example.com", "deleted-user");
+        deletedUser.IsDeleted = true;
+        var incompleteUser = CreateStoredUser("auth0|incomplete", "incomplete@example.com", "incomplete-user");
+        incompleteUser.Lastname = null;
+        dbContext.Users.AddRange(publicUser, deletedUser, incompleteUser);
+        await dbContext.SaveChangesAsync();
+
+        var module = new IdentityModuleFacade(dbContext);
+        var usernames = await module.GetPublicUsernamesByIdsAsync(
+            [new UserId(publicUser.Id), new UserId(deletedUser.Id), new UserId(incompleteUser.Id)]);
+
+        Assert.Equal(new Dictionary<UserId, string>
+        {
+            [new UserId(publicUser.Id)] = "public-user"
+        }, usernames);
     }
 
     [Fact]

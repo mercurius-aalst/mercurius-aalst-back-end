@@ -3,6 +3,7 @@ using Mercurius.Modules.Tournament.Application.Services;
 using Mercurius.Modules.Tournament.Contracts;
 using Mercurius.Modules.Tournament.Domain;
 using Mercurius.Modules.Tournament.Infrastructure;
+using Mercurius.Modules.Identity.Contracts;
 using Mercurius.Modules.Shared;
 using Mercurius.Modules.Teams.Contracts;
 using Microsoft.EntityFrameworkCore;
@@ -35,12 +36,13 @@ internal sealed class TournamentModuleFacade : ITournamentModule
     public TournamentModuleFacade(
         ITournamentDbContext dbContext,
         ITeamsModule teamsModule,
-        TournamentEligibilityEvaluator eligibilityEvaluator)
+        TournamentEligibilityEvaluator eligibilityEvaluator,
+        IIdentityModule identityModule)
         : this(
             dbContext,
             teamsModule,
             eligibilityEvaluator,
-            new PublicProfileMatchSummaryReadService(dbContext))
+            new PublicProfileMatchSummaryReadService(dbContext, identityModule, teamsModule))
     {
     }
 

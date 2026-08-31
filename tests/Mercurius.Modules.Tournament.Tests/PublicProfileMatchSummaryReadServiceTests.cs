@@ -111,6 +111,57 @@ public sealed class PublicProfileMatchSummaryReadServiceTests
     }
 
     [Fact]
+    public async Task GetPublicProfileMatchSummariesAsync_PrefersCurrentPublicLabelsOverRegistrationSnapshots()
+    {
+        await using var dbContext = CreateDbContext();
+        var userId = Guid.NewGuid();
+        var opponentUserId = Guid.NewGuid();
+        var individualTournament = CreateTournament("Current Player Cup", ParticipationMode.Individual);
+        AddIndividualRegistration(individualTournament, userId, "profile-player");
+        AddIndividualRegistration(individualTournament, opponentUserId, "stale-opponent");
+        individualTournament.Matches.Add(CreateCompletedMatch(
+            individualTournament,
+            userId,
+            opponentUserId,
+            new DateTime(2026, 8, 9, 10, 0, 0, DateTimeKind.Utc)));
+
+        var teamId = Guid.NewGuid();
+        var opponentTeamId = Guid.NewGuid();
+        var teamTournament = CreateTournament("Current Team Cup", ParticipationMode.Team);
+        AddTeamRegistration(teamTournament, teamId, "profile-team", Guid.NewGuid());
+        AddTeamRegistration(teamTournament, opponentTeamId, "Stale Team", Guid.NewGuid());
+        teamTournament.Matches.Add(CreateCompletedTeamMatch(
+            teamTournament,
+            teamId,
+            opponentTeamId,
+            new DateTime(2026, 8, 10, 10, 0, 0, DateTimeKind.Utc)));
+
+        dbContext.Set<TournamentAggregate>().AddRange(individualTournament, teamTournament);
+        await dbContext.SaveChangesAsync();
+        dbContext.ChangeTracker.Clear();
+
+        var currentOpponent = new Mercurius.Modules.Identity.Domain.User
+        {
+            Id = opponentUserId,
+            Username = "current-opponent",
+            NormalizedUsername = "current-opponent",
+            Firstname = "Current",
+            Lastname = "Opponent"
+        };
+        var currentOpponentTeam = new Mercurius.Modules.Teams.Domain.Team("Current Team", Guid.NewGuid())
+        {
+            Id = opponentTeamId
+        };
+
+        var service = CreateService(dbContext, [currentOpponent], [currentOpponentTeam]);
+        var userSummary = await service.GetPublicUserMatchSummariesAsync(new UserId(userId));
+        var teamSummary = await service.GetPublicTeamMatchSummariesAsync(new TeamId(teamId));
+
+        Assert.Equal("current-opponent", Assert.Single(userSummary.PreviousMatches).OpponentDisplayName);
+        Assert.Equal("Current Team", Assert.Single(teamSummary.PreviousMatches).OpponentDisplayName);
+    }
+
+    [Fact]
     public async Task GetPublicUserMatchSummariesAsync_UsesConfirmedRosterAndCaptainFallbackForTeamMatches()
     {
         await using var dbContext = CreateDbContext();
@@ -387,8 +438,14 @@ public sealed class PublicProfileMatchSummaryReadServiceTests
         Assert.Equal(1, summaries.UpcomingMatches[0].RoundNumber);
     }
 
-    private static PublicProfileMatchSummaryReadService CreateService(MercuriusDBContext dbContext) =>
-        new(new TournamentDbContextAdapter<MercuriusDBContext>(dbContext));
+    private static PublicProfileMatchSummaryReadService CreateService(
+        MercuriusDBContext dbContext,
+        IReadOnlyCollection<Modules.Identity.Domain.User>? users = null,
+        IReadOnlyCollection<Modules.Teams.Domain.Team>? teams = null) =>
+        new(
+            new TournamentDbContextAdapter<MercuriusDBContext>(dbContext),
+            TournamentTestSupport.CreateIdentityModule(users),
+            TournamentTestSupport.CreateTeamsModule(teams, users));
 
     private static MercuriusDBContext CreateDbContext()
     {

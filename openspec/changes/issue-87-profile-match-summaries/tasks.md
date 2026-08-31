@@ -8,8 +8,9 @@
 
 - [x] 2.1 Query active individual/team registrations and candidate matches set-wise, selecting one
       previous/upcoming row per tournament with deterministic lifecycle-aware tie-breaks.
-- [x] 2.2 Resolve opponent display labels from public registration snapshots in bounded work and
-      preserve participant-relative scores/times without private lifecycle reports.
+- [x] 2.2 Resolve opponent display labels from current public user/team values with retained
+      registration snapshots as fallback in bounded work, preserving participant-relative
+      scores/times without private lifecycle reports.
 - [x] 2.3 Handle single/double formats, team/individual matches, BYE/TBD, canceled tournaments,
       forfeits, reversals, and unresolved states consistently.
 

@@ -11,8 +11,9 @@ match lifecycle data.
 - Select at most one previous and one upcoming match per active tournament registration.
 - Return public tournament/match identifiers, labels, opponent display data, schedule, result, and
   lifecycle state without private reports or account metadata.
-- Use set-based bounded queries with deterministic ordering and public registration snapshots for
-  opponent names.
+- Use set-based bounded queries with deterministic ordering, preferring current publicly resolvable
+  user/team values and falling back to retained registration snapshots when those sources are
+  unavailable.
 
 ## Non-goals
 

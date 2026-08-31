@@ -191,6 +191,17 @@ internal static class TournamentTestSupport
                     .ToDictionary(summary => summary.Id));
         }
 
+        public Task<IReadOnlyDictionary<UserId, string>> GetPublicUsernamesByIdsAsync(
+            IReadOnlyCollection<UserId> userIds,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyDictionary<UserId, string>>(
+                userIds
+                    .Select(userId => _users.GetValueOrDefault(userId.Value))
+                    .Where(user => user is not null && user.IsComplete)
+                    .ToDictionary(user => new UserId(user!.Id), user => user!.Username!));
+        }
+
         public Task<IReadOnlyList<PublicUserSearchDocument>> GetPublicUserSearchDocumentsPageAsync(
             UserId? afterId,
             int pageSize,
@@ -261,6 +272,17 @@ internal static class TournamentTestSupport
                     .Where(teamId => _teams.ContainsKey(teamId.Value))
                     .Select(teamId => CreateSnapshot(_teams[teamId.Value]))
                     .ToDictionary(snapshot => snapshot.TeamId));
+        }
+
+        public Task<IReadOnlyDictionary<TeamId, string>> GetPublicTeamNamesByIdsAsync(
+            IReadOnlyCollection<TeamId> teamIds,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyDictionary<TeamId, string>>(
+                teamIds
+                    .Select(teamId => _teams.GetValueOrDefault(teamId.Value))
+                    .Where(team => team is not null && !team.IsDeleted && !string.IsNullOrWhiteSpace(team.Name))
+                    .ToDictionary(team => new TeamId(team!.Id), team => team!.Name));
         }
 
         public Task<PublicTeamProfile?> GetPublicTeamProfileAsync(string teamName, CancellationToken cancellationToken = default)

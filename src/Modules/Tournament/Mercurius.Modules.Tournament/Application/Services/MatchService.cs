@@ -17,7 +17,6 @@ namespace Mercurius.Modules.Tournament.Application.Services;
 
 internal sealed class MatchService : IMatchService
 {
-    private const int MaxDownstreamMatches = 512;
     private const string ReversalBlockedReason = "match_reversal_blocked";
     private const string DownstreamGraphTooLargeReason = "downstream_graph_too_large";
     private readonly ITournamentDbContext _dbContext;
@@ -25,19 +24,22 @@ internal sealed class MatchService : IMatchService
     private readonly ITeamsModule _teamsModule;
     private readonly IModuleEventPublisher _moduleEventPublisher;
     private readonly TimeProvider _timeProvider;
+    private readonly MatchBracketImpactAnalyzer _bracketImpactAnalyzer;
 
     public MatchService(
         ITournamentDbContext dbContext,
         IIdentityModule identityModule,
         ITeamsModule teamsModule,
         IModuleEventPublisher moduleEventPublisher,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        MatchBracketImpactAnalyzer bracketImpactAnalyzer)
     {
         _dbContext = dbContext;
         _identityModule = identityModule;
         _teamsModule = teamsModule;
         _moduleEventPublisher = moduleEventPublisher;
         _timeProvider = timeProvider;
+        _bracketImpactAnalyzer = bracketImpactAnalyzer;
     }
 
     public async Task<GetMatchDTO> GetMatchByIdAsync(
@@ -71,19 +73,23 @@ internal sealed class MatchService : IMatchService
         }
 
         var side = await FindParticipantSideAsync(match, userId, cancellationToken);
+        var tournamentInProgress = tournament.Status == TournamentStatus.InProgress;
         var canViewPrivateReports = isAdmin &&
             (!tournament.AssignedAdminUserId.HasValue || tournament.AssignedAdminUserId.Value == userId);
+        var canConfirmEnded = tournamentInProgress && CanConfirmEnded(match, side);
+        var canSubmitScore = tournamentInProgress && CanSubmitScore(match, side);
+        var canForfeit = tournamentInProgress && CanForfeit(match, side);
         var canResolve = isAdmin &&
-            tournament.Status == TournamentStatus.InProgress &&
+            tournamentInProgress &&
             match.LifecycleState is MatchLifecycleState.Disputed or MatchLifecycleState.AdminResolutionRequired;
         var resolveBlockedReason = !isAdmin
             ? "admin_required"
-            : tournament.Status != TournamentStatus.InProgress
+            : !tournamentInProgress
                 ? "tournament_not_in_progress"
                 : "match_not_disputed";
         var hasBothParticipants = match.GetParticipant1Id().HasValue && match.GetParticipant2Id().HasValue;
         var canForceForfeit = isAdmin &&
-            tournament.Status == TournamentStatus.InProgress &&
+            tournamentInProgress &&
             hasBothParticipants &&
             !match.Participant1IsBYE &&
             !match.Participant2IsBYE &&
@@ -91,7 +97,7 @@ internal sealed class MatchService : IMatchService
             match.LifecycleState != MatchLifecycleState.AdminResolutionRequired;
         var forceForfeitBlockedReason = !isAdmin
             ? "admin_required"
-            : tournament.Status != TournamentStatus.InProgress
+            : !tournamentInProgress
                 ? "tournament_not_in_progress"
                 : match.HasResult
                     ? "match_already_completed"
@@ -103,31 +109,31 @@ internal sealed class MatchService : IMatchService
         var canReverse = false;
         var reverseBlockedReason = !isAdmin
             ? "admin_required"
-            : tournament.Status != TournamentStatus.InProgress
+            : !tournamentInProgress
                 ? "tournament_not_in_progress"
                 : !match.HasResult
                     ? "match_not_completed"
                     : ReversalBlockedReason;
-        if (isAdmin && tournament.Status == TournamentStatus.InProgress && match.HasResult)
+        if (isAdmin && tournamentInProgress && match.HasResult)
         {
-            var downstreamLoaded = await LoadDownstreamMatchesAsync(match, cancellationToken);
-            if (!downstreamLoaded)
+            var reversalAnalysis = await _bracketImpactAnalyzer.AnalyzeAsync(match, cancellationToken);
+            if (reversalAnalysis.IsGraphTooLarge)
             {
                 reverseBlockedReason = DownstreamGraphTooLargeReason;
             }
             else
             {
-                var downstream = GetDownstreamMatches(match);
-                canReverse = !HasUnprovenancedDownstreamAssignment(match, downstream) &&
-                    downstream.All(downstreamMatch => !HasPlayedResult(downstreamMatch));
+                canReverse = reversalAnalysis.CanReverse;
                 reverseBlockedReason = canReverse ? null : ReversalBlockedReason;
             }
         }
         return TournamentDtoMapper.ToGetMatchActionStateDto(
             match,
             side,
-            tournament.Status == TournamentStatus.InProgress,
-            canViewPrivateReports,
+            canViewPrivateReports || side.HasValue,
+            canConfirmEnded,
+            canSubmitScore,
+            canForfeit,
             canResolve,
             canResolve ? null : resolveBlockedReason,
             canForceForfeit,
@@ -250,25 +256,22 @@ internal sealed class MatchService : IMatchService
         var userId = await GetCurrentUserIdAsync(auth0UserId, cancellationToken);
         await using var transaction = await BeginTransactionIfSupportedAsync(cancellationToken);
         var (tournament, match) = await GetMatchMutationGraphAsync(id, cancellationToken);
-        if (!await LoadDownstreamMatchesAsync(match, cancellationToken))
+        var reversalAnalysis = await _bracketImpactAnalyzer.AnalyzeAsync(match, cancellationToken);
+        if (reversalAnalysis.IsGraphTooLarge)
             throw new ConflictException(
                 DownstreamGraphTooLargeReason,
                 "This result cannot be reversed because the linked bracket is too large to evaluate safely.");
         EnsureInProgress(tournament);
-        var downstream = GetDownstreamMatches(match);
-        var blockingMatch = downstream.FirstOrDefault(HasPlayedResult);
-        if (blockingMatch is not null)
+        if (reversalAnalysis.BlockingMatch is not null)
             throw new ConflictException(
                 ReversalBlockedReason,
-                $"This result cannot be reversed because linked match {blockingMatch.Id} already has a result.");
-        if (HasUnprovenancedDownstreamAssignment(match, downstream))
+                $"This result cannot be reversed because linked match {reversalAnalysis.BlockingMatch.Id} already has a result.");
+        if (!reversalAnalysis.CanReverse)
             throw new ConflictException(
                 ReversalBlockedReason,
                 "This result cannot be reversed because a linked participant assignment cannot be proven to originate from it.");
 
-        foreach (var nextMatch in downstream)
-            nextMatch.ClearParticipantFromSource(match.Id);
-
+        _bracketImpactAnalyzer.ClearDownstreamAssignments(match, reversalAnalysis);
         match.ReverseResult(UtcNow());
         match.ResultRecordedByUserId = userId;
         _moduleEventPublisher.Publish(new MatchResultReversedIntegrationEvent(
@@ -333,70 +336,6 @@ internal sealed class MatchService : IMatchService
             .Include(candidate => candidate.WinnerNextMatch)
             .Include(candidate => candidate.LoserNextMatch)
             .Where(candidate => candidate.Id == id);
-
-    private async Task<bool> LoadDownstreamMatchesAsync(
-        Match source,
-        CancellationToken cancellationToken)
-    {
-        var discovered = new HashSet<Guid> { source.Id };
-        var pending = new Queue<(Match Parent, Guid ChildId, bool IsWinnerLink)>();
-        if (!EnqueueDownstreamLinks(source, pending, discovered))
-            return false;
-
-        while (pending.Count != 0)
-        {
-            var batch = new List<(Match Parent, Guid ChildId, bool IsWinnerLink)>();
-            while (pending.Count != 0)
-                batch.Add(pending.Dequeue());
-
-            var childIds = batch
-                .Select(link => link.ChildId)
-                .Distinct()
-                .ToArray();
-            var children = await _dbContext.Matches
-                .Where(candidate => childIds.Contains(candidate.Id))
-                .ToListAsync(cancellationToken);
-            var childrenById = children.ToDictionary(candidate => candidate.Id);
-            foreach (var link in batch)
-            {
-                if (!childrenById.TryGetValue(link.ChildId, out var child))
-                    return false;
-                if (child.TournamentId != source.TournamentId)
-                    return false;
-
-                if (link.IsWinnerLink)
-                    link.Parent.WinnerNextMatch = child;
-                else
-                    link.Parent.LoserNextMatch = child;
-
-                if (!EnqueueDownstreamLinks(child, pending, discovered))
-                    return false;
-            }
-        }
-
-        return true;
-    }
-
-    private static bool EnqueueDownstreamLinks(
-        Match match,
-        Queue<(Match Parent, Guid ChildId, bool IsWinnerLink)> pending,
-        HashSet<Guid> discovered)
-    {
-        if (match.WinnerNextMatchId.HasValue && discovered.Add(match.WinnerNextMatchId.Value))
-        {
-            if (discovered.Count > MaxDownstreamMatches + 1)
-                return false;
-            pending.Enqueue((match, match.WinnerNextMatchId.Value, true));
-        }
-        if (match.LoserNextMatchId.HasValue && discovered.Add(match.LoserNextMatchId.Value))
-        {
-            if (discovered.Count > MaxDownstreamMatches + 1)
-                return false;
-            pending.Enqueue((match, match.LoserNextMatchId.Value, false));
-        }
-
-        return true;
-    }
 
     private static bool HasExpiredDeadline(Match match, DateTime nowUtc) =>
         (match.LifecycleState == MatchLifecycleState.ScoreConfirmation &&
@@ -509,6 +448,47 @@ internal sealed class MatchService : IMatchService
             throw new ValidationException("Match actions are available only while the tournament is in progress.");
     }
 
+    private static bool CanConfirmEnded(Match match, MatchParticipantSide? side) =>
+        side.HasValue &&
+        match.HasBothParticipants &&
+        !match.Participant1IsBYE &&
+        !match.Participant2IsBYE &&
+        !match.HasResult &&
+        match.LifecycleState is not MatchLifecycleState.AdminResolutionRequired &&
+        ((side == MatchParticipantSide.Participant1 && !match.Participant1Ended) ||
+         (side == MatchParticipantSide.Participant2 && !match.Participant2Ended));
+
+    private static bool CanSubmitScore(Match match, MatchParticipantSide? side)
+    {
+        if (!side.HasValue ||
+            !match.HasBothParticipants ||
+            match.Participant1IsBYE ||
+            match.Participant2IsBYE)
+        {
+            return false;
+        }
+
+        return match.LifecycleState switch
+        {
+            MatchLifecycleState.AwaitingScore => true,
+            MatchLifecycleState.ScoreConfirmation => side == MatchParticipantSide.Participant1
+                ? !match.Participant1ReportedScore1.HasValue
+                : !match.Participant2ReportedScore1.HasValue,
+            MatchLifecycleState.Disputed => side == MatchParticipantSide.Participant1
+                ? match.Participant1CorrectionCount < 1
+                : match.Participant2CorrectionCount < 1,
+            _ => false
+        };
+    }
+
+    private static bool CanForfeit(Match match, MatchParticipantSide? side) =>
+        side.HasValue &&
+        match.HasBothParticipants &&
+        !match.Participant1IsBYE &&
+        !match.Participant2IsBYE &&
+        !match.HasResult &&
+        match.LifecycleState != MatchLifecycleState.AdminResolutionRequired;
+
     private async Task<bool> IsTournamentInProgressAsync(
         Guid tournamentId,
         CancellationToken cancellationToken) =>
@@ -517,69 +497,6 @@ internal sealed class MatchService : IMatchService
             .AnyAsync(
                 tournament => tournament.Id == tournamentId && tournament.Status == TournamentStatus.InProgress,
                 cancellationToken);
-
-    private static bool HasPlayedResult(Match match) =>
-        match.HasResult ||
-        HasActuallyStartedOrFinished(match) ||
-        match.Participant1Ended ||
-        match.Participant2Ended ||
-        match.Participant1ReportedScore1.HasValue ||
-        match.Participant2ReportedScore1.HasValue ||
-        match.Participant1Score.HasValue ||
-        match.Participant2Score.HasValue ||
-        match.HasWinner() ||
-        match.GetLoserForMutation().HasValue ||
-        match.ForfeitedParticipantNumber.HasValue;
-
-    private static bool HasActuallyStartedOrFinished(Match match) =>
-        match.StartTime != default || match.EndTime != default;
-
-    private static IReadOnlyList<Match> GetDownstreamMatches(Match source)
-    {
-        var seen = new HashSet<Guid> { source.Id };
-        var queue = new Queue<Match>();
-        if (source.WinnerNextMatch is not null)
-            queue.Enqueue(source.WinnerNextMatch);
-        if (source.LoserNextMatch is not null)
-            queue.Enqueue(source.LoserNextMatch);
-
-        var result = new List<Match>();
-        while (queue.Count != 0 && result.Count < MaxDownstreamMatches)
-        {
-            var current = queue.Dequeue();
-            if (!seen.Add(current.Id))
-                continue;
-            result.Add(current);
-            if (current.WinnerNextMatch is not null)
-                queue.Enqueue(current.WinnerNextMatch);
-            if (current.LoserNextMatch is not null)
-                queue.Enqueue(current.LoserNextMatch);
-        }
-        return result;
-    }
-
-    private static bool HasUnprovenancedDownstreamAssignment(
-        Match source,
-        IReadOnlyList<Match> downstream)
-    {
-        var sourceParticipants = new[]
-        {
-            source.GetWinnerId(),
-            source.GetLoserForMutation()
-        };
-
-        if (sourceParticipants.Any(participantId => !participantId.HasValue))
-        {
-            return downstream.Any(match =>
-                (match.GetParticipant1Id().HasValue && match.Participant1SourceMatchId != source.Id) ||
-                (match.GetParticipant2Id().HasValue && match.Participant2SourceMatchId != source.Id));
-        }
-
-        return downstream.Any(match => sourceParticipants.Any(participantId =>
-            participantId.HasValue &&
-            ((match.GetParticipant1Id() == participantId && match.Participant1SourceMatchId != source.Id) ||
-             (match.GetParticipant2Id() == participantId && match.Participant2SourceMatchId != source.Id))));
-    }
 
     private DateTime UtcNow() => _timeProvider.GetUtcNow().UtcDateTime;
 

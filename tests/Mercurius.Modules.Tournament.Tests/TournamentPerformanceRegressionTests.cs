@@ -238,7 +238,8 @@ public class TournamentPerformanceRegressionTests
             TournamentTestSupport.CreateIdentityModule(),
             TournamentTestSupport.CreateTeamsModule(),
             TournamentTestSupport.CreateModuleEventPublisher(),
-            TimeProvider.System);
+            TimeProvider.System,
+            new MatchBracketImpactAnalyzer(new TournamentDbContextAdapter<MercuriusDBContext>(dbContext)));
 
         var result = await service.GetMatchByIdAsync(targetMatch.Id);
 
@@ -255,12 +256,37 @@ public class TournamentPerformanceRegressionTests
             TournamentTestSupport.CreateIdentityModule(),
             TournamentTestSupport.CreateTeamsModule(),
             TournamentTestSupport.CreateModuleEventPublisher(),
-            TimeProvider.System);
+            TimeProvider.System,
+            new MatchBracketImpactAnalyzer(new TournamentDbContextAdapter<MercuriusDBContext>(dbContext)));
         var query = (IQueryable)GetNonPublicMethod(typeof(MatchService), "CreateMatchReadQuery")
             .Invoke(service, [Guid.NewGuid()])!;
 
         var sql = query.ToQueryString();
 
+        Assert.DoesNotMatch(
+            "JOIN\\s+(?:\"?tournament\"?\\.)?\"?matches\"?",
+            sql);
+    }
+
+    [Fact]
+    public void MatchDeadlineProcessor_QueryTargetsOnlyExpiredDeadlineCandidates()
+    {
+        using var dbContext = CreateTranslationDbContext();
+        var queryMethod = typeof(MatchDeadlineProcessor).GetMethod(
+            "CreateExpiredDeadlineQuery",
+            BindingFlags.Static | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("Missing deadline candidate query.");
+        var query = (IQueryable<Match>)queryMethod.Invoke(
+            null,
+            [
+                new TournamentDbContextAdapter<MercuriusDBContext>(dbContext),
+                new DateTime(2026, 8, 29, 12, 0, 0, DateTimeKind.Utc)
+            ])!;
+
+        var sql = query.ToQueryString();
+
+        Assert.Contains("ScoreConfirmationDeadlineUtc", sql, StringComparison.Ordinal);
+        Assert.Contains("CorrectionDeadlineUtc", sql, StringComparison.Ordinal);
         Assert.DoesNotMatch(
             "JOIN\\s+(?:\"?tournament\"?\\.)?\"?matches\"?",
             sql);

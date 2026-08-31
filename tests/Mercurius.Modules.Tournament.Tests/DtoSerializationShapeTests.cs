@@ -240,11 +240,11 @@ public class DtoSerializationShapeTests
         var participantOneState = TournamentDtoMapper.ToGetMatchActionStateDto(
             match,
             Mercurius.Modules.Tournament.Contracts.MatchParticipantSide.Participant1,
-            canViewPrivateReports: false);
+            canViewPrivateReports: true);
         var participantTwoState = TournamentDtoMapper.ToGetMatchActionStateDto(
             match,
             Mercurius.Modules.Tournament.Contracts.MatchParticipantSide.Participant2,
-            canViewPrivateReports: false);
+            canViewPrivateReports: true);
 
         Assert.Equal(2, participantOneState.Participant1ReportedScore1);
         Assert.Equal(1, participantOneState.Participant2ReportedScore1);
@@ -256,7 +256,7 @@ public class DtoSerializationShapeTests
         var unresolvedState = TournamentDtoMapper.ToGetMatchActionStateDto(
             match,
             Mercurius.Modules.Tournament.Contracts.MatchParticipantSide.Participant1,
-            canViewPrivateReports: false);
+            canViewPrivateReports: true);
         Assert.False(unresolvedState.CanForfeit);
     }
 

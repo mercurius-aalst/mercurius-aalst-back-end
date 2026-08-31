@@ -61,49 +61,41 @@ internal sealed class MatchDeadlineProcessor : BackgroundService
         var dbContext = scope.ServiceProvider.GetRequiredService<ITournamentDbContext>();
         var eventPublisher = scope.ServiceProvider.GetRequiredService<IModuleEventPublisher>();
         var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
-        var tournaments = await dbContext.Tournaments
-            .Include(tournament => tournament.Matches)
-            .Where(tournament => tournament.Status == TournamentStatus.InProgress)
+        var matches = await CreateExpiredDeadlineQuery(dbContext, nowUtc)
             .ToListAsync(cancellationToken);
 
         var changed = false;
         var changedTournaments = new List<TournamentAggregate>();
-        foreach (var tournament in tournaments)
+        foreach (var match in matches)
         {
-            var matchesById = tournament.Matches.ToDictionary(match => match.Id);
-            foreach (var match in tournament.Matches)
+            var tournament = match.Tournament;
+            var beforeState = match.LifecycleState;
+            var beforeResult = match.HasResult;
+            match.ApplyDeadline(nowUtc);
+            if (beforeState == match.LifecycleState && beforeResult == match.HasResult)
+                continue;
+
+            changed = true;
+            if (!changedTournaments.Contains(tournament))
+                changedTournaments.Add(tournament);
+            if (!beforeResult && match.HasResult && match.GetWinnerId() is Guid winnerId)
             {
-                if (match.WinnerNextMatchId.HasValue)
-                    match.WinnerNextMatch = matchesById.GetValueOrDefault(match.WinnerNextMatchId.Value);
-                if (match.LoserNextMatchId.HasValue)
-                    match.LoserNextMatch = matchesById.GetValueOrDefault(match.LoserNextMatchId.Value);
-
-                var beforeState = match.LifecycleState;
-                var beforeResult = match.HasResult;
-                match.ApplyDeadline(nowUtc);
-                if (beforeState == match.LifecycleState && beforeResult == match.HasResult)
-                    continue;
-
-                changed = true;
-                if (!changedTournaments.Contains(tournament))
-                    changedTournaments.Add(tournament);
-                if (!beforeResult && match.HasResult && match.GetWinnerId() is Guid winnerId)
-                {
-                    eventPublisher.Publish(new MatchCompletedIntegrationEvent(
-                        new Mercurius.Modules.Shared.MatchId(match.Id),
-                        new Mercurius.Modules.Shared.TournamentId(match.TournamentId),
-                        winnerId),
-                        nowUtc);
-                }
-                else if (beforeState != MatchLifecycleState.AdminResolutionRequired &&
-                        match.LifecycleState == MatchLifecycleState.AdminResolutionRequired)
-                {
-                    eventPublisher.Publish(new MatchResolutionRequiredIntegrationEvent(
-                        new Mercurius.Modules.Shared.MatchId(match.Id),
-                        new Mercurius.Modules.Shared.TournamentId(match.TournamentId),
-                        tournament.AssignedAdminUserId),
-                        nowUtc);
-                }
+                await LoadDirectNextMatchesAsync(dbContext, match, cancellationToken);
+                match.UpdateParticipantsNextMatch();
+                eventPublisher.Publish(new MatchCompletedIntegrationEvent(
+                    new Mercurius.Modules.Shared.MatchId(match.Id),
+                    new Mercurius.Modules.Shared.TournamentId(match.TournamentId),
+                    winnerId),
+                    nowUtc);
+            }
+            else if (beforeState != MatchLifecycleState.AdminResolutionRequired &&
+                    match.LifecycleState == MatchLifecycleState.AdminResolutionRequired)
+            {
+                eventPublisher.Publish(new MatchResolutionRequiredIntegrationEvent(
+                    new Mercurius.Modules.Shared.MatchId(match.Id),
+                    new Mercurius.Modules.Shared.TournamentId(match.TournamentId),
+                    tournament.AssignedAdminUserId),
+                    nowUtc);
             }
         }
 
@@ -132,5 +124,42 @@ internal sealed class MatchDeadlineProcessor : BackgroundService
         await dbContext.SaveChangesAsync(cancellationToken);
         if (transaction is not null)
             await transaction.CommitAsync(cancellationToken);
+    }
+
+    private static IQueryable<Match> CreateExpiredDeadlineQuery(
+        ITournamentDbContext dbContext,
+        DateTime nowUtc) =>
+        dbContext.Matches
+            .Include(match => match.Tournament)
+            .Where(match =>
+                match.Tournament.Status == TournamentStatus.InProgress &&
+                ((match.LifecycleState == MatchLifecycleState.ScoreConfirmation &&
+                  match.ScoreConfirmationDeadlineUtc <= nowUtc) ||
+                 (match.LifecycleState == MatchLifecycleState.Disputed &&
+                  match.CorrectionDeadlineUtc <= nowUtc)));
+
+    private static async Task LoadDirectNextMatchesAsync(
+        ITournamentDbContext dbContext,
+        Match match,
+        CancellationToken cancellationToken)
+    {
+        var nextMatchIds = new[] { match.WinnerNextMatchId, match.LoserNextMatchId }
+            .Where(nextMatchId => nextMatchId.HasValue)
+            .Select(nextMatchId => nextMatchId!.Value)
+            .Distinct()
+            .ToArray();
+        if (nextMatchIds.Length == 0)
+            return;
+
+        var nextMatches = await dbContext.Matches
+            .Where(candidate =>
+                candidate.TournamentId == match.TournamentId &&
+                nextMatchIds.Contains(candidate.Id))
+            .ToListAsync(cancellationToken);
+        var nextMatchesById = nextMatches.ToDictionary(candidate => candidate.Id);
+        if (match.WinnerNextMatchId is { } winnerNextMatchId)
+            match.WinnerNextMatch = nextMatchesById.GetValueOrDefault(winnerNextMatchId);
+        if (match.LoserNextMatchId is { } loserNextMatchId)
+            match.LoserNextMatch = nextMatchesById.GetValueOrDefault(loserNextMatchId);
     }
 }

@@ -283,8 +283,10 @@ internal sealed class TournamentDtoMapper
     internal static GetMatchActionStateDTO ToGetMatchActionStateDto(
         Match match,
         Contracts.MatchParticipantSide? authorizedParticipant,
-        bool tournamentInProgress = true,
         bool canViewPrivateReports = false,
+        bool canConfirmEnded = false,
+        bool canSubmitScore = false,
+        bool canForfeit = false,
         bool canResolve = false,
         string? resolveBlockedReason = null,
         bool canForceForfeit = false,
@@ -296,41 +298,25 @@ internal sealed class TournamentDtoMapper
         {
             Match = ToGetMatchDto(match),
             AuthorizedParticipant = authorizedParticipant,
-            CanConfirmEnded = tournamentInProgress && authorizedParticipant.HasValue &&
-                match.HasBothParticipants && !match.Participant1IsBYE && !match.Participant2IsBYE &&
-                !match.HasResult &&
-                match.LifecycleState is not Domain.MatchLifecycleState.AdminResolutionRequired &&
-                ((authorizedParticipant == Contracts.MatchParticipantSide.Participant1 && !match.Participant1Ended) ||
-                 (authorizedParticipant == Contracts.MatchParticipantSide.Participant2 && !match.Participant2Ended)),
-            CanSubmitScore = tournamentInProgress && authorizedParticipant.HasValue &&
-                match.HasBothParticipants && !match.Participant1IsBYE && !match.Participant2IsBYE &&
-                (match.LifecycleState == Domain.MatchLifecycleState.AwaitingScore ||
-                 (match.LifecycleState == Domain.MatchLifecycleState.ScoreConfirmation &&
-                  ((authorizedParticipant == Contracts.MatchParticipantSide.Participant1 && !match.Participant1ReportedScore1.HasValue) ||
-                   (authorizedParticipant == Contracts.MatchParticipantSide.Participant2 && !match.Participant2ReportedScore1.HasValue))) ||
-                 (match.LifecycleState == Domain.MatchLifecycleState.Disputed &&
-                  ((authorizedParticipant == Contracts.MatchParticipantSide.Participant1 && match.Participant1CorrectionCount < 1) ||
-                   (authorizedParticipant == Contracts.MatchParticipantSide.Participant2 && match.Participant2CorrectionCount < 1)))),
-            CanForfeit = tournamentInProgress && authorizedParticipant.HasValue &&
-                match.HasBothParticipants && !match.Participant1IsBYE && !match.Participant2IsBYE &&
-                !match.HasResult &&
-                match.LifecycleState != Domain.MatchLifecycleState.AdminResolutionRequired,
+            CanConfirmEnded = canConfirmEnded,
+            CanSubmitScore = canSubmitScore,
+            CanForfeit = canForfeit,
             CanResolve = canResolve,
             ResolveBlockedReason = resolveBlockedReason,
             CanForceForfeit = canForceForfeit,
             ForceForfeitBlockedReason = forceForfeitBlockedReason,
             CanReverse = canReverse,
             ReverseBlockedReason = reverseBlockedReason,
-            Participant1ReportedScore1 = canViewPrivateReports || authorizedParticipant.HasValue
+            Participant1ReportedScore1 = canViewPrivateReports
                 ? match.Participant1ReportedScore1
                 : null,
-            Participant1ReportedScore2 = canViewPrivateReports || authorizedParticipant.HasValue
+            Participant1ReportedScore2 = canViewPrivateReports
                 ? match.Participant1ReportedScore2
                 : null,
-            Participant2ReportedScore1 = canViewPrivateReports || authorizedParticipant.HasValue
+            Participant2ReportedScore1 = canViewPrivateReports
                 ? match.Participant2ReportedScore1
                 : null,
-            Participant2ReportedScore2 = canViewPrivateReports || authorizedParticipant.HasValue
+            Participant2ReportedScore2 = canViewPrivateReports
                 ? match.Participant2ReportedScore2
                 : null
         };

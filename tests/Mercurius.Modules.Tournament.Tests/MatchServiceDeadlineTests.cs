@@ -4,6 +4,9 @@ using Mercurius.Modules.Tournament.Application.Services;
 using Mercurius.Modules.Tournament.Domain;
 using Mercurius.Modules.Tournament.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+using Platform.Eventing;
 using ContractLifecycleState = Mercurius.Modules.Tournament.Contracts.MatchLifecycleState;
 
 namespace Mercurius.Modules.Tournament.Tests;
@@ -46,7 +49,8 @@ public class MatchServiceDeadlineTests
             TournamentTestSupport.CreateIdentityModule(),
             TournamentTestSupport.CreateTeamsModule(),
             TournamentTestSupport.CreateModuleEventPublisher(),
-            new FixedTimeProvider(nowUtc));
+            new FixedTimeProvider(nowUtc),
+            new MatchBracketImpactAnalyzer(new TournamentDbContextAdapter<MercuriusDBContext>(dbContext)));
 
         var result = await service.GetMatchByIdAsync(match.Id);
 
@@ -55,6 +59,92 @@ public class MatchServiceDeadlineTests
         Assert.Equal(MatchLifecycleState.ScoreConfirmation, persisted.LifecycleState);
         Assert.Null(persisted.Participant1Score);
         Assert.Empty(await dbContext.OutboxMessages.ToListAsync());
+    }
+
+    [Fact]
+    public async Task DeadlineProcessor_CompletesExpiredMatch_AndLoadsOnlyDirectNextMatches()
+    {
+        var nowUtc = new DateTime(2026, 8, 29, 12, 0, 0, DateTimeKind.Utc);
+        var tournament = new TournamentAggregate(
+            "Deadline tournament",
+            BracketType.SingleElimination,
+            GameFormat.BestOf1,
+            GameFormat.BestOf1,
+            ParticipationMode.Individual)
+        {
+            Id = Guid.NewGuid(),
+            Status = TournamentStatus.InProgress
+        };
+        var source = new Match
+        {
+            Id = Guid.NewGuid(),
+            TournamentId = tournament.Id,
+            Tournament = tournament,
+            Format = GameFormat.BestOf1,
+            ParticipationMode = ParticipationMode.Individual,
+            MatchNumber = 1,
+            LifecycleState = MatchLifecycleState.ScoreConfirmation,
+            ScoreConfirmationDeadlineUtc = nowUtc.AddMinutes(-1),
+            UserParticipant1Id = Guid.NewGuid(),
+            UserParticipant2Id = Guid.NewGuid(),
+            Participant1ReportedScore1 = 1,
+            Participant1ReportedScore2 = 0
+        };
+        var directNextMatch = new Match
+        {
+            Id = Guid.NewGuid(),
+            TournamentId = tournament.Id,
+            Tournament = tournament,
+            Format = GameFormat.BestOf1,
+            ParticipationMode = ParticipationMode.Individual
+        };
+        source.WinnerNextMatchId = directNextMatch.Id;
+        var unrelatedMatch = new Match
+        {
+            Id = Guid.NewGuid(),
+            TournamentId = tournament.Id,
+            Tournament = tournament,
+            Format = GameFormat.BestOf1,
+            ParticipationMode = ParticipationMode.Individual,
+            LifecycleState = MatchLifecycleState.ScoreConfirmation,
+            ScoreConfirmationDeadlineUtc = nowUtc.AddMinutes(5),
+            Participant1ReportedScore1 = 1,
+            Participant1ReportedScore2 = 0
+        };
+        tournament.Matches.Add(source);
+        tournament.Matches.Add(directNextMatch);
+        tournament.Matches.Add(unrelatedMatch);
+
+        await using var dbContext = CreateDbContext();
+        dbContext.Set<TournamentAggregate>().Add(tournament);
+        await dbContext.SaveChangesAsync();
+        dbContext.ChangeTracker.Clear();
+
+        var adapter = new TournamentDbContextAdapter<MercuriusDBContext>(dbContext);
+        var publisher = TournamentTestSupport.CreateModuleEventPublisher();
+        using var serviceProvider = new ServiceCollection()
+            .AddScoped<ITournamentDbContext>(_ => adapter)
+            .AddScoped<IModuleEventPublisher>(_ => publisher)
+            .BuildServiceProvider();
+        using var processor = new MatchDeadlineProcessor(
+            serviceProvider.GetRequiredService<IServiceScopeFactory>(),
+            new FixedTimeProvider(nowUtc),
+            NullLogger<MatchDeadlineProcessor>.Instance);
+
+        var processMethod = typeof(MatchDeadlineProcessor).GetMethod(
+            "ProcessExpiredMatchesAsync",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("Missing deadline processing method.");
+        await (Task)processMethod.Invoke(processor, [CancellationToken.None])!;
+
+        var persistedSource = await dbContext.Set<Match>().AsNoTracking().SingleAsync(match => match.Id == source.Id);
+        var persistedDirectNext = await dbContext.Set<Match>().AsNoTracking().SingleAsync(match => match.Id == directNextMatch.Id);
+        var persistedUnrelated = await dbContext.Set<Match>().AsNoTracking().SingleAsync(match => match.Id == unrelatedMatch.Id);
+        Assert.Equal(MatchLifecycleState.Completed, persistedSource.LifecycleState);
+        Assert.Equal(persistedSource.UserWinnerId, persistedDirectNext.UserParticipant1Id);
+        Assert.Equal(source.Id, persistedDirectNext.Participant1SourceMatchId);
+        Assert.Equal(MatchLifecycleState.ScoreConfirmation, persistedUnrelated.LifecycleState);
+        Assert.Contains(publisher.Events, payload => payload is Mercurius.Modules.Tournament.Contracts.MatchCompletedIntegrationEvent);
     }
 
     [Fact]

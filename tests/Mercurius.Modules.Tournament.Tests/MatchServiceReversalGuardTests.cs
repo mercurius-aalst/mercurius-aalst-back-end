@@ -43,7 +43,8 @@ public class MatchServiceReversalGuardTests
             TournamentTestSupport.CreateIdentityModule([assignedAdmin, resolvingAdmin]),
             TournamentTestSupport.CreateTeamsModule(),
             TournamentTestSupport.CreateModuleEventPublisher(),
-            new FixedTimeProvider(nowUtc));
+            new FixedTimeProvider(nowUtc),
+            new MatchBracketImpactAnalyzer(new TournamentDbContextAdapter<MercuriusDBContext>(dbContext)));
 
         var actionState = await service.GetMatchActionStateAsync(
             assignedMatch.Id,
@@ -147,7 +148,8 @@ public class MatchServiceReversalGuardTests
             TournamentTestSupport.CreateIdentityModule([assignedAdmin, resolvingAdmin]),
             TournamentTestSupport.CreateTeamsModule(),
             TournamentTestSupport.CreateModuleEventPublisher(),
-            new FixedTimeProvider(nowUtc));
+            new FixedTimeProvider(nowUtc),
+            new MatchBracketImpactAnalyzer(new TournamentDbContextAdapter<MercuriusDBContext>(dbContext)));
 
         var readyState = await service.GetMatchActionStateAsync(
             readyMatch.Id,
@@ -225,7 +227,8 @@ public class MatchServiceReversalGuardTests
             TournamentTestSupport.CreateIdentityModule([admin]),
             TournamentTestSupport.CreateTeamsModule(),
             TournamentTestSupport.CreateModuleEventPublisher(),
-            new FixedTimeProvider(nowUtc));
+            new FixedTimeProvider(nowUtc),
+            new MatchBracketImpactAnalyzer(new TournamentDbContextAdapter<MercuriusDBContext>(dbContext)));
 
         var actionState = await service.GetMatchActionStateAsync(source.Id, admin.Auth0UserId, true);
 
@@ -414,7 +417,8 @@ public class MatchServiceReversalGuardTests
             TournamentTestSupport.CreateIdentityModule([admin]),
             TournamentTestSupport.CreateTeamsModule(),
             TournamentTestSupport.CreateModuleEventPublisher(),
-            new FixedTimeProvider(new DateTime(2026, 8, 29, 12, 0, 0, DateTimeKind.Utc)));
+            new FixedTimeProvider(new DateTime(2026, 8, 29, 12, 0, 0, DateTimeKind.Utc)),
+            new MatchBracketImpactAnalyzer(new TournamentDbContextAdapter<MercuriusDBContext>(dbContext)));
 
     private static TournamentAggregate CreateTournament(string name, BracketType bracketType, User admin) => new(
         name,

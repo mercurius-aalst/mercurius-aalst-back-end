@@ -9,6 +9,7 @@ internal interface ITournamentDbContext
     DbSet<TournamentAggregate> Tournaments { get; }
     DbSet<Match> Matches { get; }
     DbSet<Placement> Placements { get; }
+    DbSet<MatchResolutionNotification> MatchResolutionNotifications { get; }
     DbSet<TournamentRegistration> TournamentRegistrations { get; }
     DbSet<TournamentRegistrationRosterMember> TournamentRegistrationRosterMembers { get; }
     DatabaseFacade Database { get; }

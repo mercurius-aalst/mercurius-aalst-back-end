@@ -3,6 +3,7 @@ using System;
 using Mercurius.LAN.API.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Mercurius.LAN.API.Migrations
 {
     [DbContext(typeof(MercuriusDBContext))]
-    partial class MercuriusDBContextModelSnapshot : ModelSnapshot
+    [Migration("20260829053123_MatchResultLifecycle")]
+    partial class MatchResultLifecycle
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -534,9 +537,6 @@ namespace Mercurius.LAN.API.Migrations
                     b.Property<int?>("Participant1Score")
                         .HasColumnType("integer");
 
-                    b.Property<Guid?>("Participant1SourceMatchId")
-                        .HasColumnType("uuid");
-
                     b.Property<int>("Participant2CorrectionCount")
                         .HasColumnType("integer");
 
@@ -554,9 +554,6 @@ namespace Mercurius.LAN.API.Migrations
 
                     b.Property<int?>("Participant2Score")
                         .HasColumnType("integer");
-
-                    b.Property<Guid?>("Participant2SourceMatchId")
-                        .HasColumnType("uuid");
 
                     b.Property<int>("ParticipationMode")
                         .HasColumnType("integer");
@@ -638,39 +635,6 @@ namespace Mercurius.LAN.API.Migrations
                     b.HasIndex("WinnerNextMatchId");
 
                     b.ToTable("matches", "tournament");
-                });
-
-            modelBuilder.Entity("Mercurius.Modules.Tournament.Domain.MatchResolutionNotification", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("MatchId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("OccurredAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("RecipientKind")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid?>("RecipientUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("TournamentId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("MatchId", "CreatedAtUtc");
-
-                    b.HasIndex("TournamentId", "RecipientUserId", "CreatedAtUtc");
-
-                    b.ToTable("match_resolution_notifications", "tournament");
                 });
 
             modelBuilder.Entity("Mercurius.Modules.Tournament.Domain.Placement", b =>
@@ -769,7 +733,6 @@ namespace Mercurius.LAN.API.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("Status")
-                        .IsConcurrencyToken()
                         .HasColumnType("integer");
 
                     b.Property<int?>("TeamSize")

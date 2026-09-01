@@ -201,6 +201,98 @@ public class TournamentPerformanceRegressionTests
     }
 
     [Fact]
+    public async Task MatchService_PublicRead_DoesNotMaterializeAnEntireBracket()
+    {
+        await using var dbContext = CreateDbContext();
+        var tournament = CreateTournament("Large match read");
+        var targetMatch = new Match
+        {
+            Id = Guid.NewGuid(),
+            TournamentId = tournament.Id,
+            Tournament = tournament,
+            Format = GameFormat.BestOf1,
+            ParticipationMode = ParticipationMode.Individual,
+            RoundNumber = 1,
+            MatchNumber = 1
+        };
+        tournament.Matches.Add(targetMatch);
+        for (var matchNumber = 2; matchNumber <= 101; matchNumber++)
+        {
+            tournament.Matches.Add(new Match
+            {
+                Id = Guid.NewGuid(),
+                TournamentId = tournament.Id,
+                Format = GameFormat.BestOf1,
+                ParticipationMode = ParticipationMode.Individual,
+                RoundNumber = matchNumber,
+                MatchNumber = 1
+            });
+        }
+
+        dbContext.Set<TournamentAggregate>().Add(tournament);
+        await dbContext.SaveChangesAsync();
+        dbContext.ChangeTracker.Clear();
+
+        var service = new MatchService(
+            new TournamentDbContextAdapter<MercuriusDBContext>(dbContext),
+            TournamentTestSupport.CreateIdentityModule(),
+            TournamentTestSupport.CreateTeamsModule(),
+            TournamentTestSupport.CreateModuleEventPublisher(),
+            TimeProvider.System,
+            new MatchBracketImpactAnalyzer(new TournamentDbContextAdapter<MercuriusDBContext>(dbContext)));
+
+        var result = await service.GetMatchByIdAsync(targetMatch.Id);
+
+        Assert.Equal(targetMatch.Id, result.Id);
+        Assert.Empty(dbContext.ChangeTracker.Entries());
+    }
+
+    [Fact]
+    public void MatchService_PublicReadQuery_DoesNotJoinSiblingMatches()
+    {
+        using var dbContext = CreateTranslationDbContext();
+        var service = new MatchService(
+            new TournamentDbContextAdapter<MercuriusDBContext>(dbContext),
+            TournamentTestSupport.CreateIdentityModule(),
+            TournamentTestSupport.CreateTeamsModule(),
+            TournamentTestSupport.CreateModuleEventPublisher(),
+            TimeProvider.System,
+            new MatchBracketImpactAnalyzer(new TournamentDbContextAdapter<MercuriusDBContext>(dbContext)));
+        var query = (IQueryable)GetNonPublicMethod(typeof(MatchService), "CreateMatchReadQuery")
+            .Invoke(service, [Guid.NewGuid()])!;
+
+        var sql = query.ToQueryString();
+
+        Assert.DoesNotMatch(
+            "JOIN\\s+(?:\"?tournament\"?\\.)?\"?matches\"?",
+            sql);
+    }
+
+    [Fact]
+    public void MatchDeadlineProcessor_QueryTargetsOnlyExpiredDeadlineCandidates()
+    {
+        using var dbContext = CreateTranslationDbContext();
+        var queryMethod = typeof(MatchDeadlineProcessor).GetMethod(
+            "CreateExpiredDeadlineQuery",
+            BindingFlags.Static | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("Missing deadline candidate query.");
+        var query = (IQueryable<Match>)queryMethod.Invoke(
+            null,
+            [
+                new TournamentDbContextAdapter<MercuriusDBContext>(dbContext),
+                new DateTime(2026, 8, 29, 12, 0, 0, DateTimeKind.Utc)
+            ])!;
+
+        var sql = query.ToQueryString();
+
+        Assert.Contains("ScoreConfirmationDeadlineUtc", sql, StringComparison.Ordinal);
+        Assert.Contains("CorrectionDeadlineUtc", sql, StringComparison.Ordinal);
+        Assert.DoesNotMatch(
+            "JOIN\\s+(?:\"?tournament\"?\\.)?\"?matches\"?",
+            sql);
+    }
+
+    [Fact]
     public async Task RegistrationMappingContextBuilder_LoadsUsersBeforeTeams()
     {
         var identityModule = new SequencedIdentityModule();

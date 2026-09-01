@@ -100,7 +100,7 @@ internal sealed class TournamentDtoMapper
             Matches = tournament.Matches
                 .OrderBy(match => match.RoundNumber)
                 .ThenBy(match => match.MatchNumber)
-                .Select(ToGetMatchDto)
+                .Select(match => ToGetMatchDto(match))
                 .ToList(),
             Registrations = tournament.TournamentRegistrations
                 .Where(registration => registration.Status == TournamentRegistrationStatus.Active)
@@ -233,7 +233,7 @@ internal sealed class TournamentDtoMapper
         };
     }
 
-    internal static GetMatchDTO ToGetMatchDto(Match match)
+    internal static GetMatchDTO ToGetMatchDto(Match match, bool canViewPrivateReports = false)
     {
         return new GetMatchDTO
         {
@@ -262,7 +262,63 @@ internal sealed class TournamentDtoMapper
             Participant1Score = match.Participant1Score,
             Participant2Score = match.Participant2Score,
             WinnerNextMatchId = match.WinnerNextMatchId,
-            LoserNextMatchId = match.LoserNextMatchId
+            LoserNextMatchId = match.LoserNextMatchId,
+            LifecycleState = (Contracts.MatchLifecycleState)match.LifecycleState,
+            Participant1Ended = match.Participant1Ended,
+            Participant2Ended = match.Participant2Ended,
+            Participant1ReportedScore1 = canViewPrivateReports ? match.Participant1ReportedScore1 : null,
+            Participant1ReportedScore2 = canViewPrivateReports ? match.Participant1ReportedScore2 : null,
+            Participant2ReportedScore1 = canViewPrivateReports ? match.Participant2ReportedScore1 : null,
+            Participant2ReportedScore2 = canViewPrivateReports ? match.Participant2ReportedScore2 : null,
+            ScoreConfirmationDeadlineUtc = match.ScoreConfirmationDeadlineUtc,
+            CorrectionDeadlineUtc = match.CorrectionDeadlineUtc,
+            Participant1CorrectionCount = match.Participant1CorrectionCount,
+            Participant2CorrectionCount = match.Participant2CorrectionCount,
+            ForfeitedParticipantNumber = match.ForfeitedParticipantNumber,
+            ResultKind = match.ResultKind.HasValue ? (Contracts.MatchResultKind)match.ResultKind.Value : null,
+            ResultVersion = match.ResultVersion
+        };
+    }
+
+    internal static GetMatchActionStateDTO ToGetMatchActionStateDto(
+        Match match,
+        Contracts.MatchParticipantSide? authorizedParticipant,
+        bool canViewPrivateReports = false,
+        bool canConfirmEnded = false,
+        bool canSubmitScore = false,
+        bool canForfeit = false,
+        bool canResolve = false,
+        string? resolveBlockedReason = null,
+        bool canForceForfeit = false,
+        string? forceForfeitBlockedReason = null,
+        bool canReverse = false,
+        string? reverseBlockedReason = null)
+    {
+        return new GetMatchActionStateDTO
+        {
+            Match = ToGetMatchDto(match),
+            AuthorizedParticipant = authorizedParticipant,
+            CanConfirmEnded = canConfirmEnded,
+            CanSubmitScore = canSubmitScore,
+            CanForfeit = canForfeit,
+            CanResolve = canResolve,
+            ResolveBlockedReason = resolveBlockedReason,
+            CanForceForfeit = canForceForfeit,
+            ForceForfeitBlockedReason = forceForfeitBlockedReason,
+            CanReverse = canReverse,
+            ReverseBlockedReason = reverseBlockedReason,
+            Participant1ReportedScore1 = canViewPrivateReports
+                ? match.Participant1ReportedScore1
+                : null,
+            Participant1ReportedScore2 = canViewPrivateReports
+                ? match.Participant1ReportedScore2
+                : null,
+            Participant2ReportedScore1 = canViewPrivateReports
+                ? match.Participant2ReportedScore1
+                : null,
+            Participant2ReportedScore2 = canViewPrivateReports
+                ? match.Participant2ReportedScore2
+                : null
         };
     }
 

@@ -32,6 +32,24 @@ internal class GetMatchDTO
     public int? Participant2Score { get; set; }
     public Guid? WinnerNextMatchId { get; set; }
     public Guid? LoserNextMatchId { get; set; }
+    public MatchLifecycleState LifecycleState { get; set; }
+    public bool Participant1Ended { get; set; }
+    public bool Participant2Ended { get; set; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public int? Participant1ReportedScore1 { get; set; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public int? Participant1ReportedScore2 { get; set; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public int? Participant2ReportedScore1 { get; set; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public int? Participant2ReportedScore2 { get; set; }
+    public DateTime? ScoreConfirmationDeadlineUtc { get; set; }
+    public DateTime? CorrectionDeadlineUtc { get; set; }
+    public int Participant1CorrectionCount { get; set; }
+    public int Participant2CorrectionCount { get; set; }
+    public int? ForfeitedParticipantNumber { get; set; }
+    public MatchResultKind? ResultKind { get; set; }
+    public int ResultVersion { get; set; }
 
     public GetMatchDTO()
     {

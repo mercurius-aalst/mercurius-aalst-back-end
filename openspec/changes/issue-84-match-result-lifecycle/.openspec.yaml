@@ -1,0 +1,4 @@
+schema: spec-driven
+
+change-id: issue-84-match-result-lifecycle
+summary: Add the authoritative match result lifecycle and bracket-safe moderation commands.

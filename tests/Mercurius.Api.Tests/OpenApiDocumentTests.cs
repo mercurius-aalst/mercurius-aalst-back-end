@@ -56,8 +56,12 @@ public class OpenApiDocumentTests
             AssertPathHasOperation(document, "/v1/lan/team-invites/{inviteId}", OperationType.Patch);
             AssertPathHasOperation(document, "/v1/lan/teams/{id}/logo", OperationType.Put);
             AssertPathHasOperation(document, "/v1/lan/public/teams/{teamName}", OperationType.Get);
+            AssertPathHasOperation(document, "/v1/lan/public/teams/{teamName}/match-summaries", OperationType.Get);
             AssertPathHasOperation(document, "/v1/lan/users/me", OperationType.Get);
             AssertPathHasOperation(document, "/v1/lan/public/users/{username}", OperationType.Get);
+            AssertPathHasOperation(document, "/v1/lan/public/users/{username}/match-summaries", OperationType.Get);
+            AssertOperationHasTag(document, "/v1/lan/public/users/{username}/match-summaries", OperationType.Get, "Users");
+            AssertOperationHasTag(document, "/v1/lan/public/teams/{teamName}/match-summaries", OperationType.Get, "Public Teams");
             AssertPagedRawArrayOperation(document, "/v1/lan/users");
             AssertPathHasOperation(document, "/v1/lan/tournaments/{tournamentId}/registrations/me", OperationType.Get);
             AssertPathHasOperation(document, "/v1/lan/tournaments/{tournamentId}/registrations/individual/eligibility", OperationType.Get);
@@ -97,6 +101,14 @@ public class OpenApiDocumentTests
 
         Assert.True(matchingPath is not null, $"Missing {path}. Available paths: {string.Join(", ", document.Paths.Keys.OrderBy(key => key, StringComparer.Ordinal))}");
         Assert.True(document.Paths[matchingPath].Operations.ContainsKey(operation), $"{path} should expose {operation}.");
+    }
+
+    private static void AssertOperationHasTag(OpenApiDocument document, string path, OperationType operation, string expectedTag)
+    {
+        var matchingPath = document.Paths.Keys.Single(candidate =>
+            string.Equals(candidate.TrimEnd('/'), path, StringComparison.Ordinal));
+
+        Assert.Contains(expectedTag, document.Paths[matchingPath].Operations[operation].Tags.Select(tag => tag.Name));
     }
 
     private static void AssertPagedRawArrayOperation(OpenApiDocument document, string path)
@@ -162,6 +174,7 @@ public class OpenApiDocumentTests
         services.AddScoped<ITournamentLifecycleCommands>(_ => throw new NotSupportedException());
         services.AddScoped<ITournamentRegistrationService>(_ => throw new NotSupportedException());
         services.AddScoped<IMatchService>(_ => throw new NotSupportedException());
+        services.AddScoped<PublicProfileMatchSummaryReadService>(_ => throw new NotSupportedException());
         services.AddScoped<ITeamEndpointService>(_ => throw new NotSupportedException());
         services.AddScoped<IUserService>(_ => throw new NotSupportedException());
         services.AddScoped<IDiscoveryModule>(_ => throw new NotSupportedException());

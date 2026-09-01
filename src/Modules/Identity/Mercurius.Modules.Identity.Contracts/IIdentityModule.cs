@@ -20,6 +20,10 @@ public interface IIdentityModule
         IReadOnlyCollection<UserId> userIds,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyDictionary<UserId, string>> GetPublicUsernamesByIdsAsync(
+        IReadOnlyCollection<UserId> userIds,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<PublicUserSearchDocument>> GetPublicUserSearchDocumentsPageAsync(
         UserId? afterId,
         int pageSize,

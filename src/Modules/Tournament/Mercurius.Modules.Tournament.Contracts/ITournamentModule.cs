@@ -4,6 +4,14 @@ namespace Mercurius.Modules.Tournament.Contracts;
 
 public interface ITournamentModule
 {
+    Task<PublicProfileMatchSummarySet> GetPublicUserMatchSummariesAsync(
+        UserId userId,
+        CancellationToken cancellationToken = default);
+
+    Task<PublicProfileMatchSummarySet> GetPublicTeamMatchSummariesAsync(
+        TeamId teamId,
+        CancellationToken cancellationToken = default);
+
     Task<TournamentSummary?> GetTournamentSummaryAsync(
         TournamentId tournamentId,
         CancellationToken cancellationToken = default);

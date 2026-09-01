@@ -28,6 +28,7 @@ public static class TournamentModuleConfiguration
         services.AddTransient<RegistrationMappingContextBuilder>();
         services.AddTransient<TournamentRegistrationPersistenceCoordinator>();
         services.AddTransient<TournamentRegistrationReadModelService>();
+        services.AddTransient<PublicProfileMatchSummaryReadService>();
         services.AddTransient<ITournamentQueries, TournamentService>();
         services.AddTransient<ITournamentManagementCommands, TournamentService>();
         services.AddTransient<ITournamentLifecycleCommands, TournamentService>();
@@ -66,6 +67,7 @@ public static class TournamentModuleConfiguration
         endpoints.MapTournamentEndpoints();
         endpoints.MapTournamentRegistrationEndpoints();
         endpoints.MapMatchEndpoints();
+        endpoints.MapPublicProfileMatchSummaryEndpoints();
 
         return endpoints;
     }

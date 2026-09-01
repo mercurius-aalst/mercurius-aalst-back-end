@@ -31,6 +31,11 @@ internal static class SponsorshipTournamentTestDoubles
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyDictionary<UserId, UserProfileSummary>>(new Dictionary<UserId, UserProfileSummary>());
 
+        public Task<IReadOnlyDictionary<UserId, string>> GetPublicUsernamesByIdsAsync(
+            IReadOnlyCollection<UserId> userIds,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyDictionary<UserId, string>>(new Dictionary<UserId, string>());
+
         public Task<IReadOnlyList<PublicUserSearchDocument>> GetPublicUserSearchDocumentsPageAsync(
             UserId? afterId,
             int pageSize,
@@ -56,8 +61,16 @@ internal static class SponsorshipTournamentTestDoubles
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyDictionary<TeamId, TeamRosterSnapshot>>(new Dictionary<TeamId, TeamRosterSnapshot>());
 
+        public Task<IReadOnlyDictionary<TeamId, string>> GetPublicTeamNamesByIdsAsync(
+            IReadOnlyCollection<TeamId> teamIds,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyDictionary<TeamId, string>>(new Dictionary<TeamId, string>());
+
         public Task<PublicTeamProfile?> GetPublicTeamProfileAsync(string teamName, CancellationToken cancellationToken = default) =>
             Task.FromResult<PublicTeamProfile?>(null);
+
+        public Task<TeamId?> GetPublicTeamIdByNameAsync(string teamName, CancellationToken cancellationToken = default) =>
+            Task.FromResult<TeamId?>(null);
 
         public Task<TeamRegistrationEligibility> GetRegistrationEligibilityAsync(
             TeamId teamId,

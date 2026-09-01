@@ -51,12 +51,9 @@ internal sealed class IdentityModuleFacade : IIdentityModule
             .Where(user =>
                 user.NormalizedUsername == normalizedUsername &&
                 !user.IsDeleted &&
-                user.Username != null &&
-                user.Firstname != null &&
-                user.Lastname != null &&
-                user.Username != string.Empty &&
-                user.Firstname != string.Empty &&
-                user.Lastname != string.Empty)
+                !string.IsNullOrWhiteSpace(user.Username) &&
+                !string.IsNullOrWhiteSpace(user.Firstname) &&
+                !string.IsNullOrWhiteSpace(user.Lastname))
             .Select(user => new PublicUserProfileSummary(
                 new UserId(user.Id),
                 user.Username!,
@@ -84,6 +81,29 @@ internal sealed class IdentityModuleFacade : IIdentityModule
             .ToListAsync(cancellationToken);
 
         return users.ToDictionary(user => user.Id);
+    }
+
+    public async Task<IReadOnlyDictionary<UserId, string>> GetPublicUsernamesByIdsAsync(
+        IReadOnlyCollection<UserId> userIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (userIds.Count == 0)
+            return new Dictionary<UserId, string>();
+
+        var ids = userIds.Select(userId => userId.Value).Distinct().ToArray();
+        var users = await _dbContext.Users
+            .AsNoTracking()
+            .Where(user =>
+                ids.Contains(user.Id) &&
+                !user.IsDeleted &&
+                !string.IsNullOrWhiteSpace(user.Username) &&
+                !string.IsNullOrWhiteSpace(user.NormalizedUsername) &&
+                !string.IsNullOrWhiteSpace(user.Firstname) &&
+                !string.IsNullOrWhiteSpace(user.Lastname))
+            .Select(user => new { user.Id, user.Username })
+            .ToListAsync(cancellationToken);
+
+        return users.ToDictionary(user => new UserId(user.Id), user => user.Username!);
     }
 
     public async Task<IReadOnlyList<PublicUserSearchDocument>> GetPublicUserSearchDocumentsPageAsync(

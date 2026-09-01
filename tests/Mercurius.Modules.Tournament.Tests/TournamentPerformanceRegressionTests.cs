@@ -422,7 +422,8 @@ public class TournamentPerformanceRegressionTests
         var facade = new TournamentModuleFacade(
             new TournamentDbContextAdapter<MercuriusDBContext>(dbContext),
             TournamentTestSupport.CreateTeamsModule(),
-            new TournamentEligibilityEvaluator(new TournamentDbContextAdapter<MercuriusDBContext>(dbContext)));
+            new TournamentEligibilityEvaluator(new TournamentDbContextAdapter<MercuriusDBContext>(dbContext)),
+            TournamentTestSupport.CreateIdentityModule());
 
         var buildQuery = GetNonPublicMethod(typeof(TournamentModuleFacade), "BuildTournamentSearchQuery");
         var query = (IQueryable)buildQuery.Invoke(facade, ["alpha"])!;
@@ -641,6 +642,11 @@ public class TournamentPerformanceRegressionTests
             return new Dictionary<UserId, UserProfileSummary>();
         }
 
+        public Task<IReadOnlyDictionary<UserId, string>> GetPublicUsernamesByIdsAsync(
+            IReadOnlyCollection<UserId> userIds,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyDictionary<UserId, string>>(new Dictionary<UserId, string>());
+
         public Task<UserProfileSummary?> GetUserProfileAsync(UserId userId, CancellationToken cancellationToken = default) =>
             Task.FromResult<UserProfileSummary?>(null);
 
@@ -678,6 +684,11 @@ public class TournamentPerformanceRegressionTests
             return new Dictionary<TeamId, TeamRosterSnapshot>();
         }
 
+        public Task<IReadOnlyDictionary<TeamId, string>> GetPublicTeamNamesByIdsAsync(
+            IReadOnlyCollection<TeamId> teamIds,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyDictionary<TeamId, string>>(new Dictionary<TeamId, string>());
+
         public Task<TeamSummary?> GetTeamSummaryAsync(TeamId teamId, CancellationToken cancellationToken = default) =>
             Task.FromResult<TeamSummary?>(null);
 
@@ -691,6 +702,9 @@ public class TournamentPerformanceRegressionTests
 
         public Task<PublicTeamProfile?> GetPublicTeamProfileAsync(string teamName, CancellationToken cancellationToken = default) =>
             Task.FromResult<PublicTeamProfile?>(null);
+
+        public Task<TeamId?> GetPublicTeamIdByNameAsync(string teamName, CancellationToken cancellationToken = default) =>
+            Task.FromResult<TeamId?>(null);
 
         public Task<TeamRegistrationEligibility> GetRegistrationEligibilityAsync(
             TeamId teamId,
@@ -742,6 +756,11 @@ public class TournamentPerformanceRegressionTests
                     : new Dictionary<TeamId, TeamRosterSnapshot>());
         }
 
+        public Task<IReadOnlyDictionary<TeamId, string>> GetPublicTeamNamesByIdsAsync(
+            IReadOnlyCollection<TeamId> teamIds,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyDictionary<TeamId, string>>(new Dictionary<TeamId, string>());
+
         public Task<TeamSummary?> GetTeamSummaryAsync(
             TeamId teamId,
             CancellationToken cancellationToken = default) =>
@@ -756,6 +775,11 @@ public class TournamentPerformanceRegressionTests
             string teamName,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<PublicTeamProfile?>(null);
+
+        public Task<TeamId?> GetPublicTeamIdByNameAsync(
+            string teamName,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<TeamId?>(null);
 
         public Task<TeamRegistrationEligibility> GetRegistrationEligibilityAsync(
             TeamId teamId,

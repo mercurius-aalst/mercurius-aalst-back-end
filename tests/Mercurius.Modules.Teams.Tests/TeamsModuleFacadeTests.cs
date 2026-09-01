@@ -179,6 +179,50 @@ public class TeamsModuleFacadeTests
     }
 
     [Fact]
+    public async Task GetPublicTeamIdByNameAsync_ReturnsOnlyActiveNormalizedTeam()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser("captain", "Captain", "Player");
+        var activeTeam = new Team("Mercury Wolves", captain.Id) { Id = Guid.NewGuid() };
+        var deletedTeam = new Team("Deleted Wolves", captain.Id) { Id = Guid.NewGuid(), IsDeleted = true };
+        dbContext.Users.Add(captain);
+        dbContext.Teams.AddRange(activeTeam, deletedTeam);
+        await dbContext.SaveChangesAsync();
+
+        var module = CreateModule(dbContext);
+
+        var activeId = await module.GetPublicTeamIdByNameAsync("  mErCuRy WoLvEs  ");
+        var deletedId = await module.GetPublicTeamIdByNameAsync("deleted wolves");
+        var missingId = await module.GetPublicTeamIdByNameAsync("missing wolves");
+
+        Assert.Equal(activeTeam.Id, activeId!.Value.Value);
+        Assert.Null(deletedId);
+        Assert.Null(missingId);
+    }
+
+    [Fact]
+    public async Task GetPublicTeamNamesByIdsAsync_ReturnsOnlyActiveNamedTeams()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser("captain", "Captain", "Player");
+        var publicTeam = new Team("Current Wolves", captain.Id) { Id = Guid.NewGuid() };
+        var deletedTeam = new Team("Deleted Wolves", captain.Id) { Id = Guid.NewGuid(), IsDeleted = true };
+        var unnamedTeam = new Team("Unnamed Wolves", captain.Id) { Id = Guid.NewGuid(), Name = string.Empty };
+        dbContext.Users.Add(captain);
+        dbContext.Teams.AddRange(publicTeam, deletedTeam, unnamedTeam);
+        await dbContext.SaveChangesAsync();
+
+        var module = CreateModule(dbContext);
+        var names = await module.GetPublicTeamNamesByIdsAsync(
+            [new TeamId(publicTeam.Id), new TeamId(deletedTeam.Id), new TeamId(unnamedTeam.Id)]);
+
+        Assert.Equal(new Dictionary<TeamId, string>
+        {
+            [new TeamId(publicTeam.Id)] = "Current Wolves"
+        }, names);
+    }
+
+    [Fact]
     public async Task Guards_ReturnReasonCodes_ForMissingDeletedAndNonCaptainTeams()
     {
         await using var dbContext = CreateDbContext();

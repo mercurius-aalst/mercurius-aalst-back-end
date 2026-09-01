@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Microsoft.Extensions.DependencyInjection;
 using Platform.Eventing;
+using Mercurius.TestInfrastructure;
 using Platform.Eventing.Persistence;
 using Platform.Extensions;
 

@@ -114,6 +114,39 @@ internal static class TournamentTestSupport
 
     public static StubMediaModule CreateMediaModule(string url = "images/tournament.webp") => new(url);
 
+    public static void AddReferencedUsers(
+        this MercuriusDBContext dbContext,
+        TournamentAggregate tournament)
+    {
+        var referencedUserIds = tournament.Matches
+            .SelectMany(match => new[]
+            {
+                match.UserParticipant1Id,
+                match.UserParticipant2Id,
+                match.UserWinnerId,
+                match.UserLoserId,
+                match.ResultRecordedByUserId
+            })
+            .Concat(tournament.AssignedAdminUserId is { } assignedAdminUserId
+                ? [assignedAdminUserId]
+                : [])
+            .Where(userId => userId.HasValue)
+            .Select(userId => userId!.Value)
+            .Distinct()
+            .ToArray();
+
+        var existingUserIds = dbContext.Users.Local
+            .Select(user => user.Id)
+            .ToHashSet();
+        dbContext.Users.AddRange(referencedUserIds
+            .Where(userId => !existingUserIds.Contains(userId))
+            .Select(userId => new User
+            {
+                Id = userId,
+                Auth0UserId = $"auth0|{userId:N}"
+            }));
+    }
+
     internal sealed class RecordingTournamentRealtimePublisher : ITournamentRealtimePublisher
     {
         public List<TournamentRosterConfirmationChangedEvent> Events { get; } = [];

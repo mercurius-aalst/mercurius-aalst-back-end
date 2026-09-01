@@ -419,11 +419,14 @@ public class TournamentPerformanceRegressionTests
     public void SearchTournamentsAsync_UsesLowerNamePredicate_ForFunctionalTrigramIndexAlignment()
     {
         using var dbContext = CreateTranslationDbContext();
+        var tournamentDbContext = new TournamentDbContextAdapter<MercuriusDBContext>(dbContext);
+        var identityModule = TournamentTestSupport.CreateIdentityModule();
+        var teamsModule = TournamentTestSupport.CreateTeamsModule();
         var facade = new TournamentModuleFacade(
-            new TournamentDbContextAdapter<MercuriusDBContext>(dbContext),
-            TournamentTestSupport.CreateTeamsModule(),
-            new TournamentEligibilityEvaluator(new TournamentDbContextAdapter<MercuriusDBContext>(dbContext)),
-            TournamentTestSupport.CreateIdentityModule());
+            tournamentDbContext,
+            teamsModule,
+            new TournamentEligibilityEvaluator(tournamentDbContext),
+            new PublicProfileMatchSummaryReadService(tournamentDbContext, identityModule, teamsModule));
 
         var buildQuery = GetNonPublicMethod(typeof(TournamentModuleFacade), "BuildTournamentSearchQuery");
         var query = (IQueryable)buildQuery.Invoke(facade, ["alpha"])!;

@@ -120,7 +120,7 @@ internal sealed class TournamentRegistrationService : ITournamentRegistrationSer
         Guid tournamentId,
         CancellationToken cancellationToken = default)
     {
-        await using var transaction = await _persistenceCoordinator.BeginTransactionIfSupportedAsync(cancellationToken);
+        await using var transaction = await _persistenceCoordinator.BeginTransactionAsync(cancellationToken);
         var userId = await GetCurrentUserIdAsync(auth0UserId, cancellationToken);
         var tournament = await GetTournamentAsync(tournamentId, cancellationToken);
         var reasons = await _eligibilityEvaluator.GetIndividualTournamentFailuresAsync(tournament, userId, null, cancellationToken);
@@ -159,7 +159,7 @@ internal sealed class TournamentRegistrationService : ITournamentRegistrationSer
         Guid tournamentId,
         CancellationToken cancellationToken = default)
     {
-        await using var transaction = await _persistenceCoordinator.BeginTransactionIfSupportedAsync(cancellationToken);
+        await using var transaction = await _persistenceCoordinator.BeginTransactionAsync(cancellationToken);
         var userId = await GetCurrentUserIdAsync(auth0UserId, cancellationToken);
         var tournament = await GetTournamentAsync(tournamentId, cancellationToken);
         EnsureScheduled(tournament);
@@ -187,7 +187,7 @@ internal sealed class TournamentRegistrationService : ITournamentRegistrationSer
         SubmitTeamRosterDTO request,
         CancellationToken cancellationToken = default)
     {
-        await using var transaction = await _persistenceCoordinator.BeginTransactionIfSupportedAsync(cancellationToken);
+        await using var transaction = await _persistenceCoordinator.BeginTransactionAsync(cancellationToken);
         var userId = await GetCurrentUserIdAsync(auth0UserId, cancellationToken);
         var tournament = await GetTournamentAsync(tournamentId, cancellationToken);
         var team = await GetTeamWithMembersAsync(request.TeamId, cancellationToken);
@@ -285,7 +285,7 @@ internal sealed class TournamentRegistrationService : ITournamentRegistrationSer
         Guid rosterMemberId,
         CancellationToken cancellationToken = default)
     {
-        await using var transaction = await _persistenceCoordinator.BeginTransactionIfSupportedAsync(cancellationToken);
+        await using var transaction = await _persistenceCoordinator.BeginTransactionAsync(cancellationToken);
         var userId = await GetCurrentUserIdAsync(auth0UserId, cancellationToken);
         var member = await _dbContext.TournamentRegistrationRosterMembers
             .Include(roster => roster.TournamentRegistration)
@@ -340,7 +340,7 @@ internal sealed class TournamentRegistrationService : ITournamentRegistrationSer
         Guid teamId,
         CancellationToken cancellationToken = default)
     {
-        await using var transaction = await _persistenceCoordinator.BeginTransactionIfSupportedAsync(cancellationToken);
+        await using var transaction = await _persistenceCoordinator.BeginTransactionAsync(cancellationToken);
         var userId = await GetCurrentUserIdAsync(auth0UserId, cancellationToken);
         var tournament = await GetTournamentAsync(tournamentId, cancellationToken);
         EnsureScheduled(tournament);
@@ -382,7 +382,7 @@ internal sealed class TournamentRegistrationService : ITournamentRegistrationSer
         string? adminAuth0UserId,
         CancellationToken cancellationToken = default)
     {
-        await using var transaction = await _persistenceCoordinator.BeginTransactionIfSupportedAsync(cancellationToken);
+        await using var transaction = await _persistenceCoordinator.BeginTransactionAsync(cancellationToken);
         _ = string.IsNullOrWhiteSpace(adminAuth0UserId)
             ? (Guid?)null
             : await GetCurrentUserIdAsync(adminAuth0UserId, cancellationToken);
@@ -408,7 +408,7 @@ internal sealed class TournamentRegistrationService : ITournamentRegistrationSer
         string? adminAuth0UserId,
         CancellationToken cancellationToken = default)
     {
-        await using var transaction = await _persistenceCoordinator.BeginTransactionIfSupportedAsync(cancellationToken);
+        await using var transaction = await _persistenceCoordinator.BeginTransactionAsync(cancellationToken);
         _ = string.IsNullOrWhiteSpace(adminAuth0UserId)
             ? (Guid?)null
             : await GetCurrentUserIdAsync(adminAuth0UserId, cancellationToken);

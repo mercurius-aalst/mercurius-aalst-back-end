@@ -3,6 +3,7 @@ using Mercurius.Modules.Shared;
 using Mercurius.Modules.Tournament.Application.Services;
 using Mercurius.Modules.Tournament.Domain;
 using Mercurius.Modules.Tournament.Infrastructure;
+using Mercurius.TestInfrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -75,6 +76,8 @@ public class MatchServiceDeadlineTests
             Id = Guid.NewGuid(),
             Status = TournamentStatus.InProgress
         };
+        var participant1Id = Guid.NewGuid();
+        var participant2Id = Guid.NewGuid();
         var source = new Match
         {
             Id = Guid.NewGuid(),
@@ -85,8 +88,8 @@ public class MatchServiceDeadlineTests
             MatchNumber = 1,
             LifecycleState = MatchLifecycleState.ScoreConfirmation,
             ScoreConfirmationDeadlineUtc = nowUtc.AddMinutes(-1),
-            UserParticipant1Id = Guid.NewGuid(),
-            UserParticipant2Id = Guid.NewGuid(),
+            UserParticipant1Id = participant1Id,
+            UserParticipant2Id = participant2Id,
             Participant1ReportedScore1 = 1,
             Participant1ReportedScore2 = 0
         };
@@ -116,6 +119,9 @@ public class MatchServiceDeadlineTests
         tournament.Matches.Add(unrelatedMatch);
 
         await using var dbContext = CreateDbContext();
+        dbContext.Users.AddRange(
+            new User { Id = participant1Id, Auth0UserId = $"auth0|{participant1Id:N}" },
+            new User { Id = participant2Id, Auth0UserId = $"auth0|{participant2Id:N}" });
         dbContext.Set<TournamentAggregate>().Add(tournament);
         await dbContext.SaveChangesAsync();
         dbContext.ChangeTracker.Clear();
@@ -164,13 +170,7 @@ public class MatchServiceDeadlineTests
     }
 
     private static MercuriusDBContext CreateDbContext()
-    {
-        var options = new DbContextOptionsBuilder<MercuriusDBContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
-            .Options;
-
-        return new MercuriusDBContext(options);
-    }
+        => PostgresTestDatabase.CreateDbContext();
 
     private sealed class FixedTimeProvider(DateTime utcNow) : TimeProvider
     {

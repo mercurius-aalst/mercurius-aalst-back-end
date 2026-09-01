@@ -148,7 +148,7 @@ internal sealed class MatchService : IMatchService
         CancellationToken cancellationToken = default)
     {
         var userId = await GetCurrentUserIdAsync(auth0UserId, cancellationToken);
-        await using var transaction = await BeginTransactionIfSupportedAsync(cancellationToken);
+        await using var transaction = await BeginTransactionAsync(cancellationToken);
         var (tournament, match) = await GetMatchMutationGraphAsync(id, cancellationToken);
         EnsureInProgress(tournament);
         var side = await RequireParticipantSideAsync(match, userId, cancellationToken);
@@ -166,7 +166,7 @@ internal sealed class MatchService : IMatchService
         CancellationToken cancellationToken = default)
     {
         var userId = await GetCurrentUserIdAsync(auth0UserId, cancellationToken);
-        await using var transaction = await BeginTransactionIfSupportedAsync(cancellationToken);
+        await using var transaction = await BeginTransactionAsync(cancellationToken);
         var (tournament, match) = await GetMatchMutationGraphAsync(id, cancellationToken);
         EnsureInProgress(tournament);
         var side = await RequireParticipantSideAsync(match, userId, cancellationToken);
@@ -192,7 +192,7 @@ internal sealed class MatchService : IMatchService
         CancellationToken cancellationToken = default)
     {
         var userId = await GetCurrentUserIdAsync(auth0UserId, cancellationToken);
-        await using var transaction = await BeginTransactionIfSupportedAsync(cancellationToken);
+        await using var transaction = await BeginTransactionAsync(cancellationToken);
         var (tournament, match) = await GetMatchMutationGraphAsync(id, cancellationToken);
         EnsureInProgress(tournament);
 
@@ -234,7 +234,7 @@ internal sealed class MatchService : IMatchService
         CancellationToken cancellationToken = default)
     {
         var userId = await GetCurrentUserIdAsync(auth0UserId, cancellationToken);
-        await using var transaction = await BeginTransactionIfSupportedAsync(cancellationToken);
+        await using var transaction = await BeginTransactionAsync(cancellationToken);
         var (tournament, match) = await GetMatchMutationGraphAsync(id, cancellationToken);
         EnsureInProgress(tournament);
         var wasResult = match.HasResult;
@@ -254,7 +254,7 @@ internal sealed class MatchService : IMatchService
         CancellationToken cancellationToken = default)
     {
         var userId = await GetCurrentUserIdAsync(auth0UserId, cancellationToken);
-        await using var transaction = await BeginTransactionIfSupportedAsync(cancellationToken);
+        await using var transaction = await BeginTransactionAsync(cancellationToken);
         var (tournament, match) = await GetMatchMutationGraphAsync(id, cancellationToken);
         var reversalAnalysis = await _bracketImpactAnalyzer.AnalyzeAsync(match, cancellationToken);
         if (reversalAnalysis.IsGraphTooLarge)
@@ -288,7 +288,7 @@ internal sealed class MatchService : IMatchService
         CancellationToken cancellationToken = default)
     {
         var userId = await GetCurrentUserIdAsync(auth0UserId, cancellationToken);
-        await using var transaction = await BeginTransactionIfSupportedAsync(cancellationToken);
+        await using var transaction = await BeginTransactionAsync(cancellationToken);
         var (tournament, match) = await GetMatchMutationGraphAsync(id, cancellationToken);
         EnsureInProgress(tournament);
         var now = UtcNow();
@@ -348,7 +348,7 @@ internal sealed class MatchService : IMatchService
         Match match,
         CancellationToken cancellationToken)
     {
-        await using var transaction = await BeginTransactionIfSupportedAsync(cancellationToken);
+        await using var transaction = await BeginTransactionAsync(cancellationToken);
         if (!await IsTournamentInProgressAsync(tournament.Id, cancellationToken))
             return false;
 
@@ -500,16 +500,11 @@ internal sealed class MatchService : IMatchService
 
     private DateTime UtcNow() => _timeProvider.GetUtcNow().UtcDateTime;
 
-    private async Task<IDbContextTransaction?> BeginTransactionIfSupportedAsync(
-        CancellationToken cancellationToken)
-    {
-        if (_dbContext.Database.ProviderName == "Microsoft.EntityFrameworkCore.InMemory")
-            return null;
-        return await _dbContext.Database.BeginTransactionAsync(cancellationToken);
-    }
+    private Task<IDbContextTransaction> BeginTransactionAsync(CancellationToken cancellationToken) =>
+        _dbContext.Database.BeginTransactionAsync(cancellationToken);
 
     private async Task SaveAndCommitAsync(
-        IDbContextTransaction? transaction,
+        IDbContextTransaction transaction,
         TournamentAggregate tournament,
         CancellationToken cancellationToken)
     {
@@ -520,8 +515,7 @@ internal sealed class MatchService : IMatchService
 
             _dbContext.Tournaments.Entry(tournament).Property(candidate => candidate.Status).IsModified = true;
             await _dbContext.SaveChangesAsync(cancellationToken);
-            if (transaction is not null)
-                await transaction.CommitAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
         }
         catch (DbUpdateConcurrencyException)
         {

@@ -19,6 +19,7 @@ using Mercurius.Modules.Sponsorship.Contracts;
 using Mercurius.Modules.Sponsorship.Contracts.V1;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Mercurius.TestInfrastructure;
 using Platform.Eventing;
 
 namespace Mercurius.Modules.Sponsorship.Tests;
@@ -28,7 +29,7 @@ public class SponsorFeatureTests
     [Fact]
     public async Task CreateSponsorAsync_PersistsTierAndDescription()
     {
-        await using var dbContext = CreateDbContext();
+        await using var dbContext = PostgresTestDatabase.CreateDbContext();
         var sponsorService = CreateSponsorService(dbContext);
 
         var sponsor = await sponsorService.CreateSponsorAsync(new CreateSponsorDTO
@@ -51,7 +52,7 @@ public class SponsorFeatureTests
     [Fact]
     public async Task UpdateSponsorAsync_UpdatesDescriptionAndTier()
     {
-        await using var dbContext = CreateDbContext();
+        await using var dbContext = PostgresTestDatabase.CreateDbContext();
         var sponsorService = CreateSponsorService(dbContext);
         var sponsor = new Sponsor
         {
@@ -78,7 +79,7 @@ public class SponsorFeatureTests
     [Fact]
     public async Task SponsorLifecycleMutations_PersistMatchingOutboxEvents()
     {
-        await using var dbContext = CreateDbContext();
+        await using var dbContext = PostgresTestDatabase.CreateDbContext();
         var sponsorService = CreateSponsorService(dbContext);
 
         var created = await sponsorService.CreateSponsorAsync(new CreateSponsorDTO
@@ -111,7 +112,7 @@ public class SponsorFeatureTests
     [Fact]
     public async Task SponsorshipModule_ReplacesAndRemovesPlacementWithMatchingOutboxEvents()
     {
-        await using var dbContext = CreateDbContext();
+        await using var dbContext = PostgresTestDatabase.CreateDbContext();
         var tournament = CreateTournament();
         var sponsor = CreateSponsor(1, "Mercurius Tech", SponsorTier.Presenting);
         dbContext.Set<TournamentAggregate>().Add(tournament);
@@ -149,7 +150,10 @@ public class SponsorFeatureTests
     [Fact]
     public void SponsorshipModel_PreservesExistingTablesAndCascadeRelationships()
     {
-        using var dbContext = CreateDbContext();
+        var options = new DbContextOptionsBuilder<MercuriusDBContext>()
+            .UseNpgsql("Host=localhost;Database=translation-only")
+            .Options;
+        using var dbContext = new MercuriusDBContext(options);
         var sponsorType = dbContext.Model.FindEntityType(typeof(Sponsor));
         var placementType = dbContext.Model.FindEntityType(typeof(TournamentSponsorPlacement));
 
@@ -177,7 +181,7 @@ public class SponsorFeatureTests
     [Fact]
     public async Task ReplaceSponsorPlacementsAsync_ReplacesExistingPlacementAndReturnsSponsorData()
     {
-        await using var dbContext = CreateDbContext();
+        await using var dbContext = PostgresTestDatabase.CreateDbContext();
         var tournament = CreateTournament();
         var presentingSponsor = CreateSponsor(1, "Mercurius Tech", SponsorTier.Presenting);
         dbContext.Set<TournamentAggregate>().Add(tournament);
@@ -227,7 +231,7 @@ public class SponsorFeatureTests
     [Fact]
     public async Task ReplaceSponsorPlacementsAsync_ThrowsWhenMoreThanOneSponsorIsProvided()
     {
-        await using var dbContext = CreateDbContext();
+        await using var dbContext = PostgresTestDatabase.CreateDbContext();
         var tournament = CreateTournament();
         var presentingSponsor = CreateSponsor(1, "Mercurius Tech", SponsorTier.Presenting);
         var prizeSponsor = CreateSponsor(2, "Campus Fiber", SponsorTier.Gold);
@@ -273,7 +277,7 @@ public class SponsorFeatureTests
     [Fact]
     public async Task ReplaceSponsorPlacementsAsync_ThrowsWhenSponsorDoesNotExist()
     {
-        await using var dbContext = CreateDbContext();
+        await using var dbContext = PostgresTestDatabase.CreateDbContext();
         dbContext.Set<TournamentAggregate>().Add(CreateTournament());
         await dbContext.SaveChangesAsync();
 
@@ -305,15 +309,6 @@ public class SponsorFeatureTests
         }));
 
         Assert.Equal("Sponsor with ID 404 not found", exception.Message);
-    }
-
-    private static MercuriusDBContext CreateDbContext()
-    {
-        var options = new DbContextOptionsBuilder<MercuriusDBContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
-            .Options;
-
-        return new MercuriusDBContext(options);
     }
 
     private static IFormFile CreateFormFile()

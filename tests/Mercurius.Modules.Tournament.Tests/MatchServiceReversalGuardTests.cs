@@ -4,6 +4,7 @@ using Mercurius.Modules.Tournament.Application.Services;
 using Mercurius.Modules.Tournament.Domain;
 using Mercurius.Modules.Tournament.Infrastructure;
 using Mercurius.Modules.Shared.Exceptions;
+using Mercurius.TestInfrastructure;
 using Microsoft.EntityFrameworkCore;
 using ContractLifecycleState = Mercurius.Modules.Tournament.Contracts.MatchLifecycleState;
 
@@ -34,6 +35,7 @@ public class MatchServiceReversalGuardTests
         tournament.Matches.Add(unassignedMatch);
 
         await using var dbContext = CreateDbContext();
+        dbContext.AddReferencedUsers(tournament);
         dbContext.Set<TournamentAggregate>().Add(tournament);
         await dbContext.SaveChangesAsync();
         dbContext.ChangeTracker.Clear();
@@ -139,6 +141,7 @@ public class MatchServiceReversalGuardTests
         tournament.Matches.Add(completedMatch);
 
         await using var dbContext = CreateDbContext();
+        dbContext.AddReferencedUsers(tournament);
         dbContext.Set<TournamentAggregate>().Add(tournament);
         await dbContext.SaveChangesAsync();
         dbContext.ChangeTracker.Clear();
@@ -218,6 +221,7 @@ public class MatchServiceReversalGuardTests
         tournament.Matches.Add(downstream);
 
         await using var dbContext = CreateDbContext();
+        dbContext.AddReferencedUsers(tournament);
         dbContext.Set<TournamentAggregate>().Add(tournament);
         await dbContext.SaveChangesAsync();
         dbContext.ChangeTracker.Clear();
@@ -261,6 +265,7 @@ public class MatchServiceReversalGuardTests
         tournament.Matches.Add(downstream);
 
         await using var dbContext = CreateDbContext();
+        dbContext.AddReferencedUsers(tournament);
         dbContext.Set<TournamentAggregate>().Add(tournament);
         await dbContext.SaveChangesAsync();
         dbContext.ChangeTracker.Clear();
@@ -308,6 +313,7 @@ public class MatchServiceReversalGuardTests
         tournament.Matches.Add(downstream);
 
         await using var dbContext = CreateDbContext();
+        dbContext.AddReferencedUsers(tournament);
         dbContext.Set<TournamentAggregate>().Add(tournament);
         await dbContext.SaveChangesAsync();
         dbContext.ChangeTracker.Clear();
@@ -381,6 +387,7 @@ public class MatchServiceReversalGuardTests
         tournament.Matches.Add(nestedTarget);
 
         await using var dbContext = CreateDbContext();
+        dbContext.AddReferencedUsers(tournament);
         dbContext.Set<TournamentAggregate>().Add(tournament);
         await dbContext.SaveChangesAsync();
         dbContext.ChangeTracker.Clear();
@@ -403,13 +410,7 @@ public class MatchServiceReversalGuardTests
     }
 
     private static MercuriusDBContext CreateDbContext()
-    {
-        var options = new DbContextOptionsBuilder<MercuriusDBContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
-            .Options;
-
-        return new MercuriusDBContext(options);
-    }
+        => PostgresTestDatabase.CreateDbContext();
 
     private static MatchService CreateMatchService(MercuriusDBContext dbContext, User admin) =>
         new(

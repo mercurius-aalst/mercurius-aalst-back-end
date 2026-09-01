@@ -118,12 +118,9 @@ internal sealed class MatchDeadlineProcessor : BackgroundService
         foreach (var tournament in changedTournaments)
             dbContext.Tournaments.Entry(tournament).Property(candidate => candidate.Status).IsModified = true;
 
-        await using var transaction = dbContext.Database.ProviderName == "Microsoft.EntityFrameworkCore.InMemory"
-            ? null
-            : await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
-        if (transaction is not null)
-            await transaction.CommitAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
     }
 
     private static IQueryable<Match> CreateExpiredDeadlineQuery(

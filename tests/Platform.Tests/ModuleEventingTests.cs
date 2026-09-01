@@ -16,6 +16,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Mercurius.TestInfrastructure;
 using Platform.Eventing;
 using Platform.Eventing.Persistence;
 using Platform.Extensions;
@@ -341,7 +342,7 @@ public class ModuleEventingTests
     [Fact]
     public async Task UserProfileUpdate_EnqueuesDurableProfileEvents()
     {
-        await using var dbContext = CreateDbContext();
+        await using var dbContext = PostgresTestDatabase.CreateDbContext();
         var user = CreateUser();
         dbContext.Users.Add(user);
         await dbContext.SaveChangesAsync();
@@ -365,7 +366,7 @@ public class ModuleEventingTests
     [Fact]
     public async Task UserAnonymize_EnqueuesDurableDeletionEvents()
     {
-        await using var dbContext = CreateDbContext();
+        await using var dbContext = PostgresTestDatabase.CreateDbContext();
         var user = CreateUser();
         dbContext.Users.Add(user);
         await dbContext.SaveChangesAsync();
@@ -385,7 +386,7 @@ public class ModuleEventingTests
     [Fact]
     public async Task AccountDeletionEntryPoints_RevokeUserGroupsOnlyForFirstDeletion()
     {
-        await using var dbContext = CreateDbContext();
+        await using var dbContext = PostgresTestDatabase.CreateDbContext();
         var currentUser = CreateUser();
         var usernameDeletedUser = CreateUser();
         var idDeletedUser = CreateUser();
@@ -413,10 +414,13 @@ public class ModuleEventingTests
     [Fact]
     public async Task AccountDeletion_DoesNotRevokeWhenDurableEventPublicationFails()
     {
-        await using var dbContext = CreateDbContext();
+        await using var dbContext = PostgresTestDatabase.CreateDbContext();
         var user = CreateUser();
         dbContext.Users.Add(user);
         await dbContext.SaveChangesAsync();
+        var originalUser = await dbContext.Users
+            .AsNoTracking()
+            .SingleAsync(candidate => candidate.Id == user.Id);
         var realtimeConnectionManager = new RecordingRealtimeConnectionManager();
         var userService = CreateUserService(
             dbContext,
@@ -426,13 +430,32 @@ public class ModuleEventingTests
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             userService.AnonymizeCurrentUserAsync(user.Auth0UserId));
 
+        dbContext.ChangeTracker.Clear();
+        var persistedUser = await dbContext.Users
+            .AsNoTracking()
+            .SingleAsync(candidate => candidate.Id == user.Id);
+        Assert.Equal(originalUser.Auth0UserId, persistedUser.Auth0UserId);
+        Assert.Equal(originalUser.Username, persistedUser.Username);
+        Assert.Equal(originalUser.NormalizedUsername, persistedUser.NormalizedUsername);
+        Assert.Equal(originalUser.Firstname, persistedUser.Firstname);
+        Assert.Equal(originalUser.Lastname, persistedUser.Lastname);
+        Assert.Equal(originalUser.Email, persistedUser.Email);
+        Assert.Equal(originalUser.EmailVerified, persistedUser.EmailVerified);
+        Assert.Equal(originalUser.DiscordId, persistedUser.DiscordId);
+        Assert.Equal(originalUser.SteamId, persistedUser.SteamId);
+        Assert.Equal(originalUser.RiotId, persistedUser.RiotId);
+        Assert.False(persistedUser.IsDeleted);
+        Assert.Null(persistedUser.DeletedAtUtc);
+        Assert.Equal(originalUser.CreatedAtUtc, persistedUser.CreatedAtUtc);
+        Assert.Equal(originalUser.UpdatedAtUtc, persistedUser.UpdatedAtUtc);
+        Assert.Empty(await dbContext.OutboxMessages.ToListAsync());
         Assert.Empty(realtimeConnectionManager.UserRevocations);
     }
 
     [Fact]
     public async Task AccountDeletion_PostCommitRevocationFailureLeavesDeletionAndOutboxCommitted()
     {
-        await using var dbContext = CreateDbContext();
+        await using var dbContext = PostgresTestDatabase.CreateDbContext();
         var user = CreateUser();
         dbContext.Users.Add(user);
         await dbContext.SaveChangesAsync();

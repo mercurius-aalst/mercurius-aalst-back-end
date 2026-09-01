@@ -1,5 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <PackageReference Include="Npgsql" Version="10.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\TestInfrastructure\PostgresTestDatabase.cs" Link="TestInfrastructure\PostgresTestDatabase.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\MercuriusAPI\Mercurius.LAN.API.csproj" />
     <ProjectReference Include="..\..\src\Modules\Tournament\Mercurius.Modules.Tournament\Mercurius.Modules.Tournament.csproj" />
   </ItemGroup>

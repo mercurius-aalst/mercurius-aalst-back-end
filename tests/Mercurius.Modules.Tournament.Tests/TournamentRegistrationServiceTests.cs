@@ -12,6 +12,7 @@ using Mercurius.Modules.Teams.Infrastructure;
 using Mercurius.Modules.Teams.Services;
 using Mercurius.Modules.Identity;
 using Mercurius.Modules.Sponsorship.Contracts;
+using Mercurius.TestInfrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Platform.Eventing;
@@ -544,13 +545,7 @@ public class TournamentRegistrationServiceTests
     }
 
     private static MercuriusDBContext CreateDbContext()
-    {
-        var options = new DbContextOptionsBuilder<MercuriusDBContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
-            .Options;
-
-        return new MercuriusDBContext(options);
-    }
+        => PostgresTestDatabase.CreateDbContext();
 
     private sealed class NoopTeamTournamentReadService : ITeamTournamentReadService
     {

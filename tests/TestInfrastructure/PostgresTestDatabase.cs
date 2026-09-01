@@ -2,7 +2,7 @@ using Npgsql;
 using Mercurius.LAN.API.Data;
 using Microsoft.EntityFrameworkCore;
 
-namespace Platform.Tests;
+namespace Mercurius.TestInfrastructure;
 
 internal static class PostgresTestDatabase
 {
@@ -31,6 +31,26 @@ internal static class PostgresTestDatabase
             databaseBuilder.ConnectionString);
     }
 
+    public static MercuriusDBContext CreateDbContext()
+    {
+        var database = Create();
+        var options = new DbContextOptionsBuilder<MercuriusDBContext>()
+            .UseNpgsql(database.ConnectionString)
+            .Options;
+        try
+        {
+            using (var migrationContext = new MercuriusDBContext(options))
+                migrationContext.Database.Migrate();
+
+            return new DisposableMercuriusDbContext(options, database);
+        }
+        catch
+        {
+            database.Dispose();
+            throw;
+        }
+    }
+
     public static void Initialize(MercuriusDBContext dbContext)
     {
         dbContext.Database.Migrate();
@@ -39,6 +59,35 @@ internal static class PostgresTestDatabase
     private static string GetBaseConnectionString() =>
         Environment.GetEnvironmentVariable("TEST_POSTGRES_CONNECTION")
         ?? "Host=localhost;Port=5432;Username=postgres;Password=postgres;Timeout=5;Command Timeout=30";
+
+    private sealed class DisposableMercuriusDbContext(
+        DbContextOptions<MercuriusDBContext> options,
+        PostgresTestDatabaseLease database) : MercuriusDBContext(options)
+    {
+        public override void Dispose()
+        {
+            try
+            {
+                base.Dispose();
+            }
+            finally
+            {
+                database.Dispose();
+            }
+        }
+
+        public override async ValueTask DisposeAsync()
+        {
+            try
+            {
+                await base.DisposeAsync();
+            }
+            finally
+            {
+                await database.DisposeAsync();
+            }
+        }
+    }
 }
 
 internal sealed class PostgresTestDatabaseLease : IDisposable, IAsyncDisposable

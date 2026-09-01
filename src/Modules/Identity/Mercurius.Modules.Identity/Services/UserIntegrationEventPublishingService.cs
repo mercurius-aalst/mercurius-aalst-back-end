@@ -318,7 +318,6 @@ internal sealed class UserIntegrationEventPublishingService : IUserService
     private async Task<IDbContextTransaction?> BeginTransactionIfSupportedAsync()
     {
         if (_dbContext is not DbContext dbContext ||
-            dbContext.Database.ProviderName == "Microsoft.EntityFrameworkCore.InMemory" ||
             dbContext.Database.CurrentTransaction is not null)
         {
             return null;

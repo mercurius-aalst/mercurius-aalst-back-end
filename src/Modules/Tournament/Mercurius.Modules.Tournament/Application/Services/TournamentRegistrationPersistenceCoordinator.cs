@@ -19,13 +19,8 @@ internal sealed class TournamentRegistrationPersistenceCoordinator(ITournamentDb
         }
     }
 
-    public async Task<IDbContextTransaction?> BeginTransactionIfSupportedAsync(CancellationToken cancellationToken)
-    {
-        if (dbContext.Database.ProviderName == "Microsoft.EntityFrameworkCore.InMemory")
-            return null;
-
-        return await dbContext.Database.BeginTransactionAsync(cancellationToken);
-    }
+    public Task<IDbContextTransaction> BeginTransactionAsync(CancellationToken cancellationToken) =>
+        dbContext.Database.BeginTransactionAsync(cancellationToken);
 
     private static bool IsRegistrationUniqueConstraintViolation(DbUpdateException exception)
     {

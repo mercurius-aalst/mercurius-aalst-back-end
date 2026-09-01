@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.Logging;
+using Mercurius.TestInfrastructure;
 using Platform.Eventing;
 
 namespace Mercurius.Modules.Sponsorship.Tests;
@@ -27,7 +28,7 @@ public class SponsorMediaLifecycleTests
     public async Task CreateSponsorAsync_WhenStateOrOutboxPersistenceFails_CompensatesOnlyNewLogo(
         int failingSaveCall)
     {
-        await using var dbContext = CreateDbContext();
+        await using var dbContext = PostgresTestDatabase.CreateDbContext();
         var operations = new List<string>();
         var failure = new InvalidOperationException($"save {failingSaveCall} failed");
         var mediaModule = new RecordingMediaModule(NewLogoUrl, operations);
@@ -48,12 +49,15 @@ public class SponsorMediaLifecycleTests
         Assert.Equal(CancellationToken.None, deletedImage.CancellationToken);
         Assert.Equal($"save-{failingSaveCall}-failed", operations[^2]);
         Assert.Equal($"delete:{NewLogoUrl}", operations[^1]);
+        dbContext.ChangeTracker.Clear();
+        Assert.False(await dbContext.Set<Sponsor>().AnyAsync());
+        Assert.False(await dbContext.OutboxMessages.AnyAsync());
     }
 
     [Fact]
     public async Task CreateSponsorAsync_WhenCancelledAfterStorage_PreservesCancellationWhenCompensationFails()
     {
-        await using var dbContext = CreateDbContext();
+        await using var dbContext = PostgresTestDatabase.CreateDbContext();
         using var cancellationSource = new CancellationTokenSource();
         var operations = new List<string>();
         var cancellation = new OperationCanceledException("Sponsor creation was cancelled.", cancellationSource.Token);
@@ -61,7 +65,6 @@ public class SponsorMediaLifecycleTests
         var logger = new RecordingLogger<SponsorService>();
         var mediaModule = new RecordingMediaModule(NewLogoUrl, operations)
         {
-            AfterSave = cancellationSource.Cancel,
             DeleteException = cleanupFailure
         };
         var service = CreateSponsorService(
@@ -70,7 +73,8 @@ public class SponsorMediaLifecycleTests
             logger,
             operations,
             failingSaveCall: 1,
-            cancellation);
+            cancellation,
+            beforeSave: cancellationSource.Cancel);
 
         var actual = await Assert.ThrowsAsync<OperationCanceledException>(() =>
             service.CreateSponsorAsync(CreateSponsorDto(), cancellationSource.Token));
@@ -84,6 +88,9 @@ public class SponsorMediaLifecycleTests
         Assert.Same(cleanupFailure, warning.Exception);
         Assert.Contains("compensate an uncommitted Sponsor logo", warning.Message);
         Assert.Contains(NewLogoUrl, warning.Message);
+        dbContext.ChangeTracker.Clear();
+        Assert.Empty(await dbContext.Set<Sponsor>().ToListAsync());
+        Assert.Empty(await dbContext.OutboxMessages.ToListAsync());
     }
 
     [Theory]
@@ -92,7 +99,7 @@ public class SponsorMediaLifecycleTests
     public async Task UpdateSponsorAsync_WhenStateOrOutboxPersistenceFails_CompensatesNewLogoAndNeverDeletesPreviousLogo(
         int failingSaveCall)
     {
-        await using var dbContext = CreateDbContext();
+        await using var dbContext = PostgresTestDatabase.CreateDbContext();
         var sponsor = await SeedSponsorAsync(dbContext);
         var operations = new List<string>();
         var failure = new InvalidOperationException("update persistence failed");
@@ -115,20 +122,13 @@ public class SponsorMediaLifecycleTests
         Assert.DoesNotContain(
             mediaModule.DeletedImages,
             deletion => deletion.ImageUrl == OriginalLogoUrl);
-
-        if (failingSaveCall == 1)
-        {
-            dbContext.ChangeTracker.Clear();
-            Assert.Equal(
-                OriginalLogoUrl,
-                (await dbContext.Set<Sponsor>().SingleAsync(candidate => candidate.Id == sponsor.Id)).LogoUrl);
-        }
+        await AssertSponsorStateWasRolledBackAsync(dbContext, sponsor.Id);
     }
 
     [Fact]
     public async Task UpdateSponsorAsync_WhenReplacementCommits_RetiresPreviousLogoAfterOutboxPersistence()
     {
-        await using var dbContext = CreateDbContext();
+        await using var dbContext = PostgresTestDatabase.CreateDbContext();
         var sponsor = await SeedSponsorAsync(dbContext);
         var operations = new List<string>();
         var cleanupFailure = new IOException("replacement cleanup failed");
@@ -176,7 +176,7 @@ public class SponsorMediaLifecycleTests
     [Fact]
     public async Task DeleteSponsorAsync_WhenDeletionCommits_RetiresCurrentLogoAfterOutboxPersistence()
     {
-        await using var dbContext = CreateDbContext();
+        await using var dbContext = PostgresTestDatabase.CreateDbContext();
         var sponsor = await SeedSponsorAsync(dbContext);
         var operations = new List<string>();
         var mediaModule = new RecordingMediaModule(NewLogoUrl, operations);
@@ -214,7 +214,7 @@ public class SponsorMediaLifecycleTests
     public async Task DeleteSponsorAsync_WhenStateOrOutboxPersistenceFails_NeverDeletesCurrentLogo(
         int failingSaveCall)
     {
-        await using var dbContext = CreateDbContext();
+        await using var dbContext = PostgresTestDatabase.CreateDbContext();
         var sponsor = await SeedSponsorAsync(dbContext);
         var operations = new List<string>();
         var failure = new InvalidOperationException($"delete save {failingSaveCall} failed");
@@ -232,17 +232,13 @@ public class SponsorMediaLifecycleTests
 
         Assert.Same(failure, actual);
         Assert.Empty(mediaModule.DeletedImages);
-        if (failingSaveCall == 1)
-        {
-            dbContext.ChangeTracker.Clear();
-            Assert.True(await dbContext.Set<Sponsor>().AnyAsync(candidate => candidate.Id == sponsor.Id));
-        }
+        await AssertSponsorStateWasRolledBackAsync(dbContext, sponsor.Id);
     }
 
     [Fact]
     public async Task UpdateSponsorAsync_WhenStoredReferenceIsUnchanged_DoesNotDeleteIt()
     {
-        await using var dbContext = CreateDbContext();
+        await using var dbContext = PostgresTestDatabase.CreateDbContext();
         var sponsor = await SeedSponsorAsync(dbContext);
         var operations = new List<string>();
         var mediaModule = new RecordingMediaModule(OriginalLogoUrl, operations);
@@ -261,15 +257,6 @@ public class SponsorMediaLifecycleTests
         Assert.DoesNotContain(operations, operation => operation.StartsWith("delete:", StringComparison.Ordinal));
     }
 
-    private static MercuriusDBContext CreateDbContext()
-    {
-        var options = new DbContextOptionsBuilder<MercuriusDBContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
-            .Options;
-
-        return new MercuriusDBContext(options);
-    }
-
     private static async Task<Sponsor> SeedSponsorAsync(MercuriusDBContext dbContext)
     {
         var sponsor = new Sponsor
@@ -283,6 +270,23 @@ public class SponsorMediaLifecycleTests
         dbContext.Set<Sponsor>().Add(sponsor);
         await dbContext.SaveChangesAsync();
         return sponsor;
+    }
+
+    private static async Task AssertSponsorStateWasRolledBackAsync(
+        MercuriusDBContext dbContext,
+        int sponsorId)
+    {
+        dbContext.ChangeTracker.Clear();
+        var persistedSponsor = await dbContext.Set<Sponsor>()
+            .AsNoTracking()
+            .SingleAsync(candidate => candidate.Id == sponsorId);
+
+        Assert.Equal("Original sponsor", persistedSponsor.Name);
+        Assert.Equal(SponsorTier.Silver, persistedSponsor.SponsorTier);
+        Assert.Equal(OriginalLogoUrl, persistedSponsor.LogoUrl);
+        Assert.Equal("https://example.test/original", persistedSponsor.InfoUrl);
+        Assert.Equal("Original description", persistedSponsor.Description);
+        Assert.Empty(await dbContext.OutboxMessages.AsNoTracking().ToListAsync());
     }
 
     private static CreateSponsorDTO CreateSponsorDto()
@@ -325,14 +329,16 @@ public class SponsorMediaLifecycleTests
         RecordingLogger<SponsorService> logger,
         List<string> operations,
         int? failingSaveCall = null,
-        Exception? saveFailure = null)
+        Exception? saveFailure = null,
+        Action? beforeSave = null)
     {
         ISponsorshipDbContext adapter = new SponsorshipDbContextAdapter<MercuriusDBContext>(dbContext);
         var recordingDbContext = new RecordingSponsorshipDbContext(
             adapter,
             operations,
             failingSaveCall,
-            saveFailure);
+            saveFailure,
+            beforeSave);
         IModuleEventPublisher eventPublisher = new RecordingModuleEventPublisher(
             new ModuleEventPublisher(dbContext),
             operations);
@@ -348,7 +354,8 @@ public class SponsorMediaLifecycleTests
         ISponsorshipDbContext inner,
         List<string> operations,
         int? failingSaveCall,
-        Exception? saveFailure) : ISponsorshipDbContext
+        Exception? saveFailure,
+        Action? beforeSave) : ISponsorshipDbContext
     {
         private int _saveCallCount;
 
@@ -362,6 +369,7 @@ public class SponsorMediaLifecycleTests
         {
             var saveCall = ++_saveCallCount;
             operations.Add($"save-{saveCall}-started");
+            beforeSave?.Invoke();
             if (saveCall == failingSaveCall)
             {
                 operations.Add($"save-{saveCall}-failed");
@@ -392,8 +400,6 @@ public class SponsorMediaLifecycleTests
         string savedImageUrl,
         List<string> operations) : IMediaModule
     {
-        public Action? AfterSave { get; init; }
-
         public Exception? DeleteException { get; init; }
 
         public List<(string? ImageUrl, CancellationToken CancellationToken)> DeletedImages { get; } = [];
@@ -403,7 +409,6 @@ public class SponsorMediaLifecycleTests
             CancellationToken cancellationToken = default)
         {
             operations.Add("media-save");
-            AfterSave?.Invoke();
             return Task.FromResult(new StoredMediaAsset(savedImageUrl));
         }
 

@@ -21,21 +21,10 @@ internal sealed class SponsorshipOutboxWriter
         CancellationToken cancellationToken = default)
         where TPayload : notnull
     {
-        if (!string.Equals(
-                _dbContext.Database.ProviderName,
-                "Microsoft.EntityFrameworkCore.InMemory",
-                StringComparison.Ordinal))
-        {
-            await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
-            await _dbContext.SaveChangesAsync(cancellationToken);
-            _moduleEventPublisher.Publish(createPayload());
-            await _dbContext.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-            return;
-        }
-
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
         await _dbContext.SaveChangesAsync(cancellationToken);
         _moduleEventPublisher.Publish(createPayload());
         await _dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
     }
 }

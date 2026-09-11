@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.3](https://github.com/mercurius-aalst/mercurius-aalst-back-end/compare/backend-v0.5.2...backend-v0.5.3) (2026-09-11)
+
+
+### Bug Fixes
+
+* over eager deletion of pipelines: restore ([#126](https://github.com/mercurius-aalst/mercurius-aalst-back-end/issues/126)) ([26da0e7](https://github.com/mercurius-aalst/mercurius-aalst-back-end/commit/26da0e7bedf831537d023a039f1506fa2ccd9e78))
+
 ## [0.5.2](https://github.com/mercurius-aalst/mercurius-aalst-back-end/compare/backend-v0.5.1...backend-v0.5.2) (2025-11-14)
 
 

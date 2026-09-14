@@ -14,6 +14,7 @@ using Mercurius.Modules.Identity;
 using Mercurius.Modules.Sponsorship.Contracts;
 using Mercurius.TestInfrastructure;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Platform.Eventing;
 using TournamentRegistrationStatus = Mercurius.Modules.Tournament.Contracts.TournamentRegistrationStatus;
@@ -250,6 +251,242 @@ public class TournamentRegistrationServiceTests
 
         Assert.Equal(TournamentRegistrationStatus.Active, active.Status);
         Assert.Contains(active.RosterMembers, roster => roster.User.Id == member.Id && roster.ConfirmationStatus == TournamentRosterStatus.Confirmed);
+        Assert.Contains(publisher.Events, evt => evt.TeamId == team.Id && evt.UserId == member.Id && evt.Status == nameof(RosterMemberConfirmationStatus.Confirmed));
+    }
+
+    [Fact]
+    public async Task DeclineRosterAsync_RemovesOnlyOwnedPendingSelectionAndIsIdempotent()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser("captain");
+        var confirmed = CreateUser("confirmed");
+        var declining = CreateUser("declining");
+        var outsider = CreateUser("outsider");
+        var team = CreateTeam(captain, confirmed, declining);
+        var tournament = CreateTeamTournament(teamSize: 3);
+        dbContext.Users.AddRange(captain, confirmed, declining, outsider);
+        dbContext.Teams.Add(team);
+        dbContext.Set<TournamentAggregate>().Add(tournament);
+        await dbContext.SaveChangesAsync();
+        var publisher = TournamentTestSupport.CreateRealtimePublisher();
+        var service = CreateService(dbContext, publisher);
+        var pending = await service.SubmitTeamRosterAsync(
+            captain.Auth0UserId,
+            tournament.Id,
+            new SubmitTeamRosterDTO(team.Id, [captain.Id, confirmed.Id, declining.Id]));
+        var confirmedRoster = Assert.Single(pending.RosterMembers.Where(roster => roster.User.Id == confirmed.Id));
+        var decliningRoster = Assert.Single(pending.RosterMembers.Where(roster => roster.User.Id == declining.Id));
+        await service.ConfirmRosterAsync(confirmed.Auth0UserId, tournament.Id, confirmedRoster.Id);
+
+        await service.DeclineRosterAsync(outsider.Auth0UserId, tournament.Id, decliningRoster.Id);
+        Assert.True(await dbContext.Set<TournamentRegistrationRosterMember>().AnyAsync(member => member.Id == decliningRoster.Id));
+
+        await service.DeclineRosterAsync(declining.Auth0UserId, tournament.Id, decliningRoster.Id);
+        await service.DeclineRosterAsync(declining.Auth0UserId, tournament.Id, decliningRoster.Id);
+
+        dbContext.ChangeTracker.Clear();
+        var registration = await dbContext.Set<TournamentRegistration>()
+            .Include(item => item.RosterMembers)
+            .SingleAsync(item => item.Id == pending.Id);
+        Assert.Equal(DomainTournamentRegistrationStatus.PendingConfirmation, registration.Status);
+        Assert.DoesNotContain(registration.RosterMembers, member => member.UserId == declining.Id);
+        Assert.Contains(registration.RosterMembers, member =>
+            member.UserId == confirmed.Id && member.ConfirmationStatus == RosterMemberConfirmationStatus.Confirmed);
+        Assert.Contains(publisher.Events, evt => evt.UserId == declining.Id && evt.Status == "Declined");
+    }
+
+    [Fact]
+    public async Task ConfirmRosterAsync_SucceedsWhenPostCommitRealtimePublishingFails()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser("captain");
+        var member = CreateUser("member");
+        var team = CreateTeam(captain, member);
+        var tournament = CreateTeamTournament(teamSize: 2);
+        dbContext.Users.AddRange(captain, member);
+        dbContext.Teams.Add(team);
+        dbContext.Set<TournamentAggregate>().Add(tournament);
+        await dbContext.SaveChangesAsync();
+        var service = CreateService(dbContext);
+        var pending = await service.SubmitTeamRosterAsync(
+            captain.Auth0UserId,
+            tournament.Id,
+            new SubmitTeamRosterDTO(team.Id, [captain.Id, member.Id]));
+        var selectedMember = Assert.Single(pending.RosterMembers.Where(roster => roster.User.Id == member.Id));
+        service = CreateService(dbContext, new ThrowingTournamentRealtimePublisher());
+
+        var result = await service.ConfirmRosterAsync(member.Auth0UserId, tournament.Id, selectedMember.Id);
+
+        Assert.Equal(TournamentRegistrationStatus.Active, result.Status);
+        dbContext.ChangeTracker.Clear();
+        Assert.Equal(
+            RosterMemberConfirmationStatus.Confirmed,
+            (await dbContext.Set<TournamentRegistrationRosterMember>().SingleAsync(roster => roster.Id == selectedMember.Id)).ConfirmationStatus);
+    }
+
+    [Fact]
+    public async Task DeclineRosterAsync_SucceedsWhenPostCommitRealtimePublishingFails()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser("captain");
+        var member = CreateUser("member");
+        var team = CreateTeam(captain, member);
+        var tournament = CreateTeamTournament(teamSize: 2);
+        dbContext.Users.AddRange(captain, member);
+        dbContext.Teams.Add(team);
+        dbContext.Set<TournamentAggregate>().Add(tournament);
+        await dbContext.SaveChangesAsync();
+        var service = CreateService(dbContext);
+        var pending = await service.SubmitTeamRosterAsync(
+            captain.Auth0UserId,
+            tournament.Id,
+            new SubmitTeamRosterDTO(team.Id, [captain.Id, member.Id]));
+        var selectedMember = Assert.Single(pending.RosterMembers.Where(roster => roster.User.Id == member.Id));
+        service = CreateService(dbContext, new ThrowingTournamentRealtimePublisher());
+
+        await service.DeclineRosterAsync(member.Auth0UserId, tournament.Id, selectedMember.Id);
+
+        dbContext.ChangeTracker.Clear();
+        Assert.False(await dbContext.Set<TournamentRegistrationRosterMember>().AnyAsync(roster => roster.Id == selectedMember.Id));
+        Assert.Equal(
+            DomainTournamentRegistrationStatus.PendingConfirmation,
+            (await dbContext.Set<TournamentRegistration>().SingleAsync(registration => registration.Id == pending.Id)).Status);
+    }
+
+    [Fact]
+    public async Task ConfirmRosterAsync_DoesNotActivateAnIncompleteRoster()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser("captain");
+        var confirming = CreateUser("confirming");
+        var declining = CreateUser("declining");
+        var team = CreateTeam(captain, confirming, declining);
+        var tournament = CreateTeamTournament(teamSize: 3);
+        dbContext.Users.AddRange(captain, confirming, declining);
+        dbContext.Teams.Add(team);
+        dbContext.Set<TournamentAggregate>().Add(tournament);
+        await dbContext.SaveChangesAsync();
+        var service = CreateService(dbContext);
+        var pending = await service.SubmitTeamRosterAsync(
+            captain.Auth0UserId,
+            tournament.Id,
+            new SubmitTeamRosterDTO(team.Id, [captain.Id, confirming.Id, declining.Id]));
+        var confirmingRoster = Assert.Single(pending.RosterMembers.Where(roster => roster.User.Id == confirming.Id));
+        var decliningRoster = Assert.Single(pending.RosterMembers.Where(roster => roster.User.Id == declining.Id));
+
+        await service.DeclineRosterAsync(declining.Auth0UserId, tournament.Id, decliningRoster.Id);
+        var result = await service.ConfirmRosterAsync(confirming.Auth0UserId, tournament.Id, confirmingRoster.Id);
+
+        Assert.Equal(TournamentRegistrationStatus.PendingConfirmation, result.Status);
+        Assert.Equal(2, result.RosterMembers.Count);
+    }
+
+    [Fact]
+    public async Task SubmitTeamRosterAsync_RepairsDeclinedRosterWithoutResettingConfirmations()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser("captain");
+        var confirmed = CreateUser("confirmed");
+        var declining = CreateUser("declining");
+        var replacement = CreateUser("replacement");
+        var team = CreateTeam(captain, confirmed, declining, replacement);
+        var tournament = CreateTeamTournament(teamSize: 3);
+        dbContext.Users.AddRange(captain, confirmed, declining, replacement);
+        dbContext.Teams.Add(team);
+        dbContext.Set<TournamentAggregate>().Add(tournament);
+        await dbContext.SaveChangesAsync();
+        var publisher = TournamentTestSupport.CreateRealtimePublisher();
+        var service = CreateService(dbContext, publisher);
+        var pending = await service.SubmitTeamRosterAsync(
+            captain.Auth0UserId,
+            tournament.Id,
+            new SubmitTeamRosterDTO(team.Id, [captain.Id, confirmed.Id, declining.Id]));
+        var confirmedRoster = Assert.Single(pending.RosterMembers.Where(roster => roster.User.Id == confirmed.Id));
+        var decliningRoster = Assert.Single(pending.RosterMembers.Where(roster => roster.User.Id == declining.Id));
+        await service.ConfirmRosterAsync(confirmed.Auth0UserId, tournament.Id, confirmedRoster.Id);
+        await service.DeclineRosterAsync(declining.Auth0UserId, tournament.Id, decliningRoster.Id);
+        publisher.Events.Clear();
+
+        var repaired = await service.SubmitTeamRosterAsync(
+            captain.Auth0UserId,
+            tournament.Id,
+            new SubmitTeamRosterDTO(team.Id, [captain.Id, confirmed.Id, replacement.Id]));
+
+        var preserved = Assert.Single(repaired.RosterMembers.Where(roster => roster.User.Id == confirmed.Id));
+        Assert.Equal(confirmedRoster.Id, preserved.Id);
+        Assert.Equal(TournamentRosterStatus.Confirmed, preserved.ConfirmationStatus);
+        Assert.Contains(publisher.Events, evt => evt.UserId == replacement.Id && evt.Status == nameof(RosterMemberConfirmationStatus.Pending));
+        Assert.DoesNotContain(publisher.Events, evt => evt.UserId == confirmed.Id);
+    }
+
+    [Fact]
+    public async Task GetPendingRosterConfirmationsAsync_ReturnsPagedScheduledSelections()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser("captain");
+        var member = CreateUser("member");
+        var team = CreateTeam(captain, member);
+        var newestTournament = CreateTeamTournament(teamSize: 2);
+        newestTournament.Name = "Newest Cup";
+        var olderTournament = CreateTeamTournament(teamSize: 2);
+        olderTournament.Name = "Older Cup";
+        dbContext.Users.AddRange(captain, member);
+        dbContext.Teams.Add(team);
+        dbContext.Set<TournamentAggregate>().AddRange(newestTournament, olderTournament);
+        await dbContext.SaveChangesAsync();
+        var service = CreateService(dbContext);
+        await service.SubmitTeamRosterAsync(captain.Auth0UserId, olderTournament.Id, new SubmitTeamRosterDTO(team.Id, [captain.Id, member.Id]));
+        await service.SubmitTeamRosterAsync(captain.Auth0UserId, newestTournament.Id, new SubmitTeamRosterDTO(team.Id, [captain.Id, member.Id]));
+
+        var firstPage = await service.GetPendingRosterConfirmationsAsync(member.Auth0UserId, page: 1, pageSize: 1);
+        newestTournament.Status = TournamentStatus.Canceled;
+        await dbContext.SaveChangesAsync();
+        var afterCancellation = await service.GetPendingRosterConfirmationsAsync(member.Auth0UserId, page: 1, pageSize: 20);
+
+        Assert.Equal(2, firstPage.TotalCount);
+        Assert.Single(firstPage.Items);
+        Assert.Equal("Newest Cup", firstPage.Items[0].TournamentName);
+        Assert.Equal(team.Name, firstPage.Items[0].TeamName);
+        Assert.Equal(1, afterCancellation.TotalCount);
+        Assert.Equal("Older Cup", Assert.Single(afterCancellation.Items).TournamentName);
+    }
+
+    [Fact]
+    public async Task RegistrationPersistence_RejectsAStaleConcurrentRosterMutation()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser("captain");
+        var member = CreateUser("member");
+        var team = CreateTeam(captain, member);
+        var tournament = CreateTeamTournament(teamSize: 2);
+        dbContext.Users.AddRange(captain, member);
+        dbContext.Teams.Add(team);
+        dbContext.Set<TournamentAggregate>().Add(tournament);
+        await dbContext.SaveChangesAsync();
+        var service = CreateService(dbContext);
+        var pending = await service.SubmitTeamRosterAsync(
+            captain.Auth0UserId,
+            tournament.Id,
+            new SubmitTeamRosterDTO(team.Id, [captain.Id, member.Id]));
+        var connectionString = dbContext.Database.GetConnectionString();
+        dbContext.ChangeTracker.Clear();
+        await using var competingContext = new MercuriusDBContext(
+            new DbContextOptionsBuilder<MercuriusDBContext>()
+                .UseNpgsql(connectionString)
+                .Options);
+        var first = await dbContext.Set<TournamentRegistration>().SingleAsync(item => item.Id == pending.Id);
+        var stale = await competingContext.Set<TournamentRegistration>().SingleAsync(item => item.Id == pending.Id);
+        first.UpdatedAtUtc = DateTime.UtcNow.AddSeconds(1);
+        stale.UpdatedAtUtc = DateTime.UtcNow.AddSeconds(2);
+        var firstCoordinator = new TournamentRegistrationPersistenceCoordinator(
+            new TournamentDbContextAdapter<MercuriusDBContext>(dbContext));
+        var staleCoordinator = new TournamentRegistrationPersistenceCoordinator(
+            new TournamentDbContextAdapter<MercuriusDBContext>(competingContext));
+
+        await firstCoordinator.SaveChangesAsync("duplicate", CancellationToken.None);
+
+        await Assert.ThrowsAsync<ConflictException>(() =>
+            staleCoordinator.SaveChangesAsync("duplicate", CancellationToken.None));
     }
 
     [Fact]
@@ -360,7 +597,7 @@ public class TournamentRegistrationServiceTests
     }
 
     [Fact]
-    public async Task SubmitTeamRosterAsync_PersistsRosterBeforePublishingEvents()
+    public async Task SubmitTeamRosterAsync_SucceedsWhenPostCommitRealtimePublishingFails()
     {
         await using var dbContext = CreateDbContext();
         var captain = CreateUser("captain");
@@ -373,9 +610,12 @@ public class TournamentRegistrationServiceTests
         await dbContext.SaveChangesAsync();
         var service = CreateService(dbContext, new ThrowingTournamentRealtimePublisher());
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.SubmitTeamRosterAsync(captain.Auth0UserId, tournament.Id, new SubmitTeamRosterDTO(team.Id, [captain.Id, member.Id])));
+        var result = await service.SubmitTeamRosterAsync(
+            captain.Auth0UserId,
+            tournament.Id,
+            new SubmitTeamRosterDTO(team.Id, [captain.Id, member.Id]));
 
+        Assert.Equal(TournamentRegistrationStatus.PendingConfirmation, result.Status);
         dbContext.ChangeTracker.Clear();
         Assert.True(await dbContext.Set<TournamentRegistration>().AnyAsync(registration =>
             registration.TournamentId == tournament.Id &&
@@ -541,7 +781,8 @@ public class TournamentRegistrationServiceTests
                 new RegistrationMappingContextBuilder(identityModule, teamsModule),
                 new NullSponsorshipModule()),
             publisher ?? TournamentTestSupport.CreateRealtimePublisher(),
-            moduleEventPublisher ?? TournamentTestSupport.CreateModuleEventPublisher());
+            moduleEventPublisher ?? TournamentTestSupport.CreateModuleEventPublisher(),
+            NullLogger<TournamentRegistrationService>.Instance);
     }
 
     private static MercuriusDBContext CreateDbContext()

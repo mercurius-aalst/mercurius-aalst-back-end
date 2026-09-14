@@ -18,6 +18,7 @@ internal sealed class TournamentRegistrationConfiguration : IEntityTypeConfigura
         entity.Property(registration => registration.TeamLogoUrlAtRegistration).HasMaxLength(260);
         entity.Property(registration => registration.CreatedAtUtc).IsRequired();
         entity.Property(registration => registration.UpdatedAtUtc).IsRequired();
+        entity.Property<uint>("xmin").IsRowVersion();
         entity.HasOne(registration => registration.Tournament)
             .WithMany(tournament => tournament.TournamentRegistrations)
             .HasForeignKey(registration => registration.TournamentId)

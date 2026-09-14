@@ -109,6 +109,51 @@ internal sealed class TournamentRegistrationReadModelService(
         return await mapper.ToAdminRegistrationDtosAsync(registrations, cancellationToken);
     }
 
+    public async Task<RosterConfirmationNotificationPageDTO> GetPendingRosterConfirmationsAsync(
+        Guid userId,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken)
+    {
+        var query = dbContext.TournamentRegistrationRosterMembers
+            .AsNoTracking()
+            .Where(member =>
+                member.UserId == userId &&
+                member.ConfirmationStatus == RosterMemberConfirmationStatus.Pending &&
+                member.TournamentRegistration.Status == TournamentRegistrationStatus.PendingConfirmation &&
+                member.Tournament.Status == TournamentStatus.Scheduled &&
+                member.TeamId.HasValue);
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var offset = (long)(page - 1) * pageSize;
+        var items = offset > int.MaxValue
+            ? []
+            : await query
+                .OrderByDescending(member => member.CreatedAtUtc)
+                .ThenBy(member => member.Id)
+                .Skip((int)offset)
+                .Take(pageSize)
+                .Select(member => new RosterConfirmationNotificationDTO
+                {
+                    RosterMemberId = member.Id,
+                    TournamentId = member.TournamentId,
+                    TournamentName = member.Tournament.Name,
+                    TeamId = member.TeamId!.Value,
+                    TeamName = member.TeamNameAtRegistration ?? string.Empty,
+                    TeamLogoUrl = member.TournamentRegistration.TeamLogoUrlAtRegistration,
+                    SelectedAtUtc = member.CreatedAtUtc
+                })
+                .ToListAsync(cancellationToken);
+
+        return new RosterConfirmationNotificationPageDTO
+        {
+            Items = items,
+            TotalCount = totalCount,
+            Page = page,
+            PageSize = pageSize
+        };
+    }
+
     private IQueryable<TournamentRegistration> GetRegistrationQuery()
     {
         return dbContext.TournamentRegistrations

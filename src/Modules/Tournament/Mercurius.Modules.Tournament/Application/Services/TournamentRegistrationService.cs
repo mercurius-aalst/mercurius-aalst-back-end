@@ -9,6 +9,7 @@ using Mercurius.Modules.Shared.Exceptions;
 using Mercurius.Modules.Teams.Contracts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.Extensions.Logging;
 using Platform.Eventing;
 using RosterMemberConfirmedIntegrationEvent =
     Mercurius.Modules.Tournament.Contracts.RosterMemberConfirmedIntegrationEvent;
@@ -33,6 +34,7 @@ internal sealed class TournamentRegistrationService : ITournamentRegistrationSer
     private readonly TournamentDtoMapper _mapper;
     private readonly ITournamentRealtimePublisher _realtimePublisher;
     private readonly IModuleEventPublisher _moduleEventPublisher;
+    private readonly ILogger<TournamentRegistrationService> _logger;
 
     public TournamentRegistrationService(
         ITournamentDbContext dbContext,
@@ -44,7 +46,8 @@ internal sealed class TournamentRegistrationService : ITournamentRegistrationSer
         TournamentRegistrationReadModelService readModelService,
         TournamentDtoMapper mapper,
         ITournamentRealtimePublisher realtimePublisher,
-        IModuleEventPublisher moduleEventPublisher)
+        IModuleEventPublisher moduleEventPublisher,
+        ILogger<TournamentRegistrationService> logger)
     {
         _dbContext = dbContext;
         _identityModule = identityModule;
@@ -56,6 +59,7 @@ internal sealed class TournamentRegistrationService : ITournamentRegistrationSer
         _mapper = mapper;
         _realtimePublisher = realtimePublisher;
         _moduleEventPublisher = moduleEventPublisher;
+        _logger = logger;
     }
 
     public async Task<EligibilityResponseDTO> CheckIndividualEligibilityAsync(
@@ -176,7 +180,7 @@ internal sealed class TournamentRegistrationService : ITournamentRegistrationSer
 
         _dbContext.TournamentRegistrations.Remove(registration);
         PublishRegistrationCanceled(registration);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        await _persistenceCoordinator.SaveChangesAsync("Tournament registration changed concurrently.", cancellationToken);
         if (transaction is not null)
             await transaction.CommitAsync(cancellationToken);
     }
@@ -221,11 +225,8 @@ internal sealed class TournamentRegistrationService : ITournamentRegistrationSer
         if (failures.Count != 0)
             throw new ValidationException(string.Join(", ", failures));
 
-        if (existing is not null)
-            DeleteTransientTeamRegistration(existing);
-
         var now = DateTime.UtcNow;
-        var registration = new TournamentRegistration
+        var registration = existing ?? new TournamentRegistration
         {
             Id = Guid.NewGuid(),
             TournamentId = tournament.Id,
@@ -240,12 +241,57 @@ internal sealed class TournamentRegistrationService : ITournamentRegistrationSer
             CreatedAtUtc = now,
             UpdatedAtUtc = now
         };
+        var rosterConfirmationEvents = new List<TournamentRosterConfirmationChangedEvent>();
+
+        if (existing is null)
+        {
+            _dbContext.TournamentRegistrations.Add(registration);
+            PublishRegistrationCreated(registration);
+        }
+        else
+        {
+            registration.RegisteredByUserId = userId;
+            registration.RegisteredByUsernameAtRegistration = candidateProfiles[userId].Username ?? string.Empty;
+            registration.TeamNameAtRegistration = team.TeamName;
+            registration.TeamCaptainUserIdAtRegistration = team.CaptainUserId?.Value;
+            registration.TeamLogoUrlAtRegistration = team.LogoUrl;
+
+            var requestedUserIds = request.UserIds.ToHashSet();
+            var removedMembers = registration.RosterMembers
+                .Where(member => !requestedUserIds.Contains(member.UserId))
+                .ToList();
+            rosterConfirmationEvents.AddRange(removedMembers
+                .Where(member => member.ConfirmationStatus == RosterMemberConfirmationStatus.Pending)
+                .Select(member => new TournamentRosterConfirmationChangedEvent(
+                    registration.TeamId!.Value,
+                    member.Id,
+                    member.UserId,
+                    "Withdrawn")));
+            foreach (var removedMember in removedMembers)
+                registration.RosterMembers.Remove(removedMember);
+        }
 
         foreach (var memberId in request.UserIds.Distinct())
         {
             var isCaptain = memberId == team.CaptainUserId?.Value;
             var profile = candidateProfiles[memberId];
-            registration.RosterMembers.Add(new TournamentRegistrationRosterMember
+            var member = registration.RosterMembers.FirstOrDefault(existingMember => existingMember.UserId == memberId);
+            if (member is not null)
+            {
+                member.TeamNameAtRegistration = team.TeamName;
+                member.UsernameAtRegistration = profile.Username ?? string.Empty;
+                member.DisplayNameAtRegistration = profile.DisplayName;
+                member.IsCaptain = isCaptain;
+                if (isCaptain && member.ConfirmationStatus == RosterMemberConfirmationStatus.Pending)
+                {
+                    member.ConfirmationStatus = RosterMemberConfirmationStatus.AutoConfirmed;
+                    member.ConfirmedAtUtc = now;
+                    member.UpdatedAtUtc = now;
+                }
+                continue;
+            }
+
+            member = new TournamentRegistrationRosterMember
             {
                 Id = Guid.NewGuid(),
                 TournamentId = tournament.Id,
@@ -259,15 +305,27 @@ internal sealed class TournamentRegistrationService : ITournamentRegistrationSer
                 ConfirmedAtUtc = isCaptain ? now : null,
                 CreatedAtUtc = now,
                 UpdatedAtUtc = now
-            });
+            };
+            registration.RosterMembers.Add(member);
+            _dbContext.TournamentRegistrationRosterMembers.Add(member);
+            if (member.ConfirmationStatus == RosterMemberConfirmationStatus.Pending)
+            {
+                rosterConfirmationEvents.Add(new TournamentRosterConfirmationChangedEvent(
+                    registration.TeamId!.Value,
+                    member.Id,
+                    member.UserId,
+                    nameof(RosterMemberConfirmationStatus.Pending)));
+            }
         }
 
-        if (registration.RosterMembers.All(member => member.ConfirmationStatus != RosterMemberConfirmationStatus.Pending))
+        if (registration.RosterMembers.Count == tournament.TeamSize &&
+            registration.RosterMembers.All(member => member.ConfirmationStatus != RosterMemberConfirmationStatus.Pending))
             registration.Activate(now);
-
-        _dbContext.TournamentRegistrations.Add(registration);
-        PublishRegistrationCreated(registration);
-        var rosterConfirmationEvents = CreateRosterConfirmationEvents(registration);
+        else
+        {
+            registration.Status = TournamentRegistrationStatus.PendingConfirmation;
+            registration.UpdatedAtUtc = now;
+        }
 
         await _persistenceCoordinator.SaveChangesAsync("One or more roster members already has pending or active participation for this tournament.", cancellationToken);
         var dto = await _mapper.ToRegistrationDtoAsync(
@@ -316,7 +374,8 @@ internal sealed class TournamentRegistrationService : ITournamentRegistrationSer
 
         var now = DateTime.UtcNow;
         member.Confirm(now);
-        if (registration.RosterMembers.All(roster => roster.ConfirmationStatus is RosterMemberConfirmationStatus.AutoConfirmed or RosterMemberConfirmationStatus.Confirmed))
+        if (registration.RosterMembers.Count == registration.Tournament.TeamSize &&
+            registration.RosterMembers.All(roster => roster.ConfirmationStatus is RosterMemberConfirmationStatus.AutoConfirmed or RosterMemberConfirmationStatus.Confirmed))
             registration.Activate(now);
         else
             registration.UpdatedAtUtc = now;
@@ -331,7 +390,55 @@ internal sealed class TournamentRegistrationService : ITournamentRegistrationSer
             cancellationToken);
         if (transaction is not null)
             await transaction.CommitAsync(cancellationToken);
+        await TryPublishRosterConfirmationChangedAsync(
+            registration.TeamId.Value,
+            member.Id,
+            member.UserId,
+            nameof(RosterMemberConfirmationStatus.Confirmed),
+            cancellationToken);
         return dto;
+    }
+
+    public async Task DeclineRosterAsync(
+        string auth0UserId,
+        Guid tournamentId,
+        Guid rosterMemberId,
+        CancellationToken cancellationToken = default)
+    {
+        await using var transaction = await _persistenceCoordinator.BeginTransactionAsync(cancellationToken);
+        var userId = await GetCurrentUserIdAsync(auth0UserId, cancellationToken);
+        var member = await _dbContext.TournamentRegistrationRosterMembers
+            .Include(roster => roster.TournamentRegistration)
+                .ThenInclude(registration => registration.Tournament)
+            .FirstOrDefaultAsync(roster =>
+                roster.Id == rosterMemberId &&
+                roster.TournamentId == tournamentId &&
+                roster.UserId == userId &&
+                roster.ConfirmationStatus == RosterMemberConfirmationStatus.Pending,
+                cancellationToken);
+
+        if (member is null)
+            return;
+
+        var registration = member.TournamentRegistration;
+        EnsureScheduled(registration.Tournament);
+        if (!registration.TeamId.HasValue)
+            throw new ValidationException("Team registration is invalid.");
+
+        var now = DateTime.UtcNow;
+        registration.Status = TournamentRegistrationStatus.PendingConfirmation;
+        registration.UpdatedAtUtc = now;
+        _dbContext.TournamentRegistrationRosterMembers.Remove(member);
+
+        await _persistenceCoordinator.SaveChangesAsync("Tournament roster changed while declining the selection.", cancellationToken);
+        if (transaction is not null)
+            await transaction.CommitAsync(cancellationToken);
+        await TryPublishRosterConfirmationChangedAsync(
+            registration.TeamId.Value,
+            member.Id,
+            member.UserId,
+            "Declined",
+            cancellationToken);
     }
 
     public async Task UnregisterTeamAsync(
@@ -350,7 +457,7 @@ internal sealed class TournamentRegistrationService : ITournamentRegistrationSer
         var registration = await GetTeamRegistrationForMutationAsync(tournamentId, teamId, cancellationToken);
         DeleteTransientTeamRegistration(registration);
         PublishRegistrationCanceled(registration);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        await _persistenceCoordinator.SaveChangesAsync("Tournament registration changed concurrently.", cancellationToken);
         if (transaction is not null)
             await transaction.CommitAsync(cancellationToken);
     }
@@ -363,6 +470,16 @@ internal sealed class TournamentRegistrationService : ITournamentRegistrationSer
         var userId = await GetCurrentUserIdAsync(auth0UserId, cancellationToken);
         var tournament = await GetTournamentAsync(tournamentId, cancellationToken);
         return await _readModelService.GetCurrentUserStateAsync(userId, tournament, cancellationToken);
+    }
+
+    public async Task<RosterConfirmationNotificationPageDTO> GetPendingRosterConfirmationsAsync(
+        string auth0UserId,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = await GetCurrentUserIdAsync(auth0UserId, cancellationToken);
+        return await _readModelService.GetPendingRosterConfirmationsAsync(userId, page, pageSize, cancellationToken);
     }
 
     public async Task<IReadOnlyList<AdminTournamentRegistrationDTO>> GetAdminRegistrationsAsync(
@@ -415,7 +532,7 @@ internal sealed class TournamentRegistrationService : ITournamentRegistrationSer
         var registration = await GetTeamRegistrationForMutationAsync(tournamentId, teamId, cancellationToken);
         DeleteTransientTeamRegistration(registration);
         PublishRegistrationCanceled(registration);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        await _persistenceCoordinator.SaveChangesAsync("Tournament registration changed concurrently.", cancellationToken);
         if (transaction is not null)
             await transaction.CommitAsync(cancellationToken);
     }
@@ -514,31 +631,44 @@ internal sealed class TournamentRegistrationService : ITournamentRegistrationSer
             });
     }
 
-    private static List<TournamentRosterConfirmationChangedEvent> CreateRosterConfirmationEvents(
-     TournamentRegistration registration)
-    {
-        return registration.RosterMembers
-            .Where(member => member.ConfirmationStatus == RosterMemberConfirmationStatus.Pending)
-            .Select(member => new TournamentRosterConfirmationChangedEvent(
-                registration.TeamId!.Value,
-                member.Id,
-                member.UserId,
-                nameof(RosterMemberConfirmationStatus.Pending)))
-            .ToList();
-    }
-
     private async Task PublishRosterConfirmationEventsAsync(
         IEnumerable<TournamentRosterConfirmationChangedEvent> rosterConfirmationEvents,
         CancellationToken cancellationToken)
     {
         foreach (var rosterConfirmationEvent in rosterConfirmationEvents)
         {
-            await _realtimePublisher.RosterConfirmationChangedAsync(
+            await TryPublishRosterConfirmationChangedAsync(
                 rosterConfirmationEvent.TeamId,
                 rosterConfirmationEvent.RosterMemberId,
                 rosterConfirmationEvent.UserId,
                 rosterConfirmationEvent.Status,
                 cancellationToken);
+        }
+    }
+
+    private async Task TryPublishRosterConfirmationChangedAsync(
+        Guid teamId,
+        Guid rosterMemberId,
+        Guid userId,
+        string status,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _realtimePublisher.RosterConfirmationChangedAsync(
+                teamId,
+                rosterMemberId,
+                userId,
+                status,
+                cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(
+                exception,
+                "Roster confirmation realtime notification failed after persistence for roster member {RosterMemberId} with status {Status}.",
+                rosterMemberId,
+                status);
         }
     }
 

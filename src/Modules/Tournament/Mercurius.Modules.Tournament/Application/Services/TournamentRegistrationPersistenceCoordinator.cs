@@ -17,6 +17,10 @@ internal sealed class TournamentRegistrationPersistenceCoordinator(ITournamentDb
         {
             throw new ValidationException(duplicateMessage);
         }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new ConflictException("registration_changed", "The tournament registration changed. Refresh and try again.");
+        }
     }
 
     public Task<IDbContextTransaction> BeginTransactionAsync(CancellationToken cancellationToken) =>

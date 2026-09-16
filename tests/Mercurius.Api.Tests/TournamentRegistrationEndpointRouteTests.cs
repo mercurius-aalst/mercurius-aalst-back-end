@@ -31,6 +31,8 @@ public class TournamentRegistrationEndpointRouteTests
     [InlineData("PUT", "v{version:apiVersion}/lan/tournaments/{tournamentId:guid}/registrations/individual/me")]
     [InlineData("PUT", "v{version:apiVersion}/lan/tournaments/{tournamentId:guid}/registrations/teams/{teamId:guid}/roster")]
     [InlineData("PATCH", "v{version:apiVersion}/lan/tournaments/{tournamentId:guid}/registrations/roster-members/{rosterMemberId:guid}")]
+    [InlineData("DELETE", "v{version:apiVersion}/lan/tournaments/{tournamentId:guid}/registrations/roster-members/{rosterMemberId:guid}")]
+    [InlineData("GET", "v{version:apiVersion}/lan/tournament-roster-confirmations/me")]
     public void CurrentUserRegistrationRoutes_RequireAuthorization(string method, string routePattern)
     {
         var endpoint = GetRegistrationRouteEndpoint(method, routePattern);
@@ -149,6 +151,43 @@ public class TournamentRegistrationEndpointRouteTests
         Assert.Equal((tournamentId, 2, 50), service.LastAdminRegistrationRequest);
     }
 
+    [Fact]
+    public async Task RosterConfirmationNotifications_ValidateAndNormalizePagingBeforeServiceInvocation()
+    {
+        var service = new RecordingTournamentRegistrationService();
+        await using var app = CreateRegistrationApp(service);
+        await app.StartAsync();
+        using var client = CreateClient(app);
+        const string path = "v1/lan/tournament-roster-confirmations/me";
+
+        using var invalidResponse = await client.GetAsync($"{path}?pageSize=0");
+        Assert.Equal(StatusCodes.Status400BadRequest, (int)invalidResponse.StatusCode);
+        Assert.Equal(0, service.RosterNotificationCallCount);
+
+        using var defaultResponse = await client.GetAsync(path);
+        using var cappedResponse = await client.GetAsync($"{path}?page=2&pageSize=51");
+
+        Assert.Equal(StatusCodes.Status200OK, (int)defaultResponse.StatusCode);
+        Assert.Equal(StatusCodes.Status200OK, (int)cappedResponse.StatusCode);
+        Assert.Equal((2, 50), service.LastRosterNotificationRequest);
+    }
+
+    [Fact]
+    public async Task DeclineRosterRoute_ForwardsCurrentUserAndReturnsNoContent()
+    {
+        var service = new RecordingTournamentRegistrationService();
+        await using var app = CreateRegistrationApp(service);
+        await app.StartAsync();
+        using var client = CreateClient(app);
+        var tournamentId = Guid.NewGuid();
+        var rosterMemberId = Guid.NewGuid();
+
+        using var response = await client.DeleteAsync($"v1/lan/tournaments/{tournamentId}/registrations/roster-members/{rosterMemberId}");
+
+        Assert.Equal(StatusCodes.Status204NoContent, (int)response.StatusCode);
+        Assert.Equal((tournamentId, rosterMemberId), service.LastDeclineRequest);
+    }
+
     private static RouteEndpoint GetRegistrationRouteEndpoint(string method, string routePattern)
     {
         return GetRegistrationRouteEndpoints(method)
@@ -260,9 +299,12 @@ public class TournamentRegistrationEndpointRouteTests
         public int RosterEligibilityCallCount { get; private set; }
         public int RosterSubmissionCallCount { get; private set; }
         public int AdminRegistrationCallCount { get; private set; }
+        public int RosterNotificationCallCount { get; private set; }
         public IReadOnlyList<Guid>? LastUserIds { get; private set; }
         public SubmitTeamRosterDTO? LastSubmission { get; private set; }
         public (Guid TournamentId, int Page, int PageSize) LastAdminRegistrationRequest { get; private set; }
+        public (int Page, int PageSize) LastRosterNotificationRequest { get; private set; }
+        public (Guid TournamentId, Guid RosterMemberId) LastDeclineRequest { get; private set; }
 
         public Task<RosterCandidateEligibilityResponseDTO> CheckRosterEligibilityAsync(
             string auth0UserId,
@@ -293,6 +335,21 @@ public class TournamentRegistrationEndpointRouteTests
         public Task<TournamentRegistrationDTO> RegisterIndividualAsync(string auth0UserId, Guid tournamentId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task UnregisterIndividualAsync(string auth0UserId, Guid tournamentId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<TournamentRegistrationDTO> ConfirmRosterAsync(string auth0UserId, Guid tournamentId, Guid rosterMemberId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task DeclineRosterAsync(string auth0UserId, Guid tournamentId, Guid rosterMemberId, CancellationToken cancellationToken = default)
+        {
+            LastDeclineRequest = (tournamentId, rosterMemberId);
+            return Task.CompletedTask;
+        }
+        public Task<RosterConfirmationNotificationPageDTO> GetPendingRosterConfirmationsAsync(string auth0UserId, int page, int pageSize, CancellationToken cancellationToken = default)
+        {
+            RosterNotificationCallCount++;
+            LastRosterNotificationRequest = (page, pageSize);
+            return Task.FromResult(new RosterConfirmationNotificationPageDTO
+            {
+                Page = page,
+                PageSize = pageSize
+            });
+        }
         public Task UnregisterTeamAsync(string auth0UserId, Guid tournamentId, Guid teamId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<CurrentUserTournamentRegistrationStateDTO> GetCurrentUserStateAsync(string auth0UserId, Guid tournamentId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<AdminTournamentRegistrationDTO>> GetAdminRegistrationsAsync(Guid tournamentId, int page, int pageSize, CancellationToken cancellationToken = default)

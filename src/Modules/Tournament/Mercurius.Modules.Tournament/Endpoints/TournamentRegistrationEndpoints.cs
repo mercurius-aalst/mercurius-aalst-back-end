@@ -23,6 +23,27 @@ internal static class TournamentRegistrationEndpoints
             .MapToApiVersion(new ApiVersion(1, 0))
             .WithTags("Tournament Registrations");
 
+        var notificationGroup = app.MapGroup("v{version:apiVersion}/lan/tournament-roster-confirmations")
+            .WithApiVersionSet(apiVersionSet)
+            .MapToApiVersion(new ApiVersion(1, 0))
+            .WithTags("Tournament Roster Confirmations");
+
+        notificationGroup.MapGet("/me", async Task<IResult> (int? page, int? pageSize, ClaimsPrincipal user, ITournamentRegistrationService registrationService, CancellationToken cancellationToken) =>
+        {
+            var validationProblem = ValidatePaging(page, pageSize);
+            if (validationProblem is not null)
+                return validationProblem;
+
+            return Results.Ok(await registrationService.GetPendingRosterConfirmationsAsync(
+                GetAuth0UserId(user),
+                page ?? 1,
+                SearchRequest.BoundPageSize(pageSize),
+                cancellationToken));
+        })
+        .RequireAuthorization()
+        .Produces<RosterConfirmationNotificationPageDTO>()
+        .ProducesValidationProblem();
+
         group.MapGet("/me", async (Guid tournamentId, ClaimsPrincipal user, ITournamentRegistrationService registrationService, CancellationToken cancellationToken) =>
         {
             return await registrationService.GetCurrentUserStateAsync(GetAuth0UserId(user), tournamentId, cancellationToken);
@@ -92,6 +113,13 @@ internal static class TournamentRegistrationEndpoints
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["confirmationStatus"] = ["Only the Confirmed status is supported."] });
 
             return Results.Ok(await registrationService.ConfirmRosterAsync(GetAuth0UserId(user), tournamentId, rosterMemberId, cancellationToken));
+        })
+        .RequireAuthorization();
+
+        group.MapDelete("/roster-members/{rosterMemberId:guid}", async (Guid tournamentId, Guid rosterMemberId, ClaimsPrincipal user, ITournamentRegistrationService registrationService, CancellationToken cancellationToken) =>
+        {
+            await registrationService.DeclineRosterAsync(GetAuth0UserId(user), tournamentId, rosterMemberId, cancellationToken);
+            return Results.NoContent();
         })
         .RequireAuthorization();
 

@@ -201,9 +201,9 @@ public sealed class LeaderboardTests
         0,
         0,
         metric)
-    {
-        Id = Guid.NewGuid()
-    };
+        {
+            Id = Guid.NewGuid()
+        };
 
     private static void AddParticipant(
         TournamentAggregate tournament,
@@ -221,7 +221,11 @@ public sealed class LeaderboardTests
         var now = DateTime.UtcNow;
         participant.Attempts = scores.Select(score => new LeaderboardAttempt
         {
-            Id = Guid.NewGuid(), Score = score, CreatedAtUtc = now, UpdatedAtUtc = now, RowVersion = Guid.NewGuid()
+            Id = Guid.NewGuid(),
+            Score = score,
+            CreatedAtUtc = now,
+            UpdatedAtUtc = now,
+            RowVersion = Guid.NewGuid()
         }).ToList();
         tournament.LeaderboardParticipants.Add(participant);
     }
@@ -230,12 +234,18 @@ public sealed class LeaderboardTests
     {
         var participant = new LeaderboardParticipant
         {
-            Id = Guid.NewGuid(), TournamentId = tournament.Id, DisplayName = name
+            Id = Guid.NewGuid(),
+            TournamentId = tournament.Id,
+            DisplayName = name
         };
         var now = DateTime.UtcNow;
         participant.Attempts = durations.Select(duration => new LeaderboardAttempt
         {
-            Id = Guid.NewGuid(), DurationMilliseconds = duration, CreatedAtUtc = now, UpdatedAtUtc = now, RowVersion = Guid.NewGuid()
+            Id = Guid.NewGuid(),
+            DurationMilliseconds = duration,
+            CreatedAtUtc = now,
+            UpdatedAtUtc = now,
+            RowVersion = Guid.NewGuid()
         }).ToList();
         tournament.LeaderboardParticipants.Add(participant);
     }

@@ -74,6 +74,7 @@ public class DtoSerializationShapeTests
             "participationMode",
             "teamSize",
             "imageUrl",
+            "leaderboardRankingMetric",
             "placements",
             "sponsorPlacement",
             "matches",

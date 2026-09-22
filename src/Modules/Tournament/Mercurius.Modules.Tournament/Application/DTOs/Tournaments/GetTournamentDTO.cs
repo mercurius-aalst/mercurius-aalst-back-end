@@ -17,6 +17,7 @@ internal class GetTournamentDTO
     public DateTime? EstimatedEndTime { get; set; }
     public TournamentStatus Status { get; set; }
     public BracketType BracketType { get; set; }
+    public LeaderboardRankingMetric? LeaderboardRankingMetric { get; set; }
     public GameFormat Format { get; set; }
     public GameFormat FinalsFormat { get; set; }
     public ParticipationMode ParticipationMode { get; set; }

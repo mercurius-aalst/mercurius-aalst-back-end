@@ -1,0 +1,4 @@
+schema: spec-driven
+
+change-id: issue-49-leaderboard-tournaments
+summary: Add score/time leaderboard tournaments with linked-user and guest participants.

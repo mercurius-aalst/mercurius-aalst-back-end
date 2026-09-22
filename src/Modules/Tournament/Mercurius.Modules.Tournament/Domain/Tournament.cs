@@ -17,6 +17,7 @@ internal sealed class Tournament
     public DateTime? EstimatedEndTime { get; set; }
     public TournamentStatus Status { get; set; }
     public BracketType BracketType { get; set; }
+    public LeaderboardRankingMetric? LeaderboardRankingMetric { get; set; }
     public GameFormat Format { get; set; }
     public GameFormat FinalsFormat { get; set; }
     public ParticipationMode ParticipationMode { get; set; }
@@ -25,6 +26,8 @@ internal sealed class Tournament
     public IList<Placement> Placements { get; set; } = [];
     public IList<Match> Matches { get; set; } = [];
     public IList<TournamentRegistration> TournamentRegistrations { get; set; } = [];
+    public IList<LeaderboardParticipant> LeaderboardParticipants { get; set; } = [];
+    public long LeaderboardRevision { get; set; }
     public string? ImageUrl { get; set; }
 
     public Tournament(
@@ -36,7 +39,8 @@ internal sealed class Tournament
         int? teamSize,
         DateTime plannedStartTime,
         int averageGameDurationMinutes,
-        int roundBreakDurationMinutes)
+        int roundBreakDurationMinutes,
+        LeaderboardRankingMetric? leaderboardRankingMetric = null)
     {
         Name = name;
         BracketType = bracketType;
@@ -44,6 +48,7 @@ internal sealed class Tournament
         FinalsFormat = finalsFormat;
         Status = TournamentStatus.Scheduled;
         ParticipationMode = participationMode;
+        SetLeaderboardConfiguration(bracketType, leaderboardRankingMetric, participationMode);
         SetTeamSize(teamSize);
         SetScheduleConfiguration(plannedStartTime, averageGameDurationMinutes, roundBreakDurationMinutes);
     }
@@ -54,8 +59,9 @@ internal sealed class Tournament
         GameFormat format,
         GameFormat finalsFormat,
         ParticipationMode participationMode,
-        int? teamSize = null)
-        : this(name, bracketType, format, finalsFormat, participationMode, teamSize, DateTime.UtcNow, 30, 10)
+        int? teamSize = null,
+        LeaderboardRankingMetric? leaderboardRankingMetric = null)
+        : this(name, bracketType, format, finalsFormat, participationMode, teamSize, DateTime.UtcNow, 30, 10, leaderboardRankingMetric)
     {
     }
 
@@ -72,7 +78,8 @@ internal sealed class Tournament
         int? teamSize,
         DateTime plannedStartTime,
         int averageGameDurationMinutes,
-        int roundBreakDurationMinutes)
+        int roundBreakDurationMinutes,
+        LeaderboardRankingMetric? leaderboardRankingMetric = null)
     {
         if (Status is TournamentStatus.InProgress or TournamentStatus.Completed)
             throw new ValidationException("Tournament cannot be updated when it's in progress or completed.");
@@ -82,12 +89,17 @@ internal sealed class Tournament
             throw new ValidationException("Schedule configuration cannot be changed once match generation has started.");
         if (TeamSizeChanged(teamSize) && (Matches.Count != 0 || HasRegistrations()))
             throw new ValidationException("Team size cannot be changed once registration or match generation has started.");
+        if (BracketType != bracketType && (Matches.Count != 0 || HasRegistrations() || LeaderboardParticipants.Count != 0))
+            throw new ValidationException("Bracket type cannot be changed once tournament participation has started.");
+        if (LeaderboardRankingMetric != leaderboardRankingMetric && Status != TournamentStatus.Scheduled)
+            throw new ValidationException("Leaderboard ranking metric cannot be changed after the tournament has started.");
 
         Name = name;
         BracketType = bracketType;
         Format = format;
         FinalsFormat = finalsFormat;
         ParticipationMode = participationMode;
+        SetLeaderboardConfiguration(bracketType, leaderboardRankingMetric, participationMode);
         SetTeamSize(teamSize);
         SetScheduleConfiguration(plannedStartTime, averageGameDurationMinutes, roundBreakDurationMinutes);
     }
@@ -103,7 +115,7 @@ internal sealed class Tournament
     {
         if (Status != TournamentStatus.Scheduled)
             throw new ValidationException("Tournament has to be scheduled to be able to start");
-        if (GetRegisteredParticipantCount() < 2)
+        if (BracketType != BracketType.Leaderboard && GetRegisteredParticipantCount() < 2)
             throw new ValidationException("At least 2 participants required.");
 
         StartTime = DateTime.UtcNow;
@@ -130,6 +142,8 @@ internal sealed class Tournament
         EstimatedEndTime = null;
         Matches.Clear();
         Placements.Clear();
+        LeaderboardParticipants.Clear();
+        LeaderboardRevision++;
     }
 
     public int GetRegisteredParticipantCount()
@@ -174,6 +188,13 @@ internal sealed class Tournament
     {
         if (plannedStartTime == DateTime.MinValue)
             throw new ValidationException("Planned tournament start time is required.");
+        if (BracketType == BracketType.Leaderboard)
+        {
+            PlannedStartTime = plannedStartTime;
+            AverageGameDurationMinutes = 0;
+            RoundBreakDurationMinutes = 0;
+            return;
+        }
         if (averageGameDurationMinutes <= 0)
             throw new ValidationException("Average tournament duration must be greater than zero.");
         if (averageGameDurationMinutes > MaxAverageGameDurationMinutes)
@@ -200,6 +221,26 @@ internal sealed class Tournament
         }
 
         TeamSize = null;
+    }
+
+    private void SetLeaderboardConfiguration(
+        BracketType bracketType,
+        LeaderboardRankingMetric? leaderboardRankingMetric,
+        ParticipationMode participationMode)
+    {
+        if (bracketType == BracketType.Leaderboard)
+        {
+            if (participationMode != ParticipationMode.Individual)
+                throw new ValidationException("Leaderboard tournaments must use individual participation.");
+            if (!leaderboardRankingMetric.HasValue || !Enum.IsDefined(leaderboardRankingMetric.Value))
+                throw new ValidationException("Leaderboard tournaments require a supported ranking metric.");
+            LeaderboardRankingMetric = leaderboardRankingMetric;
+            return;
+        }
+
+        if (leaderboardRankingMetric.HasValue)
+            throw new ValidationException("Ranking metric is only supported for leaderboard tournaments.");
+        LeaderboardRankingMetric = null;
     }
 
     private bool TeamSizeChanged(int? teamSize)

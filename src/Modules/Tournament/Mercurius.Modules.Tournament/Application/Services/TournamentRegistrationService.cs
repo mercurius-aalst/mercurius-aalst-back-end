@@ -732,6 +732,8 @@ internal sealed class TournamentRegistrationService : ITournamentRegistrationSer
         var tournament = await _dbContext.Tournaments.FindAsync([tournamentId], cancellationToken);
         if (tournament is null)
             throw new NotFoundException("Tournament not found");
+        if (tournament.BracketType == BracketType.Leaderboard)
+            throw new ValidationException("Tournament registration is not available for leaderboard tournaments.");
         return tournament;
     }
 

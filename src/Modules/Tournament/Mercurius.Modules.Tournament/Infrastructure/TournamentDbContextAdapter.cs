@@ -22,6 +22,8 @@ internal sealed class TournamentDbContextAdapter<TDbContext> : ITournamentDbCont
     public DbSet<TournamentRegistration> TournamentRegistrations => _dbContext.Set<TournamentRegistration>();
     public DbSet<TournamentRegistrationRosterMember> TournamentRegistrationRosterMembers =>
         _dbContext.Set<TournamentRegistrationRosterMember>();
+    public DbSet<LeaderboardParticipant> LeaderboardParticipants => _dbContext.Set<LeaderboardParticipant>();
+    public DbSet<LeaderboardAttempt> LeaderboardAttempts => _dbContext.Set<LeaderboardAttempt>();
     public DatabaseFacade Database => _dbContext.Database;
 
     public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) =>

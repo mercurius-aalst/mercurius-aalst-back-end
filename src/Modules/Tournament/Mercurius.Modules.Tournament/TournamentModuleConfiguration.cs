@@ -32,6 +32,7 @@ public static class TournamentModuleConfiguration
         services.AddTransient<ITournamentQueries, TournamentService>();
         services.AddTransient<ITournamentManagementCommands, TournamentService>();
         services.AddTransient<ITournamentLifecycleCommands, TournamentService>();
+        services.AddTransient<ILeaderboardService, LeaderboardService>();
         services.AddTransient<MatchBracketImpactAnalyzer>();
         services.AddTransient<IMatchService, MatchService>();
         services.AddModuleEventHandler<MatchResolutionRequiredIntegrationEvent, MatchResolutionNotificationHandler>();
@@ -58,6 +59,9 @@ public static class TournamentModuleConfiguration
         modelBuilder.ApplyConfiguration(new PlacementConfiguration());
         modelBuilder.ApplyConfiguration(new PlacementUserConfiguration());
         modelBuilder.ApplyConfiguration(new PlacementTeamConfiguration());
+        modelBuilder.ApplyConfiguration(new LeaderboardParticipantConfiguration());
+        modelBuilder.ApplyConfiguration(new LeaderboardAttemptConfiguration());
+        modelBuilder.ApplyConfiguration(new PlacementLeaderboardParticipantConfiguration());
 
         return modelBuilder;
     }
@@ -68,6 +72,7 @@ public static class TournamentModuleConfiguration
         endpoints.MapTournamentRegistrationEndpoints();
         endpoints.MapMatchEndpoints();
         endpoints.MapPublicProfileMatchSummaryEndpoints();
+        endpoints.MapLeaderboardEndpoints();
 
         return endpoints;
     }

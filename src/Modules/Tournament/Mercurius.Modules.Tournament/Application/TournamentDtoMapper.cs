@@ -3,6 +3,7 @@ using Mercurius.Modules.Tournament.Application.DTOs.Matches;
 using Mercurius.Modules.Tournament.Application.DTOs.Participants;
 using Mercurius.Modules.Tournament.Application.DTOs.Placements;
 using Mercurius.Modules.Tournament.Application.DTOs.Registrations;
+using Mercurius.Modules.Tournament.Application.DTOs.Leaderboards;
 using Mercurius.Modules.Tournament.Domain;
 using Mercurius.Modules.Tournament.Application.Services;
 using Mercurius.Modules.Identity.Contracts;
@@ -344,8 +345,9 @@ internal sealed class TournamentDtoMapper
                 .ToList(),
             LeaderboardParticipants = tournament is null
                 ? []
-                : LeaderboardRanking.Build(tournament)
-                    .Where(row => row.Rank == placement.Place && placement.LeaderboardParticipants.Any(link => link.LeaderboardParticipantId == row.ParticipantId))
+                : tournament.GetLeaderboardRanking()
+                    .Where(row => row.Rank == placement.Place && placement.LeaderboardParticipants.Any(link => link.LeaderboardParticipantId == row.Participant.Id))
+                    .Select(LeaderboardRowDTO.From)
                     .ToList()
         };
     }

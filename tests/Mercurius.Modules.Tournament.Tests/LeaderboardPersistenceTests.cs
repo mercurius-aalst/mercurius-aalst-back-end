@@ -413,6 +413,11 @@ public sealed class LeaderboardPersistenceTests
         var recorded = participant.Attempts.Single(item => item.Id != correctedAttemptId);
         Assert.Equal(5m, recorded.Score);
         Assert.Equal(recorded.CreatedAtUtc, recorded.UpdatedAtUtc);
+
+        var adminJson = JsonSerializer.Serialize(response, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        Assert.Contains("\"participants\":", adminJson, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("\"attempts\":", adminJson, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("\"rowVersion\":", adminJson, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -536,7 +541,7 @@ public sealed class LeaderboardPersistenceTests
 
     private static TournamentService CreateTournamentService(MercuriusDBContext db) => new(
         new TournamentDbContextAdapter<MercuriusDBContext>(db),
-        new ThrowingModeratorFactory(),
+        new LeaderboardModeratorFactory(),
         new UnsupportedMediaModule(),
         TournamentTestSupport.CreateSponsorshipModule(),
         TournamentTestSupport.CreateMapper(),
@@ -584,10 +589,11 @@ public sealed class LeaderboardPersistenceTests
         return values;
     }
 
-    private sealed class ThrowingModeratorFactory : IMatchModeratorFactory
+    private sealed class LeaderboardModeratorFactory : IMatchModeratorFactory
     {
-        public IMatchModerator GetMatchModerator(BracketType bracketType) =>
-            throw new InvalidOperationException("Leaderboard lifecycle must not request a match moderator.");
+        public IMatchModerator GetMatchModerator(BracketType bracketType) => bracketType == BracketType.Leaderboard
+            ? new LeaderboardMatchModerator()
+            : throw new InvalidOperationException($"Only leaderboard tournaments are expected in these tests but got {bracketType}.");
     }
 
     private sealed class UnsupportedMediaModule : IMediaModule

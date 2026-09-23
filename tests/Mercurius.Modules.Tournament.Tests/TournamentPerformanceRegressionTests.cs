@@ -581,6 +581,10 @@ public class TournamentPerformanceRegressionTests
     {
         public IEnumerable<Match> GenerateMatchesForTournament(TournamentAggregate tournament) => [];
 
+        public void EnsureCanComplete(TournamentAggregate tournament)
+        {
+        }
+
         public void DeterminePlacements(TournamentAggregate tournament)
         {
         }

@@ -1,4 +1,5 @@
 using Mercurius.Modules.Shared.Exceptions;
+using LeaderboardMetric = Mercurius.Modules.Tournament.Domain.LeaderboardRankingMetric;
 
 namespace Mercurius.Modules.Tournament.Domain;
 
@@ -180,6 +181,118 @@ internal sealed class Tournament
             .Select(registration => registration.TeamId!.Value)
             .ToList();
     }
+
+    public LeaderboardParticipant FindLeaderboardParticipant(Guid participantId) =>
+        LeaderboardParticipants.SingleOrDefault(participant => participant.Id == participantId)
+        ?? throw new NotFoundException("Leaderboard participant not found.");
+
+    public LeaderboardParticipant? FindLeaderboardParticipantByLinkedUserId(Guid linkedUserId) =>
+        LeaderboardParticipants.SingleOrDefault(participant => participant.LinkedUserId == linkedUserId);
+
+    public LeaderboardParticipant AddGuestLeaderboardParticipant(string displayName)
+    {
+        var participant = new LeaderboardParticipant
+        {
+            Id = Guid.NewGuid(),
+            TournamentId = Id,
+            DisplayName = displayName.Trim()
+        };
+        LeaderboardParticipants.Add(participant);
+        return participant;
+    }
+
+    public LeaderboardParticipant AddLinkedLeaderboardParticipant(Guid linkedUserId, string displayName)
+    {
+        var participant = new LeaderboardParticipant
+        {
+            Id = Guid.NewGuid(),
+            TournamentId = Id,
+            LinkedUserId = linkedUserId,
+            DisplayName = displayName
+        };
+        LeaderboardParticipants.Add(participant);
+        return participant;
+    }
+
+    public void EnsureLeaderboardAttemptsEditable()
+    {
+        if (Status != TournamentStatus.InProgress)
+            throw new ValidationException("Leaderboard attempts can only be changed while the tournament is in progress.");
+    }
+
+    public void ValidateLeaderboardAttemptValue(decimal? score, long? durationMilliseconds)
+    {
+        if (!LeaderboardRankingMetric.HasValue)
+            throw new ValidationException("Tournament has no supported leaderboard ranking metric.");
+        LeaderboardRankingMetric.Value.ValidateAttemptValue(score, durationMilliseconds);
+    }
+
+    public LeaderboardAttempt CorrectLeaderboardAttempt(
+        Guid attemptId,
+        Guid rowVersion,
+        decimal? score,
+        long? durationMilliseconds,
+        DateTime nowUtc)
+    {
+        var attempt = FindLeaderboardAttempt(attemptId);
+        attempt.EnsureRowVersion(rowVersion);
+        attempt.Correct(score, durationMilliseconds, nowUtc);
+        return attempt;
+    }
+
+    public void RemoveLeaderboardAttempt(Guid attemptId, Guid rowVersion)
+    {
+        var participant = LeaderboardParticipants
+            .SingleOrDefault(item => item.Attempts.Any(attempt => attempt.Id == attemptId))
+            ?? throw new NotFoundException("Leaderboard attempt not found.");
+        var attempt = participant.Attempts.Single(item => item.Id == attemptId);
+        attempt.EnsureRowVersion(rowVersion);
+        participant.Attempts.Remove(attempt);
+    }
+
+    public IReadOnlyList<LeaderboardRankingEntry> GetLeaderboardRanking()
+    {
+        if (!LeaderboardRankingMetric.HasValue)
+            return [];
+
+        var metric = LeaderboardRankingMetric.Value;
+        var candidates = LeaderboardParticipants
+            .Select(participant => new
+            {
+                Participant = participant,
+                Score = participant.BestScore,
+                Duration = participant.BestDurationMilliseconds
+            })
+            .Where(item => metric == LeaderboardMetric.HighestScore ? item.Score.HasValue : item.Duration.HasValue);
+        var ordered = metric == LeaderboardMetric.HighestScore
+            ? candidates.OrderByDescending(item => item.Score).ThenBy(item => item.Participant.Id).ToList()
+            : candidates.OrderBy(item => item.Duration).ThenBy(item => item.Participant.Id).ToList();
+
+        var ranking = new List<LeaderboardRankingEntry>(ordered.Count);
+        decimal? previousScore = null;
+        long? previousDuration = null;
+        for (var index = 0; index < ordered.Count; index++)
+        {
+            var item = ordered[index];
+            var tied = index > 0 && (metric == LeaderboardMetric.HighestScore
+                ? item.Score == previousScore
+                : item.Duration == previousDuration);
+            ranking.Add(new LeaderboardRankingEntry(
+                item.Participant,
+                item.Score,
+                item.Duration,
+                tied ? ranking[^1].Rank : index + 1));
+            previousScore = item.Score;
+            previousDuration = item.Duration;
+        }
+        return ranking;
+    }
+
+    private LeaderboardAttempt FindLeaderboardAttempt(Guid attemptId) =>
+        LeaderboardParticipants
+            .SelectMany(participant => participant.Attempts)
+            .SingleOrDefault(attempt => attempt.Id == attemptId)
+        ?? throw new NotFoundException("Leaderboard attempt not found.");
 
     private void SetScheduleConfiguration(
         DateTime plannedStartTime,

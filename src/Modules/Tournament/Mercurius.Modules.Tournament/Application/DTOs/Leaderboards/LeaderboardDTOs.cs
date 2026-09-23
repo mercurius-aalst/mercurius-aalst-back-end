@@ -1,5 +1,6 @@
 using Mercurius.Modules.Tournament.Contracts;
 using System.ComponentModel.DataAnnotations;
+using LeaderboardRankingEntry = Mercurius.Modules.Tournament.Domain.LeaderboardRankingEntry;
 
 namespace Mercurius.Modules.Tournament.Application.DTOs.Leaderboards;
 
@@ -19,6 +20,19 @@ internal sealed class LeaderboardRowDTO
     public Guid? LinkedUserId { get; set; }
     public decimal? Score { get; set; }
     public long? DurationMilliseconds { get; set; }
+
+    public static LeaderboardRowDTO From(LeaderboardRankingEntry entry) => new()
+    {
+        Rank = entry.Rank,
+        ParticipantId = entry.Participant.Id,
+        DisplayName = entry.Participant.DisplayName,
+        ParticipantKind = entry.Participant.LinkedUserId.HasValue
+            ? LeaderboardParticipantKind.LinkedUser
+            : LeaderboardParticipantKind.Guest,
+        LinkedUserId = entry.Participant.LinkedUserId,
+        Score = entry.Score,
+        DurationMilliseconds = entry.DurationMilliseconds
+    };
 }
 
 internal sealed class AdminLeaderboardResponseDTO

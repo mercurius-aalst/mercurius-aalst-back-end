@@ -11,6 +11,13 @@ namespace Mercurius.Modules.Tournament.Application.Services.BracketTypes;
 internal sealed class DoubleEliminationMatchModerator : IMatchModerator
 {
     /// <summary>
+    /// Match brackets enforce their completion preconditions while placements are determined.
+    /// </summary>
+    public void EnsureCanComplete(TournamentAggregate tournament)
+    {
+    }
+
+    /// <summary>
     /// Generates all matches for a given tournament in a double-elimination format.
     /// </summary>
     /// <param name="tournament">The tournament for which matches are to be generated.</param>

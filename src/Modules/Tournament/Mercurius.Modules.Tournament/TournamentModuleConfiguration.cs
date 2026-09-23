@@ -43,6 +43,7 @@ public static class TournamentModuleConfiguration
         services.AddTransient<SingleEliminationMatchModerator>();
         services.AddTransient<DoubleEliminationMatchModerator>();
         services.AddTransient<RoundRobinMatchModerator>();
+        services.AddTransient<LeaderboardMatchModerator>();
         services.AddTransient<ITournamentRealtimePublisher, TournamentRealtimePublisher>();
         services.AddTransient<ITeamTournamentReadService, TournamentTeamReadService>();
 

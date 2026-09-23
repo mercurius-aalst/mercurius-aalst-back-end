@@ -18,6 +18,7 @@ internal sealed class MatchModeratorFactory : IMatchModeratorFactory
             BracketType.SingleElimination => _serviceProvider.GetRequiredService<SingleEliminationMatchModerator>(),
             BracketType.DoubleElimination => _serviceProvider.GetRequiredService<DoubleEliminationMatchModerator>(),
             BracketType.RoundRobin => _serviceProvider.GetRequiredService<RoundRobinMatchModerator>(),
+            BracketType.Leaderboard => _serviceProvider.GetRequiredService<LeaderboardMatchModerator>(),
             _ => throw new NotSupportedException($"Bracket type {bracketType} is not (yet) supported.")
         };
     }

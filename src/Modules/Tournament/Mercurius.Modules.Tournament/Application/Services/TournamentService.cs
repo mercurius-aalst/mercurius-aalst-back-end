@@ -159,6 +159,7 @@ internal sealed class TournamentService : ITournamentQueries, ITournamentManagem
             tournamentDTO.LeaderboardRankingMetric.HasValue
                 ? (LeaderboardRankingMetric)tournamentDTO.LeaderboardRankingMetric.Value
                 : null);
+        tournament.LeaderboardRevision++;
 
         var previousImageUrl = tournament.ImageUrl;
         string? newImageUrl = null;
@@ -182,7 +183,7 @@ internal sealed class TournamentService : ITournamentQueries, ITournamentManagem
                 tournament.ImageUrl = newImageUrl;
 
             _moduleEventPublisher.Publish(new TournamentUpdatedIntegrationEvent(new TournamentId(tournament.Id), tournament.Name));
-            await _dbContext.SaveChangesAsync(cancellationToken);
+            await SaveLifecycleAsync(cancellationToken);
             committed = true;
         }
         catch
@@ -225,12 +226,9 @@ internal sealed class TournamentService : ITournamentQueries, ITournamentManagem
         var tournament = await GetTournamentForMutationAsync(id, cancellationToken);
         tournament.Start();
         tournament.LeaderboardRevision++;
-        if (tournament.BracketType != BracketType.Leaderboard)
-        {
-            var matchModerator = _matchModeratorFactory.GetMatchModerator(tournament.BracketType);
-            tournament.Matches = matchModerator.GenerateMatchesForTournament(tournament).ToList();
-            AssignEstimatedSchedule(tournament);
-        }
+        var matchModerator = _matchModeratorFactory.GetMatchModerator(tournament.BracketType);
+        tournament.Matches = matchModerator.GenerateMatchesForTournament(tournament).ToList();
+        AssignEstimatedSchedule(tournament);
         _moduleEventPublisher.Publish(new TournamentStartedIntegrationEvent(new TournamentId(tournament.Id), tournament.StartTime));
         await SaveLifecycleAsync(cancellationToken);
     }
@@ -240,33 +238,11 @@ internal sealed class TournamentService : ITournamentQueries, ITournamentManagem
         CancellationToken cancellationToken = default)
     {
         var tournament = await GetTournamentForMutationAsync(id, cancellationToken);
-        var leaderboardRows = tournament.BracketType == BracketType.Leaderboard
-            ? LeaderboardRanking.Build(tournament)
-            : [];
-        if (tournament.BracketType == BracketType.Leaderboard && leaderboardRows.Count == 0)
-            throw new ValidationException("A leaderboard tournament requires at least one valid recorded result before completion.");
+        var matchModerator = _matchModeratorFactory.GetMatchModerator(tournament.BracketType);
+        matchModerator.EnsureCanComplete(tournament);
         tournament.Complete();
         tournament.LeaderboardRevision++;
-        if (tournament.BracketType == BracketType.Leaderboard)
-        {
-            foreach (var group in leaderboardRows.GroupBy(row => row.Rank))
-            {
-                tournament.Placements.Add(new Placement
-                {
-                    TournamentId = tournament.Id,
-                    Place = group.Key,
-                    LeaderboardParticipants = group.Select(row => new PlacementLeaderboardParticipant
-                    {
-                        LeaderboardParticipantId = row.ParticipantId
-                    }).ToList()
-                });
-            }
-        }
-        else
-        {
-            var matchModerator = _matchModeratorFactory.GetMatchModerator(tournament.BracketType);
-            matchModerator.DeterminePlacements(tournament);
-        }
+        matchModerator.DeterminePlacements(tournament);
         _moduleEventPublisher.Publish(new TournamentCompletedIntegrationEvent(new TournamentId(tournament.Id), tournament.EndTime));
         foreach (var placement in tournament.Placements)
         {

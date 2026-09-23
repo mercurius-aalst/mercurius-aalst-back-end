@@ -45,11 +45,11 @@ public sealed class LeaderboardTests
         AddParticipant(tournament, "B", Guid.NewGuid(), 100m);
         AddParticipant(tournament, "C", null, 80m);
 
-        var rows = LeaderboardRanking.Build(tournament);
+        var rows = tournament.GetLeaderboardRanking();
 
         Assert.Equal([1, 1, 3], rows.Select(row => row.Rank));
-        Assert.Equal([100m, 100m, 80m], rows.Select(row => row.Score));
-        Assert.Contains(rows, row => row.DisplayName == "A" && row.Score == 100m);
+        Assert.Equal(new decimal?[] { 100m, 100m, 80m }, rows.Select(row => row.Score));
+        Assert.Contains(rows, row => row.Participant.DisplayName == "A" && row.Score == 100m);
     }
 
     [Fact]
@@ -59,9 +59,9 @@ public sealed class LeaderboardTests
         AddDurationParticipant(tournament, "Slow then fast", 4000, 2500);
         AddDurationParticipant(tournament, "Second", 3000);
 
-        var rows = LeaderboardRanking.Build(tournament);
+        var rows = tournament.GetLeaderboardRanking();
 
-        Assert.Equal("Slow then fast", rows[0].DisplayName);
+        Assert.Equal("Slow then fast", rows[0].Participant.DisplayName);
         Assert.Equal(2500, rows[0].DurationMilliseconds);
         Assert.Equal(3000, rows[1].DurationMilliseconds);
     }
@@ -70,13 +70,54 @@ public sealed class LeaderboardTests
     public void AttemptValidation_PreservesSupportedPrecisionAndRejectsWrongMetric()
     {
         var scores = CreateTournament(metric: LeaderboardRankingMetric.HighestScore);
-        LeaderboardService.ValidateValue(scores, 999_999_999_999.123456m, null);
-        Assert.Throws<ValidationException>(() => LeaderboardService.ValidateValue(scores, 1.1234567m, null));
-        Assert.Throws<ValidationException>(() => LeaderboardService.ValidateValue(scores, null, 100));
+        scores.ValidateLeaderboardAttemptValue(999_999_999_999.123456m, null);
+        Assert.Throws<ValidationException>(() => scores.ValidateLeaderboardAttemptValue(1.1234567m, null));
+        Assert.Throws<ValidationException>(() => scores.ValidateLeaderboardAttemptValue(null, 100));
 
         var times = CreateTournament(metric: LeaderboardRankingMetric.FastestTime);
-        LeaderboardService.ValidateValue(times, null, 1);
-        Assert.Throws<ValidationException>(() => LeaderboardService.ValidateValue(times, null, 0));
+        times.ValidateLeaderboardAttemptValue(null, 1);
+        Assert.Throws<ValidationException>(() => times.ValidateLeaderboardAttemptValue(null, 0));
+    }
+
+    [Fact]
+    public async Task Lifecycle_StartsScheduledLeaderboardWithoutGeneratingMatches()
+    {
+        var options = CreateDbOptions();
+        await using var seedDb = new MercuriusDBContext(options);
+        var tournament = CreateTournament(metric: LeaderboardRankingMetric.HighestScore);
+        seedDb.Set<TournamentAggregate>().Add(tournament);
+        await seedDb.SaveChangesAsync();
+        seedDb.ChangeTracker.Clear();
+        await using var db = new MercuriusDBContext(options);
+
+        await CreateService(db).StartTournamentAsync(tournament.Id);
+
+        var started = await db.Set<TournamentAggregate>()
+            .AsNoTracking()
+            .Include(item => item.Matches)
+            .SingleAsync(item => item.Id == tournament.Id);
+        Assert.Equal(TournamentStatus.InProgress, started.Status);
+        Assert.Empty(started.Matches);
+        Assert.Equal(1, started.LeaderboardRevision);
+    }
+
+    [Fact]
+    public async Task Lifecycle_RejectsScheduledLeaderboardCompletionOnLeaderboardPrecondition()
+    {
+        var options = CreateDbOptions();
+        await using var seedDb = new MercuriusDBContext(options);
+        var tournament = CreateTournament(metric: LeaderboardRankingMetric.HighestScore);
+        seedDb.Set<TournamentAggregate>().Add(tournament);
+        await seedDb.SaveChangesAsync();
+        seedDb.ChangeTracker.Clear();
+        await using var db = new MercuriusDBContext(options);
+        var tracked = await db.Set<TournamentAggregate>().SingleAsync(item => item.Id == tournament.Id);
+
+        var exception = await Assert.ThrowsAsync<ValidationException>(() => CreateService(db).CompleteTournamentAsync(tournament.Id));
+
+        Assert.Equal("A leaderboard tournament requires at least one valid recorded result before completion.", exception.Message);
+        Assert.Equal(TournamentStatus.Scheduled, tracked.Status);
+        Assert.Equal(0, tracked.LeaderboardRevision);
     }
 
     [Fact]
@@ -119,8 +160,18 @@ public sealed class LeaderboardTests
         await seedDb.SaveChangesAsync();
         seedDb.ChangeTracker.Clear();
         await using var db = new MercuriusDBContext(options);
+        var tracked = await db.Set<TournamentAggregate>().SingleAsync(item => item.Id == tournament.Id);
 
         await Assert.ThrowsAsync<ValidationException>(() => CreateService(db).CompleteTournamentAsync(tournament.Id));
+
+        Assert.Equal(TournamentStatus.InProgress, tracked.Status);
+        Assert.Equal(DateTime.MinValue, tracked.EndTime);
+        Assert.Equal(0, tracked.LeaderboardRevision);
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+        var persisted = await db.Set<TournamentAggregate>().AsNoTracking().SingleAsync(item => item.Id == tournament.Id);
+        Assert.Equal(TournamentStatus.InProgress, persisted.Status);
+        Assert.Equal(0, persisted.LeaderboardRevision);
     }
 
     [Fact]
@@ -265,16 +316,18 @@ public sealed class LeaderboardTests
 
     private static TournamentService CreateService(MercuriusDBContext db) => new(
         new TournamentDbContextAdapter<MercuriusDBContext>(db),
-        new ThrowingModeratorFactory(),
+        new LeaderboardModeratorFactory(),
         new UnsupportedMediaModule(),
         TournamentTestSupport.CreateSponsorshipModule(),
         TournamentTestSupport.CreateMapper(),
         TournamentTestSupport.CreateModuleEventPublisher(),
         Microsoft.Extensions.Logging.Abstractions.NullLogger<TournamentService>.Instance);
 
-    private sealed class ThrowingModeratorFactory : IMatchModeratorFactory
+    private sealed class LeaderboardModeratorFactory : IMatchModeratorFactory
     {
-        public IMatchModerator GetMatchModerator(BracketType bracketType) => throw new InvalidOperationException("Leaderboard lifecycle must not request a match moderator.");
+        public IMatchModerator GetMatchModerator(BracketType bracketType) => bracketType == BracketType.Leaderboard
+            ? new LeaderboardMatchModerator()
+            : throw new InvalidOperationException($"Only leaderboard tournaments are expected in these tests but got {bracketType}.");
     }
 
     private sealed class UnsupportedMediaModule : Mercurius.Modules.Media.Contracts.IMediaModule

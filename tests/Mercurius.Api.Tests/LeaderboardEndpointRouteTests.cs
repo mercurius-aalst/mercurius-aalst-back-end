@@ -21,7 +21,7 @@ public sealed class LeaderboardEndpointRouteTests
     }
 
     [Theory]
-    [InlineData("GET", Prefix + "/admin")]
+    [InlineData("GET", Prefix + "/attempts")]
     [InlineData("POST", Prefix + "/attempts")]
     [InlineData("PUT", Prefix + "/attempts/{attemptId:guid}")]
     [InlineData("DELETE", Prefix + "/attempts/{attemptId:guid}")]
@@ -34,7 +34,20 @@ public sealed class LeaderboardEndpointRouteTests
         Assert.Contains(authorization, item => item.Roles == "admin");
     }
 
+    [Fact]
+    public void FormerAdminHistoryRoute_IsNotExposed()
+    {
+        Assert.DoesNotContain(GetEndpoints(), endpoint => endpoint.RoutePattern.RawText == Prefix + "/admin" && endpoint.Metadata
+            .OfType<IHttpMethodMetadata>().Any(item => item.HttpMethods.Contains("GET")));
+    }
+
     private static RouteEndpoint GetEndpoint(string method, string pattern)
+    {
+        return GetEndpoints().Single(endpoint => endpoint.RoutePattern.RawText == pattern && endpoint.Metadata
+            .OfType<IHttpMethodMetadata>().Any(item => item.HttpMethods.Contains(method)));
+    }
+
+    private static IReadOnlyList<RouteEndpoint> GetEndpoints()
     {
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddAuthorization();
@@ -50,7 +63,6 @@ public sealed class LeaderboardEndpointRouteTests
 
         return ((IEndpointRouteBuilder)app).DataSources.SelectMany(source => source.Endpoints)
             .OfType<RouteEndpoint>()
-            .Single(endpoint => endpoint.RoutePattern.RawText == pattern && endpoint.Metadata
-                .OfType<IHttpMethodMetadata>().Any(item => item.HttpMethods.Contains(method)));
+            .ToList();
     }
 }

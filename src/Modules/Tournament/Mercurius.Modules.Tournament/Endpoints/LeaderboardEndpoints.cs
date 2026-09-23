@@ -22,7 +22,7 @@ internal static class LeaderboardEndpoints
             .AllowAnonymous()
             .Produces<LeaderboardResponseDTO>();
 
-        group.MapGet("/admin", (Guid tournamentId, [FromServices] ILeaderboardService service, CancellationToken cancellationToken) =>
+        group.MapGet("/attempts", (Guid tournamentId, [FromServices] ILeaderboardService service, CancellationToken cancellationToken) =>
             service.GetAdminLeaderboardAsync(tournamentId, cancellationToken))
             .Produces<AdminLeaderboardResponseDTO>();
 

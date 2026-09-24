@@ -6,6 +6,7 @@ using Mercurius.Modules.Tournament.Domain;
 using Mercurius.Modules.Tournament.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Contracts = Mercurius.Modules.Tournament.Contracts;
+using RankingMetric = Mercurius.Modules.Tournament.Domain.LeaderboardRankingMetric;
 
 namespace Mercurius.Modules.Tournament.Application.Services;
 
@@ -13,18 +14,75 @@ internal sealed class LeaderboardService(ITournamentDbContext dbContext, IIdenti
 {
     public async Task<LeaderboardResponseDTO> GetPublicLeaderboardAsync(Guid tournamentId, CancellationToken cancellationToken = default)
     {
-        var tournament = await GetLeaderboardQuery().AsNoTracking()
-            .SingleOrDefaultAsync(item => item.Id == tournamentId, cancellationToken)
+        var leaderboard = await dbContext.Tournaments.AsNoTracking()
+            .Where(item => item.Id == tournamentId && item.BracketType == BracketType.Leaderboard)
+            .Select(item => new LeaderboardResponseDTO
+            {
+                TournamentId = item.Id,
+                RankingMetric = (Contracts.LeaderboardRankingMetric)item.LeaderboardRankingMetric!.Value,
+                Rows = item.LeaderboardParticipants
+                    .Where(participant => item.LeaderboardRankingMetric == RankingMetric.HighestScore
+                        ? participant.Attempts.Any(attempt => attempt.Score.HasValue)
+                        : participant.Attempts.Any(attempt => attempt.DurationMilliseconds.HasValue))
+                    .Select(participant => new LeaderboardRowDTO
+                    {
+                        ParticipantId = participant.Id,
+                        DisplayName = participant.DisplayName,
+                        ParticipantKind = participant.LinkedUserId.HasValue
+                            ? Contracts.LeaderboardParticipantKind.LinkedUser
+                            : Contracts.LeaderboardParticipantKind.Guest,
+                        LinkedUserId = participant.LinkedUserId,
+                        Score = item.LeaderboardRankingMetric == RankingMetric.HighestScore
+                            ? participant.Attempts.Where(attempt => attempt.Score.HasValue).Max(attempt => attempt.Score)
+                            : null,
+                        DurationMilliseconds = item.LeaderboardRankingMetric == RankingMetric.FastestTime
+                            ? participant.Attempts.Where(attempt => attempt.DurationMilliseconds.HasValue).Min(attempt => attempt.DurationMilliseconds)
+                            : null
+                    })
+                    .ToList()
+            })
+            .SingleOrDefaultAsync(cancellationToken)
             ?? throw new NotFoundException("Leaderboard tournament not found.");
-        return ToPublicDto(tournament);
+        AssignCompetitionRanks(leaderboard);
+        return leaderboard;
     }
 
     public async Task<AdminLeaderboardResponseDTO> GetAdminLeaderboardAsync(Guid tournamentId, CancellationToken cancellationToken = default)
     {
-        var tournament = await GetLeaderboardQuery().AsNoTracking()
-            .SingleOrDefaultAsync(item => item.Id == tournamentId, cancellationToken)
+        return await dbContext.Tournaments.AsNoTracking()
+            .Where(item => item.Id == tournamentId && item.BracketType == BracketType.Leaderboard)
+            .Select(item => new AdminLeaderboardResponseDTO
+            {
+                TournamentId = item.Id,
+                RankingMetric = (Contracts.LeaderboardRankingMetric)item.LeaderboardRankingMetric!.Value,
+                Participants = item.LeaderboardParticipants
+                    .OrderBy(participant => participant.Id)
+                    .Select(participant => new AdminLeaderboardParticipantDTO
+                    {
+                        Id = participant.Id,
+                        DisplayName = participant.DisplayName,
+                        ParticipantKind = participant.LinkedUserId.HasValue
+                            ? Contracts.LeaderboardParticipantKind.LinkedUser
+                            : Contracts.LeaderboardParticipantKind.Guest,
+                        LinkedUserId = participant.LinkedUserId,
+                        Attempts = participant.Attempts
+                            .OrderBy(attempt => attempt.CreatedAtUtc)
+                            .ThenBy(attempt => attempt.Id)
+                            .Select(attempt => new LeaderboardAttemptDTO
+                            {
+                                Id = attempt.Id,
+                                Score = attempt.Score,
+                                DurationMilliseconds = attempt.DurationMilliseconds,
+                                CreatedAtUtc = attempt.CreatedAtUtc,
+                                UpdatedAtUtc = attempt.UpdatedAtUtc,
+                                RowVersion = attempt.RowVersion
+                            })
+                            .ToList()
+                    })
+                    .ToList()
+            })
+            .SingleOrDefaultAsync(cancellationToken)
             ?? throw new NotFoundException("Leaderboard tournament not found.");
-        return ToAdminDto(tournament);
     }
 
     public async Task<AdminLeaderboardParticipantDTO> RecordAttemptAsync(
@@ -34,36 +92,31 @@ internal sealed class LeaderboardService(ITournamentDbContext dbContext, IIdenti
     {
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         var tournament = await GetLeaderboardForMutationAsync(tournamentId, cancellationToken);
-        tournament.EnsureLeaderboardAttemptsEditable();
-        tournament.ValidateLeaderboardAttemptValue(request.Score, request.DurationMilliseconds);
-        ValidateSelector(request);
+        var existingParticipant = tournament.ValidateCanRecordLeaderboardAttempt(
+            request.ParticipantId,
+            request.LinkedUserId,
+            request.GuestDisplayName,
+            request.Score,
+            request.DurationMilliseconds);
+        string? linkedUserDisplayName = null;
+        if (request.LinkedUserId.HasValue && existingParticipant is null)
+        {
+            var profile = await identityModule.GetUserProfileAsync(new UserId(request.LinkedUserId.Value), cancellationToken);
+            if (profile is null || profile.IsDeleted)
+                throw new NotFoundException("Linked user not found.");
+            linkedUserDisplayName = profile.DisplayName ?? profile.Username ?? "Incomplete profile";
+        }
 
-        LeaderboardParticipant participant;
-        if (request.ParticipantId.HasValue)
-        {
-            participant = tournament.FindLeaderboardParticipant(request.ParticipantId.Value);
-        }
-        else if (request.LinkedUserId.HasValue)
-        {
-            participant = tournament.FindLeaderboardParticipantByLinkedUserId(request.LinkedUserId.Value)!;
-            if (participant is null)
-            {
-                var profile = await identityModule.GetUserProfileAsync(new UserId(request.LinkedUserId.Value), cancellationToken);
-                if (profile is null || profile.IsDeleted)
-                    throw new NotFoundException("Linked user not found.");
-                participant = tournament.AddLinkedLeaderboardParticipant(
-                    request.LinkedUserId.Value,
-                    profile.DisplayName ?? profile.Username ?? "Incomplete profile");
-                dbContext.LeaderboardParticipants.Add(participant);
-            }
-        }
-        else
-        {
-            participant = tournament.AddGuestLeaderboardParticipant(request.GuestDisplayName!);
+        var (participant, attempt) = tournament.RecordLeaderboardAttempt(
+            request.ParticipantId,
+            request.LinkedUserId,
+            request.GuestDisplayName,
+            linkedUserDisplayName,
+            request.Score,
+            request.DurationMilliseconds,
+            DateTime.UtcNow);
+        if (existingParticipant is null)
             dbContext.LeaderboardParticipants.Add(participant);
-        }
-
-        var attempt = participant.AddAttempt(request.Score, request.DurationMilliseconds, DateTime.UtcNow);
         dbContext.LeaderboardAttempts.Add(attempt);
         tournament.LeaderboardRevision++;
         await SaveMutationAsync(cancellationToken);
@@ -81,9 +134,7 @@ internal sealed class LeaderboardService(ITournamentDbContext dbContext, IIdenti
             throw new ValidationException("rowVersion is required.");
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         var tournament = await GetLeaderboardForMutationAsync(tournamentId, cancellationToken);
-        tournament.EnsureLeaderboardAttemptsEditable();
-        tournament.ValidateLeaderboardAttemptValue(request.Score, request.DurationMilliseconds);
-        var attempt = tournament.CorrectLeaderboardAttempt(
+        var attempt = tournament.UpdateLeaderboardAttempt(
             attemptId,
             request.RowVersion.Value,
             request.Score,
@@ -99,26 +150,28 @@ internal sealed class LeaderboardService(ITournamentDbContext dbContext, IIdenti
     {
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         var tournament = await GetLeaderboardForMutationAsync(tournamentId, cancellationToken);
-        tournament.EnsureLeaderboardAttemptsEditable();
         tournament.RemoveLeaderboardAttempt(attemptId, rowVersion);
         tournament.LeaderboardRevision++;
         await SaveMutationAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
     }
 
-    internal static LeaderboardResponseDTO ToPublicDto(TournamentAggregate tournament) => new()
+    private static void AssignCompetitionRanks(LeaderboardResponseDTO leaderboard)
     {
-        TournamentId = tournament.Id,
-        RankingMetric = (Contracts.LeaderboardRankingMetric)tournament.LeaderboardRankingMetric!.Value,
-        Rows = tournament.GetLeaderboardRanking().Select(LeaderboardRowDTO.From).ToList()
-    };
+        var ordered = leaderboard.RankingMetric == Contracts.LeaderboardRankingMetric.HighestScore
+            ? leaderboard.Rows.OrderByDescending(row => row.Score).ThenBy(row => row.ParticipantId).ToList()
+            : leaderboard.Rows.OrderBy(row => row.DurationMilliseconds).ThenBy(row => row.ParticipantId).ToList();
 
-    internal static AdminLeaderboardResponseDTO ToAdminDto(TournamentAggregate tournament) => new()
-    {
-        TournamentId = tournament.Id,
-        RankingMetric = (Contracts.LeaderboardRankingMetric)tournament.LeaderboardRankingMetric!.Value,
-        Participants = tournament.LeaderboardParticipants.OrderBy(item => item.Id).Select(ToAdminParticipantDto).ToList()
-    };
+        for (var index = 0; index < ordered.Count; index++)
+        {
+            var tied = index > 0 && (leaderboard.RankingMetric == Contracts.LeaderboardRankingMetric.HighestScore
+                ? ordered[index].Score == ordered[index - 1].Score
+                : ordered[index].DurationMilliseconds == ordered[index - 1].DurationMilliseconds);
+            ordered[index].Rank = tied ? ordered[index - 1].Rank : index + 1;
+        }
+
+        leaderboard.Rows = ordered;
+    }
 
     private static AdminLeaderboardParticipantDTO ToAdminParticipantDto(LeaderboardParticipant participant) => new()
     {
@@ -144,23 +197,14 @@ internal sealed class LeaderboardService(ITournamentDbContext dbContext, IIdenti
         RowVersion = attempt.RowVersion
     };
 
-    private IQueryable<TournamentAggregate> GetLeaderboardQuery() => dbContext.Tournaments
+    private IQueryable<TournamentAggregate> GetLeaderboardForMutationQuery() => dbContext.Tournaments
         .Where(item => item.BracketType == BracketType.Leaderboard)
         .Include(item => item.LeaderboardParticipants)
             .ThenInclude(participant => participant.Attempts);
 
     private async Task<TournamentAggregate> GetLeaderboardForMutationAsync(Guid tournamentId, CancellationToken cancellationToken) =>
-        await GetLeaderboardQuery().SingleOrDefaultAsync(item => item.Id == tournamentId, cancellationToken)
+        await GetLeaderboardForMutationQuery().SingleOrDefaultAsync(item => item.Id == tournamentId, cancellationToken)
         ?? throw new NotFoundException("Leaderboard tournament not found.");
-
-    private static void ValidateSelector(RecordLeaderboardAttemptDTO request)
-    {
-        var count = (request.ParticipantId.HasValue ? 1 : 0)
-            + (request.LinkedUserId.HasValue ? 1 : 0)
-            + (!string.IsNullOrWhiteSpace(request.GuestDisplayName) ? 1 : 0);
-        if (count != 1)
-            throw new ValidationException("Exactly one of participantId, linkedUserId, or guestDisplayName is required.");
-    }
 
     private async Task SaveMutationAsync(CancellationToken cancellationToken)
     {

@@ -28,6 +28,10 @@ internal sealed class Tournament
     public IList<Match> Matches { get; set; } = [];
     public IList<TournamentRegistration> TournamentRegistrations { get; set; } = [];
     public IList<LeaderboardParticipant> LeaderboardParticipants { get; set; } = [];
+    /// <summary>
+    /// Shared optimistic-concurrency revision for the tournament aggregate, including configuration, lifecycle, registration, and leaderboard mutations.
+    /// The legacy property and database column name do not limit the scope of the token.
+    /// </summary>
     public long LeaderboardRevision { get; set; }
     public string? ImageUrl { get; set; }
 
@@ -214,26 +218,57 @@ internal sealed class Tournament
         return participant;
     }
 
-    public void EnsureLeaderboardAttemptsEditable()
+    public LeaderboardParticipant? ValidateCanRecordLeaderboardAttempt(
+        Guid? participantId,
+        Guid? linkedUserId,
+        string? guestDisplayName,
+        decimal? score,
+        long? durationMilliseconds)
     {
-        if (Status != TournamentStatus.InProgress)
-            throw new ValidationException("Leaderboard attempts can only be changed while the tournament is in progress.");
+        EnsureLeaderboardAttemptsEditable();
+        ValidateLeaderboardAttemptValue(score, durationMilliseconds);
+        ValidateLeaderboardAttemptSelector(participantId, linkedUserId, guestDisplayName);
+
+        if (participantId.HasValue)
+            return FindLeaderboardParticipant(participantId.Value);
+        if (linkedUserId.HasValue)
+            return FindLeaderboardParticipantByLinkedUserId(linkedUserId.Value);
+        return null;
     }
 
-    public void ValidateLeaderboardAttemptValue(decimal? score, long? durationMilliseconds)
+    public (LeaderboardParticipant Participant, LeaderboardAttempt Attempt) RecordLeaderboardAttempt(
+        Guid? participantId,
+        Guid? linkedUserId,
+        string? guestDisplayName,
+        string? linkedUserDisplayName,
+        decimal? score,
+        long? durationMilliseconds,
+        DateTime nowUtc)
     {
-        if (!LeaderboardRankingMetric.HasValue)
-            throw new ValidationException("Tournament has no supported leaderboard ranking metric.");
-        LeaderboardRankingMetric.Value.ValidateAttemptValue(score, durationMilliseconds);
+        var existingParticipant = ValidateCanRecordLeaderboardAttempt(
+            participantId,
+            linkedUserId,
+            guestDisplayName,
+            score,
+            durationMilliseconds);
+        var participant = existingParticipant ?? (linkedUserId.HasValue
+            ? AddLinkedLeaderboardParticipant(
+                linkedUserId.Value,
+                linkedUserDisplayName ?? throw new ValidationException("Linked user display name is required."))
+            : AddGuestLeaderboardParticipant(guestDisplayName!));
+        var attempt = participant.AddAttempt(score, durationMilliseconds, nowUtc);
+        return (participant, attempt);
     }
 
-    public LeaderboardAttempt CorrectLeaderboardAttempt(
+    public LeaderboardAttempt UpdateLeaderboardAttempt(
         Guid attemptId,
         Guid rowVersion,
         decimal? score,
         long? durationMilliseconds,
         DateTime nowUtc)
     {
+        EnsureLeaderboardAttemptsEditable();
+        ValidateLeaderboardAttemptValue(score, durationMilliseconds);
         var attempt = FindLeaderboardAttempt(attemptId);
         attempt.EnsureRowVersion(rowVersion);
         attempt.Correct(score, durationMilliseconds, nowUtc);
@@ -242,12 +277,38 @@ internal sealed class Tournament
 
     public void RemoveLeaderboardAttempt(Guid attemptId, Guid rowVersion)
     {
+        EnsureLeaderboardAttemptsEditable();
         var participant = LeaderboardParticipants
             .SingleOrDefault(item => item.Attempts.Any(attempt => attempt.Id == attemptId))
             ?? throw new NotFoundException("Leaderboard attempt not found.");
         var attempt = participant.Attempts.Single(item => item.Id == attemptId);
         attempt.EnsureRowVersion(rowVersion);
         participant.Attempts.Remove(attempt);
+    }
+
+    private void EnsureLeaderboardAttemptsEditable()
+    {
+        if (Status != TournamentStatus.InProgress)
+            throw new ValidationException("Leaderboard attempts can only be changed while the tournament is in progress.");
+    }
+
+    private void ValidateLeaderboardAttemptValue(decimal? score, long? durationMilliseconds)
+    {
+        if (!LeaderboardRankingMetric.HasValue)
+            throw new ValidationException("Tournament has no supported leaderboard ranking metric.");
+        LeaderboardRankingMetric.Value.ValidateAttemptValue(score, durationMilliseconds);
+    }
+
+    private static void ValidateLeaderboardAttemptSelector(
+        Guid? participantId,
+        Guid? linkedUserId,
+        string? guestDisplayName)
+    {
+        var count = (participantId.HasValue ? 1 : 0)
+            + (linkedUserId.HasValue ? 1 : 0)
+            + (!string.IsNullOrWhiteSpace(guestDisplayName) ? 1 : 0);
+        if (count != 1)
+            throw new ValidationException("Exactly one of participantId, linkedUserId, or guestDisplayName is required.");
     }
 
     public IReadOnlyList<LeaderboardRankingEntry> GetLeaderboardRanking()

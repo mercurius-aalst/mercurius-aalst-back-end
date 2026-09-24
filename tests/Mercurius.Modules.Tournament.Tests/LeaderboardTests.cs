@@ -70,13 +70,108 @@ public sealed class LeaderboardTests
     public void AttemptValidation_PreservesSupportedPrecisionAndRejectsWrongMetric()
     {
         var scores = CreateTournament(metric: LeaderboardRankingMetric.HighestScore);
-        scores.ValidateLeaderboardAttemptValue(999_999_999_999.123456m, null);
-        Assert.Throws<ValidationException>(() => scores.ValidateLeaderboardAttemptValue(1.1234567m, null));
-        Assert.Throws<ValidationException>(() => scores.ValidateLeaderboardAttemptValue(null, 100));
+        scores.Start();
+        var recorded = scores.RecordLeaderboardAttempt(
+            null,
+            null,
+            "Guest",
+            null,
+            999_999_999_999.123456m,
+            null,
+            DateTime.UtcNow);
+        Assert.Equal(999_999_999_999.123456m, recorded.Attempt.Score);
+        Assert.Throws<ValidationException>(() => scores.RecordLeaderboardAttempt(
+            null,
+            null,
+            "Invalid precision",
+            null,
+            1.1234567m,
+            null,
+            DateTime.UtcNow));
+        Assert.Throws<ValidationException>(() => scores.RecordLeaderboardAttempt(
+            null,
+            null,
+            "Wrong metric",
+            null,
+            null,
+            100,
+            DateTime.UtcNow));
 
         var times = CreateTournament(metric: LeaderboardRankingMetric.FastestTime);
-        times.ValidateLeaderboardAttemptValue(null, 1);
-        Assert.Throws<ValidationException>(() => times.ValidateLeaderboardAttemptValue(null, 0));
+        times.Start();
+        var timed = times.RecordLeaderboardAttempt(null, null, "Runner", null, null, 1, DateTime.UtcNow);
+        Assert.Equal(1, timed.Attempt.DurationMilliseconds);
+        Assert.Throws<ValidationException>(() => times.RecordLeaderboardAttempt(
+            null,
+            null,
+            "Invalid duration",
+            null,
+            null,
+            0,
+            DateTime.UtcNow));
+    }
+
+    [Fact]
+    public void RecordAttemptValidation_RejectsScheduledTournamentAndInvalidSelectors()
+    {
+        var tournament = CreateTournament(metric: LeaderboardRankingMetric.HighestScore);
+
+        Assert.Throws<ValidationException>(() => tournament.RecordLeaderboardAttempt(
+            null,
+            null,
+            "Guest",
+            null,
+            1,
+            null,
+            DateTime.UtcNow));
+
+        tournament.Start();
+        Assert.Throws<ValidationException>(() => tournament.RecordLeaderboardAttempt(
+            null,
+            null,
+            null,
+            null,
+            1,
+            null,
+            DateTime.UtcNow));
+        Assert.Empty(tournament.LeaderboardParticipants);
+    }
+
+    [Fact]
+    public async Task ReadModels_ProjectRankedRowsAndOrderedAdminHistory()
+    {
+        var options = CreateDbOptions();
+        await using (var seedDb = new MercuriusDBContext(options))
+        {
+            var tournament = CreateTournament(metric: LeaderboardRankingMetric.HighestScore);
+            AddParticipant(tournament, "Best", null, 90m, 100m);
+            AddParticipant(tournament, "Tied", Guid.NewGuid(), 100m);
+            AddParticipant(tournament, "No result", null);
+            seedDb.Set<TournamentAggregate>().Add(tournament);
+            await seedDb.SaveChangesAsync();
+        }
+
+        await using var db = new MercuriusDBContext(options);
+        var service = CreateLeaderboardService(db);
+        var tournamentId = await db.Set<TournamentAggregate>().Select(item => item.Id).SingleAsync();
+
+        var publicResponse = await service.GetPublicLeaderboardAsync(tournamentId);
+
+        Assert.Equal([1, 1], publicResponse.Rows.Select(row => row.Rank));
+        Assert.Equal([100m, 100m], publicResponse.Rows.Select(row => row.Score));
+        Assert.All(publicResponse.Rows, row => Assert.Null(row.DurationMilliseconds));
+
+        var adminResponse = await service.GetAdminLeaderboardAsync(tournamentId);
+
+        Assert.Equal(3, adminResponse.Participants.Count);
+        Assert.Equal(
+            adminResponse.Participants.Select(participant => participant.Id).OrderBy(id => id),
+            adminResponse.Participants.Select(participant => participant.Id));
+        Assert.Equal(3, adminResponse.Participants.Sum(participant => participant.Attempts.Count));
+        foreach (var participant in adminResponse.Participants)
+            Assert.Equal(
+                participant.Attempts.OrderBy(attempt => attempt.CreatedAtUtc).ThenBy(attempt => attempt.Id).Select(attempt => attempt.Id),
+                participant.Attempts.Select(attempt => attempt.Id));
     }
 
     [Fact]

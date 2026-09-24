@@ -143,6 +143,7 @@ internal sealed class TournamentService : ITournamentQueries, ITournamentManagem
         CancellationToken cancellationToken = default)
     {
         var tournament = await GetTournamentForMutationAsync(id, cancellationToken);
+        var wasLeaderboard = tournament.BracketType == BracketType.Leaderboard;
         if (tournament.Name != tournamentDTO.Name && await TournamentNameExistsAsync(tournamentDTO.Name, cancellationToken))
             throw new ValidationException($"Tournament {tournamentDTO.Name} already exists");
 
@@ -183,7 +184,9 @@ internal sealed class TournamentService : ITournamentQueries, ITournamentManagem
                 tournament.ImageUrl = newImageUrl;
 
             _moduleEventPublisher.Publish(new TournamentUpdatedIntegrationEvent(new TournamentId(tournament.Id), tournament.Name));
-            await SaveLifecycleAsync(cancellationToken);
+            await SaveLifecycleAsync(
+                wasLeaderboard || tournament.BracketType == BracketType.Leaderboard,
+                cancellationToken);
             committed = true;
         }
         catch
@@ -218,7 +221,7 @@ internal sealed class TournamentService : ITournamentQueries, ITournamentManagem
         tournament.Cancel();
         tournament.LeaderboardRevision++;
         _moduleEventPublisher.Publish(new TournamentCanceledIntegrationEvent(new TournamentId(tournament.Id), tournament.Name));
-        await SaveLifecycleAsync(cancellationToken);
+        await SaveLifecycleAsync(tournament.BracketType == BracketType.Leaderboard, cancellationToken);
     }
 
     public async Task StartTournamentAsync(Guid id, CancellationToken cancellationToken = default)
@@ -230,7 +233,7 @@ internal sealed class TournamentService : ITournamentQueries, ITournamentManagem
         tournament.Matches = matchModerator.GenerateMatchesForTournament(tournament).ToList();
         AssignEstimatedSchedule(tournament);
         _moduleEventPublisher.Publish(new TournamentStartedIntegrationEvent(new TournamentId(tournament.Id), tournament.StartTime));
-        await SaveLifecycleAsync(cancellationToken);
+        await SaveLifecycleAsync(tournament.BracketType == BracketType.Leaderboard, cancellationToken);
     }
 
     public async Task<IEnumerable<GetPlacementDTO>> CompleteTournamentAsync(
@@ -258,7 +261,7 @@ internal sealed class TournamentService : ITournamentQueries, ITournamentManagem
                     participantId));
             }
         }
-        await SaveLifecycleAsync(cancellationToken);
+        await SaveLifecycleAsync(tournament.BracketType == BracketType.Leaderboard, cancellationToken);
 
         var mapped = await _mapper.ToGetTournamentDtoAsync(tournament, cancellationToken);
         return mapped.Placements;
@@ -269,7 +272,7 @@ internal sealed class TournamentService : ITournamentQueries, ITournamentManagem
         var tournament = await GetTournamentForMutationAsync(id, cancellationToken);
         tournament.Reset();
         _moduleEventPublisher.Publish(new TournamentResetIntegrationEvent(new TournamentId(tournament.Id)));
-        await SaveLifecycleAsync(cancellationToken);
+        await SaveLifecycleAsync(tournament.BracketType == BracketType.Leaderboard, cancellationToken);
     }
 
     public async Task<GetTournamentDTO> ReplaceSponsorPlacementsAsync(
@@ -416,7 +419,7 @@ internal sealed class TournamentService : ITournamentQueries, ITournamentManagem
         }
     }
 
-    private async Task SaveLifecycleAsync(CancellationToken cancellationToken)
+    private async Task SaveLifecycleAsync(bool isLeaderboardConflict, CancellationToken cancellationToken)
     {
         try
         {
@@ -424,7 +427,9 @@ internal sealed class TournamentService : ITournamentQueries, ITournamentManagem
         }
         catch (DbUpdateConcurrencyException)
         {
-            throw new ConflictException("leaderboard_changed", "The tournament or leaderboard changed. Refresh and try again.");
+            if (isLeaderboardConflict)
+                throw new ConflictException("leaderboard_changed", "The tournament or leaderboard changed. Refresh and try again.");
+            throw new ConflictException("tournament_changed", "The tournament changed. Refresh and try again.");
         }
     }
 }

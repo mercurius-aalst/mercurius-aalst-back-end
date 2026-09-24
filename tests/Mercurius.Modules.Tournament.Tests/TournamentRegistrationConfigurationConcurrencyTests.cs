@@ -37,11 +37,41 @@ public sealed class TournamentRegistrationConfigurationConcurrencyTests
 
         var conflict = await Assert.ThrowsAsync<ConflictException>(() => updateTask);
         Assert.Equal("leaderboard_changed", conflict.Code);
+        Assert.Equal("The tournament or leaderboard changed. Refresh and try again.", conflict.Message);
 
         await using var verify = new MercuriusDBContext(options);
         var persisted = await verify.Set<TournamentAggregate>().AsNoTracking()
             .SingleAsync(item => item.Id == tournament.Id);
         Assert.Equal(BracketType.SingleElimination, persisted.BracketType);
+        Assert.Equal(1, persisted.LeaderboardRevision);
+        Assert.Single(await verify.Set<TournamentRegistration>().AsNoTracking()
+            .Where(item => item.TournamentId == tournament.Id).ToListAsync());
+    }
+
+    [Fact]
+    public async Task CancelTournamentAsync_WhenRegistrationCommitsFirst_UsesTournamentConflict()
+    {
+        await using var database = PostgresTestDatabase.Create();
+        var options = CreateOptions(database);
+        var (tournament, user) = await SeedAsync(options);
+        await using var cancelDb = new MercuriusDBContext(options);
+        await using var registrationDb = new MercuriusDBContext(options);
+        var pausedCancelDb = new PausingTournamentDbContext(cancelDb);
+        var cancelTask = CreateTournamentService(pausedCancelDb).CancelTournamentAsync(tournament.Id);
+
+        await pausedCancelDb.SaveReached.WaitAsync(TimeSpan.FromSeconds(10));
+        await CreateRegistrationService(registrationDb, user)
+            .RegisterIndividualAsync(user.Auth0UserId, tournament.Id);
+        pausedCancelDb.ContinueSave();
+
+        var conflict = await Assert.ThrowsAsync<ConflictException>(() => cancelTask);
+        Assert.Equal("tournament_changed", conflict.Code);
+        Assert.Equal("The tournament changed. Refresh and try again.", conflict.Message);
+
+        await using var verify = new MercuriusDBContext(options);
+        var persisted = await verify.Set<TournamentAggregate>().AsNoTracking()
+            .SingleAsync(item => item.Id == tournament.Id);
+        Assert.Equal(TournamentStatus.Scheduled, persisted.Status);
         Assert.Equal(1, persisted.LeaderboardRevision);
         Assert.Single(await verify.Set<TournamentRegistration>().AsNoTracking()
             .Where(item => item.TournamentId == tournament.Id).ToListAsync());

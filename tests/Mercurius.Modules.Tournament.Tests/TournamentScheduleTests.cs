@@ -103,6 +103,42 @@ public class TournamentScheduleTests
     }
 
     [Fact]
+    public async Task StartTournamentAsync_StartsLeaderboardWithoutMatchesAndAdvancesRevision()
+    {
+        await using var dbContext = CreateDbContext();
+        var tournament = new TournamentAggregate(
+            "Leaderboard Cup",
+            BracketType.Leaderboard,
+            GameFormat.BestOf1,
+            GameFormat.BestOf5,
+            ParticipationMode.Individual,
+            null,
+            PlannedStart,
+            10,
+            5,
+            LeaderboardRankingMetric.HighestScore)
+        {
+            Id = Guid.NewGuid(),
+            LeaderboardRevision = 19
+        };
+        dbContext.Set<TournamentAggregate>().Add(tournament);
+        await dbContext.SaveChangesAsync();
+        dbContext.ChangeTracker.Clear();
+
+        var service = CreateTournamentService(dbContext, new LeaderboardMatchModerator());
+
+        await service.StartTournamentAsync(tournament.Id);
+
+        var startedTournament = await dbContext.Set<TournamentAggregate>()
+            .Include(item => item.Matches)
+            .SingleAsync(item => item.Id == tournament.Id);
+
+        Assert.Equal(TournamentStatus.InProgress, startedTournament.Status);
+        Assert.Empty(startedTournament.Matches);
+        Assert.Equal(20, startedTournament.LeaderboardRevision);
+    }
+
+    [Fact]
     public async Task StartTournamentAsync_DoesNotApplyFinalsFormatToRoundRobinLastRound()
     {
         await using var dbContext = CreateDbContext();
@@ -340,6 +376,10 @@ public class TournamentScheduleTests
         public void DeterminePlacements(TournamentAggregate tournament)
         {
             throw new NotSupportedException();
+        }
+
+        public void EnsureCanComplete(TournamentAggregate tournament)
+        {
         }
     }
 

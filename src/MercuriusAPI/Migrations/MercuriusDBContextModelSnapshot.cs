@@ -477,6 +477,68 @@ namespace Mercurius.LAN.API.Migrations
                     b.ToTable("team_members", "teams");
                 });
 
+            modelBuilder.Entity("Mercurius.Modules.Tournament.Domain.LeaderboardAttempt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long?>("DurationMilliseconds")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("ParticipantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("RowVersion")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal?>("Score")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("numeric(18,6)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ParticipantId");
+
+                    b.ToTable("leaderboard_attempts", "tournament", t =>
+                        {
+                            t.HasCheckConstraint("CK_leaderboard_attempts_metric_value", "(\"Score\" IS NOT NULL AND \"DurationMilliseconds\" IS NULL AND \"Score\" >= 0) OR (\"Score\" IS NULL AND \"DurationMilliseconds\" IS NOT NULL AND \"DurationMilliseconds\" > 0)");
+                        });
+                });
+
+            modelBuilder.Entity("Mercurius.Modules.Tournament.Domain.LeaderboardParticipant", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid?>("LinkedUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TournamentId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TournamentId", "LinkedUserId")
+                        .IsUnique()
+                        .HasFilter("\"LinkedUserId\" IS NOT NULL");
+
+                    b.ToTable("leaderboard_participants", "tournament");
+                });
+
             modelBuilder.Entity("Mercurius.Modules.Tournament.Domain.Match", b =>
                 {
                     b.Property<Guid>("Id")
@@ -692,6 +754,21 @@ namespace Mercurius.LAN.API.Migrations
                     b.ToTable("placements", "tournament");
                 });
 
+            modelBuilder.Entity("Mercurius.Modules.Tournament.Domain.PlacementLeaderboardParticipant", b =>
+                {
+                    b.Property<Guid>("PlacementId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("LeaderboardParticipantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("PlacementId", "LeaderboardParticipantId");
+
+                    b.HasIndex("LeaderboardParticipantId");
+
+                    b.ToTable("placement_leaderboard_participants", "tournament");
+                });
+
             modelBuilder.Entity("Mercurius.Modules.Tournament.Domain.PlacementTeam", b =>
                 {
                     b.Property<Guid>("PlacementId")
@@ -751,6 +828,13 @@ namespace Mercurius.LAN.API.Migrations
 
                     b.Property<string>("ImageUrl")
                         .HasColumnType("text");
+
+                    b.Property<int?>("LeaderboardRankingMetric")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("LeaderboardRevision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -1083,6 +1167,28 @@ namespace Mercurius.LAN.API.Migrations
                     b.Navigation("Team");
                 });
 
+            modelBuilder.Entity("Mercurius.Modules.Tournament.Domain.LeaderboardAttempt", b =>
+                {
+                    b.HasOne("Mercurius.Modules.Tournament.Domain.LeaderboardParticipant", "Participant")
+                        .WithMany("Attempts")
+                        .HasForeignKey("ParticipantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Participant");
+                });
+
+            modelBuilder.Entity("Mercurius.Modules.Tournament.Domain.LeaderboardParticipant", b =>
+                {
+                    b.HasOne("Mercurius.Modules.Tournament.Domain.Tournament", "Tournament")
+                        .WithMany("LeaderboardParticipants")
+                        .HasForeignKey("TournamentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Tournament");
+                });
+
             modelBuilder.Entity("Mercurius.Modules.Tournament.Domain.Match", b =>
                 {
                     b.HasOne("Mercurius.Modules.Tournament.Domain.Match", "LoserNextMatch")
@@ -1155,6 +1261,25 @@ namespace Mercurius.LAN.API.Migrations
                         .IsRequired();
 
                     b.Navigation("Tournament");
+                });
+
+            modelBuilder.Entity("Mercurius.Modules.Tournament.Domain.PlacementLeaderboardParticipant", b =>
+                {
+                    b.HasOne("Mercurius.Modules.Tournament.Domain.LeaderboardParticipant", "LeaderboardParticipant")
+                        .WithMany()
+                        .HasForeignKey("LeaderboardParticipantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Mercurius.Modules.Tournament.Domain.Placement", "Placement")
+                        .WithMany("LeaderboardParticipants")
+                        .HasForeignKey("PlacementId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("LeaderboardParticipant");
+
+                    b.Navigation("Placement");
                 });
 
             modelBuilder.Entity("Mercurius.Modules.Tournament.Domain.PlacementTeam", b =>
@@ -1260,8 +1385,15 @@ namespace Mercurius.LAN.API.Migrations
                     b.Navigation("TeamInvites");
                 });
 
+            modelBuilder.Entity("Mercurius.Modules.Tournament.Domain.LeaderboardParticipant", b =>
+                {
+                    b.Navigation("Attempts");
+                });
+
             modelBuilder.Entity("Mercurius.Modules.Tournament.Domain.Placement", b =>
                 {
+                    b.Navigation("LeaderboardParticipants");
+
                     b.Navigation("Teams");
 
                     b.Navigation("Users");
@@ -1269,6 +1401,8 @@ namespace Mercurius.LAN.API.Migrations
 
             modelBuilder.Entity("Mercurius.Modules.Tournament.Domain.Tournament", b =>
                 {
+                    b.Navigation("LeaderboardParticipants");
+
                     b.Navigation("Matches");
 
                     b.Navigation("Placements");

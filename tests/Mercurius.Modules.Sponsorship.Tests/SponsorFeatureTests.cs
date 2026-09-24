@@ -413,6 +413,10 @@ public class SponsorFeatureTests
             return [];
         }
 
+        public void EnsureCanComplete(TournamentAggregate tournament)
+        {
+        }
+
         public void DeterminePlacements(TournamentAggregate tournament)
         {
         }

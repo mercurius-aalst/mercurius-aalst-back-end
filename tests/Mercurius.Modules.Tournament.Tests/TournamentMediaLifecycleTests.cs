@@ -346,6 +346,8 @@ public sealed class TournamentMediaLifecycleTests
         public DbSet<TournamentRegistration> TournamentRegistrations => _inner.Set<TournamentRegistration>();
         public DbSet<TournamentRegistrationRosterMember> TournamentRegistrationRosterMembers =>
             _inner.Set<TournamentRegistrationRosterMember>();
+        public DbSet<LeaderboardParticipant> LeaderboardParticipants => _inner.Set<LeaderboardParticipant>();
+        public DbSet<LeaderboardAttempt> LeaderboardAttempts => _inner.Set<LeaderboardAttempt>();
         public DatabaseFacade Database => _inner.Database;
         public int SaveChangesCallCount { get; private set; }
 

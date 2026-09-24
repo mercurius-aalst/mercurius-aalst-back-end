@@ -11,15 +11,14 @@ internal class UpdateTournamentDTO
     public GameFormat Format { get; set; }
     public GameFormat FinalsFormat { get; set; }
     public BracketType BracketType { get; set; }
+    public LeaderboardRankingMetric? LeaderboardRankingMetric { get; set; }
     [Required]
     public ParticipationMode? ParticipationMode { get; set; }
     public IFormFile? Image { get; set; }
     public int? TeamSize { get; set; }
     [Required]
     public DateTime PlannedStartTime { get; set; }
-    [Range(1, 1440)]
     public int AverageGameDurationMinutes { get; set; }
-    [Range(1, int.MaxValue)]
     public int RoundBreakDurationMinutes { get; set; }
 }
 

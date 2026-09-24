@@ -3,7 +3,9 @@ using Mercurius.Modules.Tournament.Application.DTOs.Matches;
 using Mercurius.Modules.Tournament.Application.DTOs.Participants;
 using Mercurius.Modules.Tournament.Application.DTOs.Placements;
 using Mercurius.Modules.Tournament.Application.DTOs.Registrations;
+using Mercurius.Modules.Tournament.Application.DTOs.Leaderboards;
 using Mercurius.Modules.Tournament.Domain;
+using Mercurius.Modules.Tournament.Application.Services;
 using Mercurius.Modules.Identity.Contracts;
 using Mercurius.Modules.Shared;
 using Mercurius.Modules.Sponsorship.Contracts;
@@ -87,6 +89,9 @@ internal sealed class TournamentDtoMapper
             EstimatedEndTime = tournament.EstimatedEndTime,
             Status = (Contracts.TournamentStatus)tournament.Status,
             BracketType = (Contracts.BracketType)tournament.BracketType,
+            LeaderboardRankingMetric = tournament.LeaderboardRankingMetric.HasValue
+                ? (Contracts.LeaderboardRankingMetric)tournament.LeaderboardRankingMetric.Value
+                : null,
             Format = (Contracts.GameFormat)tournament.Format,
             FinalsFormat = (Contracts.GameFormat)tournament.FinalsFormat,
             ParticipationMode = (Contracts.ParticipationMode)tournament.ParticipationMode,
@@ -94,7 +99,7 @@ internal sealed class TournamentDtoMapper
             ImageUrl = tournament.ImageUrl,
             Placements = tournament.Placements
                 .OrderBy(placement => placement.Place)
-                .Select(placement => ToGetPlacementDto(placement, context))
+                .Select(placement => ToGetPlacementDto(placement, context, tournament))
                 .ToList(),
             SponsorPlacement = sponsorPlacement is null ? null : ToSponsorPlacementDto(sponsorPlacement),
             Matches = tournament.Matches
@@ -324,7 +329,8 @@ internal sealed class TournamentDtoMapper
 
     internal GetPlacementDTO ToGetPlacementDto(
         Placement placement,
-        RegistrationMappingContext context)
+        RegistrationMappingContext context,
+        TournamentAggregate tournament)
     {
         return new GetPlacementDTO
         {
@@ -336,7 +342,13 @@ internal sealed class TournamentDtoMapper
                 .Select(team => context.Teams.TryGetValue(new TeamId(team.TeamId), out var snapshot)
                     ? ToTeamParticipantDto(snapshot)
                     : new TeamParticipantDTO { Id = team.TeamId })
-                .ToList()
+                .ToList(),
+            LeaderboardParticipants = tournament is null
+                ? []
+                : tournament.GetLeaderboardRanking()
+                    .Where(row => row.Rank == placement.Place && placement.LeaderboardParticipants.Any(link => link.LeaderboardParticipantId == row.Participant.Id))
+                    .Select(LeaderboardRowDTO.From)
+                    .ToList()
         };
     }
 

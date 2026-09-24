@@ -1,4 +1,5 @@
 using Mercurius.Modules.Shared.Exceptions;
+using LeaderboardMetric = Mercurius.Modules.Tournament.Domain.LeaderboardRankingMetric;
 
 namespace Mercurius.Modules.Tournament.Domain;
 
@@ -17,6 +18,7 @@ internal sealed class Tournament
     public DateTime? EstimatedEndTime { get; set; }
     public TournamentStatus Status { get; set; }
     public BracketType BracketType { get; set; }
+    public LeaderboardRankingMetric? LeaderboardRankingMetric { get; set; }
     public GameFormat Format { get; set; }
     public GameFormat FinalsFormat { get; set; }
     public ParticipationMode ParticipationMode { get; set; }
@@ -25,6 +27,12 @@ internal sealed class Tournament
     public IList<Placement> Placements { get; set; } = [];
     public IList<Match> Matches { get; set; } = [];
     public IList<TournamentRegistration> TournamentRegistrations { get; set; } = [];
+    public IList<LeaderboardParticipant> LeaderboardParticipants { get; set; } = [];
+    /// <summary>
+    /// Shared optimistic-concurrency revision for the tournament aggregate, including configuration, lifecycle, registration, and leaderboard mutations.
+    /// The legacy property and database column name do not limit the scope of the token.
+    /// </summary>
+    public long LeaderboardRevision { get; set; }
     public string? ImageUrl { get; set; }
 
     public Tournament(
@@ -36,7 +44,8 @@ internal sealed class Tournament
         int? teamSize,
         DateTime plannedStartTime,
         int averageGameDurationMinutes,
-        int roundBreakDurationMinutes)
+        int roundBreakDurationMinutes,
+        LeaderboardRankingMetric? leaderboardRankingMetric = null)
     {
         Name = name;
         BracketType = bracketType;
@@ -44,6 +53,7 @@ internal sealed class Tournament
         FinalsFormat = finalsFormat;
         Status = TournamentStatus.Scheduled;
         ParticipationMode = participationMode;
+        SetLeaderboardConfiguration(bracketType, leaderboardRankingMetric, participationMode);
         SetTeamSize(teamSize);
         SetScheduleConfiguration(plannedStartTime, averageGameDurationMinutes, roundBreakDurationMinutes);
     }
@@ -54,8 +64,9 @@ internal sealed class Tournament
         GameFormat format,
         GameFormat finalsFormat,
         ParticipationMode participationMode,
-        int? teamSize = null)
-        : this(name, bracketType, format, finalsFormat, participationMode, teamSize, DateTime.UtcNow, 30, 10)
+        int? teamSize = null,
+        LeaderboardRankingMetric? leaderboardRankingMetric = null)
+        : this(name, bracketType, format, finalsFormat, participationMode, teamSize, DateTime.UtcNow, 30, 10, leaderboardRankingMetric)
     {
     }
 
@@ -72,7 +83,8 @@ internal sealed class Tournament
         int? teamSize,
         DateTime plannedStartTime,
         int averageGameDurationMinutes,
-        int roundBreakDurationMinutes)
+        int roundBreakDurationMinutes,
+        LeaderboardRankingMetric? leaderboardRankingMetric = null)
     {
         if (Status is TournamentStatus.InProgress or TournamentStatus.Completed)
             throw new ValidationException("Tournament cannot be updated when it's in progress or completed.");
@@ -82,12 +94,17 @@ internal sealed class Tournament
             throw new ValidationException("Schedule configuration cannot be changed once match generation has started.");
         if (TeamSizeChanged(teamSize) && (Matches.Count != 0 || HasRegistrations()))
             throw new ValidationException("Team size cannot be changed once registration or match generation has started.");
+        if (BracketType != bracketType && (Matches.Count != 0 || HasRegistrations() || LeaderboardParticipants.Count != 0))
+            throw new ValidationException("Bracket type cannot be changed once tournament participation has started.");
+        if (LeaderboardRankingMetric != leaderboardRankingMetric && Status != TournamentStatus.Scheduled)
+            throw new ValidationException("Leaderboard ranking metric cannot be changed after the tournament has started.");
 
         Name = name;
         BracketType = bracketType;
         Format = format;
         FinalsFormat = finalsFormat;
         ParticipationMode = participationMode;
+        SetLeaderboardConfiguration(bracketType, leaderboardRankingMetric, participationMode);
         SetTeamSize(teamSize);
         SetScheduleConfiguration(plannedStartTime, averageGameDurationMinutes, roundBreakDurationMinutes);
     }
@@ -103,7 +120,7 @@ internal sealed class Tournament
     {
         if (Status != TournamentStatus.Scheduled)
             throw new ValidationException("Tournament has to be scheduled to be able to start");
-        if (GetRegisteredParticipantCount() < 2)
+        if (BracketType != BracketType.Leaderboard && GetRegisteredParticipantCount() < 2)
             throw new ValidationException("At least 2 participants required.");
 
         StartTime = DateTime.UtcNow;
@@ -130,6 +147,8 @@ internal sealed class Tournament
         EstimatedEndTime = null;
         Matches.Clear();
         Placements.Clear();
+        LeaderboardParticipants.Clear();
+        LeaderboardRevision++;
     }
 
     public int GetRegisteredParticipantCount()
@@ -167,6 +186,175 @@ internal sealed class Tournament
             .ToList();
     }
 
+    public LeaderboardParticipant FindLeaderboardParticipant(Guid participantId) =>
+        LeaderboardParticipants.SingleOrDefault(participant => participant.Id == participantId)
+        ?? throw new NotFoundException("Leaderboard participant not found.");
+
+    public LeaderboardParticipant? FindLeaderboardParticipantByLinkedUserId(Guid linkedUserId) =>
+        LeaderboardParticipants.SingleOrDefault(participant => participant.LinkedUserId == linkedUserId);
+
+    public LeaderboardParticipant AddGuestLeaderboardParticipant(string displayName)
+    {
+        var participant = new LeaderboardParticipant
+        {
+            Id = Guid.NewGuid(),
+            TournamentId = Id,
+            DisplayName = displayName.Trim()
+        };
+        LeaderboardParticipants.Add(participant);
+        return participant;
+    }
+
+    public LeaderboardParticipant AddLinkedLeaderboardParticipant(Guid linkedUserId, string displayName)
+    {
+        var participant = new LeaderboardParticipant
+        {
+            Id = Guid.NewGuid(),
+            TournamentId = Id,
+            LinkedUserId = linkedUserId,
+            DisplayName = displayName
+        };
+        LeaderboardParticipants.Add(participant);
+        return participant;
+    }
+
+    public LeaderboardParticipant? ValidateCanRecordLeaderboardAttempt(
+        Guid? participantId,
+        Guid? linkedUserId,
+        string? guestDisplayName,
+        decimal? score,
+        long? durationMilliseconds)
+    {
+        EnsureLeaderboardAttemptsEditable();
+        ValidateLeaderboardAttemptValue(score, durationMilliseconds);
+        ValidateLeaderboardAttemptSelector(participantId, linkedUserId, guestDisplayName);
+
+        if (participantId.HasValue)
+            return FindLeaderboardParticipant(participantId.Value);
+        if (linkedUserId.HasValue)
+            return FindLeaderboardParticipantByLinkedUserId(linkedUserId.Value);
+        return null;
+    }
+
+    public (LeaderboardParticipant Participant, LeaderboardAttempt Attempt) RecordLeaderboardAttempt(
+        Guid? participantId,
+        Guid? linkedUserId,
+        string? guestDisplayName,
+        string? linkedUserDisplayName,
+        decimal? score,
+        long? durationMilliseconds,
+        DateTime nowUtc)
+    {
+        var existingParticipant = ValidateCanRecordLeaderboardAttempt(
+            participantId,
+            linkedUserId,
+            guestDisplayName,
+            score,
+            durationMilliseconds);
+        var participant = existingParticipant ?? (linkedUserId.HasValue
+            ? AddLinkedLeaderboardParticipant(
+                linkedUserId.Value,
+                linkedUserDisplayName ?? throw new ValidationException("Linked user display name is required."))
+            : AddGuestLeaderboardParticipant(guestDisplayName!));
+        var attempt = participant.AddAttempt(score, durationMilliseconds, nowUtc);
+        return (participant, attempt);
+    }
+
+    public LeaderboardAttempt UpdateLeaderboardAttempt(
+        Guid attemptId,
+        Guid rowVersion,
+        decimal? score,
+        long? durationMilliseconds,
+        DateTime nowUtc)
+    {
+        EnsureLeaderboardAttemptsEditable();
+        ValidateLeaderboardAttemptValue(score, durationMilliseconds);
+        var attempt = FindLeaderboardAttempt(attemptId);
+        attempt.EnsureRowVersion(rowVersion);
+        attempt.Correct(score, durationMilliseconds, nowUtc);
+        return attempt;
+    }
+
+    public void RemoveLeaderboardAttempt(Guid attemptId, Guid rowVersion)
+    {
+        EnsureLeaderboardAttemptsEditable();
+        var participant = LeaderboardParticipants
+            .SingleOrDefault(item => item.Attempts.Any(attempt => attempt.Id == attemptId))
+            ?? throw new NotFoundException("Leaderboard attempt not found.");
+        var attempt = participant.Attempts.Single(item => item.Id == attemptId);
+        attempt.EnsureRowVersion(rowVersion);
+        participant.Attempts.Remove(attempt);
+    }
+
+    private void EnsureLeaderboardAttemptsEditable()
+    {
+        if (Status != TournamentStatus.InProgress)
+            throw new ValidationException("Leaderboard attempts can only be changed while the tournament is in progress.");
+    }
+
+    private void ValidateLeaderboardAttemptValue(decimal? score, long? durationMilliseconds)
+    {
+        if (!LeaderboardRankingMetric.HasValue)
+            throw new ValidationException("Tournament has no supported leaderboard ranking metric.");
+        LeaderboardRankingMetric.Value.ValidateAttemptValue(score, durationMilliseconds);
+    }
+
+    private static void ValidateLeaderboardAttemptSelector(
+        Guid? participantId,
+        Guid? linkedUserId,
+        string? guestDisplayName)
+    {
+        var count = (participantId.HasValue ? 1 : 0)
+            + (linkedUserId.HasValue ? 1 : 0)
+            + (!string.IsNullOrWhiteSpace(guestDisplayName) ? 1 : 0);
+        if (count != 1)
+            throw new ValidationException("Exactly one of participantId, linkedUserId, or guestDisplayName is required.");
+    }
+
+    public IReadOnlyList<LeaderboardRankingEntry> GetLeaderboardRanking()
+    {
+        if (!LeaderboardRankingMetric.HasValue)
+            return [];
+
+        var metric = LeaderboardRankingMetric.Value;
+        var candidates = LeaderboardParticipants
+            .Select(participant => new
+            {
+                Participant = participant,
+                Score = participant.BestScore,
+                Duration = participant.BestDurationMilliseconds
+            })
+            .Where(item => metric == LeaderboardMetric.HighestScore ? item.Score.HasValue : item.Duration.HasValue);
+        var ordered = metric == LeaderboardMetric.HighestScore
+            ? candidates.OrderByDescending(item => item.Score).ThenBy(item => item.Participant.Id).ToList()
+            : candidates.OrderBy(item => item.Duration).ThenBy(item => item.Participant.Id).ToList();
+
+        var ranking = new List<LeaderboardRankingEntry>(ordered.Count);
+        decimal? previousScore = null;
+        long? previousDuration = null;
+        for (var index = 0; index < ordered.Count; index++)
+        {
+            var item = ordered[index];
+            var tied = index > 0 && (metric == LeaderboardMetric.HighestScore
+                ? item.Score == previousScore
+                : item.Duration == previousDuration);
+            ranking.Add(new LeaderboardRankingEntry(
+                item.Participant,
+                item.Score,
+                item.Duration,
+                tied ? ranking[^1].Rank : index + 1));
+            previousScore = item.Score;
+            previousDuration = item.Duration;
+        }
+        return ranking;
+    }
+
+    private LeaderboardAttempt FindLeaderboardAttempt(Guid attemptId) =>
+        LeaderboardParticipants
+            .SelectMany(participant => participant.Attempts)
+            .SingleOrDefault(attempt => attempt.Id == attemptId)
+        ?? throw new NotFoundException("Leaderboard attempt not found.");
+
     private void SetScheduleConfiguration(
         DateTime plannedStartTime,
         int averageGameDurationMinutes,
@@ -174,6 +362,13 @@ internal sealed class Tournament
     {
         if (plannedStartTime == DateTime.MinValue)
             throw new ValidationException("Planned tournament start time is required.");
+        if (BracketType == BracketType.Leaderboard)
+        {
+            PlannedStartTime = plannedStartTime;
+            AverageGameDurationMinutes = 0;
+            RoundBreakDurationMinutes = 0;
+            return;
+        }
         if (averageGameDurationMinutes <= 0)
             throw new ValidationException("Average tournament duration must be greater than zero.");
         if (averageGameDurationMinutes > MaxAverageGameDurationMinutes)
@@ -200,6 +395,26 @@ internal sealed class Tournament
         }
 
         TeamSize = null;
+    }
+
+    private void SetLeaderboardConfiguration(
+        BracketType bracketType,
+        LeaderboardRankingMetric? leaderboardRankingMetric,
+        ParticipationMode participationMode)
+    {
+        if (bracketType == BracketType.Leaderboard)
+        {
+            if (participationMode != ParticipationMode.Individual)
+                throw new ValidationException("Leaderboard tournaments must use individual participation.");
+            if (!leaderboardRankingMetric.HasValue || !Enum.IsDefined(leaderboardRankingMetric.Value))
+                throw new ValidationException("Leaderboard tournaments require a supported ranking metric.");
+            LeaderboardRankingMetric = leaderboardRankingMetric;
+            return;
+        }
+
+        if (leaderboardRankingMetric.HasValue)
+            throw new ValidationException("Ranking metric is only supported for leaderboard tournaments.");
+        LeaderboardRankingMetric = null;
     }
 
     private bool TeamSizeChanged(int? teamSize)

@@ -12,6 +12,8 @@ internal interface ITournamentDbContext
     DbSet<MatchResolutionNotification> MatchResolutionNotifications { get; }
     DbSet<TournamentRegistration> TournamentRegistrations { get; }
     DbSet<TournamentRegistrationRosterMember> TournamentRegistrationRosterMembers { get; }
+    DbSet<LeaderboardParticipant> LeaderboardParticipants { get; }
+    DbSet<LeaderboardAttempt> LeaderboardAttempts { get; }
     DatabaseFacade Database { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);

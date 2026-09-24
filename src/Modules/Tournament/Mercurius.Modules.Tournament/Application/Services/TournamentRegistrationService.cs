@@ -147,6 +147,7 @@ internal sealed class TournamentRegistrationService : ITournamentRegistrationSer
             UpdatedAtUtc = now
         };
 
+        tournament.LeaderboardRevision++;
         _dbContext.TournamentRegistrations.Add(registration);
         PublishRegistrationCreated(registration);
         await _persistenceCoordinator.SaveChangesAsync("User already has pending or active participation for this tournament.", cancellationToken);
@@ -327,6 +328,7 @@ internal sealed class TournamentRegistrationService : ITournamentRegistrationSer
             registration.UpdatedAtUtc = now;
         }
 
+        tournament.LeaderboardRevision++;
         await _persistenceCoordinator.SaveChangesAsync("One or more roster members already has pending or active participation for this tournament.", cancellationToken);
         var dto = await _mapper.ToRegistrationDtoAsync(
             await GetRegistrationByIdAsync(registration.Id, cancellationToken),
@@ -732,6 +734,8 @@ internal sealed class TournamentRegistrationService : ITournamentRegistrationSer
         var tournament = await _dbContext.Tournaments.FindAsync([tournamentId], cancellationToken);
         if (tournament is null)
             throw new NotFoundException("Tournament not found");
+        if (tournament.BracketType == BracketType.Leaderboard)
+            throw new ValidationException("Tournament registration is not available for leaderboard tournaments.");
         return tournament;
     }
 

@@ -39,7 +39,7 @@ internal static class TournamentTestSupport
     {
         var mapper = CreateMapper(users, teams);
         var context = CreateContext(users, teams, [], [placement]);
-        return mapper.ToGetPlacementDto(placement, context);
+        return mapper.ToGetPlacementDto(placement, context, placement.Tournament);
     }
 
     public static GetTournamentDTO ToGetTournamentDTO(

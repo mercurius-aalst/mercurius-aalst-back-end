@@ -8,6 +8,7 @@ internal sealed class Placement
     public TournamentAggregate Tournament { get; set; } = null!;
     public IList<PlacementUser> Users { get; set; } = [];
     public IList<PlacementTeam> Teams { get; set; } = [];
+    public IList<PlacementLeaderboardParticipant> LeaderboardParticipants { get; set; } = [];
 }
 
 internal sealed class PlacementUser

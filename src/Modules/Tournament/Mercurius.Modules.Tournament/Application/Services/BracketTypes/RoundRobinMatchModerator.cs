@@ -4,6 +4,13 @@ namespace Mercurius.Modules.Tournament.Application.Services.BracketTypes;
 
 internal sealed class RoundRobinMatchModerator : IMatchModerator
 {
+    /// <summary>
+    /// Match brackets enforce their completion preconditions while placements are determined.
+    /// </summary>
+    public void EnsureCanComplete(TournamentAggregate tournament)
+    {
+    }
+
     public void DeterminePlacements(TournamentAggregate tournament)
     {
         switch (tournament.ParticipationMode)

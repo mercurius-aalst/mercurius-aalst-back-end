@@ -5,5 +5,6 @@ public enum BracketType
     SingleElimination,
     DoubleElimination,
     RoundRobin,
-    Swiss
+    Swiss,
+    Leaderboard
 }

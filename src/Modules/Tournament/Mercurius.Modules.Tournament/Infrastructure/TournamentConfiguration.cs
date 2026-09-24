@@ -19,5 +19,6 @@ internal sealed class TournamentConfiguration : IEntityTypeConfiguration<Tournam
         entity.Property(tournament => tournament.EstimatedEndTime).IsRequired(false);
         entity.Property(tournament => tournament.TeamSize).IsRequired(false);
         entity.Property(tournament => tournament.Status).IsConcurrencyToken();
+        entity.Property(tournament => tournament.LeaderboardRevision).IsConcurrencyToken();
     }
 }

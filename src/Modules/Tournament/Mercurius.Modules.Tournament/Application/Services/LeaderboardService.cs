@@ -101,10 +101,16 @@ internal sealed class LeaderboardService(ITournamentDbContext dbContext, IIdenti
         string? linkedUserDisplayName = null;
         if (request.LinkedUserId.HasValue && existingParticipant is null)
         {
-            var profile = await identityModule.GetUserProfileAsync(new UserId(request.LinkedUserId.Value), cancellationToken);
+            var linkedUserId = new UserId(request.LinkedUserId.Value);
+            var profile = await identityModule.GetUserProfileAsync(linkedUserId, cancellationToken);
             if (profile is null || profile.IsDeleted)
                 throw new NotFoundException("Linked user not found.");
-            linkedUserDisplayName = profile.DisplayName ?? profile.Username ?? "Incomplete profile";
+
+            var publicUsernames = await identityModule.GetPublicUsernamesByIdsAsync([linkedUserId], cancellationToken);
+            linkedUserDisplayName = publicUsernames.TryGetValue(linkedUserId, out var username) &&
+                                    !string.IsNullOrWhiteSpace(username)
+                ? username
+                : "Incomplete profile";
         }
 
         var (participant, attempt) = tournament.RecordLeaderboardAttempt(

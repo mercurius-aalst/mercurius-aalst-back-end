@@ -97,8 +97,10 @@ internal static class TournamentTestSupport
             .GetResult();
     }
 
-    public static IIdentityModule CreateIdentityModule(IReadOnlyCollection<User>? users = null) =>
-        new StubIdentityModule(users ?? []);
+    public static IIdentityModule CreateIdentityModule(
+        IReadOnlyCollection<User>? users = null,
+        bool throwOnPublicUsernameLookup = false) =>
+        new StubIdentityModule(users ?? [], throwOnPublicUsernameLookup);
 
     public static ITeamsModule CreateTeamsModule(
         IReadOnlyCollection<Team>? teams = null,
@@ -188,7 +190,9 @@ internal static class TournamentTestSupport
         public Task DeleteImageAsync(string? imageUrl, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 
-    private sealed class StubIdentityModule(IReadOnlyCollection<User> users) : IIdentityModule
+    private sealed class StubIdentityModule(
+        IReadOnlyCollection<User> users,
+        bool throwOnPublicUsernameLookup = false) : IIdentityModule
     {
         private readonly Dictionary<Guid, User> _users = users.ToDictionary(user => user.Id);
 
@@ -228,6 +232,10 @@ internal static class TournamentTestSupport
             IReadOnlyCollection<UserId> userIds,
             CancellationToken cancellationToken = default)
         {
+            if (throwOnPublicUsernameLookup)
+                return Task.FromException<IReadOnlyDictionary<UserId, string>>(
+                    new InvalidOperationException("Public username lookup failed."));
+
             return Task.FromResult<IReadOnlyDictionary<UserId, string>>(
                 userIds
                     .Select(userId => _users.GetValueOrDefault(userId.Value))

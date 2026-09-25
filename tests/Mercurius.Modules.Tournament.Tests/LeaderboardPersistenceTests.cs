@@ -186,7 +186,14 @@ public sealed class LeaderboardPersistenceTests
         await using var database = PostgresTestDatabase.Create();
         var options = CreateOptions(database);
         var tournament = await SeedInProgressLeaderboardAsync(options);
-        var linkedUser = new User { Id = Guid.NewGuid(), Username = "runner", Firstname = "Ada", Lastname = "Lovelace" };
+        var linkedUser = new User
+        {
+            Id = Guid.NewGuid(),
+            Username = "runner",
+            NormalizedUsername = "RUNNER",
+            Firstname = "Ada",
+            Lastname = "Lovelace"
+        };
         await using var winnerDb = new MercuriusDBContext(options);
         await using var loserDb = new MercuriusDBContext(options);
         var winnerService = CreateLeaderboardService(winnerDb, [linkedUser]);
@@ -269,7 +276,14 @@ public sealed class LeaderboardPersistenceTests
     {
         await using var database = PostgresTestDatabase.Create();
         var options = CreateOptions(database);
-        var linkedUser = new User { Id = Guid.NewGuid(), Username = "runner", Firstname = "Ada", Lastname = "Lovelace" };
+        var linkedUser = new User
+        {
+            Id = Guid.NewGuid(),
+            Username = "runner",
+            NormalizedUsername = "RUNNER",
+            Firstname = "Ada",
+            Lastname = "Lovelace"
+        };
         var tournament = await SeedInProgressLeaderboardAsync(options, aggregate =>
         {
             AddGuestParticipant(aggregate, "Guest winner", 50m);
@@ -334,7 +348,14 @@ public sealed class LeaderboardPersistenceTests
     {
         await using var database = PostgresTestDatabase.Create();
         var options = CreateOptions(database);
-        var linkedUser = new User { Id = Guid.NewGuid(), Username = "runner", Firstname = "Ada", Lastname = "Lovelace" };
+        var linkedUser = new User
+        {
+            Id = Guid.NewGuid(),
+            Username = "runner",
+            NormalizedUsername = "RUNNER",
+            Firstname = "Ada",
+            Lastname = "Lovelace"
+        };
         var tournament = await SeedInProgressLeaderboardAsync(options, aggregate =>
         {
             AddGuestParticipant(aggregate, "Best", 90m, 100m);
@@ -354,7 +375,8 @@ public sealed class LeaderboardPersistenceTests
         var guest = response.Rows.Single(row => row.DisplayName == "Best");
         Assert.Equal(Contracts.LeaderboardParticipantKind.Guest, guest.ParticipantKind);
         Assert.Null(guest.LinkedUserId);
-        var linked = response.Rows.Single(row => row.DisplayName == "Linked");
+        var linked = response.Rows.Single(row => row.LinkedUserId == linkedUser.Id);
+        Assert.Equal("runner", linked.DisplayName);
         Assert.Equal(Contracts.LeaderboardParticipantKind.LinkedUser, linked.ParticipantKind);
         Assert.Equal(linkedUser.Id, linked.LinkedUserId);
 
@@ -421,11 +443,84 @@ public sealed class LeaderboardPersistenceTests
     }
 
     [Fact]
+    public async Task RecordAttempt_WhenPublicUsernameLookupFails_DoesNotPersistAttempt()
+    {
+        await using var database = PostgresTestDatabase.Create();
+        var options = CreateOptions(database);
+        var linkedUser = new User
+        {
+            Id = Guid.NewGuid(),
+            Username = "runner",
+            NormalizedUsername = "RUNNER",
+            Firstname = "Ada",
+            Lastname = "Lovelace"
+        };
+        var tournament = await SeedInProgressLeaderboardAsync(options);
+
+        await using var db = new MercuriusDBContext(options);
+        var service = CreateLeaderboardService(db, [linkedUser], throwOnPublicUsernameLookup: true);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.RecordAttemptAsync(
+            tournament.Id,
+            new RecordLeaderboardAttemptDTO { LinkedUserId = linkedUser.Id, Score = 12m }));
+
+        db.ChangeTracker.Clear();
+        Assert.Equal(0, await db.Set<LeaderboardAttempt>().CountAsync());
+        Assert.Equal(0, await db.Set<LeaderboardParticipant>().CountAsync());
+
+        var response = await CreateLeaderboardService(db, [linkedUser]).RecordAttemptAsync(
+            tournament.Id,
+            new RecordLeaderboardAttemptDTO { LinkedUserId = linkedUser.Id, Score = 12m });
+        Assert.Equal("runner", response.DisplayName);
+        Assert.Equal(1, await db.Set<LeaderboardAttempt>().CountAsync());
+    }
+
+    [Fact]
+    public async Task RecordAttempt_WhenLinkedProfileHasNoPublicUsername_StoresGenericLabel()
+    {
+        await using var database = PostgresTestDatabase.Create();
+        var options = CreateOptions(database);
+        var incompleteUser = new User
+        {
+            Id = Guid.NewGuid(),
+            Username = "pending",
+            Firstname = "Ada",
+            Lastname = "Lovelace"
+        };
+        var tournament = await SeedInProgressLeaderboardAsync(options);
+
+        await using var db = new MercuriusDBContext(options);
+        var service = CreateLeaderboardService(db, [incompleteUser]);
+
+        var response = await service.RecordAttemptAsync(
+            tournament.Id,
+            new RecordLeaderboardAttemptDTO { LinkedUserId = incompleteUser.Id, Score = 12m });
+
+        Assert.Equal("Incomplete profile", response.DisplayName);
+        Assert.DoesNotContain("Ada", response.DisplayName, StringComparison.Ordinal);
+        Assert.DoesNotContain("Lovelace", response.DisplayName, StringComparison.Ordinal);
+
+        await using var verify = new MercuriusDBContext(options);
+        var stored = await verify.Set<LeaderboardParticipant>().AsNoTracking().SingleAsync();
+        Assert.Equal("Incomplete profile", stored.DisplayName);
+
+        var publicResponse = await CreateLeaderboardService(verify).GetPublicLeaderboardAsync(tournament.Id);
+        Assert.Equal("Incomplete profile", publicResponse.Rows.Single().DisplayName);
+    }
+
+    [Fact]
     public async Task Completion_MapsFinalPlacementsToLeaderboardParticipants()
     {
         await using var database = PostgresTestDatabase.Create();
         var options = CreateOptions(database);
-        var linkedUser = new User { Id = Guid.NewGuid(), Username = "runner", Firstname = "Ada", Lastname = "Lovelace" };
+        var linkedUser = new User
+        {
+            Id = Guid.NewGuid(),
+            Username = "runner",
+            NormalizedUsername = "RUNNER",
+            Firstname = "Ada",
+            Lastname = "Lovelace"
+        };
         LeaderboardParticipant guest = null!;
         LeaderboardParticipant linked = null!;
         var tournament = await SeedInProgressLeaderboardAsync(options, aggregate =>
@@ -448,6 +543,7 @@ public sealed class LeaderboardPersistenceTests
 
         var runnerUp = placements.Single(item => item.Place == 2).LeaderboardParticipants.Single();
         Assert.Equal(linked.Id, runnerUp.ParticipantId);
+        Assert.Equal("runner", runnerUp.DisplayName);
         Assert.Equal(Contracts.LeaderboardParticipantKind.LinkedUser, runnerUp.ParticipantKind);
         Assert.Equal(linkedUser.Id, runnerUp.LinkedUserId);
 
@@ -501,7 +597,7 @@ public sealed class LeaderboardPersistenceTests
         AddParticipant(tournament, displayName, null, scores);
 
     private static LeaderboardParticipant AddLinkedParticipant(TournamentAggregate tournament, Guid linkedUserId, params decimal[] scores) =>
-        AddParticipant(tournament, "Linked", linkedUserId, scores);
+        AddParticipant(tournament, "runner", linkedUserId, scores);
 
     private static LeaderboardParticipant AddParticipant(
         TournamentAggregate tournament,
@@ -535,9 +631,12 @@ public sealed class LeaderboardPersistenceTests
             .ThenInclude(participant => participant.Attempts)
             .SingleAsync(item => item.Id == tournamentId);
 
-    private static LeaderboardService CreateLeaderboardService(MercuriusDBContext db, IReadOnlyCollection<User>? users = null) => new(
+    private static LeaderboardService CreateLeaderboardService(
+        MercuriusDBContext db,
+        IReadOnlyCollection<User>? users = null,
+        bool throwOnPublicUsernameLookup = false) => new(
         new TournamentDbContextAdapter<MercuriusDBContext>(db),
-        TournamentTestSupport.CreateIdentityModule(users));
+        TournamentTestSupport.CreateIdentityModule(users, throwOnPublicUsernameLookup));
 
     private static TournamentService CreateTournamentService(MercuriusDBContext db) => new(
         new TournamentDbContextAdapter<MercuriusDBContext>(db),

@@ -160,10 +160,12 @@ public sealed class LeaderboardTests
         Assert.Equal([1, 1], publicResponse.Rows.Select(row => row.Rank));
         Assert.Equal([100m, 100m], publicResponse.Rows.Select(row => row.Score));
         Assert.All(publicResponse.Rows, row => Assert.Null(row.DurationMilliseconds));
+        Assert.Contains(publicResponse.Rows, row => row.DisplayName == "Tied");
 
         var adminResponse = await service.GetAdminLeaderboardAsync(tournamentId);
 
         Assert.Equal(3, adminResponse.Participants.Count);
+        Assert.Contains(adminResponse.Participants, participant => participant.DisplayName == "Tied");
         Assert.Equal(
             adminResponse.Participants.Select(participant => participant.Id).OrderBy(id => id),
             adminResponse.Participants.Select(participant => participant.Id));
@@ -280,7 +282,14 @@ public sealed class LeaderboardTests
         await seedDb.SaveChangesAsync();
         seedDb.ChangeTracker.Clear();
 
-        var activeUser = new User { Id = Guid.NewGuid(), Username = "runner", Firstname = "Ada", Lastname = "Lovelace" };
+        var activeUser = new User
+        {
+            Id = Guid.NewGuid(),
+            Username = "runner",
+            NormalizedUsername = "RUNNER",
+            Firstname = "Ada",
+            Lastname = "Lovelace"
+        };
         await using var db = new MercuriusDBContext(options);
         var service = CreateLeaderboardService(db, [activeUser]);
 
@@ -289,7 +298,7 @@ public sealed class LeaderboardTests
             new RecordLeaderboardAttemptDTO { LinkedUserId = activeUser.Id, Score = 12.5m });
 
         Assert.Equal(Contracts.LeaderboardParticipantKind.LinkedUser, participant.ParticipantKind);
-        Assert.Equal("Ada Lovelace", participant.DisplayName);
+        Assert.Equal("runner", participant.DisplayName);
         var attempt = Assert.Single(participant.Attempts);
         Assert.Equal(12.5m, attempt.Score);
         Assert.Equal(1, await db.Set<TournamentAggregate>().Select(item => item.LeaderboardRevision).SingleAsync());

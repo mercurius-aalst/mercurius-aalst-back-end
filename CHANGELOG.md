@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.6.0](https://github.com/mercurius-aalst/mercurius-aalst-back-end/compare/backend-v0.5.2...backend-v0.6.0) (2026-09-25)
+
+
+### Features
+
+* add leaderboard tournament type for score and time competitions ([#129](https://github.com/mercurius-aalst/mercurius-aalst-back-end/issues/129)) ([93de1d5](https://github.com/mercurius-aalst/mercurius-aalst-back-end/commit/93de1d5066fc371749ff61e5019c53e5831c4521)), closes [#49](https://github.com/mercurius-aalst/mercurius-aalst-back-end/issues/49)
+* add roster decline and selection notifications ([#128](https://github.com/mercurius-aalst/mercurius-aalst-back-end/issues/128)) ([1226bef](https://github.com/mercurius-aalst/mercurius-aalst-back-end/commit/1226befc780252ddbb5aeae547883b56fe0ed0df))
+
+
+### Bug Fixes
+
+* display linked LAN users by public username in leaderboards ([#135](https://github.com/mercurius-aalst/mercurius-aalst-back-end/issues/135)) ([0a832be](https://github.com/mercurius-aalst/mercurius-aalst-back-end/commit/0a832be09e40ce1debb7e30804e3e2e4122c5f88))
+* over eager deletion of pipelines: restore ([#126](https://github.com/mercurius-aalst/mercurius-aalst-back-end/issues/126)) ([26da0e7](https://github.com/mercurius-aalst/mercurius-aalst-back-end/commit/26da0e7bedf831537d023a039f1506fa2ccd9e78))
+
 ## [0.5.2](https://github.com/mercurius-aalst/mercurius-aalst-back-end/compare/backend-v0.5.1...backend-v0.5.2) (2025-11-14)
 
 

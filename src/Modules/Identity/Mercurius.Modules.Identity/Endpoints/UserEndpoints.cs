@@ -118,6 +118,11 @@ internal static class UserEndpoints
             return await userService.GetUserByIdAsync(id);
         });
 
+        adminGroup.MapGet("/{username:nonguid}", async (string username, IUserService userService) =>
+        {
+            return await userService.GetUserByUsernameAsync(username);
+        });
+
         adminGroup.MapPatch("/{id:guid}", async (Guid id, UpdateUserProfileRequest request, IUserService userService) =>
         {
             return await userService.UpdateUserAsync(id, request);

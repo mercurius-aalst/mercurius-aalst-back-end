@@ -58,6 +58,34 @@ internal sealed class MatchService : IMatchService
         return TournamentDtoMapper.ToGetMatchDto(match);
     }
 
+    public async Task<OpponentUserProfileDTO> GetOpponentUserProfileAsync(
+        Guid id,
+        string auth0UserId,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = await GetCurrentUserIdAsync(auth0UserId, cancellationToken);
+        var (_, match) = await GetMatchReadAsync(id, cancellationToken);
+        var side = await FindParticipantSideAsync(match, userId, cancellationToken);
+        if (!side.HasValue)
+            throw new ForbiddenException("match_participant_required", "Only participants and team captains can read opponent details.");
+
+        var opponentUserId = await GetOpponentUserIdAsync(match, side.Value, cancellationToken);
+        if (!opponentUserId.HasValue || opponentUserId.Value == userId)
+            throw new NotFoundException("Match opponent profile not found.");
+
+        var profile = await _identityModule.GetPublicProfileByIdAsync(new UserId(opponentUserId.Value), cancellationToken);
+        if (profile is null)
+            throw new NotFoundException("Match opponent profile not found.");
+
+        return new OpponentUserProfileDTO(
+            profile.Username,
+            profile.Firstname,
+            profile.Lastname,
+            profile.DiscordId,
+            profile.SteamId,
+            profile.RiotId);
+    }
+
     public async Task<GetMatchActionStateDTO> GetMatchActionStateAsync(
         Guid id,
         string auth0UserId,
@@ -429,6 +457,32 @@ internal sealed class MatchService : IMatchService
                 return side;
         }
         return null;
+    }
+
+    private async Task<Guid?> GetOpponentUserIdAsync(
+        Match match,
+        MatchParticipantSide side,
+        CancellationToken cancellationToken)
+    {
+        var opponentSide = side == MatchParticipantSide.Participant1
+            ? MatchParticipantSide.Participant2
+            : MatchParticipantSide.Participant1;
+        if (match.ParticipationMode == ParticipationMode.Individual)
+            return opponentSide == MatchParticipantSide.Participant1
+                ? match.UserParticipant1Id
+                : match.UserParticipant2Id;
+
+        var teamId = opponentSide == MatchParticipantSide.Participant1
+            ? match.TeamParticipant1Id
+            : match.TeamParticipant2Id;
+        if (!teamId.HasValue)
+            return null;
+
+        var team = await _teamsModule.GetTeamSummaryAsync(new TeamId(teamId.Value), cancellationToken);
+        if (team is null || team.IsDeleted || !team.CaptainUserId.HasValue)
+            return null;
+
+        return team.CaptainUserId.Value.Value;
     }
 
     private async Task<MatchParticipantSide> RequireParticipantSideAsync(

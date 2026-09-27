@@ -1,5 +1,6 @@
 using Mercurius.Modules.Tournament;
 using Mercurius.Modules.Tournament.Application.Services;
+using Platform.Extensions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -18,6 +19,15 @@ public sealed class LeaderboardEndpointRouteTests
         var endpoint = GetEndpoint("GET", Prefix + "/");
 
         Assert.Contains(endpoint.Metadata, item => item is IAllowAnonymous);
+    }
+
+    [Fact]
+    public void MatchOpponentProfile_RequiresAuthentication()
+    {
+        var endpoint = GetEndpoint("GET", "v{version:apiVersion}/lan/matches/{id}/opponent-profile");
+
+        Assert.DoesNotContain(endpoint.Metadata, item => item is IAllowAnonymous);
+        Assert.Contains(endpoint.Metadata, item => item is IAuthorizeData);
     }
 
     [Theory]
@@ -52,6 +62,7 @@ public sealed class LeaderboardEndpointRouteTests
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddAuthorization();
         builder.Services.AddApiVersioning();
+        builder.Services.AddHttpConventions();
         builder.Services.AddScoped<ITournamentQueries>(_ => throw new NotSupportedException());
         builder.Services.AddScoped<ITournamentManagementCommands>(_ => throw new NotSupportedException());
         builder.Services.AddScoped<ITournamentLifecycleCommands>(_ => throw new NotSupportedException());

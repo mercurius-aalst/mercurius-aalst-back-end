@@ -65,6 +65,29 @@ internal sealed class IdentityModuleFacade : IIdentityModule
             .FirstOrDefaultAsync(cancellationToken);
     }
 
+    public Task<PublicUserProfileSummary?> GetPublicProfileByIdAsync(
+        UserId userId,
+        CancellationToken cancellationToken = default)
+    {
+        return _dbContext.Users
+            .AsNoTracking()
+            .Where(user =>
+                user.Id == userId.Value &&
+                !user.IsDeleted &&
+                !string.IsNullOrWhiteSpace(user.Username) &&
+                !string.IsNullOrWhiteSpace(user.Firstname) &&
+                !string.IsNullOrWhiteSpace(user.Lastname))
+            .Select(user => new PublicUserProfileSummary(
+                new UserId(user.Id),
+                user.Username!,
+                user.Firstname!,
+                user.Lastname!,
+                user.DiscordId,
+                user.SteamId,
+                user.RiotId))
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyDictionary<UserId, UserProfileSummary>> GetUsersByIdsAsync(
         IReadOnlyCollection<UserId> userIds,
         CancellationToken cancellationToken = default)

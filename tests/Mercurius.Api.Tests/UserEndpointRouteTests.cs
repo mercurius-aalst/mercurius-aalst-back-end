@@ -25,6 +25,23 @@ public class UserEndpointRouteTests
     }
 
     [Fact]
+    public void DetailedUsernameProfileRoute_RequiresAdminAuthorization()
+    {
+        var endpoint = GetUserRouteEndpoint("GET", "v{version:apiVersion}/lan/users/{username:nonguid}");
+
+        Assert.DoesNotContain(endpoint.Metadata, metadata => metadata is IAllowAnonymous);
+        Assert.Contains(endpoint.Metadata.OfType<AuthorizeAttribute>(), metadata => metadata.Roles == "admin");
+    }
+
+    [Fact]
+    public void PublicUsernameProfileRoute_RemainsAnonymous()
+    {
+        var endpoint = GetUserRouteEndpoint("GET", "v{version:apiVersion}/lan/public/users/{username}");
+
+        Assert.Contains(endpoint.Metadata, metadata => metadata is IAllowAnonymous);
+    }
+
+    [Fact]
     public void UsernameDeleteCompatibilityRoute_RemainsAvailable()
     {
         var endpoint = GetUserRouteEndpoint("DELETE", "v{version:apiVersion}/lan/users/{username}/account");

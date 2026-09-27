@@ -3,6 +3,7 @@ using Mercurius.Modules.Identity.Contracts;
 using Mercurius.Modules.Teams.Contracts;
 using Mercurius.Modules.Tournament.Application.DTOs.PublicProfiles;
 using Mercurius.Modules.Tournament.Contracts;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 
@@ -17,11 +18,16 @@ internal static class PublicProfileMatchSummaryEndpoints
             .ReportApiVersions()
             .Build();
 
-        var group = app.MapGroup("v{version:apiVersion}/lan/public")
+        var publicGroup = app.MapGroup("v{version:apiVersion}/lan/public")
             .WithApiVersionSet(apiVersionSet)
             .MapToApiVersion(new ApiVersion(1, 0));
 
-        group.MapGet("/users/{username}/match-summaries", async Task<Results<Ok<PublicProfileMatchSummariesResponseDTO>, NotFound>> (
+        var adminUserGroup = app.MapGroup("v{version:apiVersion}/lan/users")
+            .WithApiVersionSet(apiVersionSet)
+            .MapToApiVersion(new ApiVersion(1, 0))
+            .RequireAuthorization(new AuthorizeAttribute { Roles = "admin" });
+
+        adminUserGroup.MapGet("/{username:nonguid}/match-summaries", async Task<Results<Ok<PublicProfileMatchSummariesResponseDTO>, NotFound>> (
             string username,
             [FromServices] IIdentityModule identityModule,
             [FromServices] ITournamentModule tournamentModule,
@@ -34,12 +40,11 @@ internal static class PublicProfileMatchSummaryEndpoints
             var summaries = await tournamentModule.GetPublicUserMatchSummariesAsync(profile.Id, cancellationToken);
             return TypedResults.Ok(ToResponse(summaries));
         })
-        .AllowAnonymous()
         .WithTags("Users")
         .Produces<PublicProfileMatchSummariesResponseDTO>()
         .Produces(StatusCodes.Status404NotFound);
 
-        group.MapGet("/teams/{teamName}/match-summaries", async Task<Results<Ok<PublicProfileMatchSummariesResponseDTO>, NotFound>> (
+        publicGroup.MapGet("/teams/{teamName}/match-summaries", async Task<Results<Ok<PublicProfileMatchSummariesResponseDTO>, NotFound>> (
             string teamName,
             [FromServices] ITeamsModule teamsModule,
             [FromServices] ITournamentModule tournamentModule,
@@ -57,7 +62,7 @@ internal static class PublicProfileMatchSummaryEndpoints
         .Produces<PublicProfileMatchSummariesResponseDTO>()
         .Produces(StatusCodes.Status404NotFound);
 
-        return group;
+        return publicGroup;
     }
 
     private static PublicProfileMatchSummariesResponseDTO ToResponse(PublicProfileMatchSummarySet summaries) =>

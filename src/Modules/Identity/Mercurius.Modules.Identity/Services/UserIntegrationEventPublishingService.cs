@@ -72,6 +72,11 @@ internal sealed class UserIntegrationEventPublishingService : IUserService
         return _inner.GetPublicUserProfileByUsernameAsync(username);
     }
 
+    public Task<GetUserDTO> GetUserByUsernameAsync(string username)
+    {
+        return _inner.GetUserByUsernameAsync(username);
+    }
+
     public Task<UserSearchResponseDTO> SearchUsersAsync(
         string? query,
         string? cursor,

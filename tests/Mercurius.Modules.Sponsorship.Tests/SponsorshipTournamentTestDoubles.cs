@@ -26,6 +26,9 @@ internal static class SponsorshipTournamentTestDoubles
         public Task<PublicUserProfileSummary?> GetPublicProfileByUsernameAsync(string username, CancellationToken cancellationToken = default) =>
             Task.FromResult<PublicUserProfileSummary?>(null);
 
+        public Task<PublicUserProfileSummary?> GetPublicProfileByIdAsync(UserId userId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<PublicUserProfileSummary?>(null);
+
         public Task<IReadOnlyDictionary<UserId, UserProfileSummary>> GetUsersByIdsAsync(
             IReadOnlyCollection<UserId> userIds,
             CancellationToken cancellationToken = default) =>

@@ -192,13 +192,8 @@ public class DtoSerializationShapeTests
         AssertJsonProperties(new GetUserDTO(user), "id", "username", "firstname", "lastname", "email", "emailVerified", "discordId", "steamId", "riotId", "displayName", "isDeleted", "createdAtUtc", "updatedAtUtc");
         AssertJsonProperties(new PublicUserProfileDTO
         {
-            Username = user.Username!,
-            Firstname = user.Firstname!,
-            Lastname = user.Lastname!,
-            DiscordId = user.DiscordId,
-            SteamId = user.SteamId,
-            RiotId = user.RiotId
-        }, "username", "firstname", "lastname", "discordId", "steamId", "riotId");
+            Username = user.Username!
+        }, "username");
 
         var json = Serialize(GetSponsorDTO.From(sponsor));
         Assert.Contains("\"sponsorTier\":\"Gold\"", json, StringComparison.Ordinal);

@@ -61,6 +61,14 @@ internal class UserValidationService : IUserService
         return _inner.GetPublicUserProfileByUsernameAsync(normalizedUsername);
     }
 
+    public Task<GetUserDTO> GetUserByUsernameAsync(string username)
+    {
+        if (string.IsNullOrWhiteSpace(username) || !UserProfileValidationHelper.IsUsernameValid(username.Trim()))
+            throw new NotFoundException($"User '{username?.Trim()}' not found.");
+
+        return _inner.GetUserByUsernameAsync(UserProfileValidationHelper.NormalizeUsername(username));
+    }
+
     public Task<UserSearchResponseDTO> SearchUsersAsync(
         string? query,
         string? cursor,

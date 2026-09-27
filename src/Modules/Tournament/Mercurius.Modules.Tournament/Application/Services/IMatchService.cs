@@ -5,6 +5,10 @@ namespace Mercurius.Modules.Tournament.Application.Services;
 internal interface IMatchService
 {
     Task<GetMatchDTO> GetMatchByIdAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<OpponentUserProfileDTO> GetOpponentUserProfileAsync(
+        Guid id,
+        string auth0UserId,
+        CancellationToken cancellationToken = default);
     Task<GetMatchActionStateDTO> GetMatchActionStateAsync(
         Guid id,
         string auth0UserId,

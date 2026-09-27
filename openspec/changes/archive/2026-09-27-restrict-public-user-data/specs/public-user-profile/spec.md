@@ -1,8 +1,4 @@
-## Purpose
-
-Defines privacy-safe public user profile lookup by username.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Public user profile endpoint
 The API MUST expose `GET /v1/lan/public/users/{username}` for public username lookup, and its response MUST contain only the username.
@@ -38,25 +34,3 @@ The API MUST expose detailed user profiles by username only to administrators.
 - **WHEN** a client requests `GET /v1/lan/users/{username}/match-summaries`
 - **THEN** only an administrator can read that user's match summaries
 - **AND** the anonymous `GET /v1/lan/public/users/{username}/match-summaries` route is not exposed
-
-### Requirement: Public user profile privacy
-The public user profile endpoint MUST omit account-private fields.
-
-#### Scenario: Anonymous private fields omitted
-- **WHEN** an anonymous client reads a public user profile
-- **THEN** the response omits email, email verification state, Auth0 ID, deleted state, and timestamps
-
-#### Scenario: Authenticated private fields omitted
-- **WHEN** an authenticated client reads a public user profile
-- **THEN** the response still omits email, email verification state, Auth0 ID, deleted state, and timestamps
-
-### Requirement: Public user profile not found behavior
-The endpoint MUST return not found for profiles that are not public.
-
-#### Scenario: Missing user
-- **WHEN** the requested username does not exist
-- **THEN** the endpoint returns 404
-
-#### Scenario: Deleted or incomplete user
-- **WHEN** the requested username belongs to a deleted or incomplete profile
-- **THEN** the endpoint returns 404

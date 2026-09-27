@@ -9,6 +9,7 @@ internal interface IUserService
     Task<GetUserDTO> CompleteProfileAsync(string auth0UserId, CompleteUserProfileRequest request);
     Task<CurrentUserProfileResponse> GetCurrentUserAsync(string auth0UserId);
     Task<PublicUserProfileDTO> GetPublicUserProfileByUsernameAsync(string username);
+    Task<GetUserDTO> GetUserByUsernameAsync(string username);
     Task<UserSearchResponseDTO> SearchUsersAsync(string? query, string? cursor, int pageSize, CancellationToken cancellationToken = default);
     Task<GetUserDTO> UpdateCurrentUserAsync(string auth0UserId, UpdateUserProfileRequest request);
     Task<UsernameAvailabilityResponse> CheckUsernameAvailabilityAsync(string auth0UserId, string username);

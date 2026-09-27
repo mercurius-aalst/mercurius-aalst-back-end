@@ -189,7 +189,7 @@ internal sealed class TeamEndpointService : ITeamEndpointService
             Name = team.Name,
             CaptainUserId = team.CaptainUserId,
             LogoUrl = team.LogoUrl,
-            Members = team.Members.Select(MapPublicUser).ToList()
+            Members = team.Members.Select(MapPublicTeamUser).ToList()
         };
     }
 
@@ -202,7 +202,7 @@ internal sealed class TeamEndpointService : ITeamEndpointService
             CaptainUserId = team.CaptainUserId,
             CaptainUsername = team.CaptainUsername,
             LogoUrl = team.LogoUrl,
-            Members = team.Members.Select(MapPublicUser).ToList()
+            Members = team.Members.Select(MapManagementUser).ToList()
         };
     }
 
@@ -238,7 +238,17 @@ internal sealed class TeamEndpointService : ITeamEndpointService
         };
     }
 
-    private static PublicUserResponseDTO MapPublicUser(TeamPublicUserDTO user)
+    private static TeamParticipantResponseDTO MapPublicTeamUser(TeamPublicUserDTO user)
+    {
+        return new TeamParticipantResponseDTO
+        {
+            Id = user.Id,
+            Username = user.Username,
+            DisplayName = user.DisplayName
+        };
+    }
+
+    private static PublicUserResponseDTO MapManagementUser(TeamPublicUserDTO user)
     {
         return new PublicUserResponseDTO
         {

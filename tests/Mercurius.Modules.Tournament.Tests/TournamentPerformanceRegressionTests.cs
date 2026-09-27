@@ -663,6 +663,9 @@ public class TournamentPerformanceRegressionTests
         public Task<PublicUserProfileSummary?> GetPublicProfileByUsernameAsync(string username, CancellationToken cancellationToken = default) =>
             Task.FromResult<PublicUserProfileSummary?>(null);
 
+        public Task<PublicUserProfileSummary?> GetPublicProfileByIdAsync(UserId userId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<PublicUserProfileSummary?>(null);
+
         public Task<IReadOnlyList<PublicUserSearchDocument>> GetPublicUserSearchDocumentsPageAsync(
             UserId? afterId,
             int pageSize,

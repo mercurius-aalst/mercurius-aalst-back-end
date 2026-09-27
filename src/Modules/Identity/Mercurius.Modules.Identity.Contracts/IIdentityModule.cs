@@ -16,6 +16,10 @@ public interface IIdentityModule
         string username,
         CancellationToken cancellationToken = default);
 
+    Task<PublicUserProfileSummary?> GetPublicProfileByIdAsync(
+        UserId userId,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyDictionary<UserId, UserProfileSummary>> GetUsersByIdsAsync(
         IReadOnlyCollection<UserId> userIds,
         CancellationToken cancellationToken = default);

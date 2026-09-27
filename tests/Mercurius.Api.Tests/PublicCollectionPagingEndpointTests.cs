@@ -21,6 +21,7 @@ using Microsoft.Extensions.Options;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using Mercurius.LAN.API.Configuration;
+using Platform.Extensions;
 
 namespace Mercurius.Api.Tests;
 
@@ -181,6 +182,7 @@ public class PublicCollectionPagingEndpointTests
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddAuthorization();
         builder.Services.AddApiVersioning();
+        builder.Services.AddHttpConventions();
         builder.Services.AddSingleton(tournamentQueries);
         builder.Services.AddScoped<ITournamentManagementCommands>(_ => throw new NotSupportedException());
         builder.Services.AddScoped<ITournamentLifecycleCommands>(_ => throw new NotSupportedException());

@@ -167,6 +167,7 @@ public class UserTests
         Assert.DoesNotContain("IsDeleted", properties);
         Assert.DoesNotContain("CreatedAtUtc", properties);
         Assert.DoesNotContain("UpdatedAtUtc", properties);
+        Assert.Equal(["Username"], properties);
     }
 
     [Fact]
@@ -714,7 +715,7 @@ public class UserTests
     }
 
     [Fact]
-    public async Task GetPublicUserProfileByUsernameAsync_IncludesPlatformIds()
+    public async Task GetPublicUserProfileByUsernameAsync_ReturnsUsernameOnly()
     {
         await using var dbContext = CreateDbContext();
         var user = CreateStoredUser("auth0|123", "public@example.com");
@@ -731,11 +732,28 @@ public class UserTests
         var profile = await service.GetPublicUserProfileByUsernameAsync("playerone");
 
         Assert.Equal("PlayerOne", profile.Username);
-        Assert.Equal("Player", profile.Firstname);
-        Assert.Equal("One", profile.Lastname);
+        Assert.Equal(["Username"], typeof(PublicUserProfileDTO).GetProperties().Select(property => property.Name));
+    }
+
+    [Fact]
+    public async Task GetUserByUsernameAsync_ReturnsDetailedProfileForAdminWorkflow()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = CreateStoredUser("auth0|123", "private@example.com");
+        user.DiscordId = "discord-1";
+        dbContext.Users.Add(user);
+        await dbContext.SaveChangesAsync();
+
+        var service = new UserService(
+            dbContext,
+            new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("private@example.com", true, true)));
+
+        var profile = await service.GetUserByUsernameAsync("PLAYERONE");
+
+        Assert.Equal(user.Id, profile.Id);
+        Assert.Equal(user.Email, profile.Email);
+        Assert.Equal(user.Firstname, profile.Firstname);
         Assert.Equal("discord-1", profile.DiscordId);
-        Assert.Equal("steam-1", profile.SteamId);
-        Assert.Equal("riot-1", profile.RiotId);
     }
 
     [Fact]
@@ -1016,6 +1034,7 @@ public class UserTests
         public string? LastUpdateCurrentSubject { get; private set; }
         public UpdateUserProfileRequest? LastUpdateCurrentRequest { get; private set; }
         public string? LastPublicProfileUsername { get; private set; }
+        public string? LastUserByUsername { get; private set; }
         public string? LastUserSearchQuery { get; private set; }
         public string? LastUserSearchCursor { get; private set; }
         public int LastUserSearchPageSize { get; private set; }
@@ -1031,12 +1050,7 @@ public class UserTests
         });
         public PublicUserProfileDTO PublicUser { get; } = new()
         {
-            Username = "ValidUser",
-            Firstname = "Valid",
-            Lastname = "User",
-            DiscordId = "discord-2",
-            SteamId = "steam-2",
-            RiotId = "riot-2"
+            Username = "ValidUser"
         };
         public UserSearchResponseDTO UserSearchResponse { get; } = new()
         {
@@ -1129,6 +1143,11 @@ public class UserTests
         public Task<IReadOnlyList<GetUserDTO>> GetAllUsersAsync(int page, int pageSize, CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<GetUserDTO>>([]);
         public Task<GetUserDTO> GetUserByIdAsync(Guid id) => Task.FromResult(CreatedUser);
+        public Task<GetUserDTO> GetUserByUsernameAsync(string username)
+        {
+            LastUserByUsername = username;
+            return Task.FromResult(CreatedUser);
+        }
         public Task<GetUserDTO> UpdateUserAsync(Guid id, UpdateUserProfileRequest request) => Task.FromResult(CreatedUser);
     }
 

@@ -26,6 +26,20 @@ public class TeamTests
     private static int _nextId;
 
     [Fact]
+    public void PublicTeamMembersExposeUsernamesWhileManagementSummaryRetainsDetails()
+    {
+        var publicMemberType = typeof(TeamResponseDTO).GetProperty(nameof(TeamResponseDTO.Members))!
+            .PropertyType.GetGenericArguments()[0];
+        var managementMemberType = typeof(TeamManagementSummaryResponseDTO).GetProperty(nameof(TeamManagementSummaryResponseDTO.Members))!
+            .PropertyType.GetGenericArguments()[0];
+
+        Assert.DoesNotContain(publicMemberType.GetProperties(), property => property.Name is "DiscordId" or "SteamId" or "RiotId");
+        Assert.Contains(managementMemberType.GetProperties(), property => property.Name == "DiscordId");
+        Assert.Contains(managementMemberType.GetProperties(), property => property.Name == "SteamId");
+        Assert.Contains(managementMemberType.GetProperties(), property => property.Name == "RiotId");
+    }
+
+    [Fact]
     public void Team_Creation_Should_Set_Properties_Correctly()
     {
         // Arrange

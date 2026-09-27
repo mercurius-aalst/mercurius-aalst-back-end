@@ -6,5 +6,5 @@ internal sealed class TeamResponseDTO
     public string Name { get; set; } = string.Empty;
     public Guid CaptainUserId { get; set; }
     public string? LogoUrl { get; set; }
-    public IReadOnlyList<PublicUserResponseDTO> Members { get; set; } = [];
+    public IReadOnlyList<TeamParticipantResponseDTO> Members { get; set; } = [];
 }

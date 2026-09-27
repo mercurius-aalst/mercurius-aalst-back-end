@@ -27,15 +27,30 @@ Anonymous public API responses that embed participants MUST expose only fields r
 - **AND** pending registrations, pending confirmation state, confirmation tokens, withdrawn notification state, and admin-only registration details are omitted
 
 ### Requirement: Shared participant privacy
-Shared participant responses MUST remain privacy-safe for anonymous and authenticated callers while including platform identifiers declared public by the website privacy policy.
+Public tournament, placement, registration, roster, and team responses MUST identify users by username only, for anonymous and authenticated callers. They MUST NOT expose users' first or last names, email, Discord ID, Steam ID, or Riot ID.
+
+#### Scenario: Anonymous shared participant response
+- **WHEN** an anonymous client reads tournament, placement, registration, roster, or public team data
+- **THEN** each embedded user exposes the username only
 
 #### Scenario: Authenticated shared participant response
-- **WHEN** an authenticated client reads a tournament, placement, team, registration, or roster response
-- **THEN** embedded participants include Discord, Steam, and Riot IDs when those fields are part of the shared public participant contract but still omit private account fields, confirmation tokens, notification identifiers, and admin-only registration metadata
+- **WHEN** an authenticated non-administrator client reads tournament, placement, registration, roster, or public team data
+- **THEN** each embedded user exposes the username only
+
+#### Scenario: Private team management response
+- **WHEN** an authenticated user reads their team management data
+- **THEN** the API retains the fields required by that private workflow
 
 #### Scenario: Authorized profile response
 - **WHEN** an authorized profile workflow needs private user data or actionable confirmation notifications
 - **THEN** it uses the dedicated current-user or notification API rather than an embedded participant or public registration response
+
+### Requirement: Public user detail access
+Shared participant responses MUST NOT act as a source of detailed user profiles.
+
+#### Scenario: Match-scoped workflow reads opponent details
+- **WHEN** a user needs their assigned opponent's details
+- **THEN** the user reads them from the authorized match opponent profile endpoint
 
 ### Requirement: Admin data preservation
 Authorized admin/current-user APIs MUST continue returning the full DTOs required by admin and profile workflows.

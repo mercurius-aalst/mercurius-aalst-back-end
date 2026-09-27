@@ -35,7 +35,6 @@ public class ApiEndpointContractTests
     [InlineData("GET", "v{version:apiVersion}/lan/public/teams/{teamName}", "Public Teams")]
     [InlineData("GET", "v{version:apiVersion}/lan/public/users/{username}", "Users")]
     [InlineData("GET", "v{version:apiVersion}/lan/public/teams/{teamName}/match-summaries", "Public Teams")]
-    [InlineData("GET", "v{version:apiVersion}/lan/public/users/{username}/match-summaries", "Users")]
     [InlineData("GET", "v{version:apiVersion}/lan/search/", "Search")]
     public void PublicReadRoutes_AllowAnonymousAndKeepTags(string method, string routePattern, string expectedTag)
     {
@@ -43,6 +42,16 @@ public class ApiEndpointContractTests
 
         Assert.Contains(endpoint.Metadata, metadata => metadata is IAllowAnonymous);
         Assert.Contains(expectedTag, endpoint.Metadata.GetMetadata<ITagsMetadata>()?.Tags ?? []);
+    }
+
+    [Fact]
+    public void UserMatchSummaries_RequireAdminAuthorization_AndFormerPublicRouteIsAbsent()
+    {
+        var endpoint = GetEndpoint("GET", "v{version:apiVersion}/lan/users/{username:nonguid}/match-summaries");
+
+        Assert.DoesNotContain(endpoint.Metadata, metadata => metadata is IAllowAnonymous);
+        Assert.Contains(endpoint.Metadata.OfType<AuthorizeAttribute>(), metadata => metadata.Roles == "admin");
+        Assert.DoesNotContain(GetEndpoints(), candidate => candidate.RoutePattern.RawText == "v{version:apiVersion}/lan/public/users/{username}/match-summaries");
     }
 
     [Fact]

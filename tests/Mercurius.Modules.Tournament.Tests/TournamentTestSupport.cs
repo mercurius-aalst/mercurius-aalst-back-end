@@ -217,6 +217,21 @@ internal static class TournamentTestSupport
                     user.RiotId));
         }
 
+        public Task<PublicUserProfileSummary?> GetPublicProfileByIdAsync(UserId userId, CancellationToken cancellationToken = default)
+        {
+            var user = _users.GetValueOrDefault(userId.Value);
+            return Task.FromResult(user is null || user.IsDeleted || !user.IsComplete
+                ? null
+                : new PublicUserProfileSummary(
+                    new UserId(user.Id),
+                    user.Username!,
+                    user.Firstname!,
+                    user.Lastname!,
+                    user.DiscordId,
+                    user.SteamId,
+                    user.RiotId));
+        }
+
         public Task<IReadOnlyDictionary<UserId, UserProfileSummary>> GetUsersByIdsAsync(
             IReadOnlyCollection<UserId> userIds,
             CancellationToken cancellationToken = default)

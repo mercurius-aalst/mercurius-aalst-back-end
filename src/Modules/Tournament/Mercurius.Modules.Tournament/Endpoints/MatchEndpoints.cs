@@ -25,6 +25,16 @@ internal static class MatchEndpoints
         })
         .AllowAnonymous();
 
+        group.MapGet("/{id}/opponent-profile", async (
+            Guid id,
+            ClaimsPrincipal user,
+            IMatchService matchService,
+            CancellationToken cancellationToken) =>
+        {
+            return await matchService.GetOpponentUserProfileAsync(id, GetAuth0UserId(user), cancellationToken);
+        })
+        .RequireAuthorization();
+
         group.MapGet("/{id}/me", async (
             Guid id,
             ClaimsPrincipal user,

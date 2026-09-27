@@ -5,6 +5,7 @@ using System.Text.Encodings.Web;
 using Mercurius.Modules.Tournament;
 using Mercurius.Modules.Tournament.Application.DTOs.Registrations;
 using Mercurius.Modules.Tournament.Application.Services;
+using Platform.Extensions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
@@ -201,6 +202,7 @@ public class TournamentRegistrationEndpointRouteTests
             .AddScheme<AuthenticationSchemeOptions, TestAuthenticationHandler>("Test", _ => { });
         builder.Services.AddAuthorization();
         builder.Services.AddApiVersioning();
+        builder.Services.AddHttpConventions();
         builder.Services.AddScoped<ITournamentQueries>(_ => throw new NotSupportedException());
         builder.Services.AddScoped<ITournamentManagementCommands>(_ => throw new NotSupportedException());
         builder.Services.AddScoped<ITournamentLifecycleCommands>(_ => throw new NotSupportedException());
@@ -255,6 +257,7 @@ public class TournamentRegistrationEndpointRouteTests
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddAuthorization();
         builder.Services.AddApiVersioning();
+        builder.Services.AddHttpConventions();
         builder.Services.AddScoped<ITournamentQueries>(_ => throw new NotSupportedException());
         builder.Services.AddScoped<ITournamentManagementCommands>(_ => throw new NotSupportedException());
         builder.Services.AddScoped<ITournamentLifecycleCommands>(_ => throw new NotSupportedException());
@@ -277,6 +280,7 @@ public class TournamentRegistrationEndpointRouteTests
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddAuthorization();
         builder.Services.AddApiVersioning();
+        builder.Services.AddHttpConventions();
         builder.Services.AddScoped<ITournamentQueries>(_ => throw new NotSupportedException());
         builder.Services.AddScoped<ITournamentManagementCommands>(_ => throw new NotSupportedException());
         builder.Services.AddScoped<ITournamentLifecycleCommands>(_ => throw new NotSupportedException());

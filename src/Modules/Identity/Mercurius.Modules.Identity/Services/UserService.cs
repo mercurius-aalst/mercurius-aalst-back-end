@@ -124,12 +124,7 @@ internal class UserService : IUserService
                 !string.IsNullOrWhiteSpace(u.Lastname))
             .Select(u => new PublicUserProfileDTO
             {
-                Username = u.Username!,
-                Firstname = u.Firstname!,
-                Lastname = u.Lastname!,
-                DiscordId = u.DiscordId,
-                SteamId = u.SteamId,
-                RiotId = u.RiotId
+                Username = u.Username!
             })
             .FirstOrDefaultAsync();
 
@@ -137,6 +132,18 @@ internal class UserService : IUserService
             throw new NotFoundException($"User '{trimmedUsername}' not found.");
 
         return profile;
+    }
+
+    public async Task<GetUserDTO> GetUserByUsernameAsync(string username)
+    {
+        var normalizedUsername = UserProfileValidationHelper.NormalizeUsername(username);
+        var user = await _dbContext.Users
+            .AsNoTracking()
+            .FirstOrDefaultAsync(candidate => candidate.NormalizedUsername == normalizedUsername);
+        if (user is null)
+            throw new NotFoundException($"User '{username.Trim()}' not found.");
+
+        return new GetUserDTO(user);
     }
 
     public async Task<UserSearchResponseDTO> SearchUsersAsync(

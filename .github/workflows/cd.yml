@@ -88,3 +88,12 @@ jobs:
       - name: Push release image
         if: ${{ steps.trivy.outcome == 'success' }}
         run: docker push livingwooods/mercurius-backend:${{ needs.release-please.outputs.VERSION }}
+
+      - name: Announce to gitops
+        if: ${{ steps.trivy.outcome == 'success' }}
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.GITOPS_DISPATCH_TOKEN }}
+          repository: MercuriusAalst/gitops
+          event-type: new-image
+          client-payload: '{"app":"backend","version":"${{ needs.release-please.outputs.VERSION }}"}'

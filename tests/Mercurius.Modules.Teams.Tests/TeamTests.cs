@@ -1,3 +1,4 @@
+using System.Data.Common;
 using Mercurius.Modules.Shared.Exceptions;
 using Mercurius.LAN.API.Data;
 using Mercurius.Modules.Teams.DTOs;
@@ -8,16 +9,20 @@ using Mercurius.Modules.Teams.Contracts;
 using Mercurius.Modules.Teams.Infrastructure;
 using Mercurius.Modules.Teams.Services;
 using Mercurius.Modules.Shared;
+using Mercurius.Modules.Identity.Contracts;
 using Platform.Eventing;
 using Platform.Realtime;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Mercurius.TestInfrastructure;
 
 namespace Mercurius.Modules.Teams.Tests;
 
@@ -1310,6 +1315,287 @@ public class TeamTests
                 revocation.CancellationToken == CancellationToken.None);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DeleteTeamAsync_CancellationAfterCommitStillNotifiesRemovedUsers(bool deleteByTeamId)
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var member = CreateUser();
+        var invitee = CreateUser();
+        var team = CreateTeam("Alpha", captain);
+        team.AddMember(member.Id);
+        var invite = new TeamInvite
+        {
+            Id = Guid.NewGuid(),
+            Team = team,
+            TeamId = team.Id,
+            UserId = invitee.Id,
+            Status = TeamInviteStatus.Pending,
+            CreatedAt = DateTime.UtcNow,
+            ExpiresAt = DateTime.UtcNow.AddDays(1)
+        };
+        dbContext.Users.AddRange(captain, member, invitee);
+        dbContext.Teams.Add(team);
+        dbContext.Set<TeamInvite>().Add(invite);
+        await dbContext.SaveChangesAsync();
+
+        using var requestCancellation = new CancellationTokenSource();
+        var publisher = new RecordingTeamEventPublisher();
+        var realtimeConnectionManager = new RecordingRealtimeConnectionManager
+        {
+            OnRevocation = requestCancellation.Cancel
+        };
+        var teamService = CreateTeamService(
+            dbContext,
+            eventPublisher: publisher,
+            moduleEventPublisher: new ModuleEventPublisher(dbContext),
+            realtimeConnectionManager: realtimeConnectionManager);
+
+        if (deleteByTeamId)
+            await teamService.DeleteTeamAsync(team.Id, requestCancellation.Token);
+        else
+            await teamService.DeleteTeamAsync(captain.Auth0UserId, team.Id, requestCancellation.Token);
+
+        Assert.True(requestCancellation.IsCancellationRequested);
+        Assert.Contains(publisher.MembershipEvents, evt => evt.TeamId == team.Id && evt.UserId == member.Id && evt.Action == "Removed");
+        Assert.Contains(publisher.InviteEvents, evt => evt.TeamId == team.Id && evt.InviteId == invite.Id && evt.UserId == invitee.Id && evt.Status == nameof(TeamInviteStatus.Cancelled));
+        Assert.All(publisher.MembershipCancellationTokens, token => Assert.Equal(CancellationToken.None, token));
+        Assert.All(publisher.InviteCancellationTokens, token => Assert.Equal(CancellationToken.None, token));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DeleteTeamAsync_WaitsForConcurrentInviteAndNotifiesItsRecipient(bool deleteByTeamId)
+    {
+        await using var database = PostgresTestDatabase.Create();
+        var options = new DbContextOptionsBuilder<MercuriusDBContext>()
+            .UseNpgsql(database.ConnectionString)
+            .Options;
+        await using var setupContext = new MercuriusDBContext(options);
+        PostgresTestDatabase.Initialize(setupContext);
+
+        var captain = CreateUser();
+        var invitee = CreateUser();
+        var team = CreateTeam("Alpha", captain);
+        setupContext.Users.AddRange(captain, invitee);
+        setupContext.Teams.Add(team);
+        await setupContext.SaveChangesAsync();
+
+        await using var inviteContext = new MercuriusDBContext(options);
+        var inviteReachedIdentity = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseInvite = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var inviteIdentity = new DbContextIdentityModule(inviteContext)
+        {
+            BeforeUserProfileByIdAsync = async (userId, cancellationToken) =>
+            {
+                if (userId == new UserId(invitee.Id))
+                {
+                    inviteReachedIdentity.TrySetResult();
+                    await releaseInvite.Task.WaitAsync(cancellationToken);
+                }
+            }
+        };
+        var inviteService = CreateTeamService(
+            inviteContext,
+            identityModuleOverride: inviteIdentity);
+        var inviteTask = inviteService.InviteUserAsync(captain.Auth0UserId, team.Id, invitee.Id);
+        await inviteReachedIdentity.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        var lockInterceptor = new AdvisoryLockAttemptInterceptor();
+        var deleteOptions = new DbContextOptionsBuilder<MercuriusDBContext>()
+            .UseNpgsql(database.ConnectionString)
+            .AddInterceptors(lockInterceptor)
+            .Options;
+        await using var deleteContext = new MercuriusDBContext(deleteOptions);
+        var deletionEvents = new RecordingTeamEventPublisher();
+        var deleteService = CreateTeamService(
+            deleteContext,
+            eventPublisher: deletionEvents,
+            moduleEventPublisher: new NoopModuleEventPublisher());
+
+        var deleteTask = deleteByTeamId
+            ? deleteService.DeleteTeamAsync(team.Id)
+            : deleteService.DeleteTeamAsync(captain.Auth0UserId, team.Id);
+        var deleteWasBlockedByInvite = false;
+        try
+        {
+            await lockInterceptor.LockAttempted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            deleteWasBlockedByInvite = !deleteTask.IsCompleted;
+        }
+        finally
+        {
+            releaseInvite.TrySetResult();
+        }
+
+        await inviteTask;
+        await deleteTask;
+
+        Assert.True(deleteWasBlockedByInvite, "Team deletion should wait for the in-flight invite transaction.");
+        Assert.Contains(
+            deletionEvents.InviteEvents,
+            published => published.TeamId == team.Id &&
+                published.UserId == invitee.Id &&
+                published.Status == nameof(TeamInviteStatus.Cancelled));
+        await using var verifyContext = new MercuriusDBContext(options);
+        Assert.True(await verifyContext.Teams.AnyAsync(candidate => candidate.Id == team.Id && candidate.IsDeleted));
+        Assert.False(await verifyContext.Set<TeamInvite>().AnyAsync(invite => invite.TeamId == team.Id));
+    }
+
+    [Fact]
+    public async Task RespondToInviteAsync_WaitsForDeleteThenRejectsDeletedTeam()
+    {
+        await using var database = PostgresTestDatabase.Create();
+        var options = new DbContextOptionsBuilder<MercuriusDBContext>()
+            .UseNpgsql(database.ConnectionString)
+            .Options;
+        await using var setupContext = new MercuriusDBContext(options);
+        PostgresTestDatabase.Initialize(setupContext);
+
+        var captain = CreateUser();
+        var invitee = CreateUser();
+        var team = CreateTeam("Alpha", captain);
+        var invite = new TeamInvite
+        {
+            Id = Guid.NewGuid(),
+            Team = team,
+            TeamId = team.Id,
+            UserId = invitee.Id,
+            Status = TeamInviteStatus.Pending,
+            CreatedAt = DateTime.UtcNow,
+            ExpiresAt = DateTime.UtcNow.AddDays(1)
+        };
+        setupContext.Users.AddRange(captain, invitee);
+        setupContext.Teams.Add(team);
+        setupContext.Set<TeamInvite>().Add(invite);
+        await setupContext.SaveChangesAsync();
+
+        var deletePause = new TeamReadPauseInterceptor();
+        var deleteOptions = new DbContextOptionsBuilder<MercuriusDBContext>()
+            .UseNpgsql(database.ConnectionString)
+            .AddInterceptors(deletePause)
+            .Options;
+        await using var deleteContext = new MercuriusDBContext(deleteOptions);
+        var deleteService = CreateTeamService(
+            deleteContext,
+            moduleEventPublisher: new NoopModuleEventPublisher());
+        var deleteTask = deleteService.DeleteTeamAsync(team.Id);
+        await deletePause.TeamReadAttempted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        var responseLockInterceptor = new AdvisoryLockAttemptInterceptor();
+        var responseOptions = new DbContextOptionsBuilder<MercuriusDBContext>()
+            .UseNpgsql(database.ConnectionString)
+            .AddInterceptors(responseLockInterceptor)
+            .Options;
+        await using var responseContext = new MercuriusDBContext(responseOptions);
+        var responseService = CreateTeamService(
+            responseContext,
+            moduleEventPublisher: new NoopModuleEventPublisher());
+        var responseTask = responseService.RespondToInviteAsync(invitee.Auth0UserId, invite.Id, true);
+        var responseWasBlockedByDelete = false;
+        try
+        {
+            await responseLockInterceptor.LockAttempted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            responseWasBlockedByDelete = !responseTask.IsCompleted;
+        }
+        finally
+        {
+            deletePause.ReleaseTeamRead.TrySetResult();
+        }
+
+        await deleteTask;
+        var responseException = await Record.ExceptionAsync(async () => await responseTask);
+
+        Assert.True(responseWasBlockedByDelete, "Invite response should wait for the in-flight team deletion.");
+        Assert.IsType<NotFoundException>(responseException);
+        await using var verifyContext = new MercuriusDBContext(options);
+        Assert.True(await verifyContext.Teams.AnyAsync(candidate => candidate.Id == team.Id && candidate.IsDeleted));
+        Assert.False(await verifyContext.Set<TeamInvite>().AnyAsync(candidate => candidate.Id == invite.Id));
+        Assert.False(await verifyContext.Set<TeamMember>().AnyAsync(member => member.TeamId == team.Id && member.UserId == invitee.Id));
+    }
+
+    [Fact]
+    public async Task InviteMaintenance_WaitsForDeleteThenRechecksExpiredInvites()
+    {
+        await using var database = PostgresTestDatabase.Create();
+        var options = new DbContextOptionsBuilder<MercuriusDBContext>()
+            .UseNpgsql(database.ConnectionString)
+            .Options;
+        await using var setupContext = new MercuriusDBContext(options);
+        PostgresTestDatabase.Initialize(setupContext);
+
+        var captain = CreateUser();
+        var invitee = CreateUser();
+        var team = CreateTeam("Alpha", captain);
+        var invite = new TeamInvite
+        {
+            Id = Guid.NewGuid(),
+            Team = team,
+            TeamId = team.Id,
+            UserId = invitee.Id,
+            Status = TeamInviteStatus.Pending,
+            CreatedAt = DateTime.UtcNow.AddDays(-20),
+            ExpiresAt = DateTime.UtcNow.AddDays(-1)
+        };
+        setupContext.Users.AddRange(captain, invitee);
+        setupContext.Teams.Add(team);
+        setupContext.Set<TeamInvite>().Add(invite);
+        await setupContext.SaveChangesAsync();
+
+        var deletePause = new TeamReadPauseInterceptor();
+        var deleteOptions = new DbContextOptionsBuilder<MercuriusDBContext>()
+            .UseNpgsql(database.ConnectionString)
+            .AddInterceptors(deletePause)
+            .Options;
+        await using var deleteContext = new MercuriusDBContext(deleteOptions);
+        var deleteService = CreateTeamService(
+            deleteContext,
+            eventPublisher: new RecordingTeamEventPublisher(),
+            moduleEventPublisher: new NoopModuleEventPublisher());
+        var deleteTask = deleteService.DeleteTeamAsync(team.Id);
+        await deletePause.TeamReadAttempted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        var maintenanceLockInterceptor = new AdvisoryLockAttemptInterceptor();
+        var maintenanceOptions = new DbContextOptionsBuilder<MercuriusDBContext>()
+            .UseNpgsql(database.ConnectionString)
+            .AddInterceptors(maintenanceLockInterceptor)
+            .Options;
+        await using var maintenanceContext = new MercuriusDBContext(maintenanceOptions);
+        var maintenanceEvents = new RecordingTeamEventPublisher();
+        var maintenanceService = new TeamInviteMaintenanceService(
+            new TeamsDbContextAdapter<MercuriusDBContext>(maintenanceContext),
+            maintenanceEvents,
+            Options.Create(new TeamInviteMaintenanceOptions
+            {
+                RetentionDays = 90,
+                MaintenanceBatchSize = 10,
+                MaintenanceEventConcurrency = 2
+            }));
+        var maintenanceTask = maintenanceService.RunBatchAsync();
+        var maintenanceWasBlockedByDelete = false;
+        try
+        {
+            await maintenanceLockInterceptor.LockAttempted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            maintenanceWasBlockedByDelete = !maintenanceTask.IsCompleted;
+        }
+        finally
+        {
+            deletePause.ReleaseTeamRead.TrySetResult();
+        }
+
+        await deleteTask;
+        var maintenanceCount = await maintenanceTask;
+
+        Assert.True(maintenanceWasBlockedByDelete, "Invite maintenance should wait for the in-flight deletion of the team.");
+        Assert.Equal(0, maintenanceCount);
+        Assert.Empty(maintenanceEvents.InviteEvents);
+        await using var verifyContext = new MercuriusDBContext(options);
+        Assert.True(await verifyContext.Teams.AnyAsync(candidate => candidate.Id == team.Id && candidate.IsDeleted));
+        Assert.False(await verifyContext.Set<TeamInvite>().AnyAsync(candidate => candidate.Id == invite.Id));
+    }
+
     [Fact]
     public async Task DeleteTeamAsync_RetiresUnreferencedLogoAfterCommitAndGroupRevocation()
     {
@@ -1677,7 +1963,8 @@ public class TeamTests
         IModuleEventPublisher? moduleEventPublisher = null,
         IRealtimeConnectionManager? realtimeConnectionManager = null,
         ITeamTournamentReadService? tournamentReadService = null,
-        ILogger<TeamService>? logger = null)
+        ILogger<TeamService>? logger = null,
+        IIdentityModule? identityModuleOverride = null)
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -1688,7 +1975,7 @@ public class TeamTests
                 ["TeamInvite:DeclinedResendLimit"] = "3"
             })
             .Build();
-        var identityModule = new DbContextIdentityModule(dbContext);
+        var identityModule = identityModuleOverride ?? new DbContextIdentityModule(dbContext);
         var teamsDbContext = new TeamsDbContextAdapter<MercuriusDBContext>(dbContext);
 
         return new TeamEventPublishingDecorator(
@@ -1858,16 +2145,20 @@ public class TeamTests
         public List<RecordedInviteEvent> InviteEvents { get; } = [];
         public List<RecordedMembershipEvent> MembershipEvents { get; } = [];
         public List<RecordedCaptainEvent> CaptainEvents { get; } = [];
+        public List<CancellationToken> InviteCancellationTokens { get; } = [];
+        public List<CancellationToken> MembershipCancellationTokens { get; } = [];
 
         public Task InviteChangedAsync(Guid teamId, Guid inviteId, Guid affectedUserId, string status, CancellationToken cancellationToken = default)
         {
             InviteEvents.Add(new RecordedInviteEvent(teamId, inviteId, affectedUserId, status));
+            InviteCancellationTokens.Add(cancellationToken);
             return Task.CompletedTask;
         }
 
         public Task MembershipChangedAsync(Guid teamId, Guid affectedUserId, string action, CancellationToken cancellationToken = default)
         {
             MembershipEvents.Add(new RecordedMembershipEvent(teamId, affectedUserId, action));
+            MembershipCancellationTokens.Add(cancellationToken);
             _operationOrder?.Add("MembershipBroadcast");
             return Task.CompletedTask;
         }
@@ -1894,6 +2185,49 @@ public class TeamTests
     {
         public Guid Publish<TPayload>(TPayload payload, DateTime? occurredAtUtc = null)
             where TPayload : notnull => Guid.NewGuid();
+    }
+
+    private sealed class AdvisoryLockAttemptInterceptor : DbCommandInterceptor
+    {
+        public TaskCompletionSource LockAttempted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public override ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (command.CommandText.Contains("pg_advisory_xact_lock", StringComparison.OrdinalIgnoreCase))
+                LockAttempted.TrySetResult();
+
+            return ValueTask.FromResult(result);
+        }
+    }
+
+    private sealed class TeamReadPauseInterceptor : DbCommandInterceptor
+    {
+        private int _paused;
+
+        public TaskCompletionSource TeamReadAttempted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource ReleaseTeamRead { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public override async ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            if ((command.CommandText.Contains("\"teams\".\"teams\"", StringComparison.OrdinalIgnoreCase) ||
+                 command.CommandText.Contains("teams.teams", StringComparison.OrdinalIgnoreCase)) &&
+                Interlocked.Exchange(ref _paused, 1) == 0)
+            {
+                TeamReadAttempted.TrySetResult();
+                await ReleaseTeamRead.Task.WaitAsync(cancellationToken);
+            }
+
+            return result;
+        }
     }
 
     private sealed class ThrowingInviteChangedTeamEventPublisher : ITeamEventPublisher

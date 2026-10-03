@@ -7,6 +7,7 @@ using Mercurius.Modules.Media.Contracts;
 using Mercurius.Modules.Shared;
 using Mercurius.Modules.Teams.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Http;
@@ -82,6 +83,11 @@ internal sealed class TeamService : ITeamQueries, ITeamManagementCommands, ITeam
 
     public async Task DeleteTeamAsync(Guid teamId, CancellationToken cancellationToken = default)
     {
+        await DeleteTeamAndGetStateAsync(teamId, cancellationToken);
+    }
+
+    internal async Task<TeamDeletionState?> DeleteTeamAndGetStateAsync(Guid teamId, CancellationToken cancellationToken = default)
+    {
         var team = await _dbContext.Teams
             .AsSplitQuery()
             .Include(t => t.Members)
@@ -89,11 +95,25 @@ internal sealed class TeamService : ITeamQueries, ITeamManagementCommands, ITeam
             .FirstOrDefaultAsync(t => t.Id == teamId, cancellationToken);
         if (team is null)
             throw new NotFoundException($"{nameof(Team)} not found");
-        team.Delete(DateTime.UtcNow);
+        if (team.IsDeleted)
+            return null;
+
+        var now = DateTime.UtcNow;
+        var deletionState = GetTeamDeletionState(team, now);
+        team.Delete(now);
         await _dbContext.SaveChangesAsync(cancellationToken);
+        return deletionState;
     }
 
     public async Task DeleteTeamAsync(string auth0UserId, Guid teamId, CancellationToken cancellationToken = default)
+    {
+        await DeleteTeamAndGetStateAsync(auth0UserId, teamId, cancellationToken);
+    }
+
+    internal async Task<TeamDeletionState> DeleteTeamAndGetStateAsync(
+        string auth0UserId,
+        Guid teamId,
+        CancellationToken cancellationToken = default)
     {
         var currentUser = await GetCurrentUserAsync(auth0UserId, cancellationToken);
         var team = await GetActiveTeamsQuery()
@@ -108,9 +128,34 @@ internal sealed class TeamService : ITeamQueries, ITeamManagementCommands, ITeam
         if (await _tournamentReadService.IsTeamInDeleteBlockingTournamentAsync(teamId, cancellationToken))
             throw new ValidationException("Cannot delete a team that is actively participating in a tournament.");
 
-        team.Delete(DateTime.UtcNow);
+        var now = DateTime.UtcNow;
+        var deletionState = GetTeamDeletionState(team, now);
+        team.Delete(now);
         await _dbContext.SaveChangesAsync(cancellationToken);
+        return deletionState;
     }
+
+    private static TeamDeletionState GetTeamDeletionState(Team team, DateTime now)
+    {
+        var memberUserIds = team.Members.Select(member => member.UserId);
+        if (team.CaptainUserId is Guid captainUserId)
+            memberUserIds = memberUserIds.Append(captainUserId);
+
+        return new TeamDeletionState(
+            team.LogoUrl,
+            memberUserIds.Distinct().ToArray(),
+            team.TeamInvites
+                .Where(invite => invite.Status == TeamInviteStatus.Pending && invite.ExpiresAt > now)
+                .Select(invite => new DeletedTeamInvite(invite.Id, invite.UserId))
+                .ToArray());
+    }
+
+    internal sealed record TeamDeletionState(
+        string? LogoUrl,
+        IReadOnlyList<Guid> MemberUserIds,
+        IReadOnlyList<DeletedTeamInvite> PendingInvites);
+
+    internal sealed record DeletedTeamInvite(Guid InviteId, Guid UserId);
 
     public async Task<IReadOnlyList<GetTeamDTO>> GetAllTeamsAsync(
         int page,
@@ -333,6 +378,8 @@ internal sealed class TeamService : ITeamQueries, ITeamManagementCommands, ITeam
             .FirstOrDefaultAsync(i => i.Id == inviteId && i.TeamId == teamId, cancellationToken);
         if (invite is null)
             throw new NotFoundException("Invite not found");
+        if (invite.Team.IsDeleted)
+            throw new NotFoundException("Invite not found");
 
         EnsureCaptain(invite.Team, currentUser.Id.Value);
         invite.Cancel();
@@ -348,6 +395,8 @@ internal sealed class TeamService : ITeamQueries, ITeamManagementCommands, ITeam
             .FirstOrDefaultAsync(i => i.TeamId == teamId && i.UserId == userId && i.Status == TeamInviteStatus.Pending, cancellationToken);
         if (invite == null)
             throw new NotFoundException("No pending invite found");
+        if (invite.Team.IsDeleted)
+            throw new NotFoundException("No pending invite found");
         invite.Respond(accept);
         await _dbContext.SaveChangesAsync(cancellationToken);
         return new TeamInviteDTO(invite);
@@ -361,6 +410,8 @@ internal sealed class TeamService : ITeamQueries, ITeamManagementCommands, ITeam
                 .ThenInclude(team => team.Members)
             .FirstOrDefaultAsync(i => i.Id == inviteId && i.UserId == currentUser.Id.Value, cancellationToken);
         if (invite == null)
+            throw new NotFoundException("No pending invite found");
+        if (invite.Team.IsDeleted)
             throw new NotFoundException("No pending invite found");
 
         invite.Respond(accept);
@@ -497,6 +548,7 @@ internal sealed class TeamService : ITeamQueries, ITeamManagementCommands, ITeam
 
     public async Task<TeamLogoResponseDTO> UploadTeamLogoAsync(string auth0UserId, Guid teamId, IFormFile logo, CancellationToken cancellationToken = default)
     {
+        await using var transaction = await BeginTeamMutationTransactionAsync(teamId, cancellationToken);
         var currentUser = await GetCurrentUserAsync(auth0UserId, cancellationToken);
         var team = await GetTeamWithMembersQuery().FirstOrDefaultAsync(t => t.Id == teamId, cancellationToken);
         if (team is null)
@@ -514,10 +566,15 @@ internal sealed class TeamService : ITeamQueries, ITeamManagementCommands, ITeam
             team.LogoUrl = asset.Url;
             cancellationToken.ThrowIfCancellationRequested();
             await _dbContext.SaveChangesAsync(cancellationToken);
+            // Once SaveChanges succeeds, the new asset may be referenced even if CommitAsync fails ambiguously.
             committed = true;
+            if (transaction is not null)
+                await transaction.CommitAsync(cancellationToken);
         }
         catch
         {
+            if (transaction is not null)
+                await transaction.RollbackAsync(CancellationToken.None);
             if (!committed && !string.Equals(asset.Url, previousLogo, StringComparison.Ordinal))
                 await DeleteImageBestEffortAsync(asset.Url, "compensate an uncommitted Team logo replacement");
             throw;
@@ -529,6 +586,7 @@ internal sealed class TeamService : ITeamQueries, ITeamManagementCommands, ITeam
 
     public async Task<TeamLogoResponseDTO> RemoveTeamLogoAsync(string auth0UserId, Guid teamId, CancellationToken cancellationToken = default)
     {
+        await using var transaction = await BeginTeamMutationTransactionAsync(teamId, cancellationToken);
         var currentUser = await GetCurrentUserAsync(auth0UserId, cancellationToken);
         var team = await GetTeamWithMembersQuery().FirstOrDefaultAsync(t => t.Id == teamId, cancellationToken);
         if (team is null)
@@ -539,8 +597,31 @@ internal sealed class TeamService : ITeamQueries, ITeamManagementCommands, ITeam
         team.LogoUrl = null;
         cancellationToken.ThrowIfCancellationRequested();
         await _dbContext.SaveChangesAsync(cancellationToken);
+        if (transaction is not null)
+            await transaction.CommitAsync(cancellationToken);
         await RetireLogoIfUnreferencedAsync(previousLogo, null);
         return new TeamLogoResponseDTO(team.Id, null);
+    }
+
+    private async Task<IDbContextTransaction?> BeginTeamMutationTransactionAsync(
+        Guid teamId,
+        CancellationToken cancellationToken)
+    {
+        if (!_dbContext.Database.IsRelational())
+            return null;
+
+        var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            await TeamMutationLock.AcquireAsync(_dbContext, teamId, cancellationToken);
+            return transaction;
+        }
+        catch
+        {
+            await transaction.RollbackAsync(CancellationToken.None);
+            await transaction.DisposeAsync();
+            throw;
+        }
     }
 
     internal async Task RetireLogoIfUnreferencedAsync(string? logoUrl, string? currentLogoUrl)

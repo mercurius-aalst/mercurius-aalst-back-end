@@ -28,16 +28,22 @@ internal sealed class TeamInviteMaintenanceService
 
     public async Task<int> RunBatchAsync(CancellationToken cancellationToken = default)
     {
+        var relational = _dbContext.Database.IsRelational();
+        var now = DateTime.UtcNow;
+        var retentionCutoff = now.AddDays(-_options.RetentionDays);
+        var lockedTeamIds = relational
+            ? await GetMaintenanceTeamIdsAsync(now, retentionCutoff, cancellationToken)
+            : null;
         IDbContextTransaction? transaction = null;
         var expiredEvents = new List<ExpiredInviteEvent>();
         var deletedCount = 0;
 
         try
         {
-            if (_dbContext.Database.IsRelational())
+            if (relational)
             {
                 transaction = await _dbContext.Database.BeginTransactionAsync(
-                    IsolationLevel.Serializable,
+                    IsolationLevel.ReadCommitted,
                     cancellationToken);
 
                 if (!await TryAcquireMaintenanceLockAsync(cancellationToken))
@@ -45,13 +51,20 @@ internal sealed class TeamInviteMaintenanceService
                     await transaction.RollbackAsync(cancellationToken);
                     return 0;
                 }
+
+                foreach (var teamId in lockedTeamIds!)
+                    await TeamMutationLock.AcquireAsync(_dbContext, teamId, cancellationToken);
             }
 
-            var now = DateTime.UtcNow;
-            var expiredInvites = await TeamInvites
+            now = DateTime.UtcNow;
+            var expiredInvitesQuery = TeamInvites
                 .Where(invite =>
                     invite.Status == TeamInviteStatus.Pending &&
-                    invite.ExpiresAt <= now)
+                    invite.ExpiresAt <= now);
+            if (lockedTeamIds is not null)
+                expiredInvitesQuery = expiredInvitesQuery.Where(invite => lockedTeamIds.Contains(invite.TeamId));
+
+            var expiredInvites = await expiredInvitesQuery
                 .OrderBy(invite => invite.ExpiresAt)
                 .ThenBy(invite => invite.Id)
                 .Take(_options.MaintenanceBatchSize)
@@ -66,10 +79,10 @@ internal sealed class TeamInviteMaintenanceService
             if (expiredInvites.Count > 0)
                 await _dbContext.SaveChangesAsync(cancellationToken);
 
-            var retentionCutoff = now.AddDays(-_options.RetentionDays);
             var cleanupIds = await GetTerminalInviteCleanupCandidateIdsAsync(
                 retentionCutoff,
-                cancellationToken);
+                cancellationToken,
+                lockedTeamIds);
 
             if (cleanupIds.Count > 0)
             {
@@ -108,14 +121,18 @@ internal sealed class TeamInviteMaintenanceService
 
     private async Task<List<Guid>> GetTerminalInviteCleanupCandidateIdsAsync(
         DateTime cutoff,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IReadOnlyCollection<Guid>? teamIds = null)
     {
-        var respondedInvites = await TeamInvites
+        var respondedQuery = TeamInvites
             .AsNoTracking()
             .Where(invite =>
                 (invite.Status == TeamInviteStatus.Accepted || invite.Status == TeamInviteStatus.Declined) &&
                 invite.RespondedAt.HasValue &&
-                invite.RespondedAt.Value < cutoff)
+                invite.RespondedAt.Value < cutoff);
+        if (teamIds is not null)
+            respondedQuery = respondedQuery.Where(invite => teamIds.Contains(invite.TeamId));
+        var respondedInvites = await respondedQuery
             .OrderBy(invite => invite.RespondedAt)
             .ThenBy(invite => invite.Id)
             .Take(_options.MaintenanceBatchSize)
@@ -126,12 +143,15 @@ internal sealed class TeamInviteMaintenanceService
             })
             .ToListAsync(cancellationToken);
 
-        var cancelledInvites = await TeamInvites
+        var cancelledQuery = TeamInvites
             .AsNoTracking()
             .Where(invite =>
                 invite.Status == TeamInviteStatus.Cancelled &&
                 invite.CancelledAt.HasValue &&
-                invite.CancelledAt.Value < cutoff)
+                invite.CancelledAt.Value < cutoff);
+        if (teamIds is not null)
+            cancelledQuery = cancelledQuery.Where(invite => teamIds.Contains(invite.TeamId));
+        var cancelledInvites = await cancelledQuery
             .OrderBy(invite => invite.CancelledAt)
             .ThenBy(invite => invite.Id)
             .Take(_options.MaintenanceBatchSize)
@@ -142,12 +162,15 @@ internal sealed class TeamInviteMaintenanceService
             })
             .ToListAsync(cancellationToken);
 
-        var expiredInvites = await TeamInvites
+        var expiredQuery = TeamInvites
             .AsNoTracking()
             .Where(invite =>
                 invite.Status == TeamInviteStatus.Expired &&
                 invite.ExpiredAt.HasValue &&
-                invite.ExpiredAt.Value < cutoff)
+                invite.ExpiredAt.Value < cutoff);
+        if (teamIds is not null)
+            expiredQuery = expiredQuery.Where(invite => teamIds.Contains(invite.TeamId));
+        var expiredInvites = await expiredQuery
             .OrderBy(invite => invite.ExpiredAt)
             .ThenBy(invite => invite.Id)
             .Take(_options.MaintenanceBatchSize)
@@ -166,6 +189,35 @@ internal sealed class TeamInviteMaintenanceService
             .Take(_options.MaintenanceBatchSize)
             .Select(candidate => candidate.Id)
             .ToList();
+    }
+
+    private async Task<Guid[]> GetMaintenanceTeamIdsAsync(
+        DateTime now,
+        DateTime retentionCutoff,
+        CancellationToken cancellationToken)
+    {
+        var expiredTeamIds = await TeamInvites
+            .AsNoTracking()
+            .Where(invite => invite.Status == TeamInviteStatus.Pending && invite.ExpiresAt <= now)
+            .OrderBy(invite => invite.ExpiresAt)
+            .ThenBy(invite => invite.Id)
+            .Take(_options.MaintenanceBatchSize)
+            .Select(invite => invite.TeamId)
+            .ToListAsync(cancellationToken);
+        var cleanupIds = await GetTerminalInviteCleanupCandidateIdsAsync(retentionCutoff, cancellationToken);
+        var cleanupTeamIds = cleanupIds.Count == 0
+            ? []
+            : await TeamInvites
+                .AsNoTracking()
+                .Where(invite => cleanupIds.Contains(invite.Id))
+                .Select(invite => invite.TeamId)
+                .ToListAsync(cancellationToken);
+
+        return expiredTeamIds
+            .Concat(cleanupTeamIds)
+            .Distinct()
+            .Order()
+            .ToArray();
     }
 
     private async Task<bool> TryAcquireMaintenanceLockAsync(CancellationToken cancellationToken)

@@ -11,17 +11,21 @@ internal sealed class DbContextIdentityModule : IIdentityModule
 
     public int BatchCallCount { get; private set; }
     public IReadOnlyCollection<UserId> LastBatchUserIds { get; private set; } = [];
+    public Func<UserId, CancellationToken, Task>? BeforeUserProfileByIdAsync { get; init; }
 
     public DbContextIdentityModule(MercuriusDBContext dbContext)
     {
         _dbContext = dbContext;
     }
 
-    public Task<UserProfileSummary?> GetUserProfileAsync(
+    public async Task<UserProfileSummary?> GetUserProfileAsync(
         UserId userId,
         CancellationToken cancellationToken = default)
     {
-        return _dbContext.Users
+        if (BeforeUserProfileByIdAsync is not null)
+            await BeforeUserProfileByIdAsync(userId, cancellationToken);
+
+        return await _dbContext.Users
             .AsNoTracking()
             .Where(user => user.Id == userId.Value)
             .Select(user => ToSummary(user))

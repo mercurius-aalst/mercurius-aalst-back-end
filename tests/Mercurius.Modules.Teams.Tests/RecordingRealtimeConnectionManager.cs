@@ -14,6 +14,8 @@ internal sealed class RecordingRealtimeConnectionManager : IRealtimeConnectionMa
 
     public bool ThrowOnRevocation { get; init; }
 
+    public Action? OnRevocation { get; init; }
+
     public Task ExecuteWithAccessGateAsync(
         Func<CancellationToken, Task> action,
         Guid? userId,
@@ -65,9 +67,13 @@ internal sealed class RecordingRealtimeConnectionManager : IRealtimeConnectionMa
         return CompleteRevocation();
     }
 
-    private Task CompleteRevocation() => ThrowOnRevocation
-        ? Task.FromException(new InvalidOperationException("planned post-commit revocation failure"))
-        : Task.CompletedTask;
+    private Task CompleteRevocation()
+    {
+        OnRevocation?.Invoke();
+        return ThrowOnRevocation
+            ? Task.FromException(new InvalidOperationException("planned post-commit revocation failure"))
+            : Task.CompletedTask;
+    }
 
     internal sealed record UserGroupRevocation(
         Guid UserId,

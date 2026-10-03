@@ -82,7 +82,7 @@ internal sealed class TeamEventPublishingDecorator : ITeamManagementCommands, IT
                 await _realtimeConnectionManager.RevokeGroupAsync(
                     TeamRealtimeGroups.GetTeamGroup(teamId),
                     CancellationToken.None);
-                await NotifyDeletedTeamUsersAsync(teamId, deletion.PreviousState!, CancellationToken.None);
+                await NotifyDeletedTeamUsersAsync(teamId, deletion.PreviousState!);
             }
             finally
             {
@@ -104,7 +104,7 @@ internal sealed class TeamEventPublishingDecorator : ITeamManagementCommands, IT
             await _realtimeConnectionManager.RevokeGroupAsync(
                 TeamRealtimeGroups.GetTeamGroup(teamId),
                 CancellationToken.None);
-            await NotifyDeletedTeamUsersAsync(teamId, previousState!, CancellationToken.None);
+            await NotifyDeletedTeamUsersAsync(teamId, previousState!);
         }
         finally
         {
@@ -169,7 +169,7 @@ internal sealed class TeamEventPublishingDecorator : ITeamManagementCommands, IT
             userId,
             cancellationToken);
 
-        await _teamEventPublisher.InviteChangedAsync(teamId, invite.Id, userId, invite.Status, cancellationToken);
+        await _teamEventPublisher.InviteChangedAsync(teamId, invite.Id, userId, invite.Status, CancellationToken.None);
         return invite;
     }
 
@@ -179,7 +179,7 @@ internal sealed class TeamEventPublishingDecorator : ITeamManagementCommands, IT
             teamId,
             () => _inner.CancelInviteAsync(auth0UserId, teamId, inviteId, cancellationToken),
             cancellationToken);
-        await _teamEventPublisher.InviteChangedAsync(teamId, invite.Id, invite.UserId, invite.Status, cancellationToken);
+        await _teamEventPublisher.InviteChangedAsync(teamId, invite.Id, invite.UserId, invite.Status, CancellationToken.None);
         return invite;
     }
 
@@ -210,7 +210,7 @@ internal sealed class TeamEventPublishingDecorator : ITeamManagementCommands, IT
             userId,
             TeamRealtimeGroups.GetTeamGroup(teamId),
             CancellationToken.None);
-        await _teamEventPublisher.MembershipChangedAsync(teamId, userId, "Removed", cancellationToken);
+        await _teamEventPublisher.MembershipChangedAsync(teamId, userId, "Removed", CancellationToken.None);
         return team;
     }
 
@@ -232,7 +232,7 @@ internal sealed class TeamEventPublishingDecorator : ITeamManagementCommands, IT
             userId,
             TeamRealtimeGroups.GetTeamGroup(teamId),
             CancellationToken.None);
-        await _teamEventPublisher.MembershipChangedAsync(teamId, userId, "Left", cancellationToken);
+        await _teamEventPublisher.MembershipChangedAsync(teamId, userId, "Left", CancellationToken.None);
         return result.Team;
     }
 
@@ -265,9 +265,9 @@ internal sealed class TeamEventPublishingDecorator : ITeamManagementCommands, IT
             cancellationToken,
             teamId.Value);
 
-        await _teamEventPublisher.InviteChangedAsync(invite.TeamId, invite.Id, invite.UserId, invite.Status, cancellationToken);
+        await _teamEventPublisher.InviteChangedAsync(invite.TeamId, invite.Id, invite.UserId, invite.Status, CancellationToken.None);
         if (accept)
-            await _teamEventPublisher.MembershipChangedAsync(invite.TeamId, invite.UserId, "Joined", cancellationToken);
+            await _teamEventPublisher.MembershipChangedAsync(invite.TeamId, invite.UserId, "Joined", CancellationToken.None);
 
         return invite;
     }
@@ -280,7 +280,7 @@ internal sealed class TeamEventPublishingDecorator : ITeamManagementCommands, IT
             cancellationToken,
             teamId);
 
-        await _teamEventPublisher.CaptainTransferredAsync(teamId, newCaptainUserId, cancellationToken);
+        await _teamEventPublisher.CaptainTransferredAsync(teamId, newCaptainUserId, CancellationToken.None);
         return team;
     }
 
@@ -445,7 +445,7 @@ internal sealed class TeamEventPublishingDecorator : ITeamManagementCommands, IT
 
         try
         {
-            await PublishExpiredInviteEventsAsync(candidates, cancellationToken);
+            await PublishExpiredInviteEventsAsync(candidates);
         }
         catch when (operationException is not null)
         {
@@ -473,7 +473,7 @@ internal sealed class TeamEventPublishingDecorator : ITeamManagementCommands, IT
             .ToListAsync(cancellationToken);
     }
 
-    private async Task PublishExpiredInviteEventsAsync(IReadOnlyCollection<ExpiredTeamInviteChangedCandidate> candidates, CancellationToken cancellationToken)
+    private async Task PublishExpiredInviteEventsAsync(IReadOnlyCollection<ExpiredTeamInviteChangedCandidate> candidates)
     {
         if (candidates.Count == 0)
             return;
@@ -483,7 +483,7 @@ internal sealed class TeamEventPublishingDecorator : ITeamManagementCommands, IT
             .AsNoTracking()
             .Where(invite => candidateIds.Contains(invite.Id) && invite.Status == TeamInviteStatus.Expired)
             .Select(invite => invite.Id)
-            .ToListAsync(cancellationToken);
+            .ToListAsync(CancellationToken.None);
 
         foreach (var candidate in candidates.Where(candidate => expiredInviteIds.Contains(candidate.InviteId)))
         {
@@ -492,7 +492,7 @@ internal sealed class TeamEventPublishingDecorator : ITeamManagementCommands, IT
                 candidate.InviteId,
                 candidate.UserId,
                 candidate.Status,
-                cancellationToken);
+                CancellationToken.None);
         }
     }
 
@@ -577,18 +577,41 @@ internal sealed class TeamEventPublishingDecorator : ITeamManagementCommands, IT
         return user.Id.Value;
     }
 
-    private async Task NotifyDeletedTeamUsersAsync(Guid teamId, TeamService.TeamDeletionState state, CancellationToken cancellationToken)
+    private async Task NotifyDeletedTeamUsersAsync(Guid teamId, TeamService.TeamDeletionState state)
     {
+        List<Exception>? failures = null;
+
         foreach (var userId in state.MemberUserIds)
-            await _teamEventPublisher.MembershipChangedAsync(teamId, userId, "Removed", cancellationToken);
+        {
+            try
+            {
+                await _teamEventPublisher.MembershipChangedAsync(teamId, userId, "Removed", CancellationToken.None);
+            }
+            catch (Exception exception)
+            {
+                (failures ??= []).Add(exception);
+            }
+        }
 
         foreach (var invite in state.PendingInvites)
-            await _teamEventPublisher.InviteChangedAsync(
-                teamId,
-                invite.InviteId,
-                invite.UserId,
-                nameof(TeamInviteStatus.Cancelled),
-                cancellationToken);
+        {
+            try
+            {
+                await _teamEventPublisher.InviteChangedAsync(
+                    teamId,
+                    invite.InviteId,
+                    invite.UserId,
+                    nameof(TeamInviteStatus.Cancelled),
+                    CancellationToken.None);
+            }
+            catch (Exception exception)
+            {
+                (failures ??= []).Add(exception);
+            }
+        }
+
+        if (failures is not null)
+            throw new AggregateException("One or more deleted-team recipient notifications failed.", failures);
     }
 
     private static void IncrementTeamVersion(Team team)

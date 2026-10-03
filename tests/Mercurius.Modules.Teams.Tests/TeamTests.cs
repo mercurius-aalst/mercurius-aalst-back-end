@@ -1366,6 +1366,131 @@ public class TeamTests
     }
 
     [Theory]
+    [InlineData("remove")]
+    [InlineData("leave")]
+    [InlineData("accept")]
+    public async Task MembershipNotificationsAfterCommitIgnoreRequestCancellation(string operation)
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var affectedUser = CreateUser();
+        var team = CreateTeam("Alpha", captain);
+        TeamInvite? invite = null;
+        if (operation is "remove" or "leave")
+            team.AddMember(affectedUser.Id);
+        else
+        {
+            invite = new TeamInvite
+            {
+                Id = Guid.NewGuid(),
+                Team = team,
+                TeamId = team.Id,
+                UserId = affectedUser.Id,
+                Status = TeamInviteStatus.Pending,
+                CreatedAt = DateTime.UtcNow,
+                ExpiresAt = DateTime.UtcNow.AddDays(1)
+            };
+            dbContext.Set<TeamInvite>().Add(invite);
+        }
+
+        dbContext.Users.AddRange(captain, affectedUser);
+        dbContext.Teams.Add(team);
+        await dbContext.SaveChangesAsync();
+
+        using var requestCancellation = new CancellationTokenSource();
+        var publisher = new RecordingTeamEventPublisher
+        {
+            HonorCancellationToken = true,
+            AfterInviteChanged = operation == "accept"
+                ? () => requestCancellation.Cancel()
+                : null
+        };
+        var realtimeConnectionManager = new RecordingRealtimeConnectionManager
+        {
+            OnRevocation = operation == "accept"
+                ? null
+                : requestCancellation.Cancel
+        };
+        var teamService = CreateTeamService(
+            dbContext,
+            eventPublisher: publisher,
+            moduleEventPublisher: new NoopModuleEventPublisher(),
+            realtimeConnectionManager: realtimeConnectionManager);
+
+        switch (operation)
+        {
+            case "remove":
+                await teamService.RemoveMemberAsync(captain.Auth0UserId, team.Id, affectedUser.Id, requestCancellation.Token);
+                break;
+            case "leave":
+                await teamService.LeaveTeamAsync(affectedUser.Auth0UserId, team.Id, requestCancellation.Token);
+                break;
+            case "accept":
+                await teamService.RespondToInviteAsync(affectedUser.Auth0UserId, invite!.Id, true, requestCancellation.Token);
+                break;
+            default:
+                throw new InvalidOperationException($"Unknown membership operation '{operation}'.");
+        }
+
+        Assert.True(requestCancellation.IsCancellationRequested);
+        var membershipEvent = Assert.Single(publisher.MembershipEvents);
+        Assert.Equal(affectedUser.Id, membershipEvent.UserId);
+        Assert.Equal(operation switch
+        {
+            "remove" => "Removed",
+            "leave" => "Left",
+            _ => "Joined"
+        }, membershipEvent.Action);
+        Assert.Equal(CancellationToken.None, Assert.Single(publisher.MembershipCancellationTokens));
+        if (operation == "accept")
+            Assert.Equal(CancellationToken.None, Assert.Single(publisher.InviteCancellationTokens));
+    }
+
+    [Fact]
+    public async Task DeleteTeamAsync_AttemptsEveryRecipientBeforeSurfacingNotificationFailures()
+    {
+        await using var dbContext = CreateDbContext();
+        var captain = CreateUser();
+        var firstMember = CreateUser();
+        var secondMember = CreateUser();
+        var firstInvitee = CreateUser();
+        var secondInvitee = CreateUser();
+        var team = CreateTeam("Alpha", captain);
+        team.AddMember(firstMember.Id);
+        team.AddMember(secondMember.Id);
+        var invites = new[]
+        {
+            CreatePendingInvite(team, firstInvitee),
+            CreatePendingInvite(team, secondInvitee)
+        };
+        dbContext.Users.AddRange(captain, firstMember, secondMember, firstInvitee, secondInvitee);
+        dbContext.Teams.Add(team);
+        dbContext.Set<TeamInvite>().AddRange(invites);
+        await dbContext.SaveChangesAsync();
+
+        var publishFailure = new IOException("planned first-recipient notification failure");
+        var publisher = new ThrowingOnceTeamEventPublisher(publishFailure);
+        var teamService = CreateTeamService(
+            dbContext,
+            eventPublisher: publisher,
+            moduleEventPublisher: new NoopModuleEventPublisher());
+
+        var exception = await Assert.ThrowsAsync<AggregateException>(() => teamService.DeleteTeamAsync(team.Id));
+
+        Assert.Same(publishFailure, Assert.Single(exception.InnerExceptions));
+        Assert.Equal(3, publisher.MembershipEvents.Count);
+        Assert.Contains(publisher.MembershipEvents, evt => evt.UserId == captain.Id);
+        Assert.Contains(publisher.MembershipEvents, evt => evt.UserId == firstMember.Id);
+        Assert.Contains(publisher.MembershipEvents, evt => evt.UserId == secondMember.Id);
+        Assert.Equal(2, publisher.InviteEvents.Count);
+        Assert.All(invites, invite => Assert.Contains(
+            publisher.InviteEvents,
+            evt => evt.InviteId == invite.Id && evt.UserId == invite.UserId && evt.Status == nameof(TeamInviteStatus.Cancelled)));
+        Assert.All(publisher.CancellationTokens, token => Assert.Equal(CancellationToken.None, token));
+        Assert.True(team.IsDeleted);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task DeleteTeamAsync_WaitsForConcurrentInviteAndNotifiesItsRecipient(bool deleteByTeamId)
@@ -1898,6 +2023,20 @@ public class TeamTests
         return team;
     }
 
+    private static TeamInvite CreatePendingInvite(Team team, User user)
+    {
+        return new TeamInvite
+        {
+            Id = Guid.NewGuid(),
+            Team = team,
+            TeamId = team.Id,
+            UserId = user.Id,
+            Status = TeamInviteStatus.Pending,
+            CreatedAt = DateTime.UtcNow,
+            ExpiresAt = DateTime.UtcNow.AddDays(1)
+        };
+    }
+
     private static MercuriusDBContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<MercuriusDBContext>()
@@ -2147,11 +2286,16 @@ public class TeamTests
         public List<RecordedCaptainEvent> CaptainEvents { get; } = [];
         public List<CancellationToken> InviteCancellationTokens { get; } = [];
         public List<CancellationToken> MembershipCancellationTokens { get; } = [];
+        public bool HonorCancellationToken { get; init; }
+        public Action? AfterInviteChanged { get; init; }
 
         public Task InviteChangedAsync(Guid teamId, Guid inviteId, Guid affectedUserId, string status, CancellationToken cancellationToken = default)
         {
             InviteEvents.Add(new RecordedInviteEvent(teamId, inviteId, affectedUserId, status));
             InviteCancellationTokens.Add(cancellationToken);
+            AfterInviteChanged?.Invoke();
+            if (HonorCancellationToken)
+                cancellationToken.ThrowIfCancellationRequested();
             return Task.CompletedTask;
         }
 
@@ -2160,6 +2304,8 @@ public class TeamTests
             MembershipEvents.Add(new RecordedMembershipEvent(teamId, affectedUserId, action));
             MembershipCancellationTokens.Add(cancellationToken);
             _operationOrder?.Add("MembershipBroadcast");
+            if (HonorCancellationToken)
+                cancellationToken.ThrowIfCancellationRequested();
             return Task.CompletedTask;
         }
 
@@ -2185,6 +2331,36 @@ public class TeamTests
     {
         public Guid Publish<TPayload>(TPayload payload, DateTime? occurredAtUtc = null)
             where TPayload : notnull => Guid.NewGuid();
+    }
+
+    private sealed class ThrowingOnceTeamEventPublisher(Exception firstFailure) : ITeamEventPublisher
+    {
+        private int _membershipEventCount;
+
+        public List<RecordedInviteEvent> InviteEvents { get; } = [];
+        public List<RecordedMembershipEvent> MembershipEvents { get; } = [];
+        public List<CancellationToken> CancellationTokens { get; } = [];
+
+        public Task InviteChangedAsync(Guid teamId, Guid inviteId, Guid affectedUserId, string status, CancellationToken cancellationToken = default)
+        {
+            InviteEvents.Add(new RecordedInviteEvent(teamId, inviteId, affectedUserId, status));
+            CancellationTokens.Add(cancellationToken);
+            return Task.CompletedTask;
+        }
+
+        public Task MembershipChangedAsync(Guid teamId, Guid affectedUserId, string action, CancellationToken cancellationToken = default)
+        {
+            MembershipEvents.Add(new RecordedMembershipEvent(teamId, affectedUserId, action));
+            CancellationTokens.Add(cancellationToken);
+            return Interlocked.Increment(ref _membershipEventCount) == 1
+                ? Task.FromException(firstFailure)
+                : Task.CompletedTask;
+        }
+
+        public Task CaptainTransferredAsync(Guid teamId, Guid newCaptainUserId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public sealed record RecordedInviteEvent(Guid TeamId, Guid InviteId, Guid UserId, string Status);
+        public sealed record RecordedMembershipEvent(Guid TeamId, Guid UserId, string Action);
     }
 
     private sealed class AdvisoryLockAttemptInterceptor : DbCommandInterceptor

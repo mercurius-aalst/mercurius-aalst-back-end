@@ -115,7 +115,7 @@ internal sealed class TeamInviteMaintenanceService
                 await transaction.DisposeAsync();
         }
 
-        await PublishExpiredInviteEventsAsync(expiredEvents, cancellationToken);
+        await PublishExpiredInviteEventsAsync(expiredEvents);
         return expiredEvents.Count + deletedCount;
     }
 
@@ -236,8 +236,7 @@ internal sealed class TeamInviteMaintenanceService
     }
 
     private async Task PublishExpiredInviteEventsAsync(
-        IReadOnlyCollection<ExpiredInviteEvent> expiredEvents,
-        CancellationToken cancellationToken)
+        IReadOnlyCollection<ExpiredInviteEvent> expiredEvents)
     {
         if (expiredEvents.Count == 0)
             return;
@@ -246,17 +245,17 @@ internal sealed class TeamInviteMaintenanceService
             expiredEvents,
             new ParallelOptions
             {
-                CancellationToken = cancellationToken,
+                CancellationToken = CancellationToken.None,
                 MaxDegreeOfParallelism = Math.Min(_options.MaintenanceEventConcurrency, expiredEvents.Count)
             },
-            async (expiredEvent, eventCancellationToken) =>
+            async (expiredEvent, _) =>
             {
                 await _teamEventPublisher.InviteChangedAsync(
                     expiredEvent.TeamId,
                     expiredEvent.InviteId,
                     expiredEvent.UserId,
                     nameof(TeamInviteStatus.Expired),
-                    eventCancellationToken);
+                    CancellationToken.None);
             });
     }
 

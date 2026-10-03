@@ -25,7 +25,7 @@ internal sealed class RealtimeTeamEventPublisher : ITeamEventPublisher
         return _realtimePublisher.PublishAsync(new RealtimePublishRequest<TeamMembershipChangedRealtimeEvent>(
             "TeamMembershipChanged",
             new TeamMembershipChangedRealtimeEvent(teamId, affectedUserId, action),
-            [TeamRealtimeGroups.GetTeamGroup(teamId)]), cancellationToken);
+            [TeamRealtimeGroups.GetTeamGroup(teamId), TeamRealtimeGroups.GetUserGroup(affectedUserId)]), cancellationToken);
     }
 
     public Task CaptainTransferredAsync(Guid teamId, Guid newCaptainUserId, CancellationToken cancellationToken = default)

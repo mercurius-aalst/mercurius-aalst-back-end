@@ -66,14 +66,10 @@ internal sealed class TeamEventPublishingDecorator : ITeamManagementCommands, IT
         var deletion = await ExecuteWithDurableEventTransactionAsync(
             async () =>
             {
-                var previousState = await _dbContext.Teams
-                    .AsNoTracking()
-                    .Where(team => team.Id == teamId && !team.IsDeleted)
-                    .Select(team => new TeamDeletionState(team.LogoUrl))
-                    .SingleOrDefaultAsync(cancellationToken);
+                var previousState = await GetTeamDeletionStateAsync(teamId, cancellationToken);
 
                 await _inner.DeleteTeamAsync(teamId, cancellationToken);
-                return new TeamDeletionResult(previousState is not null, previousState?.LogoUrl);
+                return new TeamDeletionResult(previousState is not null, previousState);
             },
             result => result.TeamDeleted
                 ? PublishTeamDeletedAsync(teamId, cancellationToken)
@@ -87,27 +83,24 @@ internal sealed class TeamEventPublishingDecorator : ITeamManagementCommands, IT
                 await _realtimeConnectionManager.RevokeGroupAsync(
                     TeamRealtimeGroups.GetTeamGroup(teamId),
                     CancellationToken.None);
+                await NotifyDeletedTeamUsersAsync(teamId, deletion.PreviousState!, cancellationToken);
             }
             finally
             {
-                await _inner.RetireLogoIfUnreferencedAsync(deletion.PreviousLogoUrl, null);
+                await _inner.RetireLogoIfUnreferencedAsync(deletion.PreviousState!.LogoUrl, null);
             }
         }
     }
 
     public async Task DeleteTeamAsync(string auth0UserId, Guid teamId, CancellationToken cancellationToken = default)
     {
-        var previousLogoUrl = await ExecuteWithDurableEventTransactionAsync(
+        var previousState = await ExecuteWithDurableEventTransactionAsync(
             async () =>
             {
-                var logoUrl = await _dbContext.Teams
-                    .AsNoTracking()
-                    .Where(team => team.Id == teamId && !team.IsDeleted)
-                    .Select(team => team.LogoUrl)
-                    .SingleOrDefaultAsync(cancellationToken);
+                var teamState = await GetTeamDeletionStateAsync(teamId, cancellationToken);
 
                 await _inner.DeleteTeamAsync(auth0UserId, teamId, cancellationToken);
-                return logoUrl;
+                return teamState;
             },
             _ => PublishTeamDeletedAsync(teamId, cancellationToken),
             cancellationToken);
@@ -117,10 +110,11 @@ internal sealed class TeamEventPublishingDecorator : ITeamManagementCommands, IT
             await _realtimeConnectionManager.RevokeGroupAsync(
                 TeamRealtimeGroups.GetTeamGroup(teamId),
                 CancellationToken.None);
+            await NotifyDeletedTeamUsersAsync(teamId, previousState!, cancellationToken);
         }
         finally
         {
-            await _inner.RetireLogoIfUnreferencedAsync(previousLogoUrl, null);
+            await _inner.RetireLogoIfUnreferencedAsync(previousState!.LogoUrl, null);
         }
     }
 
@@ -538,6 +532,45 @@ internal sealed class TeamEventPublishingDecorator : ITeamManagementCommands, IT
         return user.Id.Value;
     }
 
+    private async Task<TeamDeletionState?> GetTeamDeletionStateAsync(Guid teamId, CancellationToken cancellationToken)
+    {
+        var team = await _dbContext.Teams
+            .AsNoTracking()
+            .AsSplitQuery()
+            .Include(team => team.Members)
+            .Include(team => team.TeamInvites)
+            .SingleOrDefaultAsync(team => team.Id == teamId && !team.IsDeleted, cancellationToken);
+        if (team is null)
+            return null;
+
+        var memberUserIds = team.Members.Select(member => member.UserId);
+        if (team.CaptainUserId is Guid captainUserId)
+            memberUserIds = memberUserIds.Append(captainUserId);
+
+        var now = DateTime.UtcNow;
+        return new TeamDeletionState(
+            team.LogoUrl,
+            memberUserIds.Distinct().ToArray(),
+            team.TeamInvites
+                .Where(invite => invite.Status == TeamInviteStatus.Pending && invite.ExpiresAt > now)
+                .Select(invite => new DeletedTeamInvite(invite.Id, invite.UserId))
+                .ToArray());
+    }
+
+    private async Task NotifyDeletedTeamUsersAsync(Guid teamId, TeamDeletionState state, CancellationToken cancellationToken)
+    {
+        foreach (var userId in state.MemberUserIds)
+            await _teamEventPublisher.MembershipChangedAsync(teamId, userId, "Removed", cancellationToken);
+
+        foreach (var invite in state.PendingInvites)
+            await _teamEventPublisher.InviteChangedAsync(
+                teamId,
+                invite.InviteId,
+                invite.UserId,
+                nameof(TeamInviteStatus.Cancelled),
+                cancellationToken);
+    }
+
     private static void IncrementTeamVersion(Team team)
     {
         team.Version++;
@@ -550,9 +583,14 @@ internal sealed class TeamEventPublishingDecorator : ITeamManagementCommands, IT
         bool NameChanged,
         Guid? TransferredCaptainUserId);
 
-    private sealed record TeamDeletionState(string? LogoUrl);
+    private sealed record TeamDeletionState(
+        string? LogoUrl,
+        IReadOnlyList<Guid> MemberUserIds,
+        IReadOnlyList<DeletedTeamInvite> PendingInvites);
 
-    private sealed record TeamDeletionResult(bool TeamDeleted, string? PreviousLogoUrl);
+    private sealed record TeamDeletionResult(bool TeamDeleted, TeamDeletionState? PreviousState);
+
+    private sealed record DeletedTeamInvite(Guid InviteId, Guid UserId);
 
     private sealed record ExpiredTeamInviteChangedCandidate(
         Guid TeamId,

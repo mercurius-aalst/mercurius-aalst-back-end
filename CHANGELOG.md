@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.6.0](https://github.com/MercuriusAalst/lan-party-backend/compare/backend-v0.5.2...backend-v0.6.0) (2026-10-06)
+
+
+### Features
+
+* add leaderboard tournament type for score and time competitions ([#129](https://github.com/MercuriusAalst/lan-party-backend/issues/129)) ([93de1d5](https://github.com/MercuriusAalst/lan-party-backend/commit/93de1d5066fc371749ff61e5019c53e5831c4521)), closes [#49](https://github.com/MercuriusAalst/lan-party-backend/issues/49)
+* add roster decline and selection notifications ([#128](https://github.com/MercuriusAalst/lan-party-backend/issues/128)) ([1226bef](https://github.com/MercuriusAalst/lan-party-backend/commit/1226befc780252ddbb5aeae547883b56fe0ed0df))
+* Notify Removed Team Members Over Realtime ([#139](https://github.com/MercuriusAalst/lan-party-backend/issues/139)) ([0ad65a7](https://github.com/MercuriusAalst/lan-party-backend/commit/0ad65a71a8aab340b92795d926c3565de0874332))
+
+
+### Bug Fixes
+
+* display linked LAN users by public username in leaderboards ([#135](https://github.com/MercuriusAalst/lan-party-backend/issues/135)) ([0a832be](https://github.com/MercuriusAalst/lan-party-backend/commit/0a832be09e40ce1debb7e30804e3e2e4122c5f88))
+* over eager deletion of pipelines: restore ([#126](https://github.com/MercuriusAalst/lan-party-backend/issues/126)) ([26da0e7](https://github.com/MercuriusAalst/lan-party-backend/commit/26da0e7bedf831537d023a039f1506fa2ccd9e78))
+* restrict public user data to usernames and match opponents ([#136](https://github.com/MercuriusAalst/lan-party-backend/issues/136)) ([d6618f9](https://github.com/MercuriusAalst/lan-party-backend/commit/d6618f95959cc51d83abf2017e90e4c71bef47be))
+
 ## [0.5.2](https://github.com/mercurius-aalst/mercurius-aalst-back-end/compare/backend-v0.5.1...backend-v0.5.2) (2025-11-14)
 
 

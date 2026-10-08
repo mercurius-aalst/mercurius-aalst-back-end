@@ -65,7 +65,7 @@ public class UserTests
         dbContext.Users.AddRange(publicUser, deletedUser, incompleteUser);
         await dbContext.SaveChangesAsync();
 
-        var module = new IdentityModuleFacade(dbContext);
+        var module = new IdentityModuleFacade(dbContext, new RecordingAuth0ManagementService(new Auth0ProfileSnapshot(null, null, false)));
         var usernames = await module.GetPublicUsernamesByIdsAsync(
             [new UserId(publicUser.Id), new UserId(deletedUser.Id), new UserId(incompleteUser.Id)]);
 
@@ -73,6 +73,52 @@ public class UserTests
         {
             [new UserId(publicUser.Id)] = "public-user"
         }, usernames);
+    }
+
+    [Fact]
+    public async Task IsAdminUserAsync_RequiresAnActiveLocalAccountAndCurrentAuth0Role()
+    {
+        await using var dbContext = CreateDbContext();
+        var activeUser = CreateStoredUser("auth0|active-admin", "active@example.com", "active-admin");
+        var deletedUser = CreateStoredUser("auth0|deleted-admin", "deleted@example.com", "deleted-admin");
+        deletedUser.IsDeleted = true;
+        dbContext.Users.AddRange(activeUser, deletedUser);
+        await dbContext.SaveChangesAsync();
+        var auth0 = new RecordingAuth0ManagementService(new Auth0ProfileSnapshot(null, null, false))
+        {
+            HasAdminRole = true
+        };
+        var module = new IdentityModuleFacade(dbContext, auth0);
+
+        Assert.True(await module.IsAdminUserAsync(new UserId(activeUser.Id)));
+        Assert.False(await module.IsAdminUserAsync(new UserId(deletedUser.Id)));
+        Assert.False(await module.IsAdminUserAsync(new UserId(Guid.NewGuid())));
+        Assert.Equal(1, auth0.HasAdminRoleCallCount);
+        Assert.Equal(activeUser.Auth0UserId, auth0.LastHasAdminRoleAuth0UserId);
+    }
+
+    [Fact]
+    public async Task GetAdminUsersAsync_ReturnsOnlyActiveLocalMatchesForAuth0AdminMembership()
+    {
+        await using var dbContext = CreateDbContext();
+        var matchingAdmin = CreateStoredUser("auth0|matching-admin", "matching@example.com", "AdminOne");
+        var otherAdmin = CreateStoredUser("auth0|other-admin", "other@example.com", "OtherAdmin");
+        var deletedAdmin = CreateStoredUser("auth0|deleted-admin", "deleted@example.com", "AdminDeleted");
+        deletedAdmin.IsDeleted = true;
+        dbContext.Users.AddRange(matchingAdmin, otherAdmin, deletedAdmin);
+        await dbContext.SaveChangesAsync();
+        var auth0 = new RecordingAuth0ManagementService(new Auth0ProfileSnapshot(null, null, false))
+        {
+            AdminAuth0UserIds = [matchingAdmin.Auth0UserId, otherAdmin.Auth0UserId, deletedAdmin.Auth0UserId]
+        };
+        var module = new IdentityModuleFacade(dbContext, auth0);
+
+        var admins = await module.GetAdminUsersAsync("adminone", 100);
+
+        var admin = Assert.Single(admins);
+        Assert.Equal(new UserId(matchingAdmin.Id), admin.Id);
+        Assert.Equal("AdminOne", admin.Username);
+        Assert.Equal(1, auth0.GetAdminUserIdsCallCount);
     }
 
     [Fact]
@@ -1163,12 +1209,30 @@ public class UserTests
         public string? LastPasswordResetEmail { get; private set; }
         public string? LastGetUserProfileAuth0UserId { get; private set; }
         public int GetUserProfileCallCount { get; private set; }
+        public bool HasAdminRole { get; init; }
+        public int HasAdminRoleCallCount { get; private set; }
+        public string? LastHasAdminRoleAuth0UserId { get; private set; }
+        public IReadOnlyList<string> AdminAuth0UserIds { get; init; } = [];
+        public int GetAdminUserIdsCallCount { get; private set; }
 
         public Task<Auth0ProfileSnapshot> GetUserProfileAsync(string auth0UserId, CancellationToken cancellationToken = default)
         {
             LastGetUserProfileAuth0UserId = auth0UserId;
             GetUserProfileCallCount++;
             return Task.FromResult(_profileSnapshot);
+        }
+
+        public Task<bool> HasAdminRoleAsync(string auth0UserId, CancellationToken cancellationToken = default)
+        {
+            LastHasAdminRoleAuth0UserId = auth0UserId;
+            HasAdminRoleCallCount++;
+            return Task.FromResult(HasAdminRole);
+        }
+
+        public Task<IReadOnlyList<string>> GetAdminUserIdsAsync(CancellationToken cancellationToken = default)
+        {
+            GetAdminUserIdsCallCount++;
+            return Task.FromResult(AdminAuth0UserIds);
         }
 
         public Task SendVerificationEmailAsync(string auth0UserId, CancellationToken cancellationToken = default)

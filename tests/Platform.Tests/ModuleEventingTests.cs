@@ -530,7 +530,7 @@ public class ModuleEventingTests
             })
             .Build();
         var moduleEventPublisher = new ModuleEventPublisher(dbContext);
-        var identityModule = new IdentityModuleFacade(dbContext);
+        var identityModule = new IdentityModuleFacade(dbContext, new NoopAuth0ManagementService());
         var teamsDbContext = new TeamsDbContextAdapter<MercuriusDBContext>(dbContext);
 
         return new TeamEventPublishingDecorator(

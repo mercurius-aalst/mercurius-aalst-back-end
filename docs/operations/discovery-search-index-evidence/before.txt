@@ -1,0 +1,362 @@
+database=Host=127.0.0.1;Port=5432;Username=postgres;Password=postgres;Timeout=5;Command Timeout=30;Database=mercurius_tests_92cae2e724d14bf4b2b42a6e68387a91
+pg_version=17.11
+server_addr=127.0.0.1/32:5432
+data_directory=<isolated local PostgreSQL 17 data directory>
+migration_full_ms=945
+seed_ms=7656
+row_count=105000
+active_count=100000
+type_breakdown=sponsor=10000, team=30000, tournament=20000, user=40000
+prefix_range_count=35000
+contains_range_count=30
+
+## sizes
+table_size | indexes_size | total_size
+16 MB | 34 MB | 50 MB
+
+indexrelname | size | idx_scan
+IX_search_documents_active_exact_order | 8920 kB | 0
+IX_search_documents_active_prefix | 6752 kB | 0
+IX_search_documents_entity_type_entity_id | 8968 kB | 1
+IX_search_documents_normalized_text_trgm | 5512 kB | 0
+PK_search_documents | 4304 kB | 0
+
+indexdef
+CREATE INDEX "IX_search_documents_active_exact_order" ON discovery.search_documents USING btree (normalized_text, type_order, entity_id) WHERE ((is_deleted = false) AND ((entity_type)::text = ANY ((ARRAY['user'::character varying, 'team'::character varying, 'tournament'::character varying])::text[])))
+CREATE INDEX "IX_search_documents_active_prefix" ON discovery.search_documents USING btree (normalized_text text_pattern_ops, type_order, entity_id) WHERE ((is_deleted = false) AND ((entity_type)::text = ANY ((ARRAY['user'::character varying, 'team'::character varying, 'game'::character varying])::text[])))
+CREATE UNIQUE INDEX "IX_search_documents_entity_type_entity_id" ON discovery.search_documents USING btree (entity_type, entity_id)
+CREATE INDEX "IX_search_documents_normalized_text_trgm" ON discovery.search_documents USING gin (normalized_text gin_trgm_ops) WHERE ((is_deleted = false) AND ((entity_type)::text = ANY ((ARRAY['user'::character varying, 'team'::character varying, 'game'::character varying])::text[])))
+CREATE UNIQUE INDEX "PK_search_documents" ON discovery.search_documents USING btree (id)
+
+
+prefix_pages=1751
+prefix_paging_reached_end=True
+near_end_cursor=eyJRdWVyeSI6InRlYSIsIlJlbGV2YW5jZVJhbmsiOjEsIk5vcm1hbGl6ZWRMYWJlbCI6InRlYW0tMjk5NzgiLCJUeXBlT3JkZXIiOjEsIlN0YWJsZUlkIjoiMDAyZTNiZGEtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwIn0=
+
+## sql:exact
+```sql
+SELECT @rank AS "RelevanceRank", s.normalized_text AS "NormalizedLabel", s.type_order::int AS "TypeOrder", s.entity_id AS "StableId", s.entity_type AS "Type", s.title AS "DisplayLabel"
+FROM discovery.search_documents AS s
+WHERE NOT (s.is_deleted) AND s.type_order <= 2 AND s.normalized_text = @normalizedQuery
+ORDER BY s.normalized_text, s.type_order::int, s.entity_id
+LIMIT @p
+```
+param @rank = 0 (Int32)
+param @normalizedQuery = 'tea' (String)
+param @p = 21 (Int32)
+
+## sql:prefix_common
+```sql
+SELECT @rank AS "RelevanceRank", s.normalized_text AS "NormalizedLabel", s.type_order::int AS "TypeOrder", s.entity_id AS "StableId", s.entity_type AS "Type", s.title AS "DisplayLabel"
+FROM discovery.search_documents AS s
+WHERE NOT (s.is_deleted) AND s.type_order <= 2 AND s.normalized_text LIKE @prefixPattern ESCAPE '\' AND s.normalized_text <> @normalizedQuery
+ORDER BY s.normalized_text, s.type_order::int, s.entity_id
+LIMIT @p
+```
+param @rank = 1 (Int32)
+param @prefixPattern = 'tea%' (String)
+param @normalizedQuery = 'tea' (String)
+param @p = 20 (Int32)
+
+## sql:contains_selective
+```sql
+SELECT @rank AS "RelevanceRank", s.normalized_text AS "NormalizedLabel", s.type_order::int AS "TypeOrder", s.entity_id AS "StableId", s.entity_type AS "Type", s.title AS "DisplayLabel"
+FROM discovery.search_documents AS s
+WHERE NOT (s.is_deleted) AND s.type_order <= 2 AND s.normalized_text LIKE @containsPattern ESCAPE '\' AND s.normalized_text NOT LIKE @prefixPattern ESCAPE '\'
+ORDER BY s.normalized_text, s.type_order::int, s.entity_id
+LIMIT @p
+```
+param @rank = 2 (Int32)
+param @containsPattern = '%zzqx%' (String)
+param @prefixPattern = 'zzqx%' (String)
+param @p = 21 (Int32)
+
+## sql:prefix_selective
+```sql
+SELECT @rank AS "RelevanceRank", s.normalized_text AS "NormalizedLabel", s.type_order::int AS "TypeOrder", s.entity_id AS "StableId", s.entity_type AS "Type", s.title AS "DisplayLabel"
+FROM discovery.search_documents AS s
+WHERE NOT (s.is_deleted) AND s.type_order <= 2 AND s.normalized_text LIKE @prefixPattern ESCAPE '\' AND s.normalized_text <> @normalizedQuery
+ORDER BY s.normalized_text, s.type_order::int, s.entity_id
+LIMIT @p
+```
+param @rank = 1 (Int32)
+param @prefixPattern = 'user-0000%' (String)
+param @normalizedQuery = 'user-0000' (String)
+param @p = 21 (Int32)
+
+## sql:page10
+```sql
+SELECT @rank AS "RelevanceRank", s.normalized_text AS "NormalizedLabel", s.type_order::int AS "TypeOrder", s.entity_id AS "StableId", s.entity_type AS "Type", s.title AS "DisplayLabel"
+FROM discovery.search_documents AS s
+WHERE NOT (s.is_deleted) AND s.type_order <= 2 AND s.normalized_text LIKE @prefixPattern ESCAPE '\' AND s.normalized_text <> @normalizedQuery AND (s.normalized_text > @cursor_NormalizedLabel OR (s.normalized_text = @cursor_NormalizedLabel AND s.type_order > @cursor_TypeOrder) OR (s.normalized_text = @cursor_NormalizedLabel AND s.type_order = @cursor_TypeOrder AND s.entity_id > @cursor_StableId))
+ORDER BY s.normalized_text, s.type_order::int, s.entity_id
+LIMIT @p
+```
+param @rank = 1 (Int32)
+param @prefixPattern = 'tea%' (String)
+param @normalizedQuery = 'tea' (String)
+param @cursor_NormalizedLabel = 'tea-00178' (String)
+param @cursor_TypeOrder = 0 (Int16)
+param @cursor_StableId = '000f42f3-0000-0000-0000-000000000000' (String)
+param @p = 21 (Int32)
+
+## sql:near_end_prefix
+```sql
+SELECT @rank AS "RelevanceRank", s.normalized_text AS "NormalizedLabel", s.type_order::int AS "TypeOrder", s.entity_id AS "StableId", s.entity_type AS "Type", s.title AS "DisplayLabel"
+FROM discovery.search_documents AS s
+WHERE NOT (s.is_deleted) AND s.type_order <= 2 AND s.normalized_text LIKE @prefixPattern ESCAPE '\' AND s.normalized_text <> @normalizedQuery AND (s.normalized_text > @cursor_NormalizedLabel OR (s.normalized_text = @cursor_NormalizedLabel AND s.type_order > @cursor_TypeOrder) OR (s.normalized_text = @cursor_NormalizedLabel AND s.type_order = @cursor_TypeOrder AND s.entity_id > @cursor_StableId))
+ORDER BY s.normalized_text, s.type_order::int, s.entity_id
+LIMIT @p
+```
+param @rank = 1 (Int32)
+param @prefixPattern = 'tea%' (String)
+param @normalizedQuery = 'tea' (String)
+param @cursor_NormalizedLabel = 'team-29978' (String)
+param @cursor_TypeOrder = 1 (Int16)
+param @cursor_StableId = '002e3bda-0000-0000-0000-000000000000' (String)
+param @p = 21 (Int32)
+
+## plan_normal:exact
+Limit  (cost=3641.01..3641.02 rows=1 width=72) (actual time=13.255..13.256 rows=1 loops=1)
+  Buffers: shared hit=2066
+  ->  Sort  (cost=3641.01..3641.02 rows=1 width=72) (actual time=13.254..13.254 rows=1 loops=1)
+        Sort Key: ((type_order)::integer), entity_id
+        Sort Method: quicksort  Memory: 25kB
+        Buffers: shared hit=2066
+        ->  Seq Scan on search_documents s  (cost=0.00..3641.00 rows=1 width=72) (actual time=0.410..13.248 rows=1 loops=1)
+              Filter: ((NOT is_deleted) AND (type_order <= 2) AND ((normalized_text)::text = 'tea'::text))
+              Rows Removed by Filter: 104999
+              Buffers: shared hit=2066
+Planning Time: 0.100 ms
+Execution Time: 13.270 ms
+
+## plan_generic:exact
+Limit  (cost=3641.01..3641.02 rows=1 width=100) (actual time=12.602..12.603 rows=1 loops=1)
+  Buffers: shared hit=2066
+  ->  Sort  (cost=3641.01..3641.02 rows=1 width=100) (actual time=12.601..12.601 rows=1 loops=1)
+        Sort Key: ((type_order)::integer), entity_id
+        Sort Method: quicksort  Memory: 25kB
+        Buffers: shared hit=2066
+        ->  Seq Scan on search_documents s  (cost=0.00..3641.00 rows=1 width=100) (actual time=0.287..12.595 rows=1 loops=1)
+              Filter: ((NOT is_deleted) AND (type_order <= 2) AND ((normalized_text)::text = $2))
+              Rows Removed by Filter: 104999
+              Buffers: shared hit=2066
+Planning Time: 0.118 ms
+Execution Time: 12.620 ms
+
+
+## plan_normal:prefix_common
+Limit  (cost=4664.20..4666.50 rows=20 width=72) (actual time=30.389..33.133 rows=20 loops=1)
+  Buffers: shared hit=2130
+  ->  Gather Merge  (cost=4664.20..6707.86 rows=17771 width=72) (actual time=30.389..33.130 rows=20 loops=1)
+        Workers Planned: 1
+        Workers Launched: 1
+        Buffers: shared hit=2130
+        ->  Sort  (cost=3664.19..3708.62 rows=17771 width=72) (actual time=15.611..15.611 rows=10 loops=2)
+              Sort Key: normalized_text, ((type_order)::integer), entity_id
+              Sort Method: top-N heapsort  Memory: 29kB
+              Buffers: shared hit=2130
+              Worker 0:  Sort Method: quicksort  Memory: 25kB
+              ->  Parallel Seq Scan on search_documents s  (cost=0.00..3191.31 rows=17771 width=72) (actual time=0.485..8.850 rows=17500 loops=2)
+                    Filter: ((NOT is_deleted) AND (type_order <= 2) AND ((normalized_text)::text ~~ 'tea%'::text) AND ((normalized_text)::text <> 'tea'::text))
+                    Rows Removed by Filter: 35000
+                    Buffers: shared hit=2066
+Planning Time: 0.121 ms
+Execution Time: 33.150 ms
+
+## plan_generic:prefix_common
+Limit  (cost=4187.12..4187.23 rows=45 width=100) (actual time=39.208..39.211 rows=20 loops=1)
+  Buffers: shared hit=2066
+  ->  Sort  (cost=4187.12..4188.25 rows=453 width=100) (actual time=39.207..39.208 rows=20 loops=1)
+        Sort Key: normalized_text, ((type_order)::integer), entity_id
+        Sort Method: top-N heapsort  Memory: 29kB
+        Buffers: shared hit=2066
+        ->  Seq Scan on search_documents s  (cost=0.00..4167.13 rows=453 width=100) (actual time=0.011..24.233 rows=35000 loops=1)
+              Filter: ((NOT is_deleted) AND (type_order <= 2) AND ((normalized_text)::text <> $3) AND ((normalized_text)::text ~~ like_escape($2, '\'::text)))
+              Rows Removed by Filter: 70000
+              Buffers: shared hit=2066
+Planning Time: 0.121 ms
+Execution Time: 39.226 ms
+
+
+## plan_normal:contains_selective
+Limit  (cost=3903.67..3903.69 rows=9 width=72) (actual time=13.984..13.987 rows=21 loops=1)
+  Buffers: shared hit=2066
+  ->  Sort  (cost=3903.67..3903.69 rows=9 width=72) (actual time=13.983..13.984 rows=21 loops=1)
+        Sort Key: normalized_text, ((type_order)::integer), entity_id
+        Sort Method: quicksort  Memory: 28kB
+        Buffers: shared hit=2066
+        ->  Seq Scan on search_documents s  (cost=0.00..3903.52 rows=9 width=72) (actual time=0.735..13.938 rows=30 loops=1)
+              Filter: ((NOT is_deleted) AND (type_order <= 2) AND ((normalized_text)::text ~~ '%zzqx%'::text) AND ((normalized_text)::text !~~ 'zzqx%'::text))
+              Rows Removed by Filter: 104970
+              Buffers: shared hit=2066
+Planning Time: 0.114 ms
+Execution Time: 14.000 ms
+
+## plan_generic:contains_selective
+Limit  (cost=4449.51..4449.62 rows=45 width=100) (actual time=17.027..17.030 rows=21 loops=1)
+  Buffers: shared hit=2066
+  ->  Sort  (cost=4449.51..4450.64 rows=451 width=100) (actual time=17.026..17.027 rows=21 loops=1)
+        Sort Key: normalized_text, ((type_order)::integer), entity_id
+        Sort Method: quicksort  Memory: 28kB
+        Buffers: shared hit=2066
+        ->  Seq Scan on search_documents s  (cost=0.00..4429.63 rows=451 width=100) (actual time=0.926..16.979 rows=30 loops=1)
+              Filter: ((NOT is_deleted) AND (type_order <= 2) AND ((normalized_text)::text ~~ like_escape($2, '\'::text)) AND ((normalized_text)::text !~~ like_escape($3, '\'::text)))
+              Rows Removed by Filter: 104970
+              Buffers: shared hit=2066
+Planning Time: 0.121 ms
+Execution Time: 17.047 ms
+
+
+## plan_normal:prefix_selective
+Limit  (cost=3903.67..3903.69 rows=9 width=72) (actual time=13.578..13.579 rows=0 loops=1)
+  Buffers: shared hit=2066
+  ->  Sort  (cost=3903.67..3903.69 rows=9 width=72) (actual time=13.578..13.579 rows=0 loops=1)
+        Sort Key: normalized_text, ((type_order)::integer), entity_id
+        Sort Method: quicksort  Memory: 25kB
+        Buffers: shared hit=2066
+        ->  Seq Scan on search_documents s  (cost=0.00..3903.52 rows=9 width=72) (actual time=13.573..13.574 rows=0 loops=1)
+              Filter: ((NOT is_deleted) AND (type_order <= 2) AND ((normalized_text)::text ~~ 'user-0000%'::text) AND ((normalized_text)::text <> 'user-0000'::text))
+              Rows Removed by Filter: 105000
+              Buffers: shared hit=2066
+Planning Time: 0.139 ms
+Execution Time: 13.594 ms
+
+## plan_generic:prefix_selective
+Limit  (cost=4187.12..4187.23 rows=45 width=100) (actual time=18.957..18.958 rows=0 loops=1)
+  Buffers: shared hit=2066
+  ->  Sort  (cost=4187.12..4188.25 rows=453 width=100) (actual time=18.957..18.957 rows=0 loops=1)
+        Sort Key: normalized_text, ((type_order)::integer), entity_id
+        Sort Method: quicksort  Memory: 25kB
+        Buffers: shared hit=2066
+        ->  Seq Scan on search_documents s  (cost=0.00..4167.13 rows=453 width=100) (actual time=18.951..18.952 rows=0 loops=1)
+              Filter: ((NOT is_deleted) AND (type_order <= 2) AND ((normalized_text)::text <> $3) AND ((normalized_text)::text ~~ like_escape($2, '\'::text)))
+              Rows Removed by Filter: 105000
+              Buffers: shared hit=2066
+Planning Time: 0.132 ms
+Execution Time: 18.975 ms
+
+
+## plan_normal:page10
+Limit  (cost=5518.38..5520.80 rows=21 width=72) (actual time=33.818..36.798 rows=21 loops=1)
+  Buffers: shared hit=2130
+  ->  Gather Merge  (cost=5518.38..7255.46 rows=15105 width=72) (actual time=33.818..36.796 rows=21 loops=1)
+        Workers Planned: 1
+        Workers Launched: 1
+        Buffers: shared hit=2130
+        ->  Sort  (cost=4518.37..4556.13 rows=15105 width=72) (actual time=18.647..18.648 rows=21 loops=2)
+              Sort Key: normalized_text, ((type_order)::integer), entity_id
+              Sort Method: top-N heapsort  Memory: 29kB
+              Buffers: shared hit=2130
+              Worker 0:  Sort Method: top-N heapsort  Memory: 29kB
+              ->  Parallel Seq Scan on search_documents s  (cost=0.00..4111.12 rows=15105 width=72) (actual time=0.010..12.613 rows=17410 loops=2)
+                    Filter: ((NOT is_deleted) AND (type_order <= 2) AND ((normalized_text)::text ~~ 'tea%'::text) AND ((normalized_text)::text <> 'tea'::text) AND (((normalized_text)::text > 'tea-00178'::text) OR (((normalized_text)::text = 'tea-00178'::text) AND (type_order > '0'::smallint)) OR (((normalized_text)::text = 'tea-00178'::text) AND (type_order = '0'::smallint) AND ((entity_id)::text > '000f42f3-0000-0000-0000-000000000000'::text))))
+                    Rows Removed by Filter: 35090
+                    Buffers: shared hit=2066
+Planning Time: 0.168 ms
+Execution Time: 36.816 ms
+
+## plan_generic:page10
+Limit  (cost=5230.88..5231.91 rows=9 width=100) (actual time=36.549..39.614 rows=21 loops=1)
+  Buffers: shared hit=2130
+  ->  Gather Merge  (cost=5230.88..5241.11 rows=89 width=100) (actual time=36.548..39.611 rows=21 loops=1)
+        Workers Planned: 1
+        Workers Launched: 1
+        Buffers: shared hit=2130
+        ->  Sort  (cost=4230.87..4231.09 rows=89 width=100) (actual time=21.516..21.517 rows=21 loops=2)
+              Sort Key: normalized_text, ((type_order)::integer), entity_id
+              Sort Method: top-N heapsort  Memory: 29kB
+              Buffers: shared hit=2130
+              Worker 0:  Sort Method: top-N heapsort  Memory: 30kB
+              ->  Parallel Seq Scan on search_documents s  (cost=0.00..4227.99 rows=89 width=100) (actual time=0.012..15.818 rows=17410 loops=2)
+                    Filter: ((NOT is_deleted) AND (type_order <= 2) AND ((normalized_text)::text <> $3) AND ((normalized_text)::text ~~ like_escape($2, '\'::text)) AND (((normalized_text)::text > $4) OR (((normalized_text)::text = $4) AND (type_order > $5)) OR (((normalized_text)::text = $4) AND (type_order = $5) AND ((entity_id)::text > $6))))
+                    Rows Removed by Filter: 35090
+                    Buffers: shared hit=2066
+Planning:
+  Buffers: shared hit=3
+Planning Time: 0.156 ms
+Execution Time: 39.633 ms
+
+
+## plan_generic_bitmapscan_off:page10
+Limit  (cost=5230.88..5231.91 rows=9 width=100) (actual time=36.526..39.553 rows=21 loops=1)
+  Buffers: shared hit=2130
+  ->  Gather Merge  (cost=5230.88..5241.11 rows=89 width=100) (actual time=36.525..39.550 rows=21 loops=1)
+        Workers Planned: 1
+        Workers Launched: 1
+        Buffers: shared hit=2130
+        ->  Sort  (cost=4230.87..4231.09 rows=89 width=100) (actual time=21.652..21.653 rows=21 loops=2)
+              Sort Key: normalized_text, ((type_order)::integer), entity_id
+              Sort Method: top-N heapsort  Memory: 29kB
+              Buffers: shared hit=2130
+              Worker 0:  Sort Method: top-N heapsort  Memory: 29kB
+              ->  Parallel Seq Scan on search_documents s  (cost=0.00..4227.99 rows=89 width=100) (actual time=0.013..15.871 rows=17410 loops=2)
+                    Filter: ((NOT is_deleted) AND (type_order <= 2) AND ((normalized_text)::text <> $3) AND ((normalized_text)::text ~~ like_escape($2, '\'::text)) AND (((normalized_text)::text > $4) OR (((normalized_text)::text = $4) AND (type_order > $5)) OR (((normalized_text)::text = $4) AND (type_order = $5) AND ((entity_id)::text > $6))))
+                    Rows Removed by Filter: 35090
+                    Buffers: shared hit=2066
+Planning Time: 0.146 ms
+Execution Time: 39.573 ms
+
+
+## plan_normal:near_end_prefix
+Limit  (cost=5350.83..5353.25 rows=21 width=72) (actual time=31.506..34.211 rows=21 loops=1)
+  Buffers: shared hit=2130
+  ->  Gather Merge  (cost=5350.83..6433.90 rows=9418 width=72) (actual time=31.505..34.208 rows=21 loops=1)
+        Workers Planned: 1
+        Workers Launched: 1
+        Buffers: shared hit=2130
+        ->  Sort  (cost=4350.82..4374.37 rows=9418 width=72) (actual time=11.795..11.796 rows=10 loops=2)
+              Sort Key: normalized_text, ((type_order)::integer), entity_id
+              Sort Method: quicksort  Memory: 27kB
+              Buffers: shared hit=2130
+              Worker 0:  Sort Method: quicksort  Memory: 25kB
+              ->  Parallel Seq Scan on search_documents s  (cost=0.00..4096.90 rows=9418 width=72) (actual time=8.684..11.733 rows=10 loops=2)
+                    Filter: ((NOT is_deleted) AND (type_order <= 2) AND ((normalized_text)::text ~~ 'tea%'::text) AND ((normalized_text)::text <> 'tea'::text) AND (((normalized_text)::text > 'team-29978'::text) OR (((normalized_text)::text = 'team-29978'::text) AND (type_order > '1'::smallint)) OR (((normalized_text)::text = 'team-29978'::text) AND (type_order = '1'::smallint) AND ((entity_id)::text > '002e3bda-0000-0000-0000-000000000000'::text))))
+                    Rows Removed by Filter: 52490
+                    Buffers: shared hit=2066
+Planning Time: 0.169 ms
+Execution Time: 34.230 ms
+
+## plan_generic:near_end_prefix
+Limit  (cost=5230.88..5231.91 rows=9 width=100) (actual time=29.527..32.274 rows=21 loops=1)
+  Buffers: shared hit=2130
+  ->  Gather Merge  (cost=5230.88..5241.11 rows=89 width=100) (actual time=29.525..32.271 rows=21 loops=1)
+        Workers Planned: 1
+        Workers Launched: 1
+        Buffers: shared hit=2130
+        ->  Sort  (cost=4230.87..4231.09 rows=89 width=100) (actual time=14.216..14.217 rows=10 loops=2)
+              Sort Key: normalized_text, ((type_order)::integer), entity_id
+              Sort Method: quicksort  Memory: 27kB
+              Buffers: shared hit=2130
+              Worker 0:  Sort Method: quicksort  Memory: 25kB
+              ->  Parallel Seq Scan on search_documents s  (cost=0.00..4227.99 rows=89 width=100) (actual time=10.271..14.149 rows=10 loops=2)
+                    Filter: ((NOT is_deleted) AND (type_order <= 2) AND ((normalized_text)::text <> $3) AND ((normalized_text)::text ~~ like_escape($2, '\'::text)) AND (((normalized_text)::text > $4) OR (((normalized_text)::text = $4) AND (type_order > $5)) OR (((normalized_text)::text = $4) AND (type_order = $5) AND ((entity_id)::text > $6))))
+                    Rows Removed by Filter: 52490
+                    Buffers: shared hit=2066
+Planning Time: 0.155 ms
+Execution Time: 32.293 ms
+
+
+## rebuild_stats:before
+relname | n_live_tup | n_dead_tup | n_tup_ins | n_tup_upd | n_tup_hot_upd | vacuum_count | autovacuum_count
+search_documents | 105000 | 0 | 105000 | 0 | 0 | 0 | 1
+search_index_rebuild_documents | 0 | 0 | 0 | 0 | 0 | 0 | 0
+
+rebuild_ms=14162
+## rebuild_stats:after
+relname | n_live_tup | n_dead_tup | n_tup_ins | n_tup_upd | n_tup_hot_upd | vacuum_count | autovacuum_count
+search_documents | 105000 | 100000 | 105000 | 100000 | 1 | 0 | 1
+search_index_rebuild_documents | 0 | 100000 | 100000 | 0 | 0 | 0 | 0
+
+staging_rows=0
+dead_rows_estimate=100000
+vacuum_full_ms=1459
+total_after_vacuum
+42 MB
+
+rebuild_after_vacuum_full_ms=14083
+## rebuild_stats:after_vacuum_full
+relname | n_live_tup | n_dead_tup | n_tup_ins | n_tup_upd | n_tup_hot_upd | vacuum_count | autovacuum_count
+search_documents | 105000 | 100000 | 0 | 100000 | 2 | 0 | 0
+search_index_rebuild_documents | 0 | 100000 | 200000 | 0 | 0 | 0 | 1
+

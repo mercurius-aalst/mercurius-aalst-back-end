@@ -1,4 +1,5 @@
 using Mercurius.Modules.Discovery.Domain;
+using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -12,6 +13,15 @@ internal interface IDiscoveryDbContext
     DbSet<SearchIndexRebuildDocument> SearchIndexRebuildDocuments { get; }
 
     bool IsRelational { get; }
+    bool RetriesOnFailure { get; }
+    DbConnection? Connection { get; }
+    DbTransaction? CurrentTransaction { get; }
+
+    Task OpenConnectionAsync(CancellationToken cancellationToken = default);
+
+    Task CloseConnectionAsync();
+
+    void DiscardConnection();
 
     EntityEntry Entry(object entity);
 

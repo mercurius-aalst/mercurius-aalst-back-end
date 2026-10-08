@@ -20,41 +20,38 @@ internal sealed class SearchIndexRebuildWorker : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        try
-        {
-            using var initialScope = _scopeFactory.CreateScope();
-            var rebuildService = initialScope.ServiceProvider.GetRequiredService<SearchIndexRebuildService>();
-            await rebuildService.RecoverInterruptedJobsAsync(stoppingToken);
-            await rebuildService.EnsureInitialJobAsync(stoppingToken);
-        }
-        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-        {
-            return;
-        }
-        catch (Exception exception)
-        {
-            _logger.LogError(exception, "Discovery search-index initial rebuild scheduling failed.");
-        }
-
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
                 using var scope = _scopeFactory.CreateScope();
+                var ownership = scope.ServiceProvider.GetRequiredService<DiscoveryRebuildOwnership>();
                 var rebuildService = scope.ServiceProvider.GetRequiredService<SearchIndexRebuildService>();
-                if (await rebuildService.RunNextAsync(stoppingToken))
-                    continue;
+                await using var lease = await ownership.TryAcquireAsync(stoppingToken);
+                if (lease is not null)
+                {
+                    await rebuildService.RecoverInterruptedJobsAsync(stoppingToken);
+                    await rebuildService.EnsureInitialJobAsync(stoppingToken);
+                    await rebuildService.RunNextAsync(stoppingToken);
+                }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
-                return;
+                break;
             }
             catch (Exception exception)
             {
-                _logger.LogError(exception, "Discovery search-index rebuild worker failed.");
+                _logger.LogError(exception, "Discovery search-index rebuild ownership or work failed.");
             }
 
-            await Task.Delay(IdleDelay, stoppingToken);
+            try
+            {
+                await Task.Delay(IdleDelay, stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
+            }
         }
     }
 }

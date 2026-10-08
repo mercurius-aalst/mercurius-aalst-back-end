@@ -1,0 +1,365 @@
+database=Host=127.0.0.1;Port=5432;Username=postgres;Password=postgres;Timeout=5;Command Timeout=30;Database=mercurius_tests_43ad8e348677415bbdcd2f5a1a7b66aa
+pg_version=17.11
+server_addr=127.0.0.1/32:5432
+data_directory=<isolated local PostgreSQL 17 data directory>
+new_migration=20261008150454_DiscoverySearchQueryIndexOptimization
+seed_ms=11554
+row_count=105000
+active_count=100000
+type_breakdown=sponsor=10000, team=30000, tournament=20000, user=40000
+prefix_range_count=35000
+contains_range_count=30
+new_migration_ms=452
+
+## sizes
+table_size | indexes_size | total_size
+16 MB | 23 MB | 39 MB
+
+indexrelname | size | idx_scan
+IX_search_documents_active_text | 7352 kB | 0
+IX_search_documents_entity_type_entity_id | 8840 kB | 1
+IX_search_documents_normalized_text_trgm | 2808 kB | 0
+PK_search_documents | 4304 kB | 0
+
+indexdef
+CREATE INDEX "IX_search_documents_active_text" ON discovery.search_documents USING btree (normalized_text, type_order, entity_id) WHERE (is_deleted = false)
+CREATE UNIQUE INDEX "IX_search_documents_entity_type_entity_id" ON discovery.search_documents USING btree (entity_type, entity_id)
+CREATE INDEX "IX_search_documents_normalized_text_trgm" ON discovery.search_documents USING gin (normalized_text gin_trgm_ops) WHERE (is_deleted = false)
+CREATE UNIQUE INDEX "PK_search_documents" ON discovery.search_documents USING btree (id)
+
+
+prefix_pages=1751
+prefix_paging_reached_end=True
+near_end_cursor=eyJRdWVyeSI6InRlYSIsIlJlbGV2YW5jZVJhbmsiOjEsIk5vcm1hbGl6ZWRMYWJlbCI6InRlYW0tMjk5NzgiLCJUeXBlT3JkZXIiOjEsIlN0YWJsZUlkIjoiMDAyZTNiZGEtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwIn0=
+
+## sql:exact
+```sql
+SELECT @rank AS "RelevanceRank", s.normalized_text AS "NormalizedLabel", s.type_order AS "TypeOrder", s.entity_id AS "StableId", s.entity_type AS "Type", s.title AS "DisplayLabel"
+FROM discovery.search_documents AS s
+WHERE NOT (s.is_deleted) AND s.entity_type IN ('user', 'team', 'tournament') AND s.normalized_text = @normalizedQuery
+ORDER BY s.normalized_text, s.type_order, s.entity_id
+LIMIT @p
+```
+param @rank = 0 (Int32)
+param @normalizedQuery = 'tea' (String)
+param @p = 21 (Int32)
+
+## sql:prefix_common
+```sql
+SELECT @rank AS "RelevanceRank", m.normalized_text AS "NormalizedLabel", m.type_order AS "TypeOrder", m.entity_id AS "StableId", m.entity_type AS "Type", m.title AS "DisplayLabel"
+FROM (
+    SELECT * FROM discovery.search_documents
+    WHERE is_deleted = false
+      AND normalized_text >= @p0
+      AND normalized_text < @p1
+) AS m
+WHERE NOT (m.is_deleted) AND m.entity_type IN ('user', 'team', 'tournament') AND m.normalized_text LIKE @prefixPattern ESCAPE '\' AND m.normalized_text <> @normalizedQuery
+ORDER BY m.normalized_text, m.type_order, m.entity_id
+LIMIT @p4
+```
+param @rank = 1 (Int32)
+param @p0 = 'tea' (String)
+param @p1 = 'teb' (String)
+param @prefixPattern = 'tea%' (String)
+param @normalizedQuery = 'tea' (String)
+param @p4 = 20 (Int32)
+
+## sql:contains_selective
+```sql
+SELECT @rank AS "RelevanceRank", s.normalized_text AS "NormalizedLabel", s.type_order AS "TypeOrder", s.entity_id AS "StableId", s.entity_type AS "Type", s.title AS "DisplayLabel"
+FROM discovery.search_documents AS s
+WHERE NOT (s.is_deleted) AND s.entity_type IN ('user', 'team', 'tournament') AND s.normalized_text LIKE @containsPattern ESCAPE '\' AND s.normalized_text NOT LIKE @prefixPattern ESCAPE '\'
+ORDER BY s.normalized_text, s.type_order, s.entity_id
+LIMIT @p
+```
+param @rank = 2 (Int32)
+param @containsPattern = '%zzqx%' (String)
+param @prefixPattern = 'zzqx%' (String)
+param @p = 21 (Int32)
+
+## sql:prefix_selective
+```sql
+SELECT @rank AS "RelevanceRank", m.normalized_text AS "NormalizedLabel", m.type_order AS "TypeOrder", m.entity_id AS "StableId", m.entity_type AS "Type", m.title AS "DisplayLabel"
+FROM (
+    SELECT * FROM discovery.search_documents
+    WHERE is_deleted = false
+      AND normalized_text >= @p0
+      AND normalized_text < @p1
+) AS m
+WHERE NOT (m.is_deleted) AND m.entity_type IN ('user', 'team', 'tournament') AND m.normalized_text LIKE @prefixPattern ESCAPE '\' AND m.normalized_text <> @normalizedQuery
+ORDER BY m.normalized_text, m.type_order, m.entity_id
+LIMIT @p4
+```
+param @rank = 1 (Int32)
+param @p0 = 'user-0000' (String)
+param @p1 = 'user-0001' (String)
+param @prefixPattern = 'user-0000%' (String)
+param @normalizedQuery = 'user-0000' (String)
+param @p4 = 21 (Int32)
+
+## sql:page10
+```sql
+SELECT @rank AS "RelevanceRank", m.normalized_text AS "NormalizedLabel", m.type_order AS "TypeOrder", m.entity_id AS "StableId", m.entity_type AS "Type", m.title AS "DisplayLabel"
+FROM (
+    SELECT * FROM discovery.search_documents
+    WHERE is_deleted = false
+      AND normalized_text >= @p0
+      AND normalized_text < @p1
+) AS m
+WHERE NOT (m.is_deleted) AND m.entity_type IN ('user', 'team', 'tournament') AND m.normalized_text LIKE @prefixPattern ESCAPE '\' AND m.normalized_text <> @normalizedQuery AND (m.normalized_text, m.type_order, m.entity_id) > (@cursor_NormalizedLabel, @p5, @cursor_StableId)
+ORDER BY m.normalized_text, m.type_order, m.entity_id
+LIMIT @p8
+```
+param @rank = 1 (Int32)
+param @p0 = 'tea' (String)
+param @p1 = 'teb' (String)
+param @prefixPattern = 'tea%' (String)
+param @normalizedQuery = 'tea' (String)
+param @cursor_NormalizedLabel = 'tea-00178' (String)
+param @p5 = 0 (Int16)
+param @cursor_StableId = '000f42f3-0000-0000-0000-000000000000' (String)
+param @p8 = 21 (Int32)
+
+## sql:near_end_prefix
+```sql
+SELECT @rank AS "RelevanceRank", m.normalized_text AS "NormalizedLabel", m.type_order AS "TypeOrder", m.entity_id AS "StableId", m.entity_type AS "Type", m.title AS "DisplayLabel"
+FROM (
+    SELECT * FROM discovery.search_documents
+    WHERE is_deleted = false
+      AND normalized_text >= @p0
+      AND normalized_text < @p1
+) AS m
+WHERE NOT (m.is_deleted) AND m.entity_type IN ('user', 'team', 'tournament') AND m.normalized_text LIKE @prefixPattern ESCAPE '\' AND m.normalized_text <> @normalizedQuery AND (m.normalized_text, m.type_order, m.entity_id) > (@cursor_NormalizedLabel, @p5, @cursor_StableId)
+ORDER BY m.normalized_text, m.type_order, m.entity_id
+LIMIT @p8
+```
+param @rank = 1 (Int32)
+param @p0 = 'tea' (String)
+param @p1 = 'teb' (String)
+param @prefixPattern = 'tea%' (String)
+param @normalizedQuery = 'tea' (String)
+param @cursor_NormalizedLabel = 'team-29978' (String)
+param @p5 = 1 (Int16)
+param @cursor_StableId = '002e3bda-0000-0000-0000-000000000000' (String)
+param @p8 = 21 (Int32)
+
+## plan_normal:exact
+Limit  (cost=0.42..8.44 rows=1 width=70) (actual time=0.011..0.011 rows=1 loops=1)
+  Buffers: shared hit=4
+  ->  Index Scan using "IX_search_documents_active_text" on search_documents s  (cost=0.42..8.44 rows=1 width=70) (actual time=0.010..0.011 rows=1 loops=1)
+        Index Cond: ((normalized_text)::text = 'tea'::text)
+        Filter: ((entity_type)::text = ANY ('{user,team,tournament}'::text[]))
+        Buffers: shared hit=4
+Planning:
+  Buffers: shared hit=1
+Planning Time: 0.097 ms
+Execution Time: 0.020 ms
+
+## plan_generic:exact
+Limit  (cost=0.42..8.44 rows=1 width=98) (actual time=0.011..0.012 rows=1 loops=1)
+  Buffers: shared hit=4
+  ->  Index Scan using "IX_search_documents_active_text" on search_documents s  (cost=0.42..8.44 rows=1 width=98) (actual time=0.010..0.011 rows=1 loops=1)
+        Index Cond: ((normalized_text)::text = $2)
+        Filter: ((entity_type)::text = ANY ('{user,team,tournament}'::text[]))
+        Buffers: shared hit=4
+Planning:
+  Buffers: shared hit=1
+Planning Time: 0.114 ms
+Execution Time: 0.021 ms
+
+
+## plan_normal:prefix_common
+Limit  (cost=0.42..20.83 rows=20 width=70) (actual time=0.011..0.027 rows=20 loops=1)
+  Buffers: shared hit=24
+  ->  Index Scan using "IX_search_documents_active_text" on search_documents  (cost=0.42..9411.66 rows=9219 width=70) (actual time=0.011..0.026 rows=20 loops=1)
+        Index Cond: (((normalized_text)::text >= 'tea'::text) AND ((normalized_text)::text < 'teb'::text) AND ((normalized_text)::text >= 'tea'::text) AND ((normalized_text)::text < 'teb'::text))
+        Filter: (((normalized_text)::text ~~ 'tea%'::text) AND ((normalized_text)::text <> 'tea'::text) AND ((entity_type)::text = ANY ('{user,team,tournament}'::text[])))
+        Rows Removed by Filter: 1
+        Buffers: shared hit=24
+Planning:
+  Buffers: shared hit=1
+Planning Time: 0.123 ms
+Execution Time: 0.036 ms
+
+## plan_generic:prefix_common
+Limit  (cost=0.42..782.57 rows=1 width=98) (actual time=0.012..0.026 rows=20 loops=1)
+  Buffers: shared hit=24
+  ->  Index Scan using "IX_search_documents_active_text" on search_documents  (cost=0.42..1564.73 rows=2 width=98) (actual time=0.012..0.024 rows=20 loops=1)
+        Index Cond: (((normalized_text)::text >= $2) AND ((normalized_text)::text < $3))
+        Filter: (((normalized_text)::text <> $5) AND ((entity_type)::text = ANY ('{user,team,tournament}'::text[])) AND ((normalized_text)::text ~~ like_escape($4, '\'::text)))
+        Rows Removed by Filter: 1
+        Buffers: shared hit=24
+Planning:
+  Buffers: shared hit=1
+Planning Time: 0.134 ms
+Execution Time: 0.036 ms
+
+
+## plan_normal:contains_selective
+Limit  (cost=59.78..59.81 rows=9 width=70) (actual time=0.069..0.072 rows=21 loops=1)
+  Buffers: shared hit=32
+  ->  Sort  (cost=59.78..59.81 rows=9 width=70) (actual time=0.069..0.070 rows=21 loops=1)
+        Sort Key: normalized_text COLLATE "C", type_order, entity_id
+        Sort Method: quicksort  Memory: 28kB
+        Buffers: shared hit=32
+        ->  Bitmap Heap Scan on search_documents s  (cost=21.54..59.64 rows=9 width=70) (actual time=0.024..0.052 rows=30 loops=1)
+              Recheck Cond: (((normalized_text)::text ~~ '%zzqx%'::text) AND (NOT is_deleted))
+              Filter: (((normalized_text)::text !~~ 'zzqx%'::text) AND ((entity_type)::text = ANY ('{user,team,tournament}'::text[])))
+              Heap Blocks: exact=27
+              Buffers: shared hit=32
+              ->  Bitmap Index Scan on "IX_search_documents_normalized_text_trgm"  (cost=0.00..21.54 rows=10 width=0) (actual time=0.014..0.014 rows=30 loops=1)
+                    Index Cond: ((normalized_text)::text ~~ '%zzqx%'::text)
+                    Buffers: shared hit=5
+Planning:
+  Buffers: shared hit=1
+Planning Time: 0.093 ms
+Execution Time: 0.085 ms
+
+## plan_generic:contains_selective
+Limit  (cost=1211.33..1211.45 rows=45 width=98) (actual time=0.071..0.073 rows=21 loops=1)
+  Buffers: shared hit=32
+  ->  Sort  (cost=1211.33..1212.46 rows=451 width=98) (actual time=0.071..0.072 rows=21 loops=1)
+        Sort Key: normalized_text COLLATE "C", type_order, entity_id
+        Sort Method: quicksort  Memory: 28kB
+        Buffers: shared hit=32
+        ->  Bitmap Heap Scan on search_documents s  (cost=15.31..1191.45 rows=451 width=98) (actual time=0.038..0.059 rows=30 loops=1)
+              Recheck Cond: (((normalized_text)::text ~~ like_escape($2, '\'::text)) AND (NOT is_deleted))
+              Filter: (((entity_type)::text = ANY ('{user,team,tournament}'::text[])) AND ((normalized_text)::text !~~ like_escape($3, '\'::text)))
+              Heap Blocks: exact=27
+              Buffers: shared hit=32
+              ->  Bitmap Index Scan on "IX_search_documents_normalized_text_trgm"  (cost=0.00..15.20 rows=501 width=0) (actual time=0.028..0.028 rows=30 loops=1)
+                    Index Cond: ((normalized_text)::text ~~ like_escape($2, '\'::text))
+                    Buffers: shared hit=5
+Planning:
+  Buffers: shared hit=1
+Planning Time: 0.094 ms
+Execution Time: 0.096 ms
+
+
+## plan_normal:prefix_selective
+Limit  (cost=0.42..8.45 rows=1 width=70) (actual time=0.011..0.012 rows=0 loops=1)
+  Buffers: shared hit=3
+  ->  Index Scan using "IX_search_documents_active_text" on search_documents  (cost=0.42..8.45 rows=1 width=70) (actual time=0.011..0.011 rows=0 loops=1)
+        Index Cond: (((normalized_text)::text >= 'user-0000'::text) AND ((normalized_text)::text < 'user-0001'::text) AND ((normalized_text)::text >= 'user-0000'::text) AND ((normalized_text)::text < 'user-0001'::text))
+        Filter: (((normalized_text)::text ~~ 'user-0000%'::text) AND ((normalized_text)::text <> 'user-0000'::text) AND ((entity_type)::text = ANY ('{user,team,tournament}'::text[])))
+        Buffers: shared hit=3
+Planning:
+  Buffers: shared hit=1
+Planning Time: 0.119 ms
+Execution Time: 0.020 ms
+
+## plan_generic:prefix_selective
+Limit  (cost=0.42..782.57 rows=1 width=98) (actual time=0.006..0.006 rows=0 loops=1)
+  Buffers: shared hit=3
+  ->  Index Scan using "IX_search_documents_active_text" on search_documents  (cost=0.42..1564.73 rows=2 width=98) (actual time=0.006..0.006 rows=0 loops=1)
+        Index Cond: (((normalized_text)::text >= $2) AND ((normalized_text)::text < $3))
+        Filter: (((normalized_text)::text <> $5) AND ((entity_type)::text = ANY ('{user,team,tournament}'::text[])) AND ((normalized_text)::text ~~ like_escape($4, '\'::text)))
+        Buffers: shared hit=3
+Planning:
+  Buffers: shared hit=1
+Planning Time: 0.108 ms
+Execution Time: 0.015 ms
+
+
+## plan_normal:page10
+Limit  (cost=0.42..24.87 rows=21 width=70) (actual time=0.015..0.032 rows=21 loops=1)
+  Buffers: shared hit=24
+  ->  Index Scan using "IX_search_documents_active_text" on search_documents  (cost=0.42..9123.75 rows=7836 width=70) (actual time=0.015..0.030 rows=21 loops=1)
+        Index Cond: (((normalized_text)::text >= 'tea'::text) AND ((normalized_text)::text < 'teb'::text) AND ((normalized_text)::text >= 'tea'::text) AND ((normalized_text)::text < 'teb'::text) AND (ROW((normalized_text)::text, type_order, (entity_id)::text) > ROW('tea-00178'::text, '0'::smallint, '000f42f3-0000-0000-0000-000000000000'::text)))
+        Filter: (((normalized_text)::text ~~ 'tea%'::text) AND ((normalized_text)::text <> 'tea'::text) AND ((entity_type)::text = ANY ('{user,team,tournament}'::text[])))
+        Buffers: shared hit=24
+Planning:
+  Buffers: shared hit=1
+Planning Time: 0.119 ms
+Execution Time: 0.041 ms
+
+## plan_generic:page10
+Limit  (cost=525.32..525.32 rows=1 width=98) (actual time=16.348..16.351 rows=21 loops=1)
+  Buffers: shared hit=1004
+  ->  Sort  (cost=525.32..525.32 rows=1 width=98) (actual time=16.347..16.348 rows=21 loops=1)
+        Sort Key: search_documents.normalized_text COLLATE "C", search_documents.type_order, search_documents.entity_id
+        Sort Method: top-N heapsort  Memory: 30kB
+        Buffers: shared hit=1004
+        ->  Bitmap Heap Scan on search_documents  (cost=10.51..525.31 rows=1 width=98) (actual time=2.518..11.844 rows=34821 loops=1)
+              Recheck Cond: (((normalized_text)::text >= $2) AND ((normalized_text)::text < $3) AND (ROW((normalized_text)::text, type_order, (entity_id)::text) > ROW($6, $7, $8)) AND (NOT is_deleted))
+              Filter: (((normalized_text)::text <> $5) AND ((entity_type)::text = ANY ('{user,team,tournament}'::text[])) AND ((normalized_text)::text ~~ like_escape($4, '\'::text)))
+              Heap Blocks: exact=676
+              Buffers: shared hit=1004
+              ->  Bitmap Index Scan on "IX_search_documents_active_text"  (cost=0.00..10.51 rows=167 width=0) (actual time=2.437..2.437 rows=34821 loops=1)
+                    Index Cond: (((normalized_text)::text >= $2) AND ((normalized_text)::text < $3) AND (ROW((normalized_text)::text, type_order, (entity_id)::text) > ROW($6, $7, $8)))
+                    Buffers: shared hit=328
+Planning:
+  Buffers: shared hit=4
+Planning Time: 0.167 ms
+Execution Time: 16.371 ms
+
+
+## plan_generic_bitmapscan_off:page10
+Limit  (cost=0.42..564.98 rows=1 width=98) (actual time=0.023..0.043 rows=21 loops=1)
+  Buffers: shared hit=24
+  ->  Index Scan using "IX_search_documents_active_text" on search_documents  (cost=0.42..564.98 rows=1 width=98) (actual time=0.022..0.040 rows=21 loops=1)
+        Index Cond: (((normalized_text)::text >= $2) AND ((normalized_text)::text < $3) AND (ROW((normalized_text)::text, type_order, (entity_id)::text) > ROW($6, $7, $8)))
+        Filter: (((normalized_text)::text <> $5) AND ((entity_type)::text = ANY ('{user,team,tournament}'::text[])) AND ((normalized_text)::text ~~ like_escape($4, '\'::text)))
+        Buffers: shared hit=24
+Planning:
+  Buffers: shared hit=1
+Planning Time: 0.171 ms
+Execution Time: 0.057 ms
+
+
+## plan_normal:near_end_prefix
+Limit  (cost=0.42..36.29 rows=21 width=70) (actual time=0.015..0.032 rows=21 loops=1)
+  Buffers: shared hit=24
+  ->  Index Scan using "IX_search_documents_active_text" on search_documents  (cost=0.42..8346.35 rows=4886 width=70) (actual time=0.015..0.030 rows=21 loops=1)
+        Index Cond: (((normalized_text)::text >= 'tea'::text) AND ((normalized_text)::text < 'teb'::text) AND ((normalized_text)::text >= 'tea'::text) AND ((normalized_text)::text < 'teb'::text) AND (ROW((normalized_text)::text, type_order, (entity_id)::text) > ROW('team-29978'::text, '1'::smallint, '002e3bda-0000-0000-0000-000000000000'::text)))
+        Filter: (((normalized_text)::text ~~ 'tea%'::text) AND ((normalized_text)::text <> 'tea'::text) AND ((entity_type)::text = ANY ('{user,team,tournament}'::text[])))
+        Buffers: shared hit=24
+Planning:
+  Buffers: shared hit=1
+Planning Time: 0.151 ms
+Execution Time: 0.044 ms
+
+## plan_generic:near_end_prefix
+Limit  (cost=525.32..525.32 rows=1 width=98) (actual time=0.045..0.047 rows=21 loops=1)
+  Buffers: shared hit=24
+  ->  Sort  (cost=525.32..525.32 rows=1 width=98) (actual time=0.044..0.045 rows=21 loops=1)
+        Sort Key: search_documents.normalized_text COLLATE "C", search_documents.type_order, search_documents.entity_id
+        Sort Method: quicksort  Memory: 27kB
+        Buffers: shared hit=24
+        ->  Bitmap Heap Scan on search_documents  (cost=10.51..525.31 rows=1 width=98) (actual time=0.020..0.034 rows=21 loops=1)
+              Recheck Cond: (((normalized_text)::text >= $2) AND ((normalized_text)::text < $3) AND (ROW((normalized_text)::text, type_order, (entity_id)::text) > ROW($6, $7, $8)) AND (NOT is_deleted))
+              Filter: (((normalized_text)::text <> $5) AND ((entity_type)::text = ANY ('{user,team,tournament}'::text[])) AND ((normalized_text)::text ~~ like_escape($4, '\'::text)))
+              Heap Blocks: exact=21
+              Buffers: shared hit=24
+              ->  Bitmap Index Scan on "IX_search_documents_active_text"  (cost=0.00..10.51 rows=167 width=0) (actual time=0.009..0.009 rows=21 loops=1)
+                    Index Cond: (((normalized_text)::text >= $2) AND ((normalized_text)::text < $3) AND (ROW((normalized_text)::text, type_order, (entity_id)::text) > ROW($6, $7, $8)))
+                    Buffers: shared hit=3
+Planning:
+  Buffers: shared hit=1
+Planning Time: 0.121 ms
+Execution Time: 0.061 ms
+
+
+## rebuild_stats:before
+relname | n_live_tup | n_dead_tup | n_tup_ins | n_tup_upd | n_tup_hot_upd | vacuum_count | autovacuum_count
+search_documents | 105000 | 0 | 105000 | 0 | 0 | 0 | 1
+search_index_rebuild_documents | 0 | 0 | 0 | 0 | 0 | 0 | 0
+
+rebuild_ms=14299
+## rebuild_stats:after
+relname | n_live_tup | n_dead_tup | n_tup_ins | n_tup_upd | n_tup_hot_upd | vacuum_count | autovacuum_count
+search_documents | 105000 | 100000 | 105000 | 100000 | 2 | 0 | 1
+search_index_rebuild_documents | 0 | 0 | 100000 | 0 | 0 | 0 | 0
+
+staging_rows=0
+dead_rows_estimate=100000
+vacuum_full_ms=751
+total_after_vacuum
+40 MB
+
+rebuild_after_vacuum_full_ms=13534
+## rebuild_stats:after_vacuum_full
+relname | n_live_tup | n_dead_tup | n_tup_ins | n_tup_upd | n_tup_hot_upd | vacuum_count | autovacuum_count
+search_documents | 105000 | 100000 | 0 | 100000 | 11254 | 0 | 0
+search_index_rebuild_documents | 0 | 0 | 200000 | 0 | 0 | 0 | 0
+

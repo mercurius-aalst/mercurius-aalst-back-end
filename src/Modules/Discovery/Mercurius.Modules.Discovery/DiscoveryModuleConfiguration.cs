@@ -25,6 +25,7 @@ public static class DiscoveryModuleConfiguration
         services.TryAddScoped<IDiscoveryDbContext, DiscoveryDbContextAdapter<TDbContext>>();
         services.AddScoped<IDiscoveryModule, DiscoveryModuleFacade>();
         services.AddScoped<SearchDocumentProjector>();
+        services.AddScoped<DiscoveryRebuildOwnership>();
         services.AddScoped<SearchIndexRebuildService>();
         services.AddHostedService<SearchIndexRebuildWorker>();
         services.AddModuleEventHandler<UserProfileChangedIntegrationEvent, IdentitySearchProjectionHandler>();

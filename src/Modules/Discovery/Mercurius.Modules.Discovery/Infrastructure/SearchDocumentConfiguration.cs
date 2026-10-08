@@ -17,14 +17,18 @@ internal sealed class SearchDocumentConfiguration : IEntityTypeConfiguration<Sea
         entity.Property(document => document.Subtitle).HasColumnName("subtitle").HasMaxLength(500).IsRequired();
         entity.Property(document => document.ImageUrl).HasColumnName("image_url").HasMaxLength(2048);
         entity.Property(document => document.Route).HasColumnName("route").HasMaxLength(2048).IsRequired();
-        entity.Property(document => document.NormalizedText).HasColumnName("normalized_text").HasMaxLength(1000).IsRequired();
+        entity.Property(document => document.NormalizedText)
+            .HasColumnName("normalized_text")
+            .HasMaxLength(1000)
+            .UseCollation("C")
+            .IsRequired();
         entity.Property(document => document.TypeOrder).HasColumnName("type_order").IsRequired();
         entity.Property(document => document.SourceVersion).HasColumnName("source_version").IsRequired();
         entity.Property(document => document.IsDeleted).HasColumnName("is_deleted").IsRequired();
         entity.Property(document => document.UpdatedAtUtc).HasColumnName("updated_at_utc").IsRequired();
         entity.HasIndex(document => new { document.EntityType, document.EntityId }).IsUnique();
         entity.HasIndex(document => new { document.NormalizedText, document.TypeOrder, document.EntityId })
-            .HasDatabaseName("IX_search_documents_active_exact_order")
-            .HasFilter("is_deleted = false AND entity_type IN ('user', 'team', 'tournament')");
+            .HasDatabaseName("IX_search_documents_active_text")
+            .HasFilter("is_deleted = false");
     }
 }

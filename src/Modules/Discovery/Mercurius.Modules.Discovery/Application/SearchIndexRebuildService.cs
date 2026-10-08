@@ -16,6 +16,7 @@ internal sealed class SearchIndexRebuildService
     private const string FailureMessage = "The rebuild failed. Check server logs for details.";
     private const int RebuildPageSize = 1000;
     private readonly IDiscoveryDbContext _dbContext;
+    private readonly DiscoveryRebuildOwnership _ownership;
     private readonly IIdentityModule _identityModule;
     private readonly ITeamsModule _teamsModule;
     private readonly ITournamentModule _tournamentModule;
@@ -24,6 +25,7 @@ internal sealed class SearchIndexRebuildService
 
     public SearchIndexRebuildService(
         IDiscoveryDbContext dbContext,
+        DiscoveryRebuildOwnership ownership,
         IIdentityModule identityModule,
         ITeamsModule teamsModule,
         ITournamentModule tournamentModule,
@@ -31,6 +33,7 @@ internal sealed class SearchIndexRebuildService
         ILogger<SearchIndexRebuildService> logger)
     {
         _dbContext = dbContext;
+        _ownership = ownership;
         _identityModule = identityModule;
         _teamsModule = teamsModule;
         _tournamentModule = tournamentModule;
@@ -75,6 +78,7 @@ internal sealed class SearchIndexRebuildService
 
     public async Task EnsureInitialJobAsync(CancellationToken cancellationToken)
     {
+        await _ownership.EnsureOwnedAsync(cancellationToken);
         var hasProjectedDocuments = await _dbContext.SearchDocuments
             .AsNoTracking()
             .AnyAsync(document => !document.IsDeleted, cancellationToken);
@@ -102,6 +106,7 @@ internal sealed class SearchIndexRebuildService
 
     public async Task<bool> RunNextAsync(CancellationToken cancellationToken)
     {
+        await _ownership.EnsureOwnedAsync(cancellationToken);
         var job = await _dbContext.SearchIndexRebuildJobs
             .Where(candidate => candidate.Status == SearchIndexRebuildJobStatus.Pending)
             .OrderBy(candidate => candidate.CreatedAtUtc)
@@ -112,6 +117,7 @@ internal sealed class SearchIndexRebuildService
         job.Status = SearchIndexRebuildJobStatus.Running;
         job.StartedAtUtc = DateTime.UtcNow;
         job.Error = null;
+        await _ownership.EnsureOwnedAsync(cancellationToken);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         try
@@ -125,6 +131,7 @@ internal sealed class SearchIndexRebuildService
         }
         catch (Exception exception)
         {
+            await _ownership.EnsureOwnedAsync(CancellationToken.None);
             _logger.LogError(exception, "Discovery search-index rebuild job {JobId} failed.", job.Id);
             try
             {
@@ -132,12 +139,14 @@ internal sealed class SearchIndexRebuildService
             }
             catch (Exception cleanupException)
             {
+                await _ownership.EnsureOwnedAsync(CancellationToken.None);
                 _logger.LogError(cleanupException, "Discovery search-index rebuild cleanup failed for job {JobId}.", job.Id);
             }
 
             job.Status = SearchIndexRebuildJobStatus.Failed;
             job.CompletedAtUtc = DateTime.UtcNow;
             job.Error = FailureMessage;
+            await _ownership.EnsureOwnedAsync(CancellationToken.None);
             await _dbContext.SaveChangesAsync(cancellationToken);
         }
 
@@ -146,6 +155,7 @@ internal sealed class SearchIndexRebuildService
 
     public async Task RecoverInterruptedJobsAsync(CancellationToken cancellationToken)
     {
+        await _ownership.EnsureOwnedAsync(cancellationToken);
         var interruptedJobs = await _dbContext.SearchIndexRebuildJobs
             .Where(job =>
                 job.Status == SearchIndexRebuildJobStatus.Running)
@@ -162,9 +172,10 @@ internal sealed class SearchIndexRebuildService
             job.Error = null;
         }
 
+        await _ownership.EnsureOwnedAsync(cancellationToken);
         await _dbContext.SaveChangesAsync(cancellationToken);
         _logger.LogWarning(
-            "Requeued {Count} interrupted Discovery search-index rebuild job(s) at worker startup.",
+            "Requeued {Count} interrupted Discovery search-index rebuild job(s) before rebuild work.",
             interruptedJobs.Count);
     }
 
@@ -337,6 +348,7 @@ internal sealed class SearchIndexRebuildService
         }).ToList();
 
         _dbContext.SearchIndexRebuildDocuments.AddRange(stagedDocuments);
+        await _ownership.EnsureOwnedAsync(cancellationToken);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         foreach (var document in stagedDocuments)
@@ -349,8 +361,10 @@ internal sealed class SearchIndexRebuildService
         DateTime updatedAtUtc,
         CancellationToken cancellationToken)
     {
+        await _ownership.EnsureOwnedAsync(cancellationToken);
         await using var transaction = await _dbContext.BeginTransactionAsync(cancellationToken);
 
+        await _ownership.EnsureOwnedAsync(cancellationToken);
         await _dbContext.ExecuteSqlInterpolatedAsync($"""
             INSERT INTO discovery.search_documents (
                 id, entity_type, entity_id, title, subtitle, image_url, route, normalized_text,
@@ -372,6 +386,7 @@ internal sealed class SearchIndexRebuildService
             WHERE discovery.search_documents.source_version <= EXCLUDED.source_version;
             """, cancellationToken);
 
+        await _ownership.EnsureOwnedAsync(cancellationToken);
         await _dbContext.ExecuteSqlInterpolatedAsync($"""
             UPDATE discovery.search_documents AS document
             SET title = '', subtitle = '', image_url = NULL, route = '', normalized_text = '',
@@ -389,7 +404,9 @@ internal sealed class SearchIndexRebuildService
         await ClearStagedDocumentsAsync(job.Id, cancellationToken);
         job.Status = SearchIndexRebuildJobStatus.Completed;
         job.CompletedAtUtc = DateTime.UtcNow;
+        await _ownership.EnsureOwnedAsync(cancellationToken);
         await _dbContext.SaveChangesAsync(cancellationToken);
+        await _ownership.EnsureOwnedAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
     }
 
@@ -399,6 +416,7 @@ internal sealed class SearchIndexRebuildService
         DateTime updatedAtUtc,
         CancellationToken cancellationToken)
     {
+        await _ownership.EnsureOwnedAsync(cancellationToken);
         var stagedDocuments = await _dbContext.SearchIndexRebuildDocuments
             .Where(document => document.JobId == job.Id)
             .ToListAsync(cancellationToken);
@@ -453,16 +471,17 @@ internal sealed class SearchIndexRebuildService
         _dbContext.SearchIndexRebuildDocuments.RemoveRange(stagedDocuments);
         job.Status = SearchIndexRebuildJobStatus.Completed;
         job.CompletedAtUtc = DateTime.UtcNow;
+        await _ownership.EnsureOwnedAsync(cancellationToken);
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
     private async Task ClearStagedDocumentsAsync(Guid jobId, CancellationToken cancellationToken)
     {
+        await _ownership.EnsureOwnedAsync(cancellationToken);
         if (_dbContext.IsRelational)
         {
             await _dbContext.ExecuteSqlInterpolatedAsync($"""
-                DELETE FROM discovery.search_index_rebuild_documents
-                WHERE job_id = {jobId};
+                TRUNCATE TABLE discovery.search_index_rebuild_documents;
                 """, cancellationToken);
             return;
         }

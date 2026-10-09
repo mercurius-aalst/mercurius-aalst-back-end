@@ -191,9 +191,9 @@ internal sealed class IdentityModuleFacade : IIdentityModule
             .Where(user =>
                 auth0UserIds.Contains(user.Auth0UserId) &&
                 !user.IsDeleted &&
-                !string.IsNullOrWhiteSpace(user.Username) &&
-                !string.IsNullOrWhiteSpace(user.NormalizedUsername) &&
-                (normalizedQuery.Length == 0 || user.NormalizedUsername.Contains(normalizedQuery)))
+                (normalizedQuery.Length == 0 ||
+                 (!string.IsNullOrWhiteSpace(user.NormalizedUsername) &&
+                  user.NormalizedUsername.Contains(normalizedQuery))))
             .OrderBy(user => user.NormalizedUsername)
             .ThenBy(user => user.Id)
             .Skip((int)offset)

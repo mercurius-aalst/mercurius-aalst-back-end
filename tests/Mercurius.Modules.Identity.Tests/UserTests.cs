@@ -149,6 +149,47 @@ public class UserTests
     }
 
     [Fact]
+    public async Task GetAdminUsersAsync_IncludesIncompleteProfilesWhenUnfilteredAndKeepsFilteredQuerySafe()
+    {
+        await using var dbContext = CreateDbContext();
+        var completeAdmin = CreateStoredUser("auth0|complete-admin", "complete@example.com", "CompleteAdmin");
+        var noUsernameAdmin = CreateStoredUser("auth0|no-username-admin", "no-username@example.com");
+        noUsernameAdmin.Username = null;
+        noUsernameAdmin.NormalizedUsername = null;
+        noUsernameAdmin.Firstname = null;
+        noUsernameAdmin.Lastname = null;
+        var blankUsernameAdmin = CreateStoredUser("auth0|blank-username-admin", "blank@example.com");
+        blankUsernameAdmin.Username = "   ";
+        blankUsernameAdmin.NormalizedUsername = "   ";
+        var nonAdmin = CreateStoredUser("auth0|non-admin", "non-admin@example.com", "NonAdmin");
+        var deletedAdmin = CreateStoredUser("auth0|deleted-admin", "deleted@example.com", "DeletedAdmin");
+        deletedAdmin.IsDeleted = true;
+        dbContext.Users.AddRange(completeAdmin, noUsernameAdmin, blankUsernameAdmin, nonAdmin, deletedAdmin);
+        await dbContext.SaveChangesAsync();
+        var auth0 = new RecordingAuth0ManagementService(new Auth0ProfileSnapshot(null, null, false))
+        {
+            AdminAuth0UserIds =
+            [
+                completeAdmin.Auth0UserId,
+                noUsernameAdmin.Auth0UserId,
+                blankUsernameAdmin.Auth0UserId,
+                deletedAdmin.Auth0UserId
+            ]
+        };
+        var module = new IdentityModuleFacade(dbContext, auth0);
+
+        var unfiltered = await module.GetAdminUsersAsync(string.Empty, 50);
+        var filtered = await module.GetAdminUsersAsync("complete", 50);
+
+        Assert.Equal(
+            new[] { completeAdmin.Id, noUsernameAdmin.Id, blankUsernameAdmin.Id }.OrderBy(id => id),
+            unfiltered.Select(user => user.Id.Value).OrderBy(id => id));
+        Assert.Equal("Player One", unfiltered.Single(user => user.Id.Value == completeAdmin.Id).DisplayName);
+        Assert.Equal("Incomplete profile", unfiltered.Single(user => user.Id.Value == noUsernameAdmin.Id).DisplayName);
+        Assert.Equal(completeAdmin.Id, Assert.Single(filtered).Id.Value);
+    }
+
+    [Fact]
     public void UpdateLocalProfile_UpdatesAppOwnedProfileFields()
     {
         var user = new User

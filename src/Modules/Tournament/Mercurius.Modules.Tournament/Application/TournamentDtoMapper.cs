@@ -108,7 +108,12 @@ internal sealed class TournamentDtoMapper
             ContactAdmin = tournament.AssignedAdminUserId is { } contactAdminId &&
                            context.Users.TryGetValue(new UserId(contactAdminId), out var contactAdmin) &&
                            !contactAdmin.IsDeleted
-                ? new PublicUserDTO(contactAdmin)
+                ? new PublicUserDTO
+                {
+                    Id = contactAdmin.Id.Value,
+                    Username = string.IsNullOrWhiteSpace(contactAdmin.Username) ? "Incomplete profile" : contactAdmin.Username,
+                    DisplayName = contactAdmin.DisplayName
+                }
                 : null,
             Placements = tournament.Placements
                 .OrderBy(placement => placement.Place)

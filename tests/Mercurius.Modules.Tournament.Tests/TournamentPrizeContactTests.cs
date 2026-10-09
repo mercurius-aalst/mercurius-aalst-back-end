@@ -233,11 +233,32 @@ public class TournamentPrizeContactTests
         Assert.True(contactJson.TryGetProperty("Id", out _));
         Assert.True(contactJson.TryGetProperty("Username", out _));
         Assert.True(contactJson.TryGetProperty("DisplayName", out _));
+        Assert.Equal("public-admin", contactJson.GetProperty("Username").GetString());
+        Assert.Equal("Contact Admin", contactJson.GetProperty("DisplayName").GetString());
         Assert.False(contactJson.TryGetProperty("DiscordId", out _));
         Assert.False(contactJson.TryGetProperty("SteamId", out _));
         Assert.False(contactJson.TryGetProperty("RiotId", out _));
         Assert.False(json.RootElement.TryGetProperty("AssignedAdminUserId", out _));
         Assert.Equal("Prize", json.RootElement.GetProperty("FirstPlacePrize").GetString());
+    }
+
+    [Fact]
+    public void TournamentResponse_UsesIncompleteProfileFallbackForContactWithoutPublicProfile()
+    {
+        var contact = CreateUser("hidden-admin");
+        contact.Username = null;
+        contact.NormalizedUsername = null;
+        contact.Firstname = null;
+        contact.Lastname = null;
+        var tournament = CreateTournament(contact.Id);
+
+        var response = tournament.ToGetTournamentDTO([contact]);
+        var serialized = System.Text.Json.JsonSerializer.Serialize(response);
+
+        Assert.Equal("Incomplete profile", response.ContactAdmin?.Username);
+        Assert.Equal("Incomplete profile", response.ContactAdmin?.DisplayName);
+        Assert.DoesNotContain("hidden-admin@example.test", serialized, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("auth0|hidden-admin", serialized, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

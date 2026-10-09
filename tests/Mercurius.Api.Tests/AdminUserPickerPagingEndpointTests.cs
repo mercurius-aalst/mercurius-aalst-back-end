@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using Mercurius.Modules.Identity;
 using Mercurius.Modules.Identity.Contracts;
 using Mercurius.Modules.Identity.Services;
@@ -50,6 +51,31 @@ public class AdminUserPickerPagingEndpointTests
         Assert.Equal(0, identityModule.CallCount);
     }
 
+    [Fact]
+    public async Task AdminPicker_ReturnsUsernameAndDisplayNameFromProfile()
+    {
+        var identityModule = new RecordingIdentityModule
+        {
+            AdminUsers =
+            [
+                new UserProfileSummary(new UserId(Guid.NewGuid()), "picker-user", "Picker Person", false, null, null, null),
+                new UserProfileSummary(new UserId(Guid.NewGuid()), null, "Incomplete profile", false, null, null, null)
+            ]
+        };
+        await using var app = CreateApp(identityModule);
+
+        var response = await InvokeGetAsync(app, "");
+
+        Assert.Equal(StatusCodes.Status200OK, response.StatusCode);
+        using var json = JsonDocument.Parse(response.Body);
+        var options = json.RootElement.EnumerateArray().ToList();
+        Assert.Equal(2, options.Count);
+        Assert.Equal("picker-user", options[0].GetProperty("username").GetString());
+        Assert.Equal("Picker Person", options[0].GetProperty("displayName").GetString());
+        Assert.Equal("Incomplete profile", options[1].GetProperty("username").GetString());
+        Assert.Equal("Incomplete profile", options[1].GetProperty("displayName").GetString());
+    }
+
     private static WebApplication CreateApp(IIdentityModule identityModule)
     {
         var builder = WebApplication.CreateBuilder();
@@ -86,6 +112,7 @@ public class AdminUserPickerPagingEndpointTests
         public int CallCount { get; private set; }
         public string? LastQuery { get; private set; }
         public (int Page, int PageSize) LastPaging { get; private set; }
+        public IReadOnlyList<UserProfileSummary> AdminUsers { get; init; } = [];
 
         public Task<UserProfileSummary?> GetUserProfileAsync(UserId userId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<UserProfileSummary?> GetUserProfileByAuth0IdAsync(string auth0UserId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
@@ -109,7 +136,7 @@ public class AdminUserPickerPagingEndpointTests
             CallCount++;
             LastQuery = normalizedQuery;
             LastPaging = (page, pageSize);
-            return Task.FromResult<IReadOnlyList<UserProfileSummary>>([]);
+            return Task.FromResult(AdminUsers);
         }
     }
 }

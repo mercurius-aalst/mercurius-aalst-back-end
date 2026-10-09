@@ -128,7 +128,7 @@ internal static class UserEndpoints
             return Results.Ok(users.Select(user =>
             {
                 var username = string.IsNullOrWhiteSpace(user.Username) ? "Incomplete profile" : user.Username;
-                return new AdminUserOptionDTO(user.Id.Value, username, username);
+                return new AdminUserOptionDTO(user.Id.Value, username, user.DisplayName);
             }).ToList());
         })
         .RequireRateLimiting(SearchRateLimitPolicyNames.Anonymous)

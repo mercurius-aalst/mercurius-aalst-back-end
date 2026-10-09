@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.1](https://github.com/MercuriusAalst/lan-party-backend/compare/backend-v0.6.0...backend-v0.6.1) (2026-10-09)
+
+
+### Bug Fixes
+
+* Correct Discovery search index usage and make rebuilds cluster-safe ([662170e](https://github.com/MercuriusAalst/lan-party-backend/commit/662170e9602abcfe554bfd134758701a21e06800)), closes [#140](https://github.com/MercuriusAalst/lan-party-backend/issues/140)
+* Correct Discovery search index usage and make rebuilds cluster-safe ([#143](https://github.com/MercuriusAalst/lan-party-backend/issues/143)) ([662170e](https://github.com/MercuriusAalst/lan-party-backend/commit/662170e9602abcfe554bfd134758701a21e06800))
+
 ## [0.6.0](https://github.com/MercuriusAalst/lan-party-backend/compare/backend-v0.5.2...backend-v0.6.0) (2026-10-06)
 
 

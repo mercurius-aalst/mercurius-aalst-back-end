@@ -1,7 +1,9 @@
 using Mercurius.Modules.Discovery.Domain;
+using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Storage;
+using Npgsql;
 
 namespace Mercurius.Modules.Discovery.Infrastructure;
 
@@ -20,6 +22,23 @@ internal sealed class DiscoveryDbContextAdapter<TDbContext> : IDiscoveryDbContex
     public DbSet<SearchIndexRebuildDocument> SearchIndexRebuildDocuments => _dbContext.Set<SearchIndexRebuildDocument>();
 
     public bool IsRelational => _dbContext.Database.IsRelational();
+
+    public bool RetriesOnFailure => _dbContext.Database.CreateExecutionStrategy().RetriesOnFailure;
+
+    public DbConnection? Connection => IsRelational ? _dbContext.Database.GetDbConnection() : null;
+
+    public DbTransaction? CurrentTransaction => _dbContext.Database.CurrentTransaction?.GetDbTransaction();
+
+    public Task OpenConnectionAsync(CancellationToken cancellationToken = default) =>
+        _dbContext.Database.OpenConnectionAsync(cancellationToken);
+
+    public Task CloseConnectionAsync() => _dbContext.Database.CloseConnectionAsync();
+
+    public void DiscardConnection()
+    {
+        if (Connection is NpgsqlConnection npgsqlConnection)
+            NpgsqlConnection.ClearPool(npgsqlConnection);
+    }
 
     public EntityEntry Entry(object entity) => _dbContext.Entry(entity);
 

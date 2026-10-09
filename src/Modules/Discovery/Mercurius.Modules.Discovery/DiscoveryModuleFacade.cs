@@ -71,28 +71,16 @@ internal sealed class DiscoveryModuleFacade : IDiscoveryModule
 
         for (var rank = firstRank; rank <= 2 && candidates.Count < limit; rank++)
         {
+            var rankCursor = cursor is not null && rank == cursor.RelevanceRank
+                ? cursor
+                : null;
             var rankCandidates = BuildRankCandidateQuery(
                 normalizedQuery,
                 prefixPattern,
                 containsPattern,
-                rank);
-
-            if (cursor is not null && rank == cursor.RelevanceRank)
-            {
-                rankCandidates = rankCandidates.Where(candidate =>
-                    string.Compare(candidate.NormalizedLabel, cursor.NormalizedLabel) > 0 ||
-                    (candidate.NormalizedLabel == cursor.NormalizedLabel &&
-                     candidate.TypeOrder > cursor.TypeOrder) ||
-                    (candidate.NormalizedLabel == cursor.NormalizedLabel &&
-                     candidate.TypeOrder == cursor.TypeOrder &&
-                     string.Compare(candidate.StableId, cursor.StableId) > 0));
-            }
-
-            rankCandidates = rankCandidates
-                .OrderBy(candidate => candidate.NormalizedLabel)
-                .ThenBy(candidate => candidate.TypeOrder)
-                .ThenBy(candidate => candidate.StableId)
-                .Take(limit - candidates.Count);
+                rank,
+                rankCursor,
+                limit - candidates.Count);
 
             candidates.AddRange(await rankCandidates.ToListAsync(cancellationToken));
         }
@@ -104,13 +92,21 @@ internal sealed class DiscoveryModuleFacade : IDiscoveryModule
         string normalizedQuery,
         string prefixPattern,
         string containsPattern,
-        int rank)
+        int rank,
+        SearchCursor? cursor,
+        int limit)
     {
-        var documents = _dbContext.SearchDocuments
+        IQueryable<SearchDocument> documents = rank == 1
+            ? CreatePrefixSource(normalizedQuery)
+            : _dbContext.SearchDocuments;
+
+        documents = documents
             .AsNoTracking()
             .Where(document =>
                 !document.IsDeleted &&
-                document.TypeOrder <= SearchDocumentTypes.GetTypeOrder(SearchDocumentTypes.Tournament));
+                (document.EntityType == SearchDocumentTypes.User ||
+                 document.EntityType == SearchDocumentTypes.Team ||
+                 document.EntityType == SearchDocumentTypes.Tournament));
 
         documents = rank switch
         {
@@ -124,7 +120,19 @@ internal sealed class DiscoveryModuleFacade : IDiscoveryModule
             _ => throw new ArgumentOutOfRangeException(nameof(rank))
         };
 
+        if (cursor is not null)
+        {
+            documents = documents.Where(document =>
+                EF.Functions.GreaterThan(
+                    ValueTuple.Create(document.NormalizedText, document.TypeOrder, document.EntityId),
+                    ValueTuple.Create(cursor.NormalizedLabel, (short)cursor.TypeOrder, cursor.StableId)));
+        }
+
         return documents
+            .OrderBy(document => document.NormalizedText)
+            .ThenBy(document => document.TypeOrder)
+            .ThenBy(document => document.EntityId)
+            .Take(limit)
             .Select(document => new SearchCandidate
             {
                 RelevanceRank = rank,
@@ -134,6 +142,24 @@ internal sealed class DiscoveryModuleFacade : IDiscoveryModule
                 Type = document.EntityType,
                 DisplayLabel = document.Title
             });
+    }
+
+    private IQueryable<SearchDocument> CreatePrefixSource(string normalizedQuery)
+    {
+        var upper = SearchRequest.GetPrefixUpperBound(normalizedQuery);
+
+        return upper is null
+            ? _dbContext.SearchDocuments.FromSqlInterpolated($"""
+                SELECT * FROM discovery.search_documents
+                WHERE is_deleted = false
+                  AND normalized_text >= {normalizedQuery}
+                """)
+            : _dbContext.SearchDocuments.FromSqlInterpolated($"""
+                SELECT * FROM discovery.search_documents
+                WHERE is_deleted = false
+                  AND normalized_text >= {normalizedQuery}
+                  AND normalized_text < {upper}
+                """);
     }
 
     private static DiscoverySearchResult ToResult(SearchCandidate candidate)
@@ -184,7 +210,7 @@ internal sealed class DiscoveryModuleFacade : IDiscoveryModule
                 !string.IsNullOrEmpty(payload.Query) &&
                 payload.RelevanceRank is >= 0 and <= 2 &&
                 !string.IsNullOrEmpty(payload.NormalizedLabel) &&
-                payload.TypeOrder is >= 0 and <= 2 &&
+                payload.TypeOrder is >= short.MinValue and <= short.MaxValue &&
                 Guid.TryParse(payload.StableId, out _),
             payload => payload.Query);
     }
@@ -193,7 +219,7 @@ internal sealed class DiscoveryModuleFacade : IDiscoveryModule
     {
         public int RelevanceRank { get; init; }
         public required string NormalizedLabel { get; init; }
-        public int TypeOrder { get; init; }
+        public short TypeOrder { get; init; }
         public required string StableId { get; init; }
         public required string Type { get; init; }
         public required string DisplayLabel { get; init; }

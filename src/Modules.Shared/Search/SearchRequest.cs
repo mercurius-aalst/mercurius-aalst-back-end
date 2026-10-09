@@ -9,6 +9,18 @@ public static class SearchRequest
         return (query ?? string.Empty).Trim().ToLowerInvariant();
     }
 
+    public static string? GetPrefixUpperBound(string prefix)
+    {
+        if (prefix.Length == 0)
+            return null;
+
+        var last = prefix[^1];
+        if (char.IsSurrogate(last) || last == '\uD7FF' || last == char.MaxValue)
+            return null;
+
+        return prefix[..^1] + (char)(last + 1);
+    }
+
     public static void ValidateQueryLength(string normalizedQuery)
     {
         if (normalizedQuery.Length > SearchRequestLimits.MaximumQueryLength)

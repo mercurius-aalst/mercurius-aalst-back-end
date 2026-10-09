@@ -50,4 +50,54 @@ public class DiscoveryMigrationTests
             operation is SqlOperation sql &&
             sql.Sql.Contains("text_pattern_ops", StringComparison.Ordinal));
     }
+
+    [Fact]
+    public void DiscoverySearchQueryIndexOptimization_ReplacesActiveSearchIndexes()
+    {
+        var migration = new DiscoverySearchQueryIndexOptimization();
+        var operations = migration.UpOperations.ToList();
+
+        Assert.Contains(operations, operation =>
+            operation is SqlOperation sql &&
+            sql.Sql.Contains("DROP INDEX IF EXISTS discovery.\"IX_search_documents_active_exact_order\"", StringComparison.Ordinal) &&
+            sql.Sql.Contains("DROP INDEX IF EXISTS discovery.\"IX_search_documents_active_prefix\"", StringComparison.Ordinal) &&
+            sql.Sql.Contains("DROP INDEX IF EXISTS discovery.\"IX_search_documents_normalized_text_trgm\"", StringComparison.Ordinal));
+        Assert.Contains(operations, operation =>
+            operation is AlterColumnOperation column &&
+            column.Name == "normalized_text" &&
+            column.Collation == "C");
+        Assert.Contains(operations, operation =>
+            operation is CreateIndexOperation index &&
+            index.Name == "IX_search_documents_active_text" &&
+            index.Filter == "is_deleted = false");
+        Assert.Contains(operations, operation =>
+            operation is SqlOperation sql &&
+            sql.Sql.Contains("USING gin (normalized_text gin_trgm_ops)", StringComparison.Ordinal) &&
+            sql.Sql.Contains("WHERE is_deleted = false", StringComparison.Ordinal) &&
+            sql.Sql.Contains("fillfactor = 90", StringComparison.Ordinal) &&
+            sql.Sql.Contains("autovacuum_vacuum_scale_factor = 0.05", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void DiscoverySearchQueryIndexOptimization_DownRestoresHistoricalPredicatesAndDefaults()
+    {
+        var migration = new DiscoverySearchQueryIndexOptimization();
+        var operations = migration.DownOperations.ToList();
+
+        Assert.Contains(operations, operation =>
+            operation is AlterColumnOperation column &&
+            column.Name == "normalized_text" &&
+            column.OldColumn?.Collation == "C" &&
+            column.Collation is null);
+        Assert.Contains(operations, operation =>
+            operation is CreateIndexOperation index &&
+            index.Name == "IX_search_documents_active_exact_order" &&
+            index.Filter == "is_deleted = false AND entity_type IN ('user', 'team', 'tournament')");
+        Assert.Contains(operations, operation =>
+            operation is SqlOperation sql &&
+            sql.Sql.Contains("RESET (fillfactor, autovacuum_vacuum_scale_factor)", StringComparison.Ordinal) &&
+            sql.Sql.Contains("text_pattern_ops", StringComparison.Ordinal) &&
+            sql.Sql.Contains("WHERE is_deleted = false AND entity_type IN ('user', 'team', 'game')", StringComparison.Ordinal) &&
+            sql.Sql.Contains("USING gin (normalized_text gin_trgm_ops)", StringComparison.Ordinal));
+    }
 }

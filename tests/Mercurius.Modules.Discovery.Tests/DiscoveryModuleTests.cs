@@ -283,6 +283,7 @@ public class DiscoveryModuleTests
         var dbContext = scope.ServiceProvider.GetRequiredService<MercuriusDBContext>();
         var module = scope.ServiceProvider.GetRequiredService<IDiscoveryModule>();
         var rebuildService = scope.ServiceProvider.GetRequiredService<SearchIndexRebuildService>();
+        await using var ownershipLease = await AcquireOwnershipAsync(scope.ServiceProvider);
 
         await rebuildService.EnsureInitialJobAsync(default);
         var firstJob = await module.CreateSearchIndexRebuildJobAsync();
@@ -321,6 +322,7 @@ public class DiscoveryModuleTests
         var rebuildService = scope.ServiceProvider.GetRequiredService<SearchIndexRebuildService>();
 
         var job = await module.CreateSearchIndexRebuildJobAsync();
+        await using var ownershipLease = await AcquireOwnershipAsync(scope.ServiceProvider);
         Assert.True(await rebuildService.RunNextAsync(default));
 
         var failedJob = await module.GetSearchIndexRebuildJobAsync(job.Id);
@@ -337,6 +339,7 @@ public class DiscoveryModuleTests
         var dbContext = scope.ServiceProvider.GetRequiredService<MercuriusDBContext>();
         var projector = scope.ServiceProvider.GetRequiredService<SearchDocumentProjector>();
         var rebuildService = scope.ServiceProvider.GetRequiredService<SearchIndexRebuildService>();
+        await using var ownershipLease = await AcquireOwnershipAsync(scope.ServiceProvider);
 
         await projector.MarkDeletedAsync(SearchDocumentTypes.User, Guid.NewGuid().ToString(), 1, DateTime.UtcNow, default);
         await dbContext.SaveChangesAsync();
@@ -446,6 +449,7 @@ public class DiscoveryModuleTests
         var module = scope.ServiceProvider.GetRequiredService<IDiscoveryModule>();
         var rebuildService = scope.ServiceProvider.GetRequiredService<SearchIndexRebuildService>();
         var job = await module.CreateSearchIndexRebuildJobAsync();
+        await using var ownershipLease = await AcquireOwnershipAsync(scope.ServiceProvider);
         using var cancellationTokenSource = new CancellationTokenSource();
 
         var runTask = rebuildService.RunNextAsync(cancellationTokenSource.Token);
@@ -480,6 +484,7 @@ public class DiscoveryModuleTests
         var projector = scope.ServiceProvider.GetRequiredService<SearchDocumentProjector>();
         var module = scope.ServiceProvider.GetRequiredService<IDiscoveryModule>();
         var rebuildService = scope.ServiceProvider.GetRequiredService<SearchIndexRebuildService>();
+        await using var ownershipLease = await AcquireOwnershipAsync(scope.ServiceProvider);
 
         await projector.UpsertAsync(SearchDocumentTypes.User, Guid.NewGuid().ToString(), "existing-user", "User", null, "/users/existing-user", 1, DateTime.UtcNow, default);
         await dbContext.SaveChangesAsync();
@@ -506,6 +511,7 @@ public class DiscoveryModuleTests
         var dbContext = scope.ServiceProvider.GetRequiredService<MercuriusDBContext>();
         var module = scope.ServiceProvider.GetRequiredService<IDiscoveryModule>();
         var rebuildService = scope.ServiceProvider.GetRequiredService<SearchIndexRebuildService>();
+        await using var ownershipLease = await AcquireOwnershipAsync(scope.ServiceProvider);
 
         _ = await module.CreateSearchIndexRebuildJobAsync();
         Assert.True(await rebuildService.RunNextAsync(default));
@@ -514,7 +520,7 @@ public class DiscoveryModuleTests
         Assert.Empty(await dbContext.Set<SearchIndexRebuildDocument>().ToListAsync());
     }
 
-    private static ServiceProvider CreateProvider(DiscoverySources sources)
+    internal static ServiceProvider CreateProvider(DiscoverySources sources)
     {
         var services = new ServiceCollection();
         var database = PostgresTestDatabase.Create();
@@ -545,7 +551,15 @@ public class DiscoveryModuleTests
         return host;
     }
 
-    private static void ConfigureServices(
+    internal static IHost CreateHostForDatabase(string connectionString, DiscoverySources sources)
+    {
+        return Host.CreateDefaultBuilder()
+            .ConfigureLogging(logging => logging.ClearProviders())
+            .ConfigureServices(services => ConfigureServices(services, sources, connectionString))
+            .Build();
+    }
+
+    internal static void ConfigureServices(
         IServiceCollection services,
         DiscoverySources sources,
         string connectionString)
@@ -576,7 +590,7 @@ public class DiscoveryModuleTests
         return false;
     }
 
-    private sealed class DiscoverySources
+    internal sealed class DiscoverySources
     {
         public IReadOnlyList<PublicUserSearchDocument> Users { get; set; } = [];
         public IReadOnlyList<PublicTeamSearchDocument> Teams { get; set; } = [];
@@ -584,7 +598,15 @@ public class DiscoveryModuleTests
         public IReadOnlyList<SponsorSummary> Sponsors { get; set; } = [];
         public Exception? RebuildException { get; set; }
         public bool WaitForRebuildCancellation { get; set; }
+        public bool PauseAfterFirstUserPage { get; set; }
         public TaskCompletionSource RebuildStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource ContinueRebuild { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    }
+
+    private static async Task<DiscoveryRebuildOwnership.Lease> AcquireOwnershipAsync(IServiceProvider services)
+    {
+        var lease = await services.GetRequiredService<DiscoveryRebuildOwnership>().TryAcquireAsync(default);
+        return Assert.IsType<DiscoveryRebuildOwnership.Lease>(lease);
     }
 
     private sealed class StubIdentityModule(DiscoverySources sources) : IIdentityModule
@@ -601,6 +623,12 @@ public class DiscoveryModuleTests
             {
                 sources.RebuildStarted.TrySetResult();
                 await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            }
+
+            if (sources.PauseAfterFirstUserPage && afterId.HasValue)
+            {
+                sources.RebuildStarted.TrySetResult();
+                await sources.ContinueRebuild.Task.WaitAsync(cancellationToken);
             }
 
             return sources.Users

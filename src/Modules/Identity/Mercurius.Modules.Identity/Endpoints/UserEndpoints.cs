@@ -109,17 +109,22 @@ internal static class UserEndpoints
         var adminGroup = group.MapGroup("")
             .RequireAuthorization(new AuthorizeAttribute { Roles = "admin" });
 
-        adminGroup.MapGet("/admins", async Task<IResult> (string? query, int? pageSize, HttpRequest request, IIdentityModule identityModule, CancellationToken cancellationToken) =>
+        adminGroup.MapGet("/admins", async Task<IResult> (string? query, int? page, int? pageSize, HttpRequest request, IIdentityModule identityModule, CancellationToken cancellationToken) =>
         {
             var normalizedQuery = SearchRequest.NormalizeQuery(query);
             if (request.Query.ContainsKey("query"))
                 SearchRequest.ValidateQueryLength(normalizedQuery);
             SearchRequest.ValidatePageSize(pageSize);
 
+            var validationProblem = ValidatePaging(page, null);
+            if (validationProblem is not null)
+                return validationProblem;
+
             var users = await identityModule.GetAdminUsersAsync(
                 normalizedQuery,
                 SearchRequest.BoundPageSize(pageSize),
-                cancellationToken);
+                cancellationToken,
+                page ?? 1);
             return Results.Ok(users.Select(user =>
             {
                 var username = string.IsNullOrWhiteSpace(user.Username) ? "Incomplete profile" : user.Username;

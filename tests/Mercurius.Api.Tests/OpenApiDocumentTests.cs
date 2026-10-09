@@ -64,6 +64,7 @@ public class OpenApiDocumentTests
             AssertOperationHasTag(document, "/v1/lan/users/{username}/match-summaries", OperationType.Get, "Users");
             AssertOperationHasTag(document, "/v1/lan/public/teams/{teamName}/match-summaries", OperationType.Get, "Public Teams");
             AssertPagedRawArrayOperation(document, "/v1/lan/users");
+            AssertPagedRawArrayOperation(document, "/v1/lan/users/admins");
             AssertPathHasOperation(document, "/v1/lan/tournaments/{tournamentId}/registrations/me", OperationType.Get);
             AssertPathHasOperation(document, "/v1/lan/tournaments/{tournamentId}/registrations/individual/eligibility", OperationType.Get);
             AssertPathHasOperation(document, "/v1/lan/tournaments/{tournamentId}/registrations/teams/{teamId}/eligibility", OperationType.Get);

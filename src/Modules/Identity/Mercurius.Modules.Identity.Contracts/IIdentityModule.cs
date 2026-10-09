@@ -39,6 +39,7 @@ public interface IIdentityModule
     Task<IReadOnlyList<UserProfileSummary>> GetAdminUsersAsync(
         string normalizedQuery,
         int pageSize,
-        CancellationToken cancellationToken = default) =>
+        CancellationToken cancellationToken = default,
+        int page = 1) =>
         Task.FromResult<IReadOnlyList<UserProfileSummary>>([]);
 }

@@ -122,6 +122,33 @@ public class UserTests
     }
 
     [Fact]
+    public async Task GetAdminUsersAsync_ReturnsStablePagesAndFiltersBeforePaging()
+    {
+        await using var dbContext = CreateDbContext();
+        var users = Enumerable.Range(0, 55)
+            .Select(index => CreateStoredUser($"auth0|admin-{index:D2}", $"admin-{index:D2}@example.com", $"Admin{index:D2}"))
+            .ToArray();
+        dbContext.Users.AddRange(users);
+        await dbContext.SaveChangesAsync();
+        var auth0 = new RecordingAuth0ManagementService(new Auth0ProfileSnapshot(null, null, false))
+        {
+            AdminAuth0UserIds = users.Select(user => user.Auth0UserId).ToArray()
+        };
+        var module = new IdentityModuleFacade(dbContext, auth0);
+
+        var firstPage = await module.GetAdminUsersAsync(string.Empty, 50, CancellationToken.None, 1);
+        var secondPage = await module.GetAdminUsersAsync(string.Empty, 50, CancellationToken.None, 2);
+        var filteredPage = await module.GetAdminUsersAsync("admin5", 2, CancellationToken.None, 2);
+        var overflowPage = await module.GetAdminUsersAsync(string.Empty, 50, CancellationToken.None, int.MaxValue);
+
+        Assert.Equal(50, firstPage.Count);
+        Assert.Equal(5, secondPage.Count);
+        Assert.Equal(users.Select(user => new UserId(user.Id)), firstPage.Concat(secondPage).Select(user => user.Id));
+        Assert.Equal(["Admin52", "Admin53"], filteredPage.Select(user => user.Username));
+        Assert.Empty(overflowPage);
+    }
+
+    [Fact]
     public void UpdateLocalProfile_UpdatesAppOwnedProfileFields()
     {
         var user = new User

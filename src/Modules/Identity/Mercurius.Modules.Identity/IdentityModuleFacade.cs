@@ -173,8 +173,15 @@ internal sealed class IdentityModuleFacade : IIdentityModule
     public async Task<IReadOnlyList<UserProfileSummary>> GetAdminUsersAsync(
         string normalizedQuery,
         int pageSize,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        int page = 1)
     {
+        var boundedPageSize = Math.Clamp(pageSize, 1, 100);
+        var offset = ((long)page - 1) * boundedPageSize;
+        cancellationToken.ThrowIfCancellationRequested();
+        if (offset > int.MaxValue)
+            return [];
+
         var auth0UserIds = await _auth0ManagementService.GetAdminUserIdsAsync(cancellationToken);
         if (auth0UserIds.Count == 0)
             return [];
@@ -189,7 +196,8 @@ internal sealed class IdentityModuleFacade : IIdentityModule
                 (normalizedQuery.Length == 0 || user.NormalizedUsername.Contains(normalizedQuery)))
             .OrderBy(user => user.NormalizedUsername)
             .ThenBy(user => user.Id)
-            .Take(Math.Clamp(pageSize, 1, 100))
+            .Skip((int)offset)
+            .Take(boundedPageSize)
             .Select(user => ToUserProfileSummary(user))
             .ToListAsync(cancellationToken);
     }

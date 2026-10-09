@@ -339,6 +339,7 @@ public sealed class TournamentMediaLifecycleTests
         }
 
         public DbSet<TournamentAggregate> Tournaments => _inner.Set<TournamentAggregate>();
+        public DbSet<FeaturedHomepageTournamentSelection> FeaturedHomepageTournamentSelections => _inner.Set<FeaturedHomepageTournamentSelection>();
         public DbSet<Match> Matches => _inner.Set<Match>();
         public DbSet<Placement> Placements => _inner.Set<Placement>();
         public DbSet<MatchResolutionNotification> MatchResolutionNotifications =>
@@ -441,3 +442,4 @@ public sealed class TournamentMediaLifecycleTests
 
     private sealed record LogEntry(LogLevel Level, Exception? Exception, string Message);
 }
+

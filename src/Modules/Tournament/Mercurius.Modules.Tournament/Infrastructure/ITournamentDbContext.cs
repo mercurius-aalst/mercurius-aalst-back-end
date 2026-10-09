@@ -7,6 +7,7 @@ namespace Mercurius.Modules.Tournament.Infrastructure;
 internal interface ITournamentDbContext
 {
     DbSet<TournamentAggregate> Tournaments { get; }
+    DbSet<FeaturedHomepageTournamentSelection> FeaturedHomepageTournamentSelections { get; }
     DbSet<Match> Matches { get; }
     DbSet<Placement> Placements { get; }
     DbSet<MatchResolutionNotification> MatchResolutionNotifications { get; }
@@ -18,3 +19,5 @@ internal interface ITournamentDbContext
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }
+
+

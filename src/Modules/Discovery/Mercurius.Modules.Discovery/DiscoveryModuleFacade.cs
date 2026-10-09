@@ -210,7 +210,7 @@ internal sealed class DiscoveryModuleFacade : IDiscoveryModule
                 !string.IsNullOrEmpty(payload.Query) &&
                 payload.RelevanceRank is >= 0 and <= 2 &&
                 !string.IsNullOrEmpty(payload.NormalizedLabel) &&
-                payload.TypeOrder is >= 0 and <= 2 &&
+                payload.TypeOrder is >= short.MinValue and <= short.MaxValue &&
                 Guid.TryParse(payload.StableId, out _),
             payload => payload.Query);
     }

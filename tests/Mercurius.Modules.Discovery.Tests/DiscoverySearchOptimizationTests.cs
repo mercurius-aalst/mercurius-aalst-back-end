@@ -5,6 +5,7 @@ using Mercurius.Modules.Discovery;
 using Mercurius.Modules.Discovery.Contracts;
 using Mercurius.Modules.Discovery.Domain;
 using Mercurius.Modules.Discovery.Infrastructure;
+using Mercurius.Modules.Shared.Exceptions;
 using Mercurius.Modules.Shared.Search;
 using Mercurius.TestInfrastructure;
 using Microsoft.EntityFrameworkCore;
@@ -222,6 +223,60 @@ public class DiscoverySearchOptimizationTests
 
         Assert.Equal(expected, pagedLabels);
         Assert.Equal(expected.Length, pagedLabels.Distinct().Count());
+    }
+
+    [Fact]
+    public async Task SearchAsync_PagesEligibleDocumentsWhoseStoredTypeOrderIsOutsideTheCanonicalRange()
+    {
+        await using var database = PostgresTestDatabase.Create();
+        var options = new DbContextOptionsBuilder<MercuriusDBContext>()
+            .UseNpgsql(database.ConnectionString)
+            .Options;
+        await using var dbContext = new MercuriusDBContext(options);
+        await dbContext.Database.MigrateAsync();
+
+        // Eligibility is decided by entity type, so a stored type_order outside the canonical 0..2
+        // range must still page; the smallint column also allows both short boundaries.
+        dbContext.Set<SearchDocument>().AddRange(
+            Document(SearchDocumentTypes.User, "q-lowest", "tea", typeOrder: short.MinValue, entityId: "00000000-0000-0000-0000-000000000401"),
+            Document(SearchDocumentTypes.User, "q-zero", "tea", typeOrder: 0, entityId: "00000000-0000-0000-0000-000000000402"),
+            Document(SearchDocumentTypes.Team, "q-three", "tea", typeOrder: 3, entityId: "00000000-0000-0000-0000-000000000403"),
+            Document(SearchDocumentTypes.Tournament, "q-highest", "tea", typeOrder: short.MaxValue, entityId: "00000000-0000-0000-0000-000000000404"),
+            Document(SearchDocumentTypes.User, "q-later", "tea later", entityId: "00000000-0000-0000-0000-000000000405"));
+        await dbContext.SaveChangesAsync();
+
+        var search = new DiscoveryModuleFacade(
+            new DiscoveryDbContextAdapter<MercuriusDBContext>(dbContext),
+            null!);
+
+        string[] expected = ["q-lowest", "q-zero", "q-three", "q-highest", "q-later"];
+
+        var pagedLabels = new List<string>();
+        string? cursor = null;
+        var hasMore = true;
+        for (var page = 0; hasMore && page <= expected.Length; page++)
+        {
+            var result = await search.SearchAsync(new DiscoverySearchRequest("tea", cursor, 1));
+            pagedLabels.AddRange(result.Results.Select(item => item.DisplayLabel));
+            cursor = result.NextCursor;
+            hasMore = result.HasMore;
+        }
+
+        Assert.False(hasMore);
+        Assert.Equal(expected, pagedLabels);
+
+        // A tampered cursor whose type order cannot come from the smallint column is still rejected.
+        var outOfRangeCursor = SearchCursorCodec.Encode(new
+        {
+            Query = "tea",
+            RelevanceRank = 0,
+            NormalizedLabel = "tea",
+            TypeOrder = short.MaxValue + 1,
+            StableId = "00000000-0000-0000-0000-000000000401"
+        });
+
+        await Assert.ThrowsAsync<ValidationException>(
+            () => search.SearchAsync(new DiscoverySearchRequest("tea", outOfRangeCursor, 1)));
     }
 
     private static SearchDocument Document(

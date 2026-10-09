@@ -51,7 +51,7 @@ public sealed class DiscoveryRebuildOwnershipTests
             .SingleAsync());
         Assert.Equal(1000, await secondDb.Set<SearchIndexRebuildDocument>().CountAsync());
 
-        await TerminateBackendAsync(firstDb.Database.GetDbConnection().ConnectionString, firstBackendPid);
+        await TerminateBackendAsync(firstDb.Database.GetConnectionString()!, firstBackendPid);
         sources.ContinueRebuild.TrySetResult();
         await Assert.ThrowsAsync<DiscoveryRebuildOwnershipLostException>(() => runTask);
         await firstLease.DisposeAsync();
@@ -120,7 +120,7 @@ public sealed class DiscoveryRebuildOwnershipTests
         await using var firstLease = Assert.IsType<DiscoveryRebuildOwnership.Lease>(await firstOwner.TryAcquireAsync(default));
         var firstBackendPid = await ReadBackendPidAsync(firstDb);
         var runTask = firstService.RunNextAsync(default);
-        var connectionString = firstDb.Database.GetDbConnection().ConnectionString;
+        var connectionString = firstDb.Database.GetConnectionString()!;
         await WaitForMergeAsync(connectionString, firstBackendPid);
         await TerminateBackendAsync(connectionString, firstBackendPid);
         await Assert.ThrowsAsync<DiscoveryRebuildOwnershipLostException>(() => runTask);

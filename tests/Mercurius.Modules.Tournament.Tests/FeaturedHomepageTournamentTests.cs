@@ -1,6 +1,8 @@
 using Mercurius.LAN.API.Data;
 using Mercurius.Modules.Tournament.Application.Services;
 using Mercurius.Modules.Tournament.Infrastructure;
+using Mercurius.Modules.Shared;
+using Mercurius.Modules.Sponsorship.Contracts;
 using Mercurius.TestInfrastructure;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
@@ -39,8 +41,62 @@ public sealed class FeaturedHomepageTournamentTests
             .Order(StringComparer.Ordinal)
             .ToArray();
 
-        Assert.Equal(new[] { "bracketType", "format", "id", "imageUrl", "name", "status" }, cardProperties);
+        Assert.Equal(new[] { "bracketType", "format", "id", "imageUrl", "name", "sponsorPlacement", "status" }, cardProperties);
+        Assert.Equal(JsonValueKind.Null, json.RootElement.GetProperty("tournaments")[0].GetProperty("sponsorPlacement").ValueKind);
         Assert.Equal("SingleElimination", json.RootElement.GetProperty("tournaments")[0].GetProperty("bracketType").GetString());
+    }
+
+    [Fact]
+    public async Task PublicReadExposesPublicSponsorAttributionOnlyForSponsoredCards()
+    {
+        await using var database = PostgresTestDatabase.Create();
+        var options = CreateOptions(database);
+        await using var dbContext = new MercuriusDBContext(options);
+        await dbContext.Database.MigrateAsync();
+
+        var tournaments = Enumerable.Range(0, 4).Select(CreateTournament).ToArray();
+        dbContext.Set<TournamentAggregate>().AddRange(tournaments);
+        await dbContext.SaveChangesAsync();
+
+        var sponsored = tournaments[1];
+        var sponsorshipModule = TournamentTestSupport.CreateSponsorshipModule(new SponsorPlacementSummary(
+            new SponsorPlacementId(7),
+            new TournamentId(sponsored.Id),
+            new SponsorSummary(
+                new SponsorId(3),
+                "Acme Esports",
+                SponsorTier.Presenting,
+                "logos/acme.png",
+                "https://acme.example",
+                "Acme powers the main stage"),
+            SponsorContext.TournamentPartner,
+            "Headline",
+            "Support line",
+            0));
+
+        var response = await CreateService(dbContext, sponsorshipModule).GetFeaturedTournamentsAsync();
+
+        var sponsoredCard = response.Tournaments.Single(card => card.Id == sponsored.Id);
+        Assert.NotNull(sponsoredCard.SponsorPlacement);
+        Assert.Equal("Acme Esports", sponsoredCard.SponsorPlacement!.SponsorName);
+        Assert.Equal(SponsorTier.Presenting, sponsoredCard.SponsorPlacement.SponsorTier);
+        Assert.Equal(SponsorContext.TournamentPartner, sponsoredCard.SponsorPlacement.Context);
+        Assert.All(
+            response.Tournaments.Where(card => card.Id != sponsored.Id),
+            card => Assert.Null(card.SponsorPlacement));
+
+        var optionsJson = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        optionsJson.Converters.Add(new JsonStringEnumConverter());
+        using var json = JsonDocument.Parse(JsonSerializer.Serialize(response, optionsJson));
+        var cards = json.RootElement.GetProperty("tournaments").EnumerateArray().ToArray();
+        var sponsoredJson = cards.Single(card => card.GetProperty("id").GetGuid() == sponsored.Id);
+        var sponsorJson = sponsoredJson.GetProperty("sponsorPlacement");
+        Assert.Equal("Acme Esports", sponsorJson.GetProperty("sponsorName").GetString());
+        Assert.Equal("Presenting", sponsorJson.GetProperty("sponsorTier").GetString());
+        Assert.Equal("TournamentPartner", sponsorJson.GetProperty("context").GetString());
+        Assert.All(
+            cards.Where(card => card.GetProperty("id").GetGuid() != sponsored.Id),
+            card => Assert.Equal(JsonValueKind.Null, card.GetProperty("sponsorPlacement").ValueKind));
     }
 
     [Fact]
@@ -166,8 +222,12 @@ public sealed class FeaturedHomepageTournamentTests
             .UseNpgsql(database.ConnectionString)
             .Options;
 
-    private static FeaturedHomepageTournamentService CreateService(MercuriusDBContext dbContext) =>
-        new(new TournamentDbContextAdapter<MercuriusDBContext>(dbContext));
+    private static FeaturedHomepageTournamentService CreateService(
+        MercuriusDBContext dbContext,
+        ISponsorshipModule? sponsorshipModule = null) =>
+        new(
+            new TournamentDbContextAdapter<MercuriusDBContext>(dbContext),
+            sponsorshipModule ?? TournamentTestSupport.CreateSponsorshipModule());
 
     private static TournamentAggregate CreateTournament(int order) => CreateTournament(order, TournamentDomain.TournamentStatus.Scheduled);
 

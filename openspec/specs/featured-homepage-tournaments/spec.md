@@ -21,7 +21,7 @@ The Tournament module MUST persist one ordered selection of exactly four distinc
 - **THEN** the API MUST reject the request according to the existing authentication and authorization policy
 
 ### Requirement: Lightweight public featured tournament read
-The API MUST expose an anonymous read that returns ordered featured tournament IDs and a `tournaments` array in the same order. Each card object MUST contain only `id`, `name`, `imageUrl`, `status`, `bracketType`, and `format`, which are the public fields used by the homepage cards. Enum values MUST use the existing string JSON representation. The read MUST NOT load or expose tournament match, registration, roster, placement, or leaderboard-attempt graphs. When no selection has been saved, it MUST preserve the existing public ordering by planned start time, name, and ID. It MUST omit missing and canceled tournaments from saved selections, preserve the relative order of remaining eligible IDs, and fill vacancies from eligible tournaments in that same deterministic order without duplicates. If fewer than four eligible tournaments exist, it MUST return all available eligible tournaments.
+The API MUST expose an anonymous read that returns ordered featured tournament IDs and a `tournaments` array in the same order. Each card object MUST contain only `id`, `name`, `imageUrl`, `status`, `bracketType`, `format`, and an optional singular `sponsorPlacement`, which are the public fields used by the homepage cards. Enum values MUST use the existing string JSON representation. A present `sponsorPlacement` MUST reuse the existing public-safe tournament sponsor projection and JSON shape, including the sponsor name, tier, logo URL, info URL, and description, and MUST be `null` for tournaments without a sponsor placement. Sponsor attribution MUST be resolved through the existing bounded Sponsorship module placement projection rather than per-card queries or a full graph load. The read MUST NOT load or expose tournament match, registration, roster, placement, or leaderboard-attempt graphs. When no selection has been saved, it MUST preserve the existing public ordering by planned start time, name, and ID. It MUST omit missing and canceled tournaments from saved selections, preserve the relative order of remaining eligible IDs, and fill vacancies from eligible tournaments in that same deterministic order without duplicates. If fewer than four eligible tournaments exist, it MUST return all available eligible tournaments.
 
 #### Scenario: No saved selection uses existing tournament ordering
 - **WHEN** public clients read featured tournaments before any administrator has saved a selection
@@ -31,6 +31,12 @@ The API MUST expose an anonymous read that returns ordered featured tournament I
 - **WHEN** a public client reads featured tournaments after a selection is saved
 - **THEN** the API MUST return the selected eligible tournaments in their saved relative order
 - **AND** the card projection MUST contain only fields required to render those homepage cards
+
+#### Scenario: Sponsored card exposes public sponsor attribution
+- **WHEN** a featured tournament has a sponsor placement
+- **THEN** its card MUST include the singular `sponsorPlacement` with the same public-safe fields and JSON shape as the tournament detail read, including the sponsor name
+- **AND** cards for tournaments without a placement MUST serialize `sponsorPlacement` as `null`
+- **AND** the read MUST resolve all placements with a single bounded batch lookup instead of per-card queries
 
 #### Scenario: Saved tournament is deleted or becomes ineligible
 - **WHEN** a saved tournament is deleted or canceled

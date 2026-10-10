@@ -7,6 +7,7 @@ using Mercurius.Modules.Tournament.Application.DTOs.Tournaments;
 using Mercurius.Modules.Tournament.Application.Services;
 using Mercurius.Modules.Tournament.Contracts;
 using Mercurius.Modules.Tournament.Endpoints;
+using Mercurius.Modules.Sponsorship.Contracts;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -47,6 +48,12 @@ public sealed class FeaturedHomepageTournamentEndpointTests
             Assert.Equal("Scheduled", card.GetProperty("status").GetString());
             Assert.Equal("SingleElimination", card.GetProperty("bracketType").GetString());
             Assert.Equal("BestOf1", card.GetProperty("format").GetString());
+            var sponsorJson = card.GetProperty("sponsorPlacement");
+            Assert.Equal("Acme Esports", sponsorJson.GetProperty("sponsorName").GetString());
+            Assert.Equal("Presenting", sponsorJson.GetProperty("sponsorTier").GetString());
+            Assert.Equal("TournamentPartner", sponsorJson.GetProperty("context").GetString());
+            Assert.Equal(JsonValueKind.Null, publicJson.RootElement.GetProperty("tournaments")[1]
+                .GetProperty("sponsorPlacement").ValueKind);
         }
 
         using var unauthenticatedResponse = await PutAsync(client, TournamentIds);
@@ -127,8 +134,31 @@ public sealed class FeaturedHomepageTournamentEndpointTests
                 "images/featured.webp",
                 TournamentStatus.Scheduled,
                 BracketType.SingleElimination,
+                GameFormat.BestOf1)
+            {
+                SponsorPlacement = new GetTournamentSponsorPlacementDTO
+                {
+                    Id = 7,
+                    SponsorId = 3,
+                    SponsorName = "Acme Esports",
+                    SponsorTier = SponsorTier.Presenting,
+                    SponsorLogoUrl = "logos/acme.png",
+                    SponsorInfoUrl = "https://acme.example",
+                    SponsorDescription = "Acme powers the main stage",
+                    Context = SponsorContext.TournamentPartner,
+                    Headline = "Headline",
+                    SupportLine = null,
+                    DisplayOrder = 0
+                }
+            };
+            var unsponsored = new FeaturedHomepageTournamentCardDTO(
+                TournamentIds[1],
+                "Second Cup",
+                null,
+                TournamentStatus.Scheduled,
+                BracketType.SingleElimination,
                 GameFormat.BestOf1);
-            return Task.FromResult(new FeaturedHomepageTournamentsDTO(TournamentIds, [card]));
+            return Task.FromResult(new FeaturedHomepageTournamentsDTO(TournamentIds, [card, unsponsored]));
         }
 
         public Task<Dictionary<string, string[]>?> ReplaceFeaturedTournamentsAsync(

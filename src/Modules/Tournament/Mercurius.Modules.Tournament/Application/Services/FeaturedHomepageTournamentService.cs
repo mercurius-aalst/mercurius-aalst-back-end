@@ -1,11 +1,15 @@
 using Mercurius.Modules.Tournament.Application.DTOs.Tournaments;
 using Mercurius.Modules.Tournament.Domain;
 using Mercurius.Modules.Tournament.Infrastructure;
+using Mercurius.Modules.Shared;
+using Mercurius.Modules.Sponsorship.Contracts;
 using Microsoft.EntityFrameworkCore;
 
 namespace Mercurius.Modules.Tournament.Application.Services;
 
-internal sealed class FeaturedHomepageTournamentService(ITournamentDbContext dbContext) : IFeaturedHomepageTournamentService
+internal sealed class FeaturedHomepageTournamentService(
+    ITournamentDbContext dbContext,
+    ISponsorshipModule sponsorshipModule) : IFeaturedHomepageTournamentService
 {
     private const int FeaturedTournamentCount = 4;
 
@@ -27,7 +31,7 @@ internal sealed class FeaturedHomepageTournamentService(ITournamentDbContext dbC
                 .Take(FeaturedTournamentCount)
                 .Select(ToCard())
                 .ToListAsync(cancellationToken);
-            return CreateResponse(fallback);
+            return await CreateResponseAsync(fallback, cancellationToken);
         }
 
         var selected = await GetEligibleTournamentQuery()
@@ -54,7 +58,7 @@ internal sealed class FeaturedHomepageTournamentService(ITournamentDbContext dbC
                 .ToListAsync(cancellationToken));
         }
 
-        return CreateResponse(ordered);
+        return await CreateResponseAsync(ordered, cancellationToken);
     }
 
     public async Task<Dictionary<string, string[]>?> ReplaceFeaturedTournamentsAsync(
@@ -114,7 +118,33 @@ internal sealed class FeaturedHomepageTournamentService(ITournamentDbContext dbC
             (Contracts.BracketType)tournament.BracketType,
             (Contracts.GameFormat)tournament.Format);
 
-    private static FeaturedHomepageTournamentsDTO CreateResponse(
-        IReadOnlyList<FeaturedHomepageTournamentCardDTO> tournaments) =>
-        new(tournaments.Select(tournament => tournament.Id).ToArray(), tournaments);
+    private async Task<FeaturedHomepageTournamentsDTO> CreateResponseAsync(
+        IReadOnlyList<FeaturedHomepageTournamentCardDTO> tournaments,
+        CancellationToken cancellationToken)
+    {
+        var tournamentsWithSponsors = await AttachSponsorPlacementsAsync(tournaments, cancellationToken);
+        return new(
+            tournamentsWithSponsors.Select(tournament => tournament.Id).ToArray(),
+            tournamentsWithSponsors);
+    }
+
+    private async Task<IReadOnlyList<FeaturedHomepageTournamentCardDTO>> AttachSponsorPlacementsAsync(
+        IReadOnlyList<FeaturedHomepageTournamentCardDTO> tournaments,
+        CancellationToken cancellationToken)
+    {
+        if (tournaments.Count == 0)
+            return tournaments;
+
+        var placements = await sponsorshipModule.GetSponsorPlacementsAsync(
+            tournaments.Select(tournament => new TournamentId(tournament.Id)).ToArray(),
+            cancellationToken);
+        if (placements.Count == 0)
+            return tournaments;
+
+        return tournaments
+            .Select(tournament => placements.TryGetValue(new TournamentId(tournament.Id), out var placement)
+                ? tournament with { SponsorPlacement = TournamentDtoMapper.ToSponsorPlacementDto(placement) }
+                : tournament)
+            .ToList();
+    }
 }

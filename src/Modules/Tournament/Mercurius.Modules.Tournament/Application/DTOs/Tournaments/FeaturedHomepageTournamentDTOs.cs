@@ -8,7 +8,10 @@ internal sealed record FeaturedHomepageTournamentCardDTO(
     string? ImageUrl,
     TournamentStatus Status,
     BracketType BracketType,
-    GameFormat Format);
+    GameFormat Format)
+{
+    public GetTournamentSponsorPlacementDTO? SponsorPlacement { get; init; }
+}
 
 internal sealed record FeaturedHomepageTournamentsDTO(
     IReadOnlyList<Guid> TournamentIds,

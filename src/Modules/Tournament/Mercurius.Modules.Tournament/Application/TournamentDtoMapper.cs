@@ -408,7 +408,7 @@ internal sealed class TournamentDtoMapper
         };
     }
 
-    private static GetTournamentSponsorPlacementDTO ToSponsorPlacementDto(SponsorPlacementSummary placement)
+    internal static GetTournamentSponsorPlacementDTO ToSponsorPlacementDto(SponsorPlacementSummary placement)
     {
         return new GetTournamentSponsorPlacementDTO
         {

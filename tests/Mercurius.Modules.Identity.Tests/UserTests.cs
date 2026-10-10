@@ -1,12 +1,13 @@
-using Mercurius.Modules.Identity.DTOs;
+using Mercurius.Modules.Identity.Infrastructure;
+using Mercurius.Modules.Identity.Application.DTOs;
 using Mercurius.Modules.Identity;
 using Mercurius.LAN.API.Data;
 using Mercurius.Modules.Shared;
 using Mercurius.Modules.Shared.Exceptions;
 using Mercurius.LAN.API.Migrations;
 using Mercurius.Modules.Shared.Search;
-using Mercurius.Modules.Identity.Services.Auth0;
-using Mercurius.Modules.Identity.Services;
+using Mercurius.Modules.Identity.Application.Services.Auth0;
+using Mercurius.Modules.Identity.Application.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
@@ -65,7 +66,7 @@ public class UserTests
         dbContext.Users.AddRange(publicUser, deletedUser, incompleteUser);
         await dbContext.SaveChangesAsync();
 
-        var module = new IdentityModuleFacade(dbContext);
+        var module = new IdentityModuleFacade(new IdentityDbContextAdapter<MercuriusDBContext>(dbContext));
         var usernames = await module.GetPublicUsernamesByIdsAsync(
             [new UserId(publicUser.Id), new UserId(deletedUser.Id), new UserId(incompleteUser.Id)]);
 
@@ -468,7 +469,7 @@ public class UserTests
         dbContext.Users.Add(user);
         await dbContext.SaveChangesAsync();
 
-        var service = new UserService(dbContext, new RecordingAuth0ManagementService(new Auth0ProfileSnapshot(null, null, false)));
+        var service = new UserService(new IdentityDbContextAdapter<MercuriusDBContext>(dbContext), new RecordingAuth0ManagementService(new Auth0ProfileSnapshot(null, null, false)));
 
         await service.DeleteUserAsync("DELETEME");
 
@@ -482,7 +483,7 @@ public class UserTests
     public async Task DeleteUserAsync_ThrowsNotFound_WhenUsernameDoesNotExist()
     {
         await using var dbContext = CreateDbContext();
-        var service = new UserService(dbContext, new RecordingAuth0ManagementService(new Auth0ProfileSnapshot(null, null, false)));
+        var service = new UserService(new IdentityDbContextAdapter<MercuriusDBContext>(dbContext), new RecordingAuth0ManagementService(new Auth0ProfileSnapshot(null, null, false)));
 
         var exception = await Assert.ThrowsAsync<NotFoundException>(() => service.DeleteUserAsync("missinguser"));
 
@@ -499,7 +500,7 @@ public class UserTests
 
         var auth0ManagementService = new RecordingAuth0ManagementService(
             new Auth0ProfileSnapshot("fresh@example.com", true, true));
-        var service = new UserService(dbContext, auth0ManagementService);
+        var service = new UserService(new IdentityDbContextAdapter<MercuriusDBContext>(dbContext), auth0ManagementService);
 
         var response = await service.GetCurrentUserAsync("auth0|current");
 
@@ -520,7 +521,7 @@ public class UserTests
         await using var dbContext = CreateDbContext();
         var auth0ManagementService = new RecordingAuth0ManagementService(
             new Auth0ProfileSnapshot("fresh@example.com", true, true));
-        var service = new UserService(dbContext, auth0ManagementService);
+        var service = new UserService(new IdentityDbContextAdapter<MercuriusDBContext>(dbContext), auth0ManagementService);
 
         await Assert.ThrowsAsync<NotFoundException>(() => service.GetCurrentUserAsync("auth0|missing"));
 
@@ -534,7 +535,7 @@ public class UserTests
         await using var dbContext = CreateDbContext();
         var auth0ManagementService = new RecordingAuth0ManagementService(
             new Auth0ProfileSnapshot("fresh@example.com", true, true));
-        var service = new UserService(dbContext, auth0ManagementService);
+        var service = new UserService(new IdentityDbContextAdapter<MercuriusDBContext>(dbContext), auth0ManagementService);
         var request = new CompleteUserProfileRequest
         {
             Username = "NewPlayer",
@@ -569,7 +570,7 @@ public class UserTests
 
         var auth0ManagementService = new RecordingAuth0ManagementService(
             new Auth0ProfileSnapshot("fresh@example.com", true, true));
-        var service = new UserService(dbContext, auth0ManagementService);
+        var service = new UserService(new IdentityDbContextAdapter<MercuriusDBContext>(dbContext), auth0ManagementService);
         var request = new CompleteUserProfileRequest
         {
             Username = "OtherUser",
@@ -602,7 +603,7 @@ public class UserTests
 
         var auth0ManagementService = new RecordingAuth0ManagementService(
             new Auth0ProfileSnapshot("fresh@example.com", true, true));
-        var service = new UserService(dbContext, auth0ManagementService);
+        var service = new UserService(new IdentityDbContextAdapter<MercuriusDBContext>(dbContext), auth0ManagementService);
         var request = new CompleteUserProfileRequest
         {
             Username = "CompletedUser",
@@ -633,7 +634,7 @@ public class UserTests
         await using var dbContext = CreateDbContext();
         var auth0ManagementService = new RecordingAuth0ManagementService(
             new Auth0ProfileSnapshot("fresh@example.com", true, true));
-        var service = new UserService(dbContext, auth0ManagementService);
+        var service = new UserService(new IdentityDbContextAdapter<MercuriusDBContext>(dbContext), auth0ManagementService);
         var request = new CompleteUserProfileRequest
         {
             Username = "ValidUser",
@@ -652,7 +653,7 @@ public class UserTests
     {
         await using var dbContext = CreateDbContext();
         var service = new UserService(
-            dbContext,
+            new IdentityDbContextAdapter<MercuriusDBContext>(dbContext),
             new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("fresh@example.com", true, true)));
         var request = new UpdateUserProfileRequest
         {
@@ -689,7 +690,7 @@ public class UserTests
 
         var auth0ManagementService = new RecordingAuth0ManagementService(
             new Auth0ProfileSnapshot("shared@example.com", true, false));
-        var service = new UserService(dbContext, auth0ManagementService);
+        var service = new UserService(new IdentityDbContextAdapter<MercuriusDBContext>(dbContext), auth0ManagementService);
 
         var response = await service.SendPasswordResetEmailAsync(user.Auth0UserId);
 
@@ -707,7 +708,7 @@ public class UserTests
 
         var auth0ManagementService = new RecordingAuth0ManagementService(
             new Auth0ProfileSnapshot("shared@example.com", true, true));
-        var service = new UserService(dbContext, auth0ManagementService);
+        var service = new UserService(new IdentityDbContextAdapter<MercuriusDBContext>(dbContext), auth0ManagementService);
 
         await service.SendPasswordResetEmailAsync(user.Auth0UserId);
 
@@ -726,7 +727,7 @@ public class UserTests
         await dbContext.SaveChangesAsync();
 
         var service = new UserService(
-            dbContext,
+            new IdentityDbContextAdapter<MercuriusDBContext>(dbContext),
             new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("public@example.com", true, true)));
 
         var profile = await service.GetPublicUserProfileByUsernameAsync("playerone");
@@ -745,7 +746,7 @@ public class UserTests
         await dbContext.SaveChangesAsync();
 
         var service = new UserService(
-            dbContext,
+            new IdentityDbContextAdapter<MercuriusDBContext>(dbContext),
             new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("private@example.com", true, true)));
 
         var profile = await service.GetUserByUsernameAsync("PLAYERONE");
@@ -764,7 +765,7 @@ public class UserTests
         await dbContext.SaveChangesAsync();
 
         var service = new UserService(
-            dbContext,
+            new IdentityDbContextAdapter<MercuriusDBContext>(dbContext),
             new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("public@example.com", true, true)));
 
         var profile = await service.GetPublicUserProfileByUsernameAsync("PlAyErOnE");
@@ -777,7 +778,7 @@ public class UserTests
     {
         await using var dbContext = CreateDbContext();
         var service = new UserService(
-            dbContext,
+            new IdentityDbContextAdapter<MercuriusDBContext>(dbContext),
             new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("public@example.com", true, true)));
 
         await Assert.ThrowsAsync<NotFoundException>(() =>
@@ -794,7 +795,7 @@ public class UserTests
         await dbContext.SaveChangesAsync();
 
         var service = new UserService(
-            dbContext,
+            new IdentityDbContextAdapter<MercuriusDBContext>(dbContext),
             new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("public@example.com", true, true)));
 
         await Assert.ThrowsAsync<NotFoundException>(() =>
@@ -811,7 +812,7 @@ public class UserTests
         await dbContext.SaveChangesAsync();
 
         var service = new UserService(
-            dbContext,
+            new IdentityDbContextAdapter<MercuriusDBContext>(dbContext),
             new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("public@example.com", true, true)));
 
         await Assert.ThrowsAsync<NotFoundException>(() =>
@@ -835,7 +836,7 @@ public class UserTests
         await dbContext.SaveChangesAsync();
 
         var service = new UserService(
-            dbContext,
+            new IdentityDbContextAdapter<MercuriusDBContext>(dbContext),
             new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("public@example.com", true, true)));
 
         var response = await service.SearchUsersAsync("  ALPHA  ", cursor: null, pageSize: 2);
@@ -881,7 +882,7 @@ public class UserTests
         await dbContext.SaveChangesAsync();
 
         var service = new UserService(
-            dbContext,
+            new IdentityDbContextAdapter<MercuriusDBContext>(dbContext),
             new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("public@example.com", true, true)));
 
         var firstPage = await service.GetAllUsersAsync(page: 1, pageSize: 2);
@@ -908,7 +909,7 @@ public class UserTests
         await dbContext.SaveChangesAsync();
 
         var service = new UserService(
-            dbContext,
+            new IdentityDbContextAdapter<MercuriusDBContext>(dbContext),
             new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("public@example.com", true, true)));
 
         var response = await service.SearchUsersAsync("username", cursor: null, pageSize: 10);
@@ -926,7 +927,7 @@ public class UserTests
         await dbContext.SaveChangesAsync();
 
         var service = new UserService(
-            dbContext,
+            new IdentityDbContextAdapter<MercuriusDBContext>(dbContext),
             new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("public@example.com", true, true)));
 
         var response = await service.SearchUsersAsync("al", cursor: null, pageSize: 10);
@@ -947,7 +948,7 @@ public class UserTests
         await dbContext.SaveChangesAsync();
 
         var service = new UserService(
-            dbContext,
+            new IdentityDbContextAdapter<MercuriusDBContext>(dbContext),
             new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("public@example.com", true, true)));
 
         var page1 = await service.SearchUsersAsync("alpha", cursor: null, pageSize: 2);
@@ -968,7 +969,7 @@ public class UserTests
             .Options;
         using var dbContext = new MercuriusDBContext(options);
         var service = new UserService(
-            dbContext,
+            new IdentityDbContextAdapter<MercuriusDBContext>(dbContext),
             new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("public@example.com", true, true)));
 
         var buildQuery = typeof(UserService).GetMethod("BuildPagedUserSearchQuery", BindingFlags.Instance | BindingFlags.NonPublic)!;

@@ -1,6 +1,6 @@
 using Mercurius.LAN.API.Configuration;
 using Mercurius.Modules.Identity;
-using Mercurius.Modules.Identity.Services;
+using Mercurius.Modules.Identity.Application.Services;
 using Platform;
 using Platform.Extensions;
 using Microsoft.AspNetCore.Authorization;

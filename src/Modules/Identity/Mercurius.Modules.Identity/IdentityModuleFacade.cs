@@ -1,7 +1,7 @@
 using Mercurius.Modules.Identity.Contracts;
 using Mercurius.Modules.Identity.Domain;
 using Mercurius.Modules.Identity.Infrastructure;
-using Mercurius.Modules.Identity.Services;
+using Mercurius.Modules.Identity.Application.Services;
 using Mercurius.Modules.Shared;
 using Microsoft.EntityFrameworkCore;
 

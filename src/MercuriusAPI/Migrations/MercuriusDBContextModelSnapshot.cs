@@ -1117,7 +1117,7 @@ namespace Mercurius.LAN.API.Migrations
                     b.HasOne("Mercurius.Modules.Tournament.Domain.Tournament", null)
                         .WithOne()
                         .HasForeignKey("Mercurius.Modules.Sponsorship.Domain.TournamentSponsorPlacement", "TournamentId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Sponsor");
@@ -1142,7 +1142,7 @@ namespace Mercurius.LAN.API.Migrations
                     b.HasOne("Mercurius.Modules.Identity.Domain.User", null)
                         .WithMany()
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("FK_team_invites_users_UserId");
 
@@ -1161,7 +1161,7 @@ namespace Mercurius.LAN.API.Migrations
                     b.HasOne("Mercurius.Modules.Identity.Domain.User", null)
                         .WithMany()
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("FK_team_members_users_UserId");
 
@@ -1294,7 +1294,7 @@ namespace Mercurius.LAN.API.Migrations
                     b.HasOne("Mercurius.Modules.Teams.Domain.Team", null)
                         .WithMany()
                         .HasForeignKey("TeamId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Placement");
@@ -1311,7 +1311,7 @@ namespace Mercurius.LAN.API.Migrations
                     b.HasOne("Mercurius.Modules.Identity.Domain.User", null)
                         .WithMany()
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Placement");

@@ -152,7 +152,7 @@ internal sealed class ModuleEventDispatcher : IModuleEventDispatcher
             ? attemptedAtUtc + CalculateRetryDelay(retryCount)
             : null;
 
-        await _dbContext.OutboxMessages
+        var updated = await _dbContext.OutboxMessages
             .Where(outbox =>
                 outbox.Id == message.Id &&
                 outbox.ClaimToken == claimToken &&
@@ -166,6 +166,8 @@ internal sealed class ModuleEventDispatcher : IModuleEventDispatcher
                 .SetProperty(outbox => outbox.ClaimToken, (Guid?)null)
                 .SetProperty(outbox => outbox.ClaimExpiresAtUtc, (DateTime?)null),
                 cancellationToken);
+        if (updated == 1 && deadLetteredAtUtc is not null)
+            EventingMetrics.DeadLetteredMessages.Add(1, new KeyValuePair<string, object?>("event_type", message.EventType));
 
         ClearTrackedState();
     }

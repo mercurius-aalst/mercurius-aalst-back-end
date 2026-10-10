@@ -26,6 +26,7 @@ public class ApiEndpointContractTests
 {
     [Theory]
     [InlineData("GET", "v{version:apiVersion}/lan/tournaments/", "Tournaments")]
+    [InlineData("GET", "v{version:apiVersion}/lan/featured-tournaments/", "Featured Tournaments")]
     [InlineData("GET", "v{version:apiVersion}/lan/tournaments/{tournamentId}", "Tournaments")]
     [InlineData("GET", "v{version:apiVersion}/lan/matches/{id}", "Matches")]
     [InlineData("GET", "v{version:apiVersion}/lan/sponsors/", "Sponsors")]
@@ -140,6 +141,7 @@ public class ApiEndpointContractTests
     [InlineData("DELETE", "v{version:apiVersion}/lan/tournaments/{tournamentId}")]
     [InlineData("PUT", "v{version:apiVersion}/lan/tournaments/{tournamentId}/sponsors")]
     [InlineData("PUT", "v{version:apiVersion}/lan/tournaments/{tournamentId}/lifecycle-state")]
+    [InlineData("PUT", "v{version:apiVersion}/lan/featured-tournaments/")]
     [InlineData("PUT", "v{version:apiVersion}/lan/matches/{id}")]
     [InlineData("POST", "v{version:apiVersion}/lan/matches/{id}/resolve")]
     [InlineData("POST", "v{version:apiVersion}/lan/matches/{id}/reverse")]
@@ -299,3 +301,4 @@ public class ApiEndpointContractTests
         services.AddScoped<IDiscoveryModule>(_ => throw new NotSupportedException());
     }
 }
+

@@ -339,6 +339,7 @@ public sealed class TournamentRegistrationConfigurationConcurrencyTests
 
         public Task SaveReached => _saveReached.Task;
         public DbSet<TournamentAggregate> Tournaments => inner.Set<TournamentAggregate>();
+        public DbSet<FeaturedHomepageTournamentSelection> FeaturedHomepageTournamentSelections => inner.Set<FeaturedHomepageTournamentSelection>();
         public DbSet<Match> Matches => inner.Set<Match>();
         public DbSet<Placement> Placements => inner.Set<Placement>();
         public DbSet<MatchResolutionNotification> MatchResolutionNotifications => inner.Set<MatchResolutionNotification>();
@@ -363,3 +364,4 @@ public sealed class TournamentRegistrationConfigurationConcurrencyTests
         public IMatchModerator GetMatchModerator(BracketType bracketType) => throw new NotSupportedException();
     }
 }
+

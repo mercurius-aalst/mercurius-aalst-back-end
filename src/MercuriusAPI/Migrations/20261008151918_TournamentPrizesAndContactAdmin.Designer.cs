@@ -3,6 +3,7 @@ using System;
 using Mercurius.LAN.API.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Mercurius.LAN.API.Migrations
 {
     [DbContext(typeof(MercuriusDBContext))]
-    partial class MercuriusDBContextModelSnapshot : ModelSnapshot
+    [Migration("20261008151918_TournamentPrizesAndContactAdmin")]
+    partial class TournamentPrizesAndContactAdmin
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -54,8 +57,7 @@ namespace Mercurius.LAN.API.Migrations
                         .IsRequired()
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)")
-                        .HasColumnName("normalized_text")
-                        .UseCollation("C");
+                        .HasColumnName("normalized_text");
 
                     b.Property<string>("Route")
                         .IsRequired()
@@ -93,8 +95,8 @@ namespace Mercurius.LAN.API.Migrations
                         .IsUnique();
 
                     b.HasIndex("NormalizedText", "TypeOrder", "EntityId")
-                        .HasDatabaseName("IX_search_documents_active_text")
-                        .HasFilter("is_deleted = false");
+                        .HasDatabaseName("IX_search_documents_active_exact_order")
+                        .HasFilter("is_deleted = false AND entity_type IN ('user', 'team', 'tournament')");
 
                     b.ToTable("search_documents", "discovery");
                 });

@@ -249,7 +249,8 @@ public sealed class TournamentMediaLifecycleTests
             TournamentTestSupport.CreateSponsorshipModule(),
             TournamentTestSupport.CreateMapper(),
             moduleEventPublisher ?? TournamentTestSupport.CreateModuleEventPublisher(),
-            logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<TournamentService>.Instance);
+            logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<TournamentService>.Instance,
+            TimeProvider.System);
     }
 
     private static MercuriusDBContext CreateDbContext()
@@ -268,7 +269,11 @@ public sealed class TournamentMediaLifecycleTests
             BracketType.SingleElimination,
             GameFormat.BestOf1,
             GameFormat.BestOf3,
-            ParticipationMode.Individual)
+            ParticipationMode.Individual,
+            null,
+            DateTime.UtcNow,
+            30,
+            10)
             .Set(x => x.Id, Guid.NewGuid())
             .Set(x => x.ImageUrl, PreviousImageUrl);
     }

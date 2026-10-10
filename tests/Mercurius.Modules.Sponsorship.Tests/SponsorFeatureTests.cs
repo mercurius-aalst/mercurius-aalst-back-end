@@ -176,7 +176,8 @@ public class SponsorFeatureTests
                 new RegistrationMappingContextBuilder(identityModule, teamsModule),
                 sponsorshipModule),
             new ModuleEventPublisher(dbContext),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<TournamentService>.Instance);
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<TournamentService>.Instance,
+            TimeProvider.System);
 
         await service.DeleteTournamentAsync(tournament.Id);
 
@@ -244,7 +245,8 @@ public class SponsorFeatureTests
                 new RegistrationMappingContextBuilder(identityModule, teamsModule),
                 sponsorshipModule),
             SponsorshipTournamentTestDoubles.CreateModuleEventPublisher(),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<TournamentService>.Instance);
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<TournamentService>.Instance,
+            TimeProvider.System);
         var updatedTournament = await service.ReplaceSponsorPlacementsAsync(tournament.Id, new ReplaceTournamentSponsorsDTO
         {
             SponsorPlacements =
@@ -291,7 +293,8 @@ public class SponsorFeatureTests
                     SponsorshipTournamentTestDoubles.CreateTeamsModule()),
                 new RecordingSponsorshipModule([presentingSponsor.Id, prizeSponsor.Id])),
             SponsorshipTournamentTestDoubles.CreateModuleEventPublisher(),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<TournamentService>.Instance);
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<TournamentService>.Instance,
+            TimeProvider.System);
 
         var exception = await Assert.ThrowsAsync<ValidationException>(() => service.ReplaceSponsorPlacementsAsync(tournament.Id, new ReplaceTournamentSponsorsDTO
         {
@@ -333,7 +336,8 @@ public class SponsorFeatureTests
                     SponsorshipTournamentTestDoubles.CreateTeamsModule()),
                 new RecordingSponsorshipModule([])),
             SponsorshipTournamentTestDoubles.CreateModuleEventPublisher(),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<TournamentService>.Instance);
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<TournamentService>.Instance,
+            TimeProvider.System);
         var tournamentId = await dbContext.Set<TournamentAggregate>().Select(tournament => tournament.Id).SingleAsync();
 
         var exception = await Assert.ThrowsAsync<NotFoundException>(() => service.ReplaceSponsorPlacementsAsync(tournamentId, new ReplaceTournamentSponsorsDTO
@@ -383,7 +387,7 @@ public class SponsorFeatureTests
 
     private static TournamentAggregate CreateTournament()
     {
-        return new TournamentAggregate("Counter-Strike 2", BracketType.SingleElimination, GameFormat.BestOf3, GameFormat.BestOf5, ParticipationMode.Team, 5).Set(x => x.Id, Guid.NewGuid());
+        return new TournamentAggregate("Counter-Strike 2", BracketType.SingleElimination, GameFormat.BestOf3, GameFormat.BestOf5, ParticipationMode.Team, 5, DateTime.UtcNow, 30, 10).Set(x => x.Id, Guid.NewGuid());
     }
 
     private static Sponsor CreateSponsor(int id, string name, SponsorTier tier)

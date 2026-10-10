@@ -26,6 +26,7 @@ internal sealed class TournamentService : ITournamentQueries, ITournamentManagem
     private readonly TournamentDtoMapper _mapper;
     private readonly IModuleEventPublisher _moduleEventPublisher;
     private readonly ILogger<TournamentService> _logger;
+    private readonly TimeProvider _timeProvider;
 
     public TournamentService(
         ITournamentDbContext dbContext,
@@ -34,7 +35,8 @@ internal sealed class TournamentService : ITournamentQueries, ITournamentManagem
         ISponsorshipModule sponsorshipModule,
         TournamentDtoMapper mapper,
         IModuleEventPublisher moduleEventPublisher,
-        ILogger<TournamentService> logger)
+        ILogger<TournamentService> logger,
+        TimeProvider timeProvider)
     {
         _dbContext = dbContext;
         _matchModeratorFactory = matchModeratorFactory;
@@ -43,6 +45,7 @@ internal sealed class TournamentService : ITournamentQueries, ITournamentManagem
         _mapper = mapper;
         _moduleEventPublisher = moduleEventPublisher;
         _logger = logger;
+        _timeProvider = timeProvider;
     }
 
     public async Task<GetTournamentDTO> CreateTournamentAsync(
@@ -229,7 +232,7 @@ internal sealed class TournamentService : ITournamentQueries, ITournamentManagem
     public async Task StartTournamentAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var tournament = await GetTournamentForMutationAsync(id, cancellationToken);
-        tournament.Start();
+        tournament.Start(UtcNow());
         tournament.IncrementRevision();
         var matchModerator = _matchModeratorFactory.GetMatchModerator(tournament.BracketType);
         tournament.ReplaceMatches(matchModerator.GenerateMatchesForTournament(tournament).ToList());
@@ -244,7 +247,7 @@ internal sealed class TournamentService : ITournamentQueries, ITournamentManagem
         var tournament = await GetTournamentForMutationAsync(id, cancellationToken);
         var matchModerator = _matchModeratorFactory.GetMatchModerator(tournament.BracketType);
         matchModerator.EnsureCanComplete(tournament);
-        tournament.Complete();
+        tournament.Complete(UtcNow());
         tournament.IncrementRevision();
         matchModerator.DeterminePlacements(tournament);
         await SaveLifecycleAsync(tournament.BracketType == BracketType.Leaderboard, cancellationToken);
@@ -417,4 +420,6 @@ internal sealed class TournamentService : ITournamentQueries, ITournamentManagem
             throw new ConflictException("tournament_changed", "The tournament changed. Refresh and try again.");
         }
     }
+
+    private DateTime UtcNow() => _timeProvider.GetUtcNow().UtcDateTime;
 }

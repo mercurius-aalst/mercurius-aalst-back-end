@@ -1,5 +1,6 @@
 using Mercurius.Modules.Identity.DTOs;
 using Mercurius.Modules.Identity;
+using Mercurius.Modules.Identity.Contracts;
 using Mercurius.LAN.API.Data;
 using Mercurius.Modules.Shared;
 using Mercurius.Modules.Shared.Exceptions;
@@ -563,6 +564,32 @@ public class UserTests
     }
 
     [Fact]
+    public async Task GetAdminUsersAsync_ForwardsQueryPageAndPageSize()
+    {
+        var inner = new RecordingUserService();
+        var service = new UserValidationService(inner);
+
+        var result = await service.GetAdminUsersAsync(" Alpha ", page: 2, pageSize: 7);
+
+        Assert.Same(inner.AdminUserOptions, result);
+        Assert.Equal(" Alpha ", inner.LastAdminQuery);
+        Assert.Equal(2, inner.LastAdminPage);
+        Assert.Equal(7, inner.LastAdminPageSize);
+    }
+
+    [Fact]
+    public async Task GetAdminUsersAsync_RejectsOverlongQuery()
+    {
+        var service = new UserValidationService(new RecordingUserService());
+        var query = new string('a', SearchRequestLimits.MaximumQueryLength + 1);
+
+        var exception = await Assert.ThrowsAsync<ValidationException>(() =>
+            service.GetAdminUsersAsync(query, page: 1, pageSize: 10));
+
+        Assert.Contains($"Query cannot exceed {SearchRequestLimits.MaximumQueryLength} characters.", exception.Message);
+    }
+
+    [Fact]
     public async Task DeleteUserByIdAsync_RejectsEmptyIds()
     {
         var service = new UserValidationService(new RecordingUserService());
@@ -582,7 +609,7 @@ public class UserTests
         dbContext.Users.Add(user);
         await dbContext.SaveChangesAsync();
 
-        var service = new UserService(dbContext, new RecordingAuth0ManagementService(new Auth0ProfileSnapshot(null, null, false)));
+        var service = CreateUserService(dbContext, new RecordingAuth0ManagementService(new Auth0ProfileSnapshot(null, null, false)));
 
         await service.DeleteUserAsync("DELETEME");
 
@@ -596,7 +623,7 @@ public class UserTests
     public async Task DeleteUserAsync_ThrowsNotFound_WhenUsernameDoesNotExist()
     {
         await using var dbContext = CreateDbContext();
-        var service = new UserService(dbContext, new RecordingAuth0ManagementService(new Auth0ProfileSnapshot(null, null, false)));
+        var service = CreateUserService(dbContext, new RecordingAuth0ManagementService(new Auth0ProfileSnapshot(null, null, false)));
 
         var exception = await Assert.ThrowsAsync<NotFoundException>(() => service.DeleteUserAsync("missinguser"));
 
@@ -613,7 +640,7 @@ public class UserTests
 
         var auth0ManagementService = new RecordingAuth0ManagementService(
             new Auth0ProfileSnapshot("fresh@example.com", true, true));
-        var service = new UserService(dbContext, auth0ManagementService);
+        var service = CreateUserService(dbContext, auth0ManagementService);
 
         var response = await service.GetCurrentUserAsync("auth0|current");
 
@@ -634,7 +661,7 @@ public class UserTests
         await using var dbContext = CreateDbContext();
         var auth0ManagementService = new RecordingAuth0ManagementService(
             new Auth0ProfileSnapshot("fresh@example.com", true, true));
-        var service = new UserService(dbContext, auth0ManagementService);
+        var service = CreateUserService(dbContext, auth0ManagementService);
 
         await Assert.ThrowsAsync<NotFoundException>(() => service.GetCurrentUserAsync("auth0|missing"));
 
@@ -648,7 +675,7 @@ public class UserTests
         await using var dbContext = CreateDbContext();
         var auth0ManagementService = new RecordingAuth0ManagementService(
             new Auth0ProfileSnapshot("fresh@example.com", true, true));
-        var service = new UserService(dbContext, auth0ManagementService);
+        var service = CreateUserService(dbContext, auth0ManagementService);
         var request = new CompleteUserProfileRequest
         {
             Username = "NewPlayer",
@@ -683,7 +710,7 @@ public class UserTests
 
         var auth0ManagementService = new RecordingAuth0ManagementService(
             new Auth0ProfileSnapshot("fresh@example.com", true, true));
-        var service = new UserService(dbContext, auth0ManagementService);
+        var service = CreateUserService(dbContext, auth0ManagementService);
         var request = new CompleteUserProfileRequest
         {
             Username = "OtherUser",
@@ -716,7 +743,7 @@ public class UserTests
 
         var auth0ManagementService = new RecordingAuth0ManagementService(
             new Auth0ProfileSnapshot("fresh@example.com", true, true));
-        var service = new UserService(dbContext, auth0ManagementService);
+        var service = CreateUserService(dbContext, auth0ManagementService);
         var request = new CompleteUserProfileRequest
         {
             Username = "CompletedUser",
@@ -747,7 +774,7 @@ public class UserTests
         await using var dbContext = CreateDbContext();
         var auth0ManagementService = new RecordingAuth0ManagementService(
             new Auth0ProfileSnapshot("fresh@example.com", true, true));
-        var service = new UserService(dbContext, auth0ManagementService);
+        var service = CreateUserService(dbContext, auth0ManagementService);
         var request = new CompleteUserProfileRequest
         {
             Username = "ValidUser",
@@ -765,7 +792,7 @@ public class UserTests
     public async Task UpdateCurrentUserAsync_ThrowsNotFoundWithoutCreatingUser_WhenCurrentUserMissing()
     {
         await using var dbContext = CreateDbContext();
-        var service = new UserService(
+        var service = CreateUserService(
             dbContext,
             new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("fresh@example.com", true, true)));
         var request = new UpdateUserProfileRequest
@@ -803,7 +830,7 @@ public class UserTests
 
         var auth0ManagementService = new RecordingAuth0ManagementService(
             new Auth0ProfileSnapshot("shared@example.com", true, false));
-        var service = new UserService(dbContext, auth0ManagementService);
+        var service = CreateUserService(dbContext, auth0ManagementService);
 
         var response = await service.SendPasswordResetEmailAsync(user.Auth0UserId);
 
@@ -821,7 +848,7 @@ public class UserTests
 
         var auth0ManagementService = new RecordingAuth0ManagementService(
             new Auth0ProfileSnapshot("shared@example.com", true, true));
-        var service = new UserService(dbContext, auth0ManagementService);
+        var service = CreateUserService(dbContext, auth0ManagementService);
 
         await service.SendPasswordResetEmailAsync(user.Auth0UserId);
 
@@ -839,7 +866,7 @@ public class UserTests
         dbContext.Users.Add(user);
         await dbContext.SaveChangesAsync();
 
-        var service = new UserService(
+        var service = CreateUserService(
             dbContext,
             new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("public@example.com", true, true)));
 
@@ -858,7 +885,7 @@ public class UserTests
         dbContext.Users.Add(user);
         await dbContext.SaveChangesAsync();
 
-        var service = new UserService(
+        var service = CreateUserService(
             dbContext,
             new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("private@example.com", true, true)));
 
@@ -877,7 +904,7 @@ public class UserTests
         dbContext.Users.Add(CreateStoredUser("auth0|123", "public@example.com"));
         await dbContext.SaveChangesAsync();
 
-        var service = new UserService(
+        var service = CreateUserService(
             dbContext,
             new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("public@example.com", true, true)));
 
@@ -890,7 +917,7 @@ public class UserTests
     public async Task GetPublicUserProfileByUsernameAsync_ThrowsNotFound_ForMissingUser()
     {
         await using var dbContext = CreateDbContext();
-        var service = new UserService(
+        var service = CreateUserService(
             dbContext,
             new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("public@example.com", true, true)));
 
@@ -907,7 +934,7 @@ public class UserTests
         dbContext.Users.Add(user);
         await dbContext.SaveChangesAsync();
 
-        var service = new UserService(
+        var service = CreateUserService(
             dbContext,
             new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("public@example.com", true, true)));
 
@@ -924,7 +951,7 @@ public class UserTests
         dbContext.Users.Add(user);
         await dbContext.SaveChangesAsync();
 
-        var service = new UserService(
+        var service = CreateUserService(
             dbContext,
             new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("public@example.com", true, true)));
 
@@ -948,7 +975,7 @@ public class UserTests
         dbContext.Users.AddRange(contains, prefix, exact, deleted, missingUsername, missingNormalizedUsername);
         await dbContext.SaveChangesAsync();
 
-        var service = new UserService(
+        var service = CreateUserService(
             dbContext,
             new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("public@example.com", true, true)));
 
@@ -994,7 +1021,7 @@ public class UserTests
         dbContext.Users.AddRange(bravoSecond, alpha, bravoFirst);
         await dbContext.SaveChangesAsync();
 
-        var service = new UserService(
+        var service = CreateUserService(
             dbContext,
             new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("public@example.com", true, true)));
 
@@ -1012,6 +1039,47 @@ public class UserTests
     }
 
     [Fact]
+    public async Task GetAdminUsersAsync_DefaultsPageAndCapsPageSizeAndNormalizesQuery()
+    {
+        await using var dbContext = CreateDbContext();
+        var identityModule = new RecordingIdentityModule();
+        var service = CreateUserService(
+            dbContext,
+            new RecordingAuth0ManagementService(new Auth0ProfileSnapshot(null, null, false)),
+            identityModule);
+
+        await service.GetAdminUsersAsync(null, page: null, pageSize: null);
+        await service.GetAdminUsersAsync("  ALPHA  ", page: 3, pageSize: 51);
+
+        Assert.Equal([("", 1, 20), ("alpha", 3, 50)], identityModule.AdminCalls);
+    }
+
+    [Fact]
+    public async Task GetAdminUsersAsync_MapsPickerOptionsWithIncompleteProfileFallback()
+    {
+        await using var dbContext = CreateDbContext();
+        var identityModule = new RecordingIdentityModule
+        {
+            AdminUsers =
+            [
+                new UserProfileSummary(new UserId(Guid.NewGuid()), "picker-user", "Picker Person", false, null, null, null),
+                new UserProfileSummary(new UserId(Guid.NewGuid()), "   ", "Incomplete profile", false, null, null, null)
+            ]
+        };
+        var service = CreateUserService(
+            dbContext,
+            new RecordingAuth0ManagementService(new Auth0ProfileSnapshot(null, null, false)),
+            identityModule);
+
+        var options = await service.GetAdminUsersAsync(null, page: 1, pageSize: 20);
+
+        Assert.Equal(2, options.Count);
+        Assert.Equal("picker-user", options[0].Username);
+        Assert.Equal("Picker Person", options[0].DisplayName);
+        Assert.Equal("Incomplete profile", options[1].Username);
+    }
+
+    [Fact]
     public async Task SearchUsersAsync_DoesNotRequireFirstOrLastName()
     {
         await using var dbContext = CreateDbContext();
@@ -1021,7 +1089,7 @@ public class UserTests
         dbContext.Users.Add(user);
         await dbContext.SaveChangesAsync();
 
-        var service = new UserService(
+        var service = CreateUserService(
             dbContext,
             new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("public@example.com", true, true)));
 
@@ -1039,7 +1107,7 @@ public class UserTests
         dbContext.Users.Add(CreateStoredUser("auth0|short", "short@example.com", "Alpha"));
         await dbContext.SaveChangesAsync();
 
-        var service = new UserService(
+        var service = CreateUserService(
             dbContext,
             new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("public@example.com", true, true)));
 
@@ -1060,7 +1128,7 @@ public class UserTests
             CreateStoredUser("auth0|alphab", "alphab@example.com", "Alphab"));
         await dbContext.SaveChangesAsync();
 
-        var service = new UserService(
+        var service = CreateUserService(
             dbContext,
             new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("public@example.com", true, true)));
 
@@ -1081,7 +1149,7 @@ public class UserTests
             .UseNpgsql("Host=localhost;Database=translation-only")
             .Options;
         using var dbContext = new MercuriusDBContext(options);
-        var service = new UserService(
+        var service = CreateUserService(
             dbContext,
             new RecordingAuth0ManagementService(new Auth0ProfileSnapshot("public@example.com", true, true)));
 
@@ -1110,6 +1178,12 @@ public class UserTests
 
         return new MercuriusDBContext(options);
     }
+
+    private static UserService CreateUserService(
+        MercuriusDBContext dbContext,
+        IAuth0ManagementService auth0ManagementService,
+        IIdentityModule? identityModule = null) =>
+        new(dbContext, auth0ManagementService, identityModule ?? new RecordingIdentityModule());
 
     private static void AssertUniqueIndex(IEnumerable<IIndex> indexes, string propertyName, string? filter)
     {
@@ -1152,6 +1226,11 @@ public class UserTests
         public string? LastUserSearchQuery { get; private set; }
         public string? LastUserSearchCursor { get; private set; }
         public int LastUserSearchPageSize { get; private set; }
+        public string? LastAdminQuery { get; private set; }
+        public int? LastAdminPage { get; private set; }
+        public int? LastAdminPageSize { get; private set; }
+        public IReadOnlyList<AdminUserOptionDTO> AdminUserOptions { get; } =
+            [new AdminUserOptionDTO(Guid.NewGuid(), "ValidUser", "ValidUser")];
         public GetUserDTO CreatedUser { get; } = new(new User
         {
             Id = Guid.NewGuid(),
@@ -1263,6 +1342,42 @@ public class UserTests
             return Task.FromResult(CreatedUser);
         }
         public Task<GetUserDTO> UpdateUserAsync(Guid id, UpdateUserProfileRequest request) => Task.FromResult(CreatedUser);
+        public Task<IReadOnlyList<AdminUserOptionDTO>> GetAdminUsersAsync(
+            string? query,
+            int? page,
+            int? pageSize,
+            CancellationToken cancellationToken = default)
+        {
+            LastAdminQuery = query;
+            LastAdminPage = page;
+            LastAdminPageSize = pageSize;
+            return Task.FromResult(AdminUserOptions);
+        }
+    }
+
+    private sealed class RecordingIdentityModule : IIdentityModule
+    {
+        public IReadOnlyList<UserProfileSummary> AdminUsers { get; init; } = [];
+        public List<(string Query, int Page, int PageSize)> AdminCalls { get; } = [];
+
+        public Task<IReadOnlyList<UserProfileSummary>> GetAdminUsersAsync(
+            string normalizedQuery,
+            int pageSize,
+            CancellationToken cancellationToken = default,
+            int page = 1)
+        {
+            AdminCalls.Add((normalizedQuery, page, pageSize));
+            return Task.FromResult(AdminUsers);
+        }
+
+        public Task<UserProfileSummary?> GetUserProfileAsync(UserId userId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<UserProfileSummary?> GetUserProfileByAuth0IdAsync(string auth0UserId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<PublicUserProfileSummary?> GetPublicProfileByUsernameAsync(string username, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<PublicUserProfileSummary?> GetPublicProfileByIdAsync(UserId userId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyDictionary<UserId, UserProfileSummary>> GetUsersByIdsAsync(IReadOnlyCollection<UserId> userIds, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyDictionary<UserId, string>> GetPublicUsernamesByIdsAsync(IReadOnlyCollection<UserId> userIds, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<PublicUserSearchDocument>> GetPublicUserSearchDocumentsPageAsync(UserId? afterId, int pageSize, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<bool> IsAdminUserAsync(UserId userId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
     private sealed class RecordingAuth0ManagementService : IAuth0ManagementService

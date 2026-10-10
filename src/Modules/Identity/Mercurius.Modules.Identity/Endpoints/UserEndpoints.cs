@@ -1,6 +1,5 @@
 using Asp.Versioning;
 using Mercurius.Modules.Identity.DTOs;
-using Mercurius.Modules.Identity.Contracts;
 using Mercurius.Modules.Shared.Search;
 using Mercurius.Modules.Identity.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -109,27 +108,13 @@ internal static class UserEndpoints
         var adminGroup = group.MapGroup("")
             .RequireAuthorization(new AuthorizeAttribute { Roles = "admin" });
 
-        adminGroup.MapGet("/admins", async Task<IResult> (string? query, int? page, int? pageSize, HttpRequest request, IIdentityModule identityModule, CancellationToken cancellationToken) =>
+        adminGroup.MapGet("/admins", async Task<IResult> (string? query, int? page, int? pageSize, IUserService userService, CancellationToken cancellationToken) =>
         {
-            var normalizedQuery = SearchRequest.NormalizeQuery(query);
-            if (request.Query.ContainsKey("query"))
-                SearchRequest.ValidateQueryLength(normalizedQuery);
-            SearchRequest.ValidatePageSize(pageSize);
-
-            var validationProblem = ValidatePaging(page, null);
+            var validationProblem = ValidatePaging(page, pageSize);
             if (validationProblem is not null)
                 return validationProblem;
 
-            var users = await identityModule.GetAdminUsersAsync(
-                normalizedQuery,
-                SearchRequest.BoundPageSize(pageSize),
-                cancellationToken,
-                page ?? 1);
-            return Results.Ok(users.Select(user =>
-            {
-                var username = string.IsNullOrWhiteSpace(user.Username) ? "Incomplete profile" : user.Username;
-                return new AdminUserOptionDTO(user.Id.Value, username, user.DisplayName);
-            }).ToList());
+            return Results.Ok(await userService.GetAdminUsersAsync(query, page, pageSize, cancellationToken));
         })
         .RequireRateLimiting(SearchRateLimitPolicyNames.Anonymous)
         .Produces<IReadOnlyList<AdminUserOptionDTO>>()
@@ -181,8 +166,6 @@ internal static class UserEndpoints
 
         return subject;
     }
-
-    private sealed record AdminUserOptionDTO(Guid Id, string Username, string DisplayName);
 
     private static IResult? ValidatePaging(int? page, int? pageSize)
     {

@@ -554,7 +554,7 @@ public class ModuleEventingTests
         IRealtimeConnectionManager? realtimeConnectionManager = null)
     {
         return new UserIntegrationEventPublishingService(
-            new UserService(dbContext, new NoopAuth0ManagementService()),
+            new UserService(dbContext, new NoopAuth0ManagementService(), new IdentityModuleFacade(dbContext, new NoopAuth0ManagementService())),
             dbContext,
             moduleEventPublisher ?? new ModuleEventPublisher(dbContext),
             realtimeConnectionManager ?? new NoopRealtimeConnectionManager());
